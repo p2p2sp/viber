@@ -72,7 +72,7 @@ Non-zero exit -> report the error and stop; repairing the plan belongs to the pl
 
 Never dispatch a `done` or `skipped` task again. Also on the index:
 
-- `dirty: <id> | <paths>` -> before the first dispatch, `AskUserQuestion` naming it and those paths: continue (its coder gets `resume: <paths>` added to its lines), start over (dispatch unchanged), or drop (the `skip` answer).
+- `dirty: <id> | <paths>` -> a task on the index's `skipped:` line gets no question and no dispatch, its files left for the closeout; any other, before the first dispatch, `AskUserQuestion` naming it and those paths: continue (its coder gets `resume: <paths>` added to its lines), start over (dispatch unchanged), or drop (the `skip` answer).
 - `orphan: <paths>` -> once every `dirty:` question is answered and before the first dispatch, one `AskUserQuestion` naming them and asking whether to commit them, with exactly two options: `Commit` or `Leave uncommitted`.
   - Commit: one `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --outside "<plan>" "<path>" ["<path>"...]` call for all of them, before the first dispatch. No task takes them.
   - Leave uncommitted: one `left uncommitted: <path> | the user chose to leave it uncommitted` line per path in the final summary.

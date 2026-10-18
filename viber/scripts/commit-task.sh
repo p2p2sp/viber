@@ -233,7 +233,8 @@
 #         "took <path> - claimed by committed task <ids>" per owned --with path
 #
 # exit != 0:
-#   2 - bad arguments / missing plan; for --extension also an invalid <name>; for --decide also an empty or multi-line
+#   2 - bad arguments / missing plan; for a task commit also a task on the skipped
+#       list (status.md untouched, no commit); for --extension also an invalid <name>; for --decide also an empty or multi-line
 #       <text>, or a task on the done or skipped list (status.md untouched);
 #       for --repaired also a task that is not done (status.md untouched);
 #       for --rule an empty or multi-line field, or a subject that is neither
@@ -1312,6 +1313,14 @@ done <<< "$parsed"
 if [[ -z "$heading" ]]; then
   echo "error: no task '$task_id' in $plan" >&2
   exit 3
+fi
+
+# A skipped task is settled: its half-finished files stay uncommitted for the
+# closeout, so the task commit is refused before anything is staged or written.
+# A fix number and --landed are other forms and keep their meaning.
+if [[ -z "$fix_n" && -z "$landed" ]] && skipped_ids "$plan" | grep -Fxq -- "$task_id"; then
+  echo "error: task '$task_id' is skipped - it cannot be committed" >&2
+  exit 2
 fi
 
 if [[ -n "$fix_n" ]]; then

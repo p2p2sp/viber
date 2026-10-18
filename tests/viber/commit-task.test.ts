@@ -3314,3 +3314,49 @@ test("a Files path git does not know still gets 'warning: could not stage <path>
     assert.match(readStatus(repo), /^done: T1$/m);
   });
 });
+
+test("a task commit of a skipped task exits 2 with the C2 error line, status.md unchanged and no commit (a resumed build must never commit a dropped task's half-finished files)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    await run(repo.dir, repo.env, ["--skip", PLAN_REL, "T2"]);
+    write(repo.dir, "src/b.ts", "half finished\n");
+    const before = readStatus(repo);
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T2"]);
+    assert.equal(result.status, 2, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^error: task 'T2' is skipped - it cannot be committed$/m);
+    assert.equal(readStatus(repo), before);
+    assert.deepEqual(await subjects(repo), ["seed"]);
+    assert.deepEqual(await stagedFiles(repo), []);
+  });
+});
+
+test("a skipped task refuses a task commit carrying --with, --defer or --owe too", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    await run(repo.dir, repo.env, ["--skip", PLAN_REL, "T2"]);
+    write(repo.dir, "src/b.ts", "half finished\n");
+    write(repo.dir, "src/free.ts", "free\n");
+
+    for (const extra of [["--with", "src/free.ts"], ["--defer", "T1:src/b.ts"], ["--owe", "src/free.ts"]]) {
+      const result = await run(repo.dir, repo.env, [PLAN_REL, "T2", ...extra]);
+      assert.equal(result.status, 2, `${extra[0]}: ${result.stderr}`);
+      assert.match(result.stderr, /task 'T2' is skipped - it cannot be committed/);
+    }
+    assert.deepEqual(await subjects(repo), ["seed"]);
+  });
+});
+
+test("the fix-number form for a skipped task still commits (only the task commit is refused)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    await run(repo.dir, repo.env, ["--skip", PLAN_REL, "T2"]);
+    write(repo.dir, "src/b.ts", "fix\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T2", "1", "src/b.ts"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stdout, /^progress: unchanged$/m);
+    assert.deepEqual((await subjects(repo))[0], "T2(1) - task T2");
+  });
+});
