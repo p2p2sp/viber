@@ -247,3 +247,30 @@ test("a failing add relays git stderr and still prints one stdout line", async (
     });
   });
 });
+
+test("add reports READY when only the repository's post-checkout hook exited 1 (the worktree exists, so the hook's status says nothing about it)", async () => {
+  await assertPosix(async (shell) => {
+    await withSeededRepo(async (repo, wt) => {
+      const hooks = path.join(repo.dir, ".git", "hooks");
+      fs.mkdirSync(hooks, { recursive: true });
+      fs.writeFileSync(path.join(hooks, "post-checkout"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+      const result = await run(shell, repo, ["add", repo.dir, wt]);
+      assertOneLine(result, `WORKTREE_READY ${wt}`, 0);
+      const inside = await runScript("git", ["-C", wt, "rev-parse", "--is-inside-work-tree"], { cwd: repo.dir, env: repo.env });
+      assert.equal(inside.stdout.trim(), "true");
+      assert.equal(fs.readFileSync(path.join(wt, "src.txt"), "utf8"), "one\n");
+    });
+  });
+});
+
+test("add still fails when git cannot create the target (its parent is a regular file)", async () => {
+  await assertPosix(async (shell) => {
+    await withSeededRepo(async (repo) => {
+      const blocker = path.join(repo.dir, "blocker");
+      fs.writeFileSync(blocker, "not a directory\n");
+      const result = await run(shell, repo, ["add", repo.dir, slash(path.join(blocker, "wt-verify"))]);
+      assertFailed(result);
+      assert.ok(result.stderr.trim().length > 0, "git's own diagnosis must reach stderr");
+    });
+  });
+});

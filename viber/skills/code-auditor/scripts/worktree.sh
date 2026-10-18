@@ -3,7 +3,8 @@
 # Clean-checkout verification worktree lifecycle for hunter / critic runs.
 #
 # Self-verifying: `add` does not report READY until the path actually resolves
-# as a git worktree, and `remove` does not report REMOVED until the path is
+# as a git worktree (judged by the worktree it made, not by git's exit status,
+# which carries a failing post-checkout hook's), and `remove` does not report REMOVED until the path is
 # gone. Every recovery from a dirty or half-registered state is handled here -
 # a stale registration, a leftover directory, replay artifacts a bare
 # `worktree remove` refuses to delete - so the caller never has to branch on a
@@ -86,13 +87,28 @@ clear_path() {
   git -C "$root" worktree prune >/dev/null 2>&1 || true
 }
 
+# made_worktree -> status 0 when $wt is a linked work tree of its own (its
+# `.git` link file exists and git sees it as a work tree). `git worktree add`
+# exits with the post-checkout hook's status, so a non-zero exit does not say
+# whether the worktree was made; this does.
+made_worktree() {
+  [ -f "$wt/.git" ] || return 1
+  [ "$(git -C "$wt" rev-parse --is-inside-work-tree 2>/dev/null)" = "true" ]
+}
+
 case "$cmd" in
   add)
+    fresh=1
+    [ ! -e "$wt" ] || fresh=0
     if ! err=$(git -C "$root" worktree add --detach "$wt" HEAD 2>&1); then
-      clear_path
-      if ! err=$(git -C "$root" worktree add --detach "$wt" HEAD 2>&1); then
+      if [ "$fresh" = 1 ] && made_worktree; then
         printf '%s\n' "$err" >&2
-        fail "worktree add failed after recovery: $wt"
+      else
+        clear_path
+        if ! err=$(git -C "$root" worktree add --detach "$wt" HEAD 2>&1); then
+          printf '%s\n' "$err" >&2
+          made_worktree || fail "worktree add failed after recovery: $wt"
+        fi
       fi
     fi
     inside=$(git -C "$wt" rev-parse --is-inside-work-tree 2>/dev/null) || inside=""
