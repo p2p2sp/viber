@@ -159,7 +159,8 @@
 #                    the plan's "### Out of scope". It carries no attachment or
 #                    prototype section: a task that needs an attached file names
 #                    it itself. The block is
-#                    verbatim but for its "- DoD:" line, cut on ";" into one
+#                    verbatim but for its "- DoD:" line, cut on ";" outside
+#                    backtick spans (the clause count limit cuts the same way) into one
 #                    "- DoD.<k>: <clause>" line per clause (no ";" -> "DoD.1",
 #                    an empty trailing clause dropped): a coder answers for each
 #                    clause and a reviewer gates each one, which a single
@@ -406,6 +407,26 @@ function fail(msg) { printf "error: %s\n", msg > "/dev/stderr"; err = 1 }
 # literal test data (a fixture plan built by the tests of this repository),
 # and that mention proves nothing.
 function stripticks(s,   out) { out = s; gsub(/`[^`]*`/, " ", out); return out }
+
+# the clauses of a DoD value cut on each semicolon outside a backtick span, into
+# cl[1..n], n returned. A span runs from a backtick to the next one and is kept
+# whole; a backtick with no closing partner is plain text. Copy of the one in
+# the splitting program: one edit changes both.
+function dodcut(s, cl,   n, cur, i, len, ch, j) {
+  split("", cl)
+  n = 0; cur = ""; i = 1; len = length(s)
+  while (i <= len) {
+    ch = substr(s, i, 1)
+    if (ch == "`") {
+      j = index(substr(s, i + 1), "`")
+      if (j > 0) { cur = cur substr(s, i, j + 1); i += j + 1; continue }
+    }
+    if (ch == ";") { cl[++n] = cur; cur = ""; i++; continue }
+    cur = cur ch; i++
+  }
+  cl[++n] = cur
+  return n
+}
 
 # the id of another task of the plan present as a whole token (bounded by a
 # character outside [A-Za-z0-9_-]) in the DoD line of this task, "" when none.
@@ -708,7 +729,7 @@ END {
       tm = tdd[i]
       if (nf[i] > maxfiles[tm]) fail("task " id[i] ": " nf[i] " Files, past the " maxfiles[tm] " a TDD: " tm " task may hold - split it, one behaviour per task")
       nd = 0
-      m = split(dod[i], dc, /;/)
+      m = dodcut(dod[i], dc)
       for (k = 1; k <= m; k++) if (trim(dc[k]) != "") nd++
       if (nd > maxdod[tm]) fail("task " id[i] ": " nd " DoD clauses, past the " maxdod[tm] " a TDD: " tm " task may hold - split it, one behaviour per task")
     }
@@ -1005,6 +1026,26 @@ mkdir -p -- "$dir/tasks"
 dir="$dir" awk '
 function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
 
+# the clauses of a DoD value cut on each semicolon outside a backtick span, into
+# cl[1..n], n returned. A span runs from a backtick to the next one and is kept
+# whole; a backtick with no closing partner is plain text. Copy of the one in
+# the validating program: one edit changes both.
+function dodcut(s, cl,   n, cur, i, len, ch, j) {
+  split("", cl)
+  n = 0; cur = ""; i = 1; len = length(s)
+  while (i <= len) {
+    ch = substr(s, i, 1)
+    if (ch == "`") {
+      j = index(substr(s, i + 1), "`")
+      if (j > 0) { cur = cur substr(s, i, j + 1); i += j + 1; continue }
+    }
+    if (ch == ";") { cl[++n] = cur; cur = ""; i++; continue }
+    cur = cur ch; i++
+  }
+  cl[++n] = cur
+  return n
+}
+
 # the body under a heading, up to the next heading of any level: leading blank
 # lines dropped, interior ones kept, trailing ones collapsed away
 function section(pat,   i, started, out, pend) {
@@ -1032,7 +1073,7 @@ function rstrip(s) {
 function dodlines(s,   v, m, cl, k, c, out, j) {
   v = s
   sub(/^[^:]*:/, "", v)
-  m = split(v, cl, /;/)
+  m = dodcut(v, cl)
   out = ""; j = 0
   for (k = 1; k <= m; k++) {
     c = trim(cl[k])

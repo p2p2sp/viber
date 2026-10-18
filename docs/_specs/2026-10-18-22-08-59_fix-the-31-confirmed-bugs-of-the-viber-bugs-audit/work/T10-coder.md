@@ -1,0 +1,2 @@
+- plan-index.sh holds two awk programs (validate, split); `dodcut` exists as a copy in each, like `covnums`: one edit changes both.
+- A backtick with no closing partner is plain text, so the cut behaves as before for it.

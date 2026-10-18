@@ -1702,6 +1702,39 @@ test("the DoD is cut into one numbered line per semicolon clause, and the plan k
   });
 });
 
+test("a semicolon inside a backtick span does not cut the DoD, so a quoted declaration stays whole in the task file", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const quoted = "`color: var(--accent); font-weight: 600`";
+    const body = planBody([
+      { ...TWO_TASKS[0]!, dod: `the rule ${quoted} is applied; the page renders` },
+      TWO_TASKS[1]!,
+    ]);
+    seed(dir, body);
+    assert.equal((await run(dir, {}, [PLAN_REL, "--split"])).status, 0);
+
+    const t1 = readRun(dir, "tasks/T1.md");
+    assert.match(t1, /^- DoD\.1: the rule `color: var\(--accent\); font-weight: 600` is applied$/m);
+    assert.match(t1, /^- DoD\.2: the page renders$/m);
+    assert.doesNotMatch(t1, /^- DoD\.3:/m);
+  });
+});
+
+test("a task file cuts on a semicolon after a backtick span has closed, and an unclosed backtick cuts like text", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const body = planBody([
+      { ...TWO_TASKS[0]!, dod: "`a; b` holds; it's one backtick ` here; and done" },
+      TWO_TASKS[1]!,
+    ]);
+    seed(dir, body);
+    assert.equal((await run(dir, {}, [PLAN_REL, "--split"])).status, 0);
+
+    const t1 = readRun(dir, "tasks/T1.md");
+    assert.match(t1, /^- DoD\.1: `a; b` holds$/m);
+    assert.match(t1, /^- DoD\.2: it's one backtick ` here$/m);
+    assert.match(t1, /^- DoD\.3: and done$/m);
+  });
+});
+
 test("a task file carries the run's goal and its out-of-scope list, so a coder needs no second file", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     seed(dir, planBody(TWO_TASKS));
@@ -2383,6 +2416,16 @@ function manyClauses(count: number): string {
 test("a TDD: required task at 12 Files and 6 DoD clauses exits 0 (the caps are inclusive, and an empty clause counts as none)", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     seed(dir, planBody([{ id: "T1", files: manyFiles(12), dod: manyClauses(6) }], 1));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("a TDD: required task with 6 DoD clauses, one quoting a semicolon in backticks, exits 0 (the span is not a cut)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const dod = `${manyClauses(5)}; keeps \`color: var(--accent); font-weight: 600\` whole`;
+    seed(dir, planBody([{ id: "T1", dod }], 1));
 
     const result = await run(dir, {}, [PLAN_REL]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
