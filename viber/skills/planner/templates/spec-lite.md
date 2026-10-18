@@ -33,6 +33,14 @@ Part <n> of <N> - <this part>
    - Issue: <full issue URL of this part's sub-issue>
    - <decision settled for this part>
 
+## Root cause
+
+<!-- Only when the input is a `viber:fixer` diagnosis or code-auditor findings
+     (`.temp/viber/code-auditor/`); drop this section otherwise. 1-3 sentences:
+     the cause of the defect, not its symptom, as the diagnosis or finding states it. -->
+
+<why the defect happens>
+
 ## Acceptance criteria
 
 1. <observable condition that can be checked>
