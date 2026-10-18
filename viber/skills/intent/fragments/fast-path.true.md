@@ -2,7 +2,7 @@ Weigh the fast path first. A change it does not fit goes on to the bullets below
 
 - It fits only a change that stays in existing code, adds no subsystem, restructuring or domain concept, and is estimated at 2 tasks with code and 5 tasks in total at most.
 - Tell a task with code from one without by the host project's own instructions, never by a fixed list of files: documentation and comments are without code; configuration and text the host declares its product are with code.
-- Never for a returning draft or a `roadmap.md` the user points at.
+- Never for a returning draft or a `roadmap.md` the user points at, nor for an input whose `Attachment:` line points to a `findings.md` under `.temp/viber/code-auditor/` or a `review.md` under `.temp/viber/pr-feedback/`: that fix goes through a plan.
 - Only under `branching.mode: off`, or when the start step settled "no branch" or "build on `current:`"; any other settled entry, "stay" included, keeps the full road.
 - It skips `## Propose the spec shape` and `## Done`. Ask only what is still open, per `## The interview`. When `## Before the first question` finds nothing open, open with the settled line and go straight to the design, not to `## Done`.
 
