@@ -12,7 +12,7 @@ All three hold, or the candidate is not a rule.
 
 ## Calibration
 
-At most two new conventions per run. Zero, one or two is the ordinary outcome; several candidates standing at once is the signal that the bar slipped, not that the project grew several conventions at the same time: keep the two with the strongest evidence in the code and drop the rest.
+At most two new conventions per run, a new file and a line added to an existing rule each counting as one. Zero, one or two is the ordinary outcome; several candidates standing at once is the signal that the bar slipped, not that the project grew several conventions at the same time: keep the two with the strongest evidence in the code and drop the rest.
 
 ## Never a rule
 

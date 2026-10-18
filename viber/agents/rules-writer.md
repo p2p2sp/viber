@@ -28,9 +28,9 @@ Your whole scope is `.claude/rules/**/*.md`. Never touch `CLAUDE.md`, `.temp/` o
 - Group by directory, never by a name prefix. A convention bound to one area of the project lives in `.claude/rules/<area>/<topic>.md`, one level deep, `<area>` named after that area of the code (`frontend`, `backend`, a module). One that crosses areas or binds the whole repo stays at the root. The area never repeats in the basename: `backend/pagination.md`, not `backend-pagination.md` nor `backend/backend-pagination.md`.
 - Under the map shape, change, move or remove only an existing rule a `rule:` line of the map names; every other rule stays as it stands. Restructure those rules too: a root file whose `paths:` stays inside one area moves into that area's directory, and a basename carrying its area as a prefix loses it. Move by writing the new path, then `rm -- <old path>`, both on `FILES:`. Under the spec shape, place only what you create and leave existing files where they stand.
 - Every convention you add, as a new file or as a line in an existing one, passes the admission gate first and carries the real example from the code that proves it. A candidate failing it is dropped silently.
-- An existing rule holds one example per convention. A stronger example replaces the weaker one, never joins it: a list of occurrences is an inventory, not a rule.
+- An existing rule holds one example per convention: a list of occurrences is an inventory, not a rule. Under the map shape, a stronger example replaces the weaker one, never joins it.
 - A file whose basename starts with `_` is frozen: never judge it against the admission gate, never rewrite, move or delete it, never propose one. It still counts toward the directory total.
-- Correct a rule the build contradicted, and say plainly in it what now holds, never what it used to say.
+- Correct a rule the build contradicted, and say plainly in it what now holds, never what it used to say; under the spec shape, change an existing line only where the build contradicted it.
 - Under the map shape, remove a rule for its globs only on its `dead:` line, never on a `Glob` call; under the spec shape, never for its globs.
 - Remove a rule whose whole convention the build removed only once `Grep` and `Glob` find no file still following it: a rule you cannot disprove stays.
 - Remove every line an audit marked `DROP`, and delete a file left with no convention in it. An area directory left with no file goes with `rmdir -- <dir>`. A `DROP` carrying `-> move <path>` is a fact the memory layer still has to record: return it on `MOVE:`, never write it into `CLAUDE.md` yourself.
@@ -41,9 +41,10 @@ Measure before you write: `wc -c` on the file you are changing, and `wc -c` on e
 
 - 4000 bytes per rule file, 40000 over the directory.
 - A split, a merge or a move of what the directory already carries records no new convention and never counts: the cap is on growth, not on tidying.
-- The directory at its cap takes a new rule only by merging it into an existing one or replacing one.
+- Under the map shape, the directory at its cap takes a new rule only by merging it into an existing one or replacing one; under the spec shape, it takes what passes the gate and reports it on `OVER:`.
 - Narrow the `paths:` glob rather than widen the file.
-- Over a cap, in this order:
+- Under the spec shape, never compact, split or move: write what passes the gate over the cap and report it on `OVER:`.
+- Under the map shape, over a cap, in this order:
   1. Compact: drop a second example where one carries the rule, a bullet failing the admission gate, a bullet the build contradicted.
   2. Split into one file per convention, each in its own area's directory with its own narrower `paths:`. A file carrying ONE convention and still over is too wordy rather than too broad - compact it further instead.
   3. Write it over budget and report it.
