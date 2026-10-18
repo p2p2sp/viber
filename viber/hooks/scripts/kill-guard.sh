@@ -49,30 +49,33 @@ command_re='"command"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)"'
 [[ "$input" =~ $command_re ]] || exit 0
 cmd="${BASH_REMATCH[1]}"
 
-# JSON-unescape the command: \\ goes through a placeholder so that \\n stays a
-# backslash followed by n.
-sep=$'\001'
+# JSON-unescape the command in one awk pass, left to right, so that \\n stays a
+# backslash followed by n. awk, not bash ${var//pat/rep}: bash 3.2 rescans the
+# whole string per match, which took seconds on a long command. The program holds
+# no apostrophe (\047 is the single quote).
+cmd="$(CMD_TEXT="$cmd" awk '
+BEGIN {
+  s = ENVIRON["CMD_TEXT"]
+  out = ""
+  while ((i = index(s, "\\")) > 0) {
+    out = out substr(s, 1, i - 1)
+    e = substr(s, i + 1, 1)
+    u = substr(s, i + 1, 5)
+    if (e == "\\") { out = out "\\"; s = substr(s, i + 2) }
+    else if (e == "\"") { out = out "\""; s = substr(s, i + 2) }
+    else if (e == "n") { out = out "\n"; s = substr(s, i + 2) }
+    else if (e == "r") { out = out "\r"; s = substr(s, i + 2) }
+    else if (e == "t") { out = out "\t"; s = substr(s, i + 2) }
+    else if (e == "/") { out = out "/"; s = substr(s, i + 2) }
+    else if (u == "u0026") { out = out "&"; s = substr(s, i + 6) }
+    else if (u == "u003c") { out = out "<"; s = substr(s, i + 6) }
+    else if (u == "u003e") { out = out ">"; s = substr(s, i + 6) }
+    else if (u == "u0027") { out = out "\047"; s = substr(s, i + 6) }
+    else { out = out "\\"; s = substr(s, i + 1) }
+  }
+  printf "%s", out s
+}' 2>/dev/null)" || exit 0
 nl=$'\n'
-cr=$'\r'
-tab=$'\t'
-bs='\'
-dq='"'
-sq="'"
-sl='/'
-amp='&'
-lt='<'
-gt='>'
-cmd="${cmd//\\\\/$sep}"
-cmd="${cmd//\\\"/$dq}"
-cmd="${cmd//\\n/$nl}"
-cmd="${cmd//\\r/$cr}"
-cmd="${cmd//\\t/$tab}"
-cmd="${cmd//\\\//$sl}"
-cmd="${cmd//\\u0026/$amp}"
-cmd="${cmd//\\u003c/$lt}"
-cmd="${cmd//\\u003e/$gt}"
-cmd="${cmd//\\u0027/$sq}"
-cmd="${cmd//$sep/$bs}"
 
 cp='(^|[;&|(`'"$nl"'])[[:space:]]*'
 end='([^[:alnum:]_.-]|$)'

@@ -44,20 +44,26 @@ msg_re='"last_assistant_message"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)"'
 [[ "$input" =~ $msg_re ]] || exit 0
 msg="${BASH_REMATCH[1]}"
 
-# JSON-unescape the message: \\ goes through a placeholder so that \\n stays a
-# backslash followed by n.
-sep=$'\001'
+# JSON-unescape the message in one awk pass, left to right, so that \\n stays a
+# backslash followed by n. awk, not bash ${var//pat/rep}: bash 3.2 rescans the
+# whole string per match, which took seconds on a long message.
+msg="$(MSG_TEXT="$msg" awk '
+BEGIN {
+  s = ENVIRON["MSG_TEXT"]
+  out = ""
+  while ((i = index(s, "\\")) > 0) {
+    out = out substr(s, 1, i - 1)
+    e = substr(s, i + 1, 1)
+    if (e == "\\") { out = out "\\"; s = substr(s, i + 2) }
+    else if (e == "\"") { out = out "\""; s = substr(s, i + 2) }
+    else if (e == "n") { out = out "\n"; s = substr(s, i + 2) }
+    else if (e == "r") { out = out "\r"; s = substr(s, i + 2) }
+    else if (e == "t") { out = out "\t"; s = substr(s, i + 2) }
+    else { out = out "\\"; s = substr(s, i + 1) }
+  }
+  printf "%s", out s
+}' 2>/dev/null)" || exit 0
 nl=$'\n'
-cr=$'\r'
-tab=$'\t'
-bs='\'
-dq='"'
-msg="${msg//\\\\/$sep}"
-msg="${msg//\\\"/$dq}"
-msg="${msg//\\n/$nl}"
-msg="${msg//\\r/$cr}"
-msg="${msg//\\t/$tab}"
-msg="${msg//$sep/$bs}"
 
 line_re='(^|'"$nl"')[[:blank:]`*-]*(VERDICT|AUDIT):'
 [[ "$msg" =~ $line_re ]] && exit 0
