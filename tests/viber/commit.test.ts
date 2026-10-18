@@ -218,6 +218,40 @@ test("a selector naming only paths that do not exist exits 3 and commits nothing
   });
 });
 
+test("mode paths with a bracketed path: 'app/[id]/page.tsx' commits that file only, the sibling 'app/i/page.tsx' a glob would also match stays modified (the selector is a literal path, not a pathspec glob)", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      fs.mkdirSync(path.join(repo.dir, "app", "[id]"), { recursive: true });
+      fs.mkdirSync(path.join(repo.dir, "app", "i"), { recursive: true });
+      await commitFile(repo, "app/[id]/page.tsx", "id\n");
+      await commitFile(repo, "app/i/page.tsx", "i\n");
+      fs.writeFileSync(path.join(repo.dir, "app", "[id]", "page.tsx"), "id, changed\n");
+      fs.writeFileSync(path.join(repo.dir, "app", "i", "page.tsx"), "i, changed\n");
+
+      const result = await runCommit(bash, repo, ["fix: id page", "app/[id]/page.tsx"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal((await repo.git("show", "--name-only", "--format=", "HEAD")).stdout.trim(), "app/[id]/page.tsx");
+      assert.equal((await repo.git("status", "--porcelain")).stdout.replace(/\n$/, ""), " M app/i/page.tsx");
+    });
+  });
+});
+
+test("mode paths with a glob-looking selector and no file of that literal name: nothing is selected, exit 3 and the tracked files the glob would match stay modified", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      fs.mkdirSync(path.join(repo.dir, "src"));
+      await commitFile(repo, "src/a.ts", "a\n");
+      fs.writeFileSync(path.join(repo.dir, "src", "a.ts"), "a, changed\n");
+      const before = (await repo.git("rev-parse", "HEAD")).stdout;
+
+      const result = await runCommit(bash, repo, ["x", "src/*.ts"]);
+      assert.equal(result.status, 3);
+      assert.equal((await repo.git("rev-parse", "HEAD")).stdout, before);
+      assert.equal((await repo.git("status", "--porcelain")).stdout.replace(/\n$/, ""), " M src/a.ts");
+    });
+  });
+});
+
 // --- exit codes and messages ------------------------------------------------------
 
 test("missing message -> exit 1 with usage on stderr, nothing committed", async () => {

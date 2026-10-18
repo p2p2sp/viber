@@ -23,7 +23,8 @@
 #   cwd    : any directory inside the repository to commit in; the script
 #            moves to its root, so every git call and every path it prints is
 #            root-relative (see commit-args.sh).
-#   env    : none.
+#   env    : none read; it sets GIT_LITERAL_PATHSPECS=1 for its git calls, so a
+#            "[", "*" or "?" in a selector is part of a file name, never a glob.
 #   stdout : markdown sections, the "## Selector:" line first; in mode missing
 #            that line alone. The diff is capped at MAX_LINES with a notice
 #            naming the real total; an empty diff beside a non-empty status
@@ -33,6 +34,9 @@
 #            best-effort preload, and one failed git call must not abort the
 #            skill load.
 set -uo pipefail
+# Every selector token is a literal path, as in commit.sh: "[id]" or "*" in a
+# pathspec must not glob, or the status and diff would list unselected files.
+export GIT_LITERAL_PATHSPECS=1
 source "$(dirname "${BASH_SOURCE[0]}")/commit-args.sh"
 
 mode_raw="${1:-}"

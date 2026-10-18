@@ -26,7 +26,8 @@
 #            script moves to its root, and a relative <path> resolves against
 #            the caller's directory first, then against the root (see
 #            commit-args.sh).
-#   env    : none.
+#   env    : none read; it sets GIT_LITERAL_PATHSPECS=1 for its git calls, so a
+#            "[", "*" or "?" in a selector is part of a file name, never a glob.
 #   stdout : git's own commit line, or the single line "Nothing to commit."
 #            when the selected set holds no staged change.
 #   exit   : 0 on a commit and on "Nothing to commit." alike. 1 on a missing
@@ -36,6 +37,9 @@
 #            own non-zero status.
 #
 set -euo pipefail
+# Every selector token is a literal path: without this git reads "[id]" or "*" in
+# a pathspec as a glob, so 'app/[id]/page.tsx' would also take app/i/page.tsx.
+export GIT_LITERAL_PATHSPECS=1
 source "$(dirname "${BASH_SOURCE[0]}")/commit-args.sh"
 
 message="${1:-}"

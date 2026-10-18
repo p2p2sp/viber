@@ -146,6 +146,24 @@ test("mode paths with a list: the Selector line carries every path and status/di
   });
 });
 
+test("mode paths with a bracketed path: the status lists 'app/[id]/page.tsx' only, not the sibling 'app/i/page.tsx' a glob would also match", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      fs.mkdirSync(path.join(repo.dir, "app", "[id]"), { recursive: true });
+      fs.mkdirSync(path.join(repo.dir, "app", "i"), { recursive: true });
+      await commitFile(repo, "app/[id]/page.tsx", "id\n");
+      await commitFile(repo, "app/i/page.tsx", "i\n");
+      fs.writeFileSync(path.join(repo.dir, "app", "[id]", "page.tsx"), "id, changed\n");
+      fs.writeFileSync(path.join(repo.dir, "app", "i", "page.tsx"), "i, changed\n");
+
+      const result = await runContext(bash, repo, "app/[id]/page.tsx");
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.match(result.stdout, /^ M app\/\[id\]\/page\.tsx$/m);
+      assert.doesNotMatch(result.stdout, /^ M app\/i\/page\.tsx$|^\+i, changed$/m);
+    });
+  });
+});
+
 // --- unborn HEAD, no changes, truncation, binary, non-ASCII --------------------
 
 test("unborn HEAD (no commits yet): BASE falls back to the empty-tree object, staged addition still shows in the diff", async () => {
