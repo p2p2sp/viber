@@ -8,7 +8,9 @@
  * and the task's whole `DoD`, running `Verification` and the test the pass added for a
  * `deferred` path. `implementor` records a path deferred to no task through `--owe` and,
  * with nothing in flight or ready, gives the owing task an owed-path pass of at most 2
- * attempts, then `--repaired`. The files read here are shipped prompts, whose text is
+ * attempts, then `--repaired`. A task failing attempt 5 is held with its dependents, its
+ * repair pass runs first at `tiers.max`, and only a failed pass reaches the arbiter's
+ * `cap` case. The files read here are shipped prompts, whose text is
  * the behaviour. Nothing is spawned.
  *
  * Run directly by Node's type stripping:
@@ -213,4 +215,106 @@ test("task-reviewer keeps its VERDICT output lines unchanged", () => {
   const output = lines(REVIEWER);
   assert.ok(output.includes("  - line 1: `VERDICT: FAIL`"));
   assert.ok(output.includes("- All checks hold: return `VERDICT: PASS`, plus the `EXTRA:` line below when due, and write no report."));
+});
+
+const ARBITER = fs.readFileSync(path.join(AGENTS, "arbiter.md"), "utf8");
+const HELD_START = STEP_4.indexOf("Held-task pass:");
+const HELD = HELD_START < 0 || PASS_START < HELD_START ? "" : STEP_4.slice(HELD_START, PASS_START);
+const HELD_BULLETS = lines(HELD);
+const ATTEMPT_5 = lines(STEP_4).find((line) => line.startsWith("- Coder failure on attempt 5")) ?? "";
+
+function heldBullet(opening: string): string {
+  return HELD_BULLETS.find((line) => line.startsWith(opening)) ?? "";
+}
+
+test("an attempt-5 failure holds the task and every task depending on it", () => {
+  assert.ok(ATTEMPT_5.includes("hold the task and every task depending on it, directly or through another dependent"));
+});
+
+test("an attempt-5 failure goes to no arbiter and no question", () => {
+  assert.ok(ATTEMPT_5.includes("asking nothing and calling no arbiter"));
+  assert.ok(!ATTEMPT_5.includes("`case: cap`"));
+});
+
+test("step 4 holds exactly one held-task pass section, ahead of the owed-path pass", () => {
+  assert.equal(STEP_4.split("Held-task pass:").length, 2);
+  assert.ok(HELD.length > 0);
+});
+
+test("the held-task pass starts before every owed-path pass and before step 5", () => {
+  const start = heldBullet("- Start ");
+  assert.ok(start.includes("before every owed-path pass and before step 5"));
+  assert.ok(start.includes("only when no agent is in flight and no task is ready to dispatch"));
+});
+
+test("the held-task pass is a coder dispatch of the task, never step 5's repair dispatch", () => {
+  assert.ok(HELD.includes("a coder dispatch of the task, never step 5's repair dispatch"));
+});
+
+test("the held-task pass dispatch adds the repair line and the last failure's reason to the ordinary lines", () => {
+  const dispatch = heldBullet("- Dispatch");
+  assert.ok(dispatch.includes("the task's ordinary coder and reviewer dispatch lines"));
+  assert.ok(dispatch.includes("`repair: <one line: the problem this pass fixes>`"));
+  assert.ok(dispatch.includes("`reason:` the last failure's `REASON:`"));
+});
+
+test("the held-task pass codes and reviews at tiers.max, the review never waived", () => {
+  const dispatch = heldBullet("- Dispatch");
+  assert.ok(dispatch.includes("`tiers.max` for coder and reviewer"));
+  assert.ok(dispatch.includes("never waived"));
+});
+
+test("the held-task pass coder reads every review report of the task itself", () => {
+  assert.ok(heldBullet("- Dispatch").includes("its coder reads every `review-<id>-*.md` report of the task itself"));
+});
+
+test("the held-task pass opens the C3 task-list entry", () => {
+  assert.ok(heldBullet("- Entry").includes("`R<n> - repair <id> (<tier>, review <review tier>)`, `<n>` counting from 1 in the session"));
+});
+
+test("the held-task pass allows at most 2 attempts, each failure kind costing one", () => {
+  const attempts = heldBullet("- At most 2 attempts");
+  assert.ok(attempts.includes("a coder failure (a `DECIDE:` line included, never sent to the arbiter)"));
+  assert.ok(attempts.includes("a review failure and a task commit exiting other than 4 each cost one"));
+});
+
+test("a passing held task is committed through its own task commit", () => {
+  assert.ok(heldBullet("- Commit").includes('`"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>"`'));
+});
+
+test("a held task's commit exit 4 is handled as step 4's commit exit 4", () => {
+  assert.ok(heldBullet("- Commit").includes("exit 4 is the commit exit 4 above"));
+});
+
+test("a committed held task releases its dependents as ordinary tasks", () => {
+  assert.ok(heldBullet("- Commit").includes("its dependents dispatch as ordinary tasks"));
+});
+
+test("after 2 failed repair attempts the arbiter gets case cap", () => {
+  const failed = heldBullet("- Both attempts failed");
+  assert.ok(failed.includes("the arbiter with `case: cap`"));
+  assert.ok(failed.includes("`task: <dir>/tasks/<id>.md`"));
+});
+
+test("the cap case after a failed repair pass hands over the coder notes and the last review path", () => {
+  const failed = heldBullet("- Both attempts failed");
+  assert.ok(failed.includes("`report:` lines for `<dir>/work/<id>-coder.md` and the task's last `REVIEW` path"));
+});
+
+test("the cap case after a failed repair pass gives the repair's last failure as reason with the same options", () => {
+  const failed = heldBullet("- Both attempts failed");
+  assert.ok(failed.includes("`reason:` the repair's last failure"));
+  assert.ok(failed.includes("`options: accept | skip` after a review failure, `options: skip` otherwise"));
+});
+
+test("the cap ruling is recorded with the task's id and an accept commit refused again goes back to the arbiter", () => {
+  const failed = heldBullet("- Both attempts failed");
+  assert.ok(failed.includes("Record its ruling with subject `<id>`"));
+  assert.ok(failed.includes("An `accept` commit exiting other than 4 -> the arbiter again with `options: skip`"));
+});
+
+test("arbiter's cap line names the failed repair pass", () => {
+  const cap = lines(ARBITER).find((line) => line.startsWith("- `cap` ")) ?? "";
+  assert.ok(cap.includes("failed repair pass"));
+  assert.ok(cap.includes("`accept` commits it unreviewed, `skip` drops it with every task depending on it"));
 });
