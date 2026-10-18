@@ -666,6 +666,23 @@ test("a changed path claimed by no task not done is reported orphan", async () =
   });
 });
 
+test("each orphan path gets its own orphan line, a path holding a comma staying whole (a comma-joined line split it in two)", async () => {
+  await withGitRepo(async (repo) => {
+    seed(repo.dir, planBody(TWO_TASKS));
+    write(repo.dir, "src/login.ts", "committed\n");
+    await repo.git("add", "-A");
+    await repo.git("commit", "-m", "seed");
+
+    write(repo.dir, "notes/b.md", "nobody's task claims this\n");
+    write(repo.dir, "notes/q3, draft.md", "nor this\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const lines = result.stdout.split("\n").filter((line) => line.startsWith("orphan:"));
+    assert.deepEqual(lines, ["orphan: notes/b.md", "orphan: notes/q3, draft.md"]);
+  });
+});
+
 test("a path inside the run directory (a work/ note) is never reported orphan", async () => {
   await withGitRepo(async (repo) => {
     seed(repo.dir, planBody(TWO_TASKS));

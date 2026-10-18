@@ -45,7 +45,7 @@ Once `spec.md` is done, one Bash call, exactly this line and nothing around it:
 
 `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh" "<run>/plan.md"`
 
-It writes nothing. Read only its `skipped: <ids>`, `dirty: <id> | <paths>` and `orphan: <paths>` lines, paths comma-separated. Every path accounted for here is a leftover with one reason.
+It writes nothing. Read only its `skipped: <ids>` and `dirty: <id> | <paths>` lines (the `dirty:` paths comma-separated) and its `orphan: <path>` lines (one path each, a comma belongs to the path). Every path accounted for here is a leftover with one reason.
 
 - No `dirty:`, `orphan:` or `skipped:` line -> go straight to the summary.
 - A non-zero exit -> no `commit-task.sh` call: the leftovers section holds one line saying the check could not be performed, quoting the script's `error:` line; go on to the summary.

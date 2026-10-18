@@ -40,8 +40,10 @@
 #   verify: T2 | grep -n "retry" src/a.ts
 #   dirty: T2 | src/a.ts            only for a task not done whose own files are
 #                                   dirty (its "Repro:" path excepted)
-#   orphan: lib/x.ts,lib/y.ts       only when non-empty: changed paths claimed
-#                                   by no task not "done" (run directory excluded)
+#   orphan: lib/x.ts                one line per changed path claimed by no task
+#   orphan: lib/y.ts                not "done" (run directory excluded), in git
+#                                   order, a path holding a comma kept whole;
+#                                   no line when none
 #
 # --extra <task-id> prints, instead of the index, the scope a reviewer checks
 # beyond the task's own Files, read from the coder extras file
@@ -985,9 +987,9 @@ END {
     if (p == "") continue
     if (p in claimedp) continue
     if (rundir != "" && index(p, rundir "/") == 1) continue
-    orph = (orph == "" ? p : orph "," p)
+    orph = orph "orphan: " p "\n"
   }
-  if (orph != "") printf "orphan: %s\n", orph
+  printf "%s", orph
 }
 ' "$plan")"
 

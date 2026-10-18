@@ -33,6 +33,22 @@ test("the dirty bullet gives a task on the skipped line no question and no dispa
   );
 });
 
+const ORPHAN = SKILL.split(/\r?\n/).filter((line) => line.startsWith("- `orphan: <path>`"));
+
+test("the orphan bullet of implementor gathers every orphan line into its one question", () => {
+  assert.equal(ORPHAN.length, 1);
+  assert.ok(ORPHAN[0].includes("every `orphan:` line, one path each"));
+  assert.ok(ORPHAN[0].includes("one `AskUserQuestion`"));
+});
+
+const CLOSEOUT = fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/agents/closeout.md"), "utf8");
+
+test("closeout reads one path per orphan line and keeps the dirty paths comma-separated", () => {
+  assert.ok(CLOSEOUT.includes("`orphan: <path>` lines (one path each, a comma belongs to the path)"));
+  assert.ok(CLOSEOUT.includes("the `dirty:` paths comma-separated"));
+  assert.ok(!CLOSEOUT.includes("`orphan: <paths>`"));
+});
+
 test("the dirty bullet still asks the continue, start over or drop question for any other task", () => {
   assert.ok(DIRTY[0].includes("any other, before the first dispatch, `AskUserQuestion`"));
   assert.ok(DIRTY[0].includes("continue (its coder gets `resume: <paths>` added to its lines)"));
