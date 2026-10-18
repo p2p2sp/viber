@@ -1256,6 +1256,21 @@ test("a name repeated after a whitespace-only line still exits 7 with duplicate 
   });
 });
 
+test("two attachment names differing in more than case both land (only a case-insensitive match is a duplicate)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const a = posixForm(attachment(dir, "one.md", "one\n"));
+    const b = posixForm(attachment(dir, "two.md", "two\n"));
+    const src = sourcePlan(dir, "outside/add-login.md", withAttachments([`Notes.md: ${a}`, `notes2.md: ${b}`], PLAN_BODY));
+
+    const result = await run(dir, ["--land", src]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stderr, "");
+    const landed = path.join(dir, path.dirname(parse(result.stdout).path), "attachments");
+    assert.equal(fs.readFileSync(path.join(landed, "Notes.md"), "utf-8"), "one\n");
+    assert.equal(fs.readFileSync(path.join(landed, "notes2.md"), "utf-8"), "two\n");
+  });
+});
+
 for (const name of ["bench-llm", "bench.v2"]) {
   test(`a directory attachment named ${name} lands recursively under attachments/${name}/`, async () => {
     await withTempDir("p2p2-viber-", async (dir) => {
@@ -1308,6 +1323,7 @@ for (const form of ["mixed", "native"] as const) {
 
 for (const [what, frontmatter, reason] of [
   ["a repeated name", ["attachments:", "  a.png: /x/one", "  a.png: /x/two"], "duplicate name a.png"],
+  ["two names differing only by case", ["attachments:", "  Notes.md: /x/one", "  notes.md: /x/two"], "duplicate name notes.md"],
   ["a name with a slash", ["attachments:", "  sub/a.png: /x/one"], "invalid name sub/a.png"],
   ["a name that is a ..", ["attachments:", "  ..: /x/one"], "invalid name .."],
   ["a name with a .. segment before the extension", ["attachments:", "  ../a.png: /x/one"], "invalid name ../a.png"],

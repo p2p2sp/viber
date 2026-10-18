@@ -221,7 +221,8 @@
 #         whatever those errors are.
 #     7 - the source's attachments: map is unusable: "error: unusable
 #         attachments: <reason>" on stderr, <reason> one of "duplicate name
-#         <name>", "invalid name <name>", "entry without a path: <name>" or
+#         <name>" (a name equal to an earlier one, case ignored, the later
+#         spelling shown), "invalid name <name>", "entry without a path: <name>" or
 #         "attachments: carries a value"; stdout empty, nothing copied, no run
 #         directory created, HEAD, index and tree unchanged. Checked on every
 #         --land, before the run branch step.
@@ -447,8 +448,8 @@ inmap && /^[ \t]/ {
   if (p) { name = trim(substr(e, 1, p - 1)); path = trim(substr(e, p + 1)) }
   if (name !~ /^[A-Za-z0-9][A-Za-z0-9_.-]*$/) { print "E invalid name " name; exit }
   if (path == "") { print "E entry without a path: " name; exit }
-  if (name in seen) { print "E duplicate name " name; exit }
-  seen[name] = 1
+  if (tolower(name) in seen) { print "E duplicate name " name; exit }
+  seen[tolower(name)] = 1
   print "A " name " " path
   next
 }
