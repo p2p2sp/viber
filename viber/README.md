@@ -121,7 +121,8 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
 With `planning.fast-path` on, a small change to existing code takes a shorter road through
 `/viber:intent`: a short design in chat instead of a plan. Once you say yes, it is built in your
 session and proven by the test suite, with no plan file and no run directory. You commit it
-yourself. Ask for a full plan and the interview continues as usual.
+yourself. Ask for a full plan and the interview continues as usual. A fix of code-audit findings
+or pull request review threads never takes the fast path: it is always built through a plan.
 
 ### Working from GitHub issues
 

@@ -35,7 +35,8 @@ reference. Back to the [viber guide](../README.md).
 ### Switch details
 
 - **`planning.fast-path`**: `/viber:intent` shows the design and builds it only after your
-  explicit yes, with no plan file and no run directory.
+  explicit yes, with no plan file and no run directory. A fix of code-audit findings or pull
+  request review threads never takes the fast path: it is always built through a plan.
 - **`build.baseline-tests`**: records what already fails before the first task. `fast` runs the
   unit and component tests, `full` every layer but end-to-end. `setup` rewrites an older `true` to
   `full` and `false` to `off`.
@@ -44,6 +45,11 @@ reference. Back to the [viber guide](../README.md).
   a failed recheck, the arbiter rules on committing the fix as it stands, recorded in
   `rulings.md`. The build summary lists each finding, what was wrong and what the fix changed.
 - **`build.memory`**: the root `CLAUDE.md` stays yours. The build only suggests changes to it.
+  When the specification records the root cause of a fixed defect, it is written to the nearest
+  `CLAUDE.md` as the first trap of the run, ahead of every other fact.
+- **`build.rules`**: a build never compacts, splits or moves your existing rule files: it adds
+  only what passes the admission gate, even over the size cap, and reports each file left over
+  budget. `/viber:rules` brings those files back under it.
 - **`build.cleanup`**: first notes anything the build delivered that the specification does not
   promise, then records every file the build left uncommitted with its reason and commits those
   left without a deliberate reason. What it archives is described in [Where viber writes](files.md#the-archive).

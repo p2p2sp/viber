@@ -1071,14 +1071,16 @@ się krótkim projektem na czacie, a Claude buduje zmianę w twojej sesji, gdy p
     yes, proven by <a href="#agent-test-runner"><code>test-runner</code></a>, with no plan file and no run
     directory. A correction gets a revised design; ask for a full plan and the interview carries on as usual.
     A build that outgrows those limits stops and suggests <code>/viber:intent</code>. A draft, a
-    <code>roadmap.md</code> or a run on its own branch never takes it.</span><span lang="pl">Przy włączonym
+    <code>roadmap.md</code> or a run on its own branch never takes it, and neither does a fix of code-audit findings
+    or pull request review threads: that fix never takes the fast path.</span><span lang="pl">Przy włączonym
     <a href="#key-planning-fast-path"><code>planning.fast-path</code></a> wywiad kieruje zmianę istniejącego kodu na co najwyżej
     2 zadania z kodem i 5 w sumie, bez nowego podsystemu, przebudowy ani pojęcia domenowego, na szybką
     ścieżkę: krótki projekt na czacie, zbudowany w twojej sesji po twoim wyraźnym „tak”, sprawdzony przez
     <a href="#agent-test-runner"><code>test-runner</code></a>, bez pliku planu i bez katalogu przebiegu.
     Poprawka daje poprawiony projekt; poproś o pełny plan, a wywiad toczy się dalej jak zwykle. Build, który
     przerośnie te limity, zatrzymuje się i proponuje <code>/viber:intent</code>. Nigdy nie idzie nią szkic,
-    <code>roadmap.md</code> ani przebieg na własnej gałęzi.</span></li>
+    <code>roadmap.md</code> ani przebieg na własnej gałęzi, a poprawka ustaleń audytu kodu lub wątków recenzji
+    pull requesta nigdy nie idzie szybką ścieżką.</span></li>
   </ul>
 </details>
 </section>
@@ -1680,15 +1682,20 @@ uruchamia te części zamknięcia, które włączają twoje przełączniki:</p>
 <ul class="musts">
   <li><span lang="en"><a href="#key-build-memory"><code>build.memory</code></a>: <a href="#agent-memory-writer"><code>memory-writer</code></a>
   folds what the build taught into your <code>CLAUDE.md</code> <a href="#term-node">nodes</a> below the root, within
-  their size budget and in the fixed template, and only suggests changes to the root, which stays yours;</span><span lang="pl"><a href="#key-build-memory"><code>build.memory</code></a>:
+  their size budget and in the fixed template, and only suggests changes to the root, which stays yours; the
+  root cause of a fixed defect goes in as the first trap of the run;</span><span lang="pl"><a href="#key-build-memory"><code>build.memory</code></a>:
   <a href="#agent-memory-writer"><code>memory-writer</code></a> przenosi to, czego nauczył build, do twoich
   <a href="#term-node">węzłów</a> <code>CLAUDE.md</code> poniżej głównego pliku, w granicach ich limitu rozmiaru
-  i w stałym szablonie, a zmiany w głównym pliku tylko sugeruje, bo zostaje twój;</span></li>
+  i w stałym szablonie, a zmiany w głównym pliku tylko sugeruje, bo zostaje twój; przyczynę źródłową naprawionego
+  błędu zapisuje jako pierwszą pułapkę przebiegu;</span></li>
   <li><span lang="en"><a href="#key-build-rules"><code>build.rules</code></a>: <a href="#agent-rules-writer"><code>rules-writer</code></a>
   folds the conventions the build confirmed into <code>.claude/rules/</code>, in the same commit as the
-  memory update;</span><span lang="pl"><a href="#key-build-rules"><code>build.rules</code></a>:
+  memory update; it never compacts, splits or moves your existing rule files, and points to
+  <a href="#skill-rules"><code>/viber:rules</code></a> when one is over budget;</span><span lang="pl"><a href="#key-build-rules"><code>build.rules</code></a>:
   <a href="#agent-rules-writer"><code>rules-writer</code></a> przenosi konwencje potwierdzone przez build do
-  <code>.claude/rules/</code>, w tym samym commicie co aktualizacja pamięci;</span></li>
+  <code>.claude/rules/</code>, w tym samym commicie co aktualizacja pamięci; nigdy nie kompresuje, nie dzieli ani
+  nie przenosi twoich istniejących plików reguł, a gdy któryś przekracza limit, wskazuje
+  <a href="#skill-rules"><code>/viber:rules</code></a>;</span></li>
   <li><span lang="en"><a href="#key-build-qa"><code>build.qa</code></a>: <a href="#agent-qa-writer"><code>qa-writer</code></a>
   writes into the run directory, in a commit of their own, <code>qa.md</code>, the scenarios a person
   performs, when the UI changed, and <code>qa.e2e.md</code>, the handoff <code>/viber:e2e</code> reads, when
@@ -2488,11 +2495,13 @@ z nich mówi, jak nim sterować.</p>
   <p lang="en">A small change to existing code can take the <a href="#key-planning-fast-path">fast path</a>
   instead: a short design in chat, built in your session only after your explicit yes and proven by
   <a href="#agent-test-runner"><code>test-runner</code></a>, with no plan file; you commit it with
-  <code>/viber:commit</code>. Otherwise it writes no code.</p>
+  <code>/viber:commit</code>. A fix of code-audit findings or pull request review threads
+  never takes the fast path. Otherwise it writes no code.</p>
   <p lang="pl">Mała zmiana istniejącego kodu może zamiast tego pójść <a href="#key-planning-fast-path">szybką ścieżką</a>: krótki projekt na czacie,
   zbudowany w twojej sesji dopiero po twoim wyraźnym „tak” i sprawdzony przez
   <a href="#agent-test-runner"><code>test-runner</code></a>, bez pliku planu; commitujesz ją przez
-  <code>/viber:commit</code>. Poza tym nie pisze kodu.</p>
+  <code>/viber:commit</code>. Poprawka ustaleń audytu kodu lub wątków recenzji pull requesta
+  nigdy nie idzie szybką ścieżką. Poza tym nie pisze kodu.</p>
   <dl>
     <div>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
@@ -3229,13 +3238,17 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
 <ul class="agents">
   <li id="agent-memory-writer"><code>memory-writer</code> <span lang="en">folds what the build taught into the
   project's <code>CLAUDE.md</code> files below the root, when <a href="#key-build-memory"><code>build.memory</code></a> is
-  on, placing each new fact under the template headings. It leaves the root to you and only suggests changes to it.</span><span lang="pl">przenosi to, czego nauczył build, do plików <code>CLAUDE.md</code> projektu poniżej głównego pliku, gdy
-  <a href="#key-build-memory"><code>build.memory</code></a> jest włączony, umieszczając każdy nowy fakt pod nagłówkami szablonu. Główny plik zostawia tobie i tylko
+  on, placing each new fact under the template headings. It records the root cause of a fixed defect as the first trap
+  of the run. It leaves the root to you and only suggests changes to it.</span><span lang="pl">przenosi to, czego nauczył build, do plików <code>CLAUDE.md</code> projektu poniżej głównego pliku, gdy
+  <a href="#key-build-memory"><code>build.memory</code></a> jest włączony, umieszczając każdy nowy fakt pod nagłówkami szablonu. Przyczynę źródłową naprawionego błędu
+  zapisuje jako pierwszą pułapkę przebiegu. Główny plik zostawia tobie i tylko
   sugeruje w nim zmiany.</span></li>
   <li id="agent-rules-writer"><code>rules-writer</code> <span lang="en">folds the conventions a build confirmed,
-  or a <a href="#skill-rules"><code>/viber:rules</code></a> review found, into <code>.claude/rules/</code>.</span><span lang="pl">przenosi
+  or a <a href="#skill-rules"><code>/viber:rules</code></a> review found, into <code>.claude/rules/</code>. In a build it
+  never compacts, splits or moves existing rule files; the review does.</span><span lang="pl">przenosi
   konwencje potwierdzone przez build albo znalezione w przeglądzie <a href="#skill-rules"><code>/viber:rules</code></a>
-  do <code>.claude/rules/</code>.</span></li>
+  do <code>.claude/rules/</code>. W buildzie nigdy nie kompresuje, nie dzieli ani nie przenosi istniejących plików reguł;
+  robi to przegląd.</span></li>
   <li id="agent-qa-writer"><code>qa-writer</code> <span lang="en">writes the QA scenarios into the run
   directory, <code>qa.md</code> for a person and <code>qa.e2e.md</code> for
   <a href="#skill-e2e"><code>/viber:e2e</code></a>, when <a href="#key-build-qa"><code>build.qa</code></a> is
@@ -3380,9 +3393,11 @@ wartość.</p>
     <dt><code>planning.fast-path</code> <span class="tag on"><span lang="en">on</span><span lang="pl">wł.</span></span></dt>
     <dd><span lang="en">For a small, well-scoped change to existing code, <a href="#skill-intent"><code>intent</code></a>
     shows a short design in chat and builds the change only after your explicit yes, with no plan file and no run
-    directory. Off, every change goes through the plan.</span><span lang="pl">Przy małej, dobrze
+    directory. A fix of code-audit findings or pull request review threads never takes the fast path. Off, every
+    change goes through the plan.</span><span lang="pl">Przy małej, dobrze
     określonej zmianie istniejącego kodu <a href="#skill-intent"><code>intent</code></a> pokazuje krótki projekt
-    na czacie i buduje zmianę dopiero po twoim wyraźnym „tak”, bez pliku planu i bez katalogu przebiegu. Przy
+    na czacie i buduje zmianę dopiero po twoim wyraźnym „tak”, bez pliku planu i bez katalogu przebiegu. Poprawka
+    ustaleń audytu kodu lub wątków recenzji pull requesta nigdy nie idzie szybką ścieżką. Przy
     wyłączonym przełączniku każda zmiana przechodzi przez plan.</span></dd>
   </div>
 </dl>
@@ -3428,17 +3443,24 @@ wartość.</p>
     <dd><span lang="en">The build closes by updating this project's <code>CLAUDE.md</code> files below the root
     through <a href="#agent-memory-writer"><code>memory-writer</code></a>, which keeps them in the fixed template, so no plan task edits one. The build
     leaves the root to you: it only suggests changes to it, and <code>/viber:memory</code> writes it once, within
-    4000 bytes, where none exists.</span><span lang="pl">Build
+    4000 bytes, where none exists. When the specification records the root cause of a fixed defect, the writer
+    puts it in as the first trap of the run, ahead of every other fact.</span><span lang="pl">Build
     kończy się aktualizacją plików <code>CLAUDE.md</code> tego projektu poniżej głównego pliku przez
     <a href="#agent-memory-writer"><code>memory-writer</code></a>, który trzyma je w stałym szablonie, więc żadne zadanie planu ich nie
     zmienia. Główny plik build zostawia tobie: tylko sugeruje w nim zmiany, a <code>/viber:memory</code> pisze go
-    jednorazowo, w granicach 4000 bajtów, gdy go nie ma.</span></dd>
+    jednorazowo, w granicach 4000 bajtów, gdy go nie ma. Gdy specyfikacja zapisuje przyczynę źródłową naprawionego
+    błędu, autor wpisuje ją jako pierwszą pułapkę przebiegu, przed każdym innym faktem.</span></dd>
   </div>
   <div id="key-build-rules">
     <dt><code>build.rules</code> <span class="tag on"><span lang="en">on</span><span lang="pl">wł.</span></span></dt>
     <dd><span lang="en">The build closes by updating <code>.claude/rules/</code> through
-    <a href="#agent-rules-writer"><code>rules-writer</code></a>.</span><span lang="pl">Build kończy się
-    aktualizacją <code>.claude/rules/</code> przez <a href="#agent-rules-writer"><code>rules-writer</code></a>.</span></dd>
+    <a href="#agent-rules-writer"><code>rules-writer</code></a>. A build never compacts, splits or moves your
+    existing rule files: it adds only what passes the admission gate, even over the size cap, and reports each
+    file left over budget, which <a href="#skill-rules"><code>/viber:rules</code></a> brings back under it.</span><span lang="pl">Build kończy się
+    aktualizacją <code>.claude/rules/</code> przez <a href="#agent-rules-writer"><code>rules-writer</code></a>.
+    Build nigdy nie kompresuje, nie dzieli ani nie przenosi twoich istniejących plików reguł: dodaje tylko to, co
+    przejdzie bramkę przyjęcia, nawet ponad limit rozmiaru, i zgłasza każdy plik ponad budżet, który
+    <a href="#skill-rules"><code>/viber:rules</code></a> sprowadza z powrotem pod limit.</span></dd>
   </div>
   <div id="key-build-qa">
     <dt><code>build.qa</code> <span class="tag"><span lang="en">off</span><span lang="pl">wył.</span></span></dt>
