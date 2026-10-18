@@ -354,6 +354,23 @@ test("a second run after the local-file entry was appended leaves .gitignore byt
   });
 });
 
+test("three runs with the local file already committed leave exactly one local-file line in .gitignore (a tracked file reads as not ignored, so each run appended another)", async () => {
+  await withGitRepo(async ({ dir, env, git }) => {
+    const ignore = path.join(dir, ".gitignore");
+    fs.writeFileSync(ignore, "node_modules/\n");
+    fs.mkdirSync(path.join(dir, ".claude"), { recursive: true });
+    fs.writeFileSync(path.join(dir, LOCAL), "tiers:\n  min: haiku\n");
+    await git("add", LOCAL);
+
+    await run(dir, env);
+    await run(dir, env);
+    const third = await run(dir, env);
+
+    assert.equal(third.status, 0, `stderr: ${third.stderr}`);
+    assert.equal(read(ignore).split("\n").filter((l) => l === LOCAL).length, 1);
+  });
+});
+
 test("a run from a subdirectory of a fresh repository leaves the seeded .gitignore byte-identical to the template and prints no local-file line", async () => {
   await withGitRepo(async ({ dir, env }) => {
     const nested = path.join(dir, "src", "deep");

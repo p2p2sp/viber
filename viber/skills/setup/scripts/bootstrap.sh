@@ -349,13 +349,14 @@ fi
 
 # The personal overrides file is never committed: an existing .gitignore with no
 # rule for it gets the entry. Inside a repository git itself answers whether the
-# file is ignored (any pattern, any ignore source), asked at the repository root
-# whatever the cwd; outside one only a line reading exactly the path counts.
+# file is ignored (any pattern, any ignore source, tracked or not), asked at the
+# repository root whatever the cwd; outside one only a line reading exactly the
+# path counts.
 # Nothing is printed when it is already ignored.
 local_entry=".claude/viber.local.yml"
 if [ -f "$ignore" ]; then
   if [ -n "$git_root" ]; then
-    git -C "$root" check-ignore -q "$local_entry" >/dev/null 2>&1 && local_ignored=1 || local_ignored=0
+    git -C "$root" check-ignore -q --no-index "$local_entry" >/dev/null 2>&1 && local_ignored=1 || local_ignored=0
   else
     grep -qE '^[[:space:]]*\.claude/viber\.local\.yml[[:space:]]*$' "$ignore" 2>/dev/null && local_ignored=1 || local_ignored=0
   fi
