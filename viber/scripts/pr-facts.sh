@@ -81,7 +81,9 @@
 #            file exists. On pr-exists the run resolves the same way with the
 #            existing pull request's base standing in for TARGET (no stop fires
 #            from that). CLOSES: yes when TARGET equals DEFAULT.
-#   exit   : 0 with the block (a stop included); 2 on bad arguments.
+#   exit   : 0 with the block (a stop included); 1 with `ERROR pr-facts.sh: gh pr
+#            list failed` on stderr and nothing on stdout when that lookup fails;
+#            2 on bad arguments.
 #
 set -u
 
@@ -268,7 +270,11 @@ find_qa() {
   if [ -n "$spec" ] && [ -f "${spec%/*}/qa.md" ]; then qa="${spec%/*}/qa.md"; fi
 }
 
-pr_info=$(gh pr list --head "$branch" --state open --json url,baseRefName --jq '.[] | .url + "\n" + (.baseRefName // "")' 2>/dev/null | tr -d '\r')
+if ! pr_raw=$(gh pr list --head "$branch" --state open --json url,baseRefName --jq '.[] | .url + "\n" + (.baseRefName // "")' 2>/dev/null); then
+  echo "ERROR pr-facts.sh: gh pr list failed" >&2
+  exit 1
+fi
+pr_info=$(printf '%s\n' "$pr_raw" | tr -d '\r')
 prs=$(printf '%s\n' "$pr_info" | sed -n 1p)
 if [ -n "$prs" ]; then
   resolve_tref "$(printf '%s\n' "$pr_info" | sed -n 2p)"

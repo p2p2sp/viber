@@ -48,7 +48,9 @@ case "$1 $2" in
   "repo view")
     if [ -n "\${REPO_FAIL:-}" ]; then exit 1; fi
     printf '%s\\n' "${REPO_URL}" "\${DEFAULT_BRANCH:-main}" ;;
-  "pr list") printf '%s' "\${PR_LIST:-}" ;;
+  "pr list")
+    if [ -n "\${PR_FAIL:-}" ]; then exit 1; fi
+    printf '%s' "\${PR_LIST:-}" ;;
 esac
 exit 0
 `;
@@ -477,6 +479,32 @@ test("the pr-exists stop stays pr-exists, not no-commits, when nothing is ahead 
       await scene.work.git("branch", "-f", "develop", "HEAD");
       const result = await runFacts(shell, scene, [], { env: { PR_LIST: `${PR_URL}\ndevelop\n` } });
       assert.equal(result.stdout, `STATUS=stop\nREASON=pr-exists\nPR_URL=${PR_URL}\nQA=\n`);
+    });
+  });
+});
+
+// --- a failed pull request lookup ----------------------------------------------------
+
+test("a failing `gh pr list` prints the ERROR line on stderr, nothing on stdout, and exits 1 (no ready block from a lookup that did not run)", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      await onBranch(scene, "feature/x");
+      const result = await runFacts(shell, scene, ["--target", "develop"], { env: { PR_FAIL: "1" } });
+      assert.equal(result.status, 1);
+      assert.equal(result.stdout, "");
+      assert.equal(result.stderr.trim(), "ERROR pr-facts.sh: gh pr list failed");
+    });
+  });
+});
+
+test("an open pull request still gives STATUS=stop REASON=pr-exists", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      await onBranch(scene, "feature/x");
+      const result = await runFacts(shell, scene, [], { env: { PR_LIST: `${PR_URL}\ndevelop\n` } });
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(value(result, "STATUS"), "stop");
+      assert.equal(value(result, "REASON"), "pr-exists");
     });
   });
 });
