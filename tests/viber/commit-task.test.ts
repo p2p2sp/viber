@@ -403,6 +403,91 @@ test("--with a .temp path is refused, like any other form (machine state never r
   });
 });
 
+test("an extras-file line holding a task's file as an absolute path is refused like its relative spelling (an absolute spelling is not a way past the ownership check)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "src/b.ts", "T2's coder, still running\n");
+    write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, `${path.join(repo.dir, "src/b.ts")}\n`);
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, /refused src\/b\.ts - claimed by task T2/);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts", `${RUN_DIR}/work/T1-extra.md`].sort());
+  });
+});
+
+test("--with an absolute path of a file another open task claims is refused like its relative spelling", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "src/b.ts", "T2's coder, still running\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", path.join(repo.dir, "src/b.ts")]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, /refused src\/b\.ts - claimed by task T2/);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts"].sort());
+  });
+});
+
+test("--with an absolute path no task claims is committed under its repo-relative name", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "src/wiring.ts", "register\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", path.join(repo.dir, "src/wiring.ts")]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts", "src/wiring.ts"].sort());
+  });
+});
+
+test("--with an absolute path under .temp is refused like its relative form (an absolute spelling is not a way past the machine-state refusal)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, ".temp/viber/T1/build.log", "noise\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", path.join(repo.dir, ".temp/viber/T1/build.log")]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, /refused \.temp\/viber\/T1\/build\.log - \.temp is machine state/);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts"].sort());
+  });
+});
+
+test("--with an absolute path outside the repository still fails in git and commits nothing", async () => {
+  await withGitRepo(async (repo) => {
+    await withTempDir("p2p2-outside-", async (outside) => {
+      await seed(repo);
+      write(repo.dir, "src/a.ts", "work\n");
+      write(outside, "stray.ts", "elsewhere\n");
+
+      const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", path.join(outside, "stray.ts")]);
+      assert.notEqual(result.status, 0);
+      assert.deepEqual(await subjects(repo), ["seed"]);
+    });
+  });
+});
+
+test("--defer and --owe record the repo-relative form of an absolute path", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+
+    const result = await run(repo.dir, repo.env, [
+      PLAN_REL,
+      "T1",
+      "--defer",
+      `T2:${path.join(repo.dir, "src/a.ts")}`,
+      "--owe",
+      path.join(repo.dir, "src/a.ts"),
+    ]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(readStatus(repo), /^deferred: T2:src\/a\.ts$/m);
+    assert.match(readStatus(repo), /^owed: T1:src\/a\.ts$/m);
+  });
+});
+
 test("--with combines with --unreviewed in either order, and --with alone with no path exits 2", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo);

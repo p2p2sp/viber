@@ -26,7 +26,9 @@
 #
 # The cwd is the repository root. A <plan-file>, <ruling-file> or
 # <options-file> given absolute inside it, or with a leading "./", is read as
-# its repo-relative form.
+# its repo-relative form; so is every --with, --defer and --owe path and every
+# extras-file line, before the ownership check, the .temp refusal and staging.
+# An absolute path outside the repository is left as written and fails in git.
 #
 # The two positional forms take the commit subject from the task's own heading
 # line ("### T1 - <title>") in the plan, so the plan's title is literally what
@@ -294,6 +296,14 @@ cwd_relative() {
   else
     printf '%s\n' "$1"
   fi
+}
+
+# A path a caller named for a task commit (--with, --defer, --owe, an extras
+# line), in the repo-relative form the ownership check, the .temp refusal and
+# staging compare: a leading "./" cut, an absolute spelling inside the cwd
+# folded; a path outside the repository stays as written, so git rejects it.
+named_path() {
+  cwd_relative "${1#./}"
 }
 
 # The plan path every form compares against repo-relative git output (the run
@@ -1217,7 +1227,7 @@ case "${3:-}" in
           shift
           [[ $# -gt 0 && "$1" != --* ]] || usage
           while [[ $# -gt 0 && "$1" != --* ]]; do
-            extra="$extra${1#./}"$'\n'
+            extra="$extra$(named_path "$1")"$'\n'
             shift
           done
           ;;
@@ -1233,7 +1243,7 @@ case "${3:-}" in
           shift
           [[ $# -gt 0 && "$1" != --* ]] || usage
           while [[ $# -gt 0 && "$1" != --* ]]; do
-            owed="$owed${1#./}"$'\n'
+            owed="$owed$(named_path "$1")"$'\n'
             shift
           done
           ;;
@@ -1359,8 +1369,8 @@ if [[ -z "$fix_n" && -z "$landed" && -n "$extras_dir" ]]; then
     [[ -f "$xf" ]] || continue
     while IFS= read -r line || [[ -n "$line" ]]; do
       line="${line%$'\r'}"
-      line="${line#./}"
-      [[ -n "$line" ]] || continue
+      [[ -n "${line#./}" ]] || continue
+      line="$(named_path "$line")"
       printf '%s' "$extra" | grep -Fxq -- "$line" || extra="$extra$line"$'\n'
     done < "$xf"
   done
@@ -1481,7 +1491,7 @@ while IFS= read -r d; do
   fi
   defer_id="${d%%:*}"
   defer_path="${d#*:}"
-  d="$defer_id:${defer_path#./}"
+  d="$defer_id:$(named_path "$defer_path")"
   if ! task_ids_of "$plan" | grep -Fxq -- "$defer_id"; then
     echo "warning: refused $d - no task $defer_id in the plan" >&2
     continue
