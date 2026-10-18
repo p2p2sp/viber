@@ -113,7 +113,8 @@ fi
 #    block directly above it go, and a blank line left doubled by the removal
 #    goes with them. A grouped twin already in the file wins and the flat line
 #    is only dropped. A flat key whose group carries a value rather than a
-#    group is left where it is: there is nowhere safe to move it.
+#    group is left where it is: there is nowhere safe to move it. A group
+#    header may carry a trailing comment (`build: # mine`), as config.sh reads it.
 #  - adds the template's `schema:` block when the config has none (above the
 #    first top-level key it keeps, else first among the appended blocks), and
 #    raises a lower or non-numeric number in place; a higher one stands.
@@ -174,7 +175,7 @@ merge_config() {
         if (!(k in have) && k == "schema") hs = i
         have[k] = 1
         if (first == 0) first = i
-        if (!(k in ext) || h[i] !~ /^[A-Za-z_][A-Za-z0-9_-]*[ \t]*:[ \t\r]*$/ || (k in last)) continue
+        if (!(k in ext) || h[i] !~ /^[A-Za-z_][A-Za-z0-9_-]*[ \t]*:[ \t\r]*(#.*)?$/ || (k in last)) continue
         last[k] = i
         ms = 0
         for (j = i + 1; j <= hn; j++) {

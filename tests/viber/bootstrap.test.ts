@@ -822,6 +822,39 @@ test("a directories key carrying a value instead of a group is left exactly as i
   });
 });
 
+test("a flat `qa: true` moves into a `build:` header carrying a trailing comment, and config.sh then reads `build.qa` on and the restored children at their defaults", async () => {
+  await withGitRepo(async ({ dir, env }) => {
+    const cfg = configPath(dir);
+    fs.mkdirSync(path.dirname(cfg), { recursive: true });
+    fs.writeFileSync(cfg, "qa: true\nbuild: # switches\n  memory: true\n");
+
+    await run(dir, env);
+    const resolved = await runScript(CONFIG_SH, [], { cwd: dir, env, shell: "bash" });
+
+    assert.equal(resolved.status, 0, `stderr: ${resolved.stderr}`);
+    assert.match(resolved.stdout, /^build\.qa: true$/m);
+    assert.match(resolved.stdout, /^build\.final-review: true$/m);
+    assert.match(resolved.stdout, /^build\.rules: true$/m);
+    assert.match(resolved.stdout, /^build\.cleanup: true$/m);
+    assert.doesNotMatch(read(cfg), /^qa[ \t]*:/m);
+  });
+});
+
+test("a `build: true` key carrying a value is still left alone, its flat switch standing (only a bare or commented header is a group)", async () => {
+  await withGitRepo(async ({ dir, env }) => {
+    const cfg = configPath(dir);
+    fs.mkdirSync(path.dirname(cfg), { recursive: true });
+    fs.writeFileSync(cfg, "qa: true\nbuild: true # not a group\n");
+
+    await run(dir, env);
+
+    const after = read(cfg);
+    assert.match(after, /^qa: true$/m);
+    assert.match(after, /^build: true # not a group$/m);
+    assert.doesNotMatch(after, /^[ \t]+(final-review|rules|cleanup)[ \t]*:/m);
+  });
+});
+
 test("a key written with blanks before its colon counts as declared, so the file is left byte-identical (a second copy appended at its default would override the value the user set)", async () => {
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
