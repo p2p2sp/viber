@@ -1308,10 +1308,12 @@ wznowić w nowej sesji albo na innym komputerze.</p>
     <li><span lang="en">A draft is refused. <code>/viber:intent</code> pointed at the draft continues
     it.</span><span lang="pl">Szkicu build nie zbuduje. <code>/viber:intent</code> wskazujący szkic prowadzi go
     dalej.</span></li>
-    <li><span lang="en">A task that keeps failing gets 5 attempts, then the arbiter rules to accept or skip it
-    and writes the ruling to <code>rulings.md</code>. A stalled task never ends on a question: only a
+    <li><span lang="en">A task that keeps failing gets 5 attempts, then a repair pass before the final review;
+    only when that fails too does the arbiter rule to accept or skip it and write the ruling to
+    <code>rulings.md</code>. A stalled task never ends on a question: only a
     refused tool call, or a task commit that committed nothing, does.</span><span lang="pl">Zadanie, które wciąż się nie udaje, dostaje 5 prób,
-    a potem arbiter orzeka, czy je zaakceptować, czy pominąć, i zapisuje orzeczenie w <code>rulings.md</code>.
+    potem naprawa zadania przed recenzją końcową; dopiero gdy i ona zawiedzie, arbiter orzeka, czy je zaakceptować,
+    czy pominąć, i zapisuje orzeczenie w <code>rulings.md</code>.
     Utknięte zadanie nigdy nie kończy się pytaniem: kończy się nim tylko odmowa wywołania
     narzędzia albo commit zadania, który niczego nie zacommitował.</span></li>
   </ul>
@@ -1727,15 +1729,16 @@ uruchamia te części zamknięcia, które włączają twoje przełączniki:</p>
 </ul>
 <p lang="en">The build composes a short summary: the tasks committed, the review rounds spent, the test verdict,
 the time it took, what memory, rules and QA recorded, the archive path when the run is archived, and anything left for you, such as an
-unreviewed task or changed files no task claimed. When the run is archived, the screen shows only two lines (the
-tasks committed, the test verdict and the time, then the path of <code>outcome.md</code>), plus the
+unreviewed task or changed files no task claimed. When the run is archived, the screen shows only a short result (the
+tasks committed, the test verdict and the time, then the path of <code>outcome.md</code>) and one sentence saying
+whether <code>outcome.md</code> records a problem, plus the
 <code>/viber:intent</code> command for the next roadmap part when one is left, and the full summary sits
 in <code>outcome.md</code> in the archive. When nothing is archived, the full summary prints on screen.</p>
 <p lang="pl">Build składa krótkie podsumowanie: zacommitowane zadania, zużyte rundy recenzji, wynik testów,
 czas trwania, to, co zapisały pamięć, reguły i QA, ścieżka archiwum, gdy przebieg trafia do archiwum, oraz wszystko, co zostaje dla ciebie, na
 przykład zadanie bez recenzji albo zmienione pliki, do których nie przyznało się żadne zadanie. Gdy przebieg trafia
-do archiwum, ekran pokazuje tylko dwie linie (zacommitowane zadania, wynik testów i czas, potem ścieżkę
-<code>outcome.md</code>), a gdy zostaje kolejna część roadmapy, także polecenie <code>/viber:intent</code>, które ją
+do archiwum, ekran pokazuje tylko krótki wynik (zacommitowane zadania, wynik testów i czas, potem ścieżkę
+<code>outcome.md</code>) i jedno zdanie, czy <code>outcome.md</code> zapisuje problem, a gdy zostaje kolejna część roadmapy, także polecenie <code>/viber:intent</code>, które ją
 zaczyna; pełne podsumowanie leży w <code>outcome.md</code> w archiwum. Gdy nic nie trafia do
 archiwum, pełne podsumowanie pojawia się na ekranie.</p>
 <p lang="en">With <a href="#key-build-final-review"><code>build.final-review</code></a> on, the summary lists each finding
@@ -1818,11 +1821,15 @@ linie co w <code>rulings.md</code>.</p>
   <p lang="pl">Każda porażka jest ponawiana bez pytania, poziom modelu wyżej, do 5 prób. Od drugiej, gdy wykonawca
   zaproponował wyjście, arbiter wybiera jedną z propozycji wykonawcy, build zapisuje ją jako decyzję
   i uruchamia nowego wykonawcę.</p>
-  <p lang="en">After the fifth failed attempt, the arbiter rules to skip the task or, after a failed review, to
+  <p lang="en">After the fifth failed attempt the task is held, and a repair pass runs before the final review,
+  at the highest tier, a deferred path no task claims getting one too. When the repair pass fails as well, the
+  arbiter rules to skip the task or, after a failed review, to
   accept it. Skipping a task also skips every task that depends on it and leaves its half-finished files
   uncommitted; accepting commits it marked unreviewed. Every ruling goes to <code>rulings.md</code> with its
   reason and its cost if wrong. A stalled task never ends on a question.</p>
-  <p lang="pl">Po piątej nieudanej próbie arbiter orzeka pominięcie zadania albo, po odrzuconej
+  <p lang="pl">Po piątej nieudanej próbie zadanie czeka, a przed recenzją końcową, na najwyższym poziomie modelu,
+  idzie naprawa zadania; dostaje ją też odłożona ścieżka, której nie przyznaje się żadne zadanie. Gdy i naprawa
+  zawiedzie, arbiter orzeka pominięcie zadania albo, po odrzuconej
   recenzji, jego zaakceptowanie. Pominięcie zadania pomija też każde zadanie od niego zależne, a jego niedokończone
   pliki zostają niezacommitowane; zaakceptowanie commituje je z oznaczeniem, że nie przeszło recenzji. Każde
   orzeczenie trafia do <code>rulings.md</code> z uzasadnieniem i kosztem pomyłki. Utknięte zadanie
@@ -2624,13 +2631,13 @@ z nich mówi, jak nim sterować.</p>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
       <dd><span lang="en">After you approve a plan, ask Claude to build it. To resume a build that stopped, ask
       Claude to continue the build: it reopens the run most recently worked on. It refuses a draft. When a task
-      stalls, the <a href="#agent-arbiter"><code>arbiter</code></a> rules after the task's 5 attempts, and the
+      stalls, it gets a repair pass after its 5 attempts, the <a href="#agent-arbiter"><code>arbiter</code></a> rules only after it, and the
       build asks you only about a refused tool call, another open run, files no task claims or a task commit that
       committed nothing, and, once it finishes on its run branch with no roadmap part left, whether to open the
       pull request through <a href="#skill-pr-create"><code>/viber:pr-create</code></a>.</span><span lang="pl">Po
       zatwierdzeniu planu poproś Claude o jego zbudowanie. Przerwany build wznowisz, prosząc Claude
       o kontynuację buildu: otworzy przebieg, nad którym pracowano ostatnio. Szkicu nie zbuduje. Gdy zadanie
-      utknie, po jego 5 próbach rozstrzyga <a href="#agent-arbiter"><code>arbiter</code></a>, a build pyta cię
+      utknie, po jego 5 próbach dostaje naprawę zadania, a dopiero po niej rozstrzyga <a href="#agent-arbiter"><code>arbiter</code></a>, a build pyta cię
       tylko o odmowę wywołania narzędzia, inny otwarty przebieg, pliki, do których nie przyznaje się żadne zadanie,
       albo commit zadania, który niczego nie zacommitował, a po zakończeniu na gałęzi przebiegu bez kolejnej
       części roadmapy, czy otworzyć pull request przez <a href="#skill-pr-create"><code>/viber:pr-create</code></a>.</span></dd>

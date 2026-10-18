@@ -489,7 +489,8 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>Up to 5 attempts per task, each one model tier up.</li>
         <li>Holds a task when another coder is changing a file it needs; no attempt is counted.</li>
         <li>Files outside the task's map are added to its commit and recheck.</li>
-        <li>Code left untested is deferred to a later task to prove.</li>
+        <li>Code left untested is deferred to a later task to prove; with no later task, it gets a repair pass before the final review.</li>
+        <li>A task past its 5 attempts is held and gets a repair pass before the final review.</li>
         <li>Coder notes passed to the tasks that depend on them.</li>
         <li>The run is committed: resumes in a new session or on another computer.</li>
         <li>A half-finished task: continue, start over or skip.</li>
@@ -507,7 +508,7 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
       <p>Decides on your behalf where the build would otherwise stop.</p>
       <ul class="f">
         <li>Picks one option from a closed list, with a reason and a cost if wrong.</li>
-        <li>A task past 5 attempts: accept unreviewed or skip.</li>
+        <li>A task past 5 attempts, after its repair pass: accept unreviewed or skip.</li>
         <li>A red baseline: continue.</li>
         <li>A red final test run after 6 rounds: accept.</li>
         <li>A failed recheck of the final review: commit the fix.</li>
@@ -614,7 +615,7 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>The build summary in <code>outcome.md</code>.</li>
         <li>Archive in <code>docs/specs/</code>: specification, scenarios, rulings, attachments, summary.</li>
         <li>Plan, status, tasks and notes dropped in one commit (git keeps them).</li>
-        <li>Closing screen: two lines with the result, tests and elapsed time.</li>
+        <li>Closing screen: the result, tests and elapsed time, then one sentence saying whether <code>outcome.md</code> records a problem.</li>
         <li>Summary without an archive: at most 7 lines plus fixes and rulings.</li>
         <li>On a run branch with no roadmap part left: asks whether to open the pull request through <code>/viber:pr-create</code>.</li>
         <li>Suggests the command for the next roadmap part.</li>

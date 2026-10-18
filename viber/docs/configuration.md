@@ -52,7 +52,8 @@ reference. Back to the [viber guide](../README.md).
   budget. `/viber:rules` brings those files back under it.
 - **`build.cleanup`**: first notes anything the build delivered that the specification does not
   promise, then records every file the build left uncommitted with its reason and commits those
-  left without a deliberate reason. What it archives is described in [Where viber writes](files.md#the-archive).
+  left without a deliberate reason. The close then prints one sentence saying
+  whether `outcome.md` records a problem. What it archives is described in [Where viber writes](files.md#the-archive).
 - **`build.extensions`**: one entry per agent from your project's `.claude/agents/`, run in that
   order just before the run is archived. An entry runs alone unless it holds `parallel: true`:
   consecutive such entries run together in one message, as one step. Empty runs none.
@@ -85,6 +86,8 @@ tiers:
   `max: sonnet` never runs Opus.
 - Fable runs only when you name it: `max: fable` lets retries climb to it, and `min: fable` with
   `max: fable` runs the whole build on it.
+- A held task's repair pass, run after its 5 attempts and before the final review, runs at
+  `tiers.max`.
 - Planning is not affected: it runs on your session's model.
 
 ## Titles and directories

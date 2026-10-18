@@ -358,7 +358,7 @@
   <text x="504" y="1530" class="mono-t">task-coder</text>
   <text x="504" y="1552" class="desc">Builds one task and proves it green.</text>
   <text x="504" y="1572" class="desc-s">sees only its own task file, so it cannot drift into another task's files</text>
-  <text x="504" y="1590" class="desc-s">5 attempts, then the arbiter rules; each ruling goes to rulings.md</text>
+  <text x="504" y="1590" class="desc-s">5 attempts, a repair pass, then the arbiter; rulings go to rulings.md</text>
 
   <path d="M740 1600 L740 1628" class="link l-b" marker-end="url(#ar-b)"/>
   <path d="M740 1600 L740 1628" class="flow l-b"/>
@@ -369,7 +369,7 @@
   <text x="504" y="1662" class="mono-t">task-reviewer</text>
   <text x="504" y="1684" class="desc">Checks the task against what the plan said it must do.</text>
   <text x="504" y="1704" class="desc-s">skipped only when a sonnet task's check runs your build or tests</text>
-  <text x="504" y="1722" class="desc-s">a finding goes back to the coder within 5 attempts, then the arbiter rules</text>
+  <text x="504" y="1722" class="desc-s">a finding goes to the coder for 5 attempts, a repair pass, the arbiter</text>
 
   <path d="M1000 1682 L1032 1682 Q1050 1682 1050 1664 L1050 1568 Q1050 1550 1032 1550 L1004 1550" class="link l-f" marker-end="url(#ar-f)"/>
   <path d="M1000 1682 L1032 1682 Q1050 1682 1050 1664 L1050 1568 Q1050 1550 1032 1550 L1004 1550" class="flow l-f"/>
