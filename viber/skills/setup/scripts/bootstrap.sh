@@ -125,7 +125,9 @@ fi
 #    `directories:` groups inside that group, after its last child, with the
 #    child's own comment: a moved value where there is one, else the default.
 #    A group carrying a value rather than children is left untouched: only the
-#    shape the template ships can be extended safely. The lines of the
+#    shape the template ships can be extended safely. A group written in
+#    several blocks counts the children of every block as declared, and a
+#    restored child lands in the first block. The lines of the
 #    `build.extensions` map (every line below its key up to the first one that is
 #    neither blank nor a comment and sits no deeper than the key, config.sh's own
 #    rule) are no children of `build:`: an entry named like a switch never
@@ -175,26 +177,27 @@ merge_config() {
         if (!(k in have) && k == "schema") hs = i
         have[k] = 1
         if (first == 0) first = i
-        if (!(k in ext) || h[i] !~ /^[A-Za-z_][A-Za-z0-9_-]*[ \t]*:[ \t\r]*(#.*)?$/ || (k in last)) continue
-        last[k] = i
+        if (!(k in ext) || h[i] !~ /^[A-Za-z_][A-Za-z0-9_-]*[ \t]*:[ \t\r]*(#.*)?$/) continue
+        ll = i
         ms = 0
         for (j = i + 1; j <= hn; j++) {
           if (ms == 1) {
             if (h[j] ~ /^[ \t]*#/ || h[j] ~ /^[ \t\r]*$/) continue
             match(h[j], /^[ \t]*/)
-            if (RLENGTH > mind) { last[k] = j; continue }
+            if (RLENGTH > mind) { ll = j; continue }
             ms = 2
           }
           if (h[j] ~ /^[ \t]+[A-Za-z_][A-Za-z0-9_-]*[ \t]*:/) {
             c = h[j]; sub(/^[ \t]+/, "", c); sub(/[ \t]*:.*$/, "", c)
             have[k "." c] = 1
             if (k == "build" && c == "baseline-tests" && bt == 0) bt = j
-            last[k] = j
+            ll = j
             if (k == "build" && c == "extensions" && ms == 0) { match(h[j], /^[ \t]*/); mind = RLENGTH; ms = 1 }
           } else if (h[j] !~ /^[ \t]*#/ && h[j] !~ /^[ \t\r]*$/) {
             break
           }
         }
+        if (!(k in last)) last[k] = ll
       }
       for (x = 1; x <= nf; x++) {
         i = flat[x]

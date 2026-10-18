@@ -840,6 +840,23 @@ test("a flat `qa: true` moves into a `build:` header carrying a trailing comment
   });
 });
 
+test("a `qa: true` declared in a second `build:` block keeps config.sh printing `build.qa: true`, and no `qa:` line lands in the first block (the children of every block of a group count)", async () => {
+  await withGitRepo(async ({ dir, env }) => {
+    const cfg = configPath(dir);
+    fs.mkdirSync(path.dirname(cfg), { recursive: true });
+    fs.writeFileSync(cfg, "build:\n  memory: true\nplanning:\n  adr: true\nbuild:\n  qa: true\n");
+
+    await run(dir, env);
+    const resolved = await runScript(CONFIG_SH, [], { cwd: dir, env, shell: "bash" });
+
+    assert.equal(resolved.status, 0, `stderr: ${resolved.stderr}`);
+    assert.match(resolved.stdout, /^build\.qa: true$/m);
+    const after = read(cfg);
+    assert.equal(after.match(/^[ \t]+qa[ \t]*:/gm)?.length, 1, `config: ${after}`);
+    assert.match(after, /^build:\n {2}memory: true\n(?! {2}qa)/m);
+  });
+});
+
 test("a `build: true` key carrying a value is still left alone, its flat switch standing (only a bare or commented header is a group)", async () => {
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
