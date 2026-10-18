@@ -6,7 +6,9 @@
  * section so the build close can hand the root cause to `memory-writer`; any other plan
  * drops it. The files read here are shipped prompts and templates, whose text is the
  * behaviour. `plan-index.sh` reads four anchor lines from each template, so the new
- * section must leave them in place. Nothing is spawned.
+ * section must leave them in place. `memory-writer.md` turns that section into traps
+ * written first and never dropped, and stays dispatched only by the memory fragment.
+ * Nothing is spawned.
  *
  * Run directly by Node's type stripping:
  *   node --test tests/viber/root-cause-prose.unit.test.ts
@@ -101,4 +103,43 @@ test("the Root cause bullet requires the section for a viber:fixer diagnosis and
 test("the Root cause bullet makes the section's presence a finding for any other input (a pr-feedback or feature plan has no diagnosed cause)", () => {
   const bullet = rootCauseBullets()[0] ?? "";
   assert.ok(bullet.includes("any other"), bullet);
+});
+
+const WRITER_LINES = lines(fs.readFileSync(path.join(ROOT, "agents/memory-writer.md"), "utf8"));
+
+function writerBullet(prefix: string): string {
+  return WRITER_LINES.find((l) => l.startsWith(prefix)) ?? "";
+}
+
+test("memory-writer turns each line of `## Root cause` into a trap under `## Traps`, written first (the root cause is the most valuable fact of the run)", () => {
+  const bullet = writerBullet("- Root cause:");
+  assert.ok(bullet.includes("`## Root cause`"), bullet);
+  assert.ok(bullet.includes("`## Traps`"), bullet);
+  assert.ok(bullet.includes("before any other fact"), bullet);
+});
+
+test("memory-writer never leaves a root-cause trap out to stay within budget (a dropped root cause is a fix that teaches nothing)", () => {
+  const bullet = writerBullet("- A root-cause trap");
+  assert.ok(bullet.includes("never left out to stay within budget"), bullet);
+  assert.ok(bullet.includes("never on `DROPPED:`"), bullet);
+  const cap = WRITER_LINES.find((l) => l.startsWith("- Never end a node or section over")) ?? "";
+  assert.ok(cap.includes("never a root-cause trap"), cap);
+});
+
+test("memory-writer sends a root cause over a file no node below the root covers to a SUGGEST line (the root belongs to the user)", () => {
+  const bullet = writerBullet("- A root cause over a file no node below the root covers");
+  assert.ok(bullet.includes("`SUGGEST: CLAUDE.md:"), bullet);
+  assert.ok(bullet.includes("never as a new node"), bullet);
+});
+
+test("memory-writer stays dispatched only from memory.true.md, with no memory.false.md (build.memory: false dispatches nothing)", () => {
+  const fragments = path.join(ROOT, "skills/implementor/fragments");
+  assert.ok(fs.readFileSync(path.join(fragments, "memory.true.md"), "utf8").includes("`viber:memory-writer`"));
+  assert.ok(!fs.existsSync(path.join(fragments, "memory.false.md")));
+  const dispatchers = fs
+    .readdirSync(path.join(ROOT, "skills"), { recursive: true, encoding: "utf8" })
+    .filter((f) => f.endsWith(".md"))
+    .filter((f) => fs.readFileSync(path.join(ROOT, "skills", f), "utf8").includes("viber:memory-writer"))
+    .map((f) => f.split(path.sep).join("/"));
+  assert.deepEqual(dispatchers, ["implementor/fragments/memory.true.md"]);
 });
