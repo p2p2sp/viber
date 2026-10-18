@@ -317,3 +317,63 @@ test(
     });
   },
 );
+
+async function setIndexMode(repo: GitRepo, flag: "+x" | "-x", file: string) {
+  const chmod = await repo.git("update-index", `--chmod=${flag}`, "--", file);
+  assert.equal(chmod.status, 0, `git update-index failed: ${chmod.stderr}`);
+}
+
+async function checkoutIndexMode(repo: GitRepo, wt: string, file: string): Promise<string> {
+  const listed = await repo.git("-C", wt, "ls-files", "-s", "--", file);
+  assert.equal(listed.status, 0, `git ls-files failed: ${listed.stderr}`);
+  return listed.stdout.split(" ")[0];
+}
+
+async function setFileModeOff(repo: GitRepo) {
+  const cfg = await repo.git("config", "core.fileMode", "false");
+  assert.equal(cfg.status, 0, `git config failed: ${cfg.stderr}`);
+}
+
+test("a file staged 100644 -> 100755 under core.fileMode=false is 100755 in the checkout's index (the disk bit says nothing there, only the source index does)", async () => {
+  await assertPosix(async (shell) => {
+    await withCheckout(
+      shell,
+      async (repo, wt) => {
+        await setIndexMode(repo, "+x", "run.sh");
+
+        const result = await overlay(shell, repo, wt);
+
+        assert.equal(result.status, 0, `stderr=${result.stderr}`);
+        assert.equal(result.stdout, "OVERLAY_APPLIED 1\n");
+        assert.equal(await checkoutIndexMode(repo, wt, "run.sh"), "100755");
+      },
+      async (repo) => {
+        await setFileModeOff(repo);
+        fs.writeFileSync(path.join(repo.dir, "run.sh"), "echo run\n");
+      },
+    );
+  });
+});
+
+test("a file staged 100755 -> 100644 under core.fileMode=false is 100644 in the checkout's index", async () => {
+  await assertPosix(async (shell) => {
+    await withCheckout(
+      shell,
+      async (repo, wt) => {
+        await setIndexMode(repo, "-x", "tool.sh");
+
+        const result = await overlay(shell, repo, wt);
+
+        assert.equal(result.status, 0, `stderr=${result.stderr}`);
+        assert.equal(result.stdout, "OVERLAY_APPLIED 1\n");
+        assert.equal(await checkoutIndexMode(repo, wt, "tool.sh"), "100644");
+      },
+      async (repo) => {
+        await setFileModeOff(repo);
+        fs.writeFileSync(path.join(repo.dir, "tool.sh"), "echo tool\n");
+        await stage(repo, "tool.sh");
+        await setIndexMode(repo, "+x", "tool.sh");
+      },
+    );
+  });
+});

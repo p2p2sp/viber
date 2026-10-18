@@ -19,7 +19,9 @@
 # is written, replacing whatever stands at it in the checkout (a directory
 # included). So a file that became a directory, or a directory that became a
 # file, lands as the working tree has it, and a case-only rename keeps the new
-# spelling. A path that vanishes between listing and copy fails the copy.
+# spelling. A path that vanishes between listing and copy fails the copy. Last,
+# each written path the target's index holds as 100755 or 100644 gets that mode
+# in the checkout's index, so a mode staged under core.fileMode=false survives.
 #
 # Contract:
 #   argv   : <target-root> <worktree-path> - the repository whose working tree is
@@ -30,7 +32,8 @@
 #   env    : GIT_OPTIONAL_LOCKS=0 is set for every git call, so reading the target
 #            never rewrites its index.
 #   file   : reads the target's working tree and index; writes only inside
-#            <worktree-path> and one temp directory it removes on exit.
+#            <worktree-path> (its files and its own index) and one temp directory
+#            it removes on exit.
 #   stdout : exactly one line -
 #              OVERLAY_APPLIED <n>     n = paths written or removed in the checkout
 #              OVERLAY_FAILED <reason> not a git repository, <worktree-path> is not
@@ -104,5 +107,31 @@ while IFS= read -r rel; do
   cp -pP "$src" "$dst" || fail "cannot copy $rel"
   count=$((count + 1))
 done < "$tmp/put"
+
+# The copy carries the disk mode, which under core.fileMode=false (Windows) says
+# nothing about the mode the source index records. Give each overlaid path that
+# is in the source index its staged mode (100755 or 100644) in the checkout's own
+# index. Only the checkout's index is written, never the target's.
+git -C "$top" ls-files -s -z > "$tmp/idx.raw" || fail "git ls-files failed in $top"
+tr '\000' '\n' < "$tmp/idx.raw" | MODE_EXEC="$tmp/mode.x" MODE_PLAIN="$tmp/mode.n" awk '
+  NR == FNR { want[$0] = 1; next }
+  {
+    i = index($0, "\t")
+    if (i == 0) next
+    split(substr($0, 1, i - 1), meta, " ")
+    p = substr($0, i + 1)
+    if (meta[3] != "0" || !(p in want)) next
+    if (meta[1] == "100755") print p > ENVIRON["MODE_EXEC"]
+    else if (meta[1] == "100644") print p > ENVIRON["MODE_PLAIN"]
+  }
+' "$tmp/put" - || fail "cannot read the staged modes"
+for flag in x n; do
+  [ -s "$tmp/mode.$flag" ] || continue
+  case $flag in
+    x) chmod_opt="--chmod=+x" ;;
+    *) chmod_opt="--chmod=-x" ;;
+  esac
+  tr '\n' '\000' < "$tmp/mode.$flag" | git -C "$wt" update-index --add "$chmod_opt" -z --stdin || fail "cannot set the staged modes in $wt"
+done
 
 printf 'OVERLAY_APPLIED %s\n' "$count"
