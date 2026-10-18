@@ -1340,6 +1340,61 @@ test("an --into draft round replaces the former round's attachments with its own
   });
 });
 
+test("an --into draft round whose attachment source is gone keeps the former attachments/<name> and warns once", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const key = "2026-09-19-17-30-00_add-login";
+    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
+    const landed = path.join(dir, "docs", "_specs", key, "attachments");
+
+    const page = posixForm(attachment(dir, "login.html", "<p>round 1</p>\n"));
+    const round1 = sourcePlan(dir, "outside/round-1.md", withAttachments([`login.html: ${page}`], DRAFT_BODY, key));
+    const one = await run(dir, ["--land", round1]);
+    assert.equal(one.status, 0, `stderr: ${one.stderr}`);
+    fs.rmSync(path.join(dir, ".temp"), { recursive: true, force: true });
+
+    const round2 = sourcePlan(dir, "outside/round-2.md", withAttachments([`login.html: ${page}`], PLAN_BODY, key));
+    const two = await run(dir, ["--land", round2]);
+    assert.equal(two.status, 0, `stderr: ${two.stderr}`);
+    assert.equal(parse(two.stdout).state, "new");
+    assert.equal(two.stderr.trim(), `warning: attachment not found, not landed: ${page}`);
+    assert.equal(fs.readFileSync(path.join(landed, "login.html"), "utf-8"), "<p>round 1</p>\n");
+  });
+});
+
+test("an --into draft round whose map drops an entry removes that entry's former copy while a kept entry with a gone source survives", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const key = "2026-09-19-17-30-00_add-login";
+    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
+    const landed = path.join(dir, "docs", "_specs", key, "attachments");
+
+    const keep = posixForm(attachment(dir, "keep.html", "<p>keep</p>\n"));
+    const drop = posixForm(attachment(dir, "drop.html", "<p>drop</p>\n"));
+    const round1 = sourcePlan(dir, "outside/round-1.md", withAttachments([`keep.html: ${keep}`, `drop.html: ${drop}`], DRAFT_BODY, key));
+    const one = await run(dir, ["--land", round1]);
+    assert.equal(one.status, 0, `stderr: ${one.stderr}`);
+    fs.rmSync(path.join(dir, ".temp"), { recursive: true, force: true });
+
+    const round2 = sourcePlan(dir, "outside/round-2.md", withAttachments([`keep.html: ${keep}`], PLAN_BODY, key));
+    const two = await run(dir, ["--land", round2]);
+    assert.equal(two.status, 0, `stderr: ${two.stderr}`);
+    assert.deepEqual(fs.readdirSync(landed), ["keep.html"]);
+  });
+});
+
+test("an attachment source that is missing with no former copy lands nothing and warns once", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const key = "2026-09-19-17-30-00_add-login";
+    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
+    const gone = posixForm(path.join(dir, ".temp", "viber", "attach", "gone.html"));
+    const round = sourcePlan(dir, "outside/round-2.md", withAttachments([`mockup.html: ${gone}`], PLAN_BODY, key));
+
+    const result = await run(dir, ["--land", round]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stderr.trim(), `warning: attachment not found, not landed: ${gone}`);
+    assert.equal(fs.existsSync(path.join(dir, "docs", "_specs", key, "attachments")), false);
+  });
+});
+
 test("an --into draft round with no attachments: key removes the attachments directory a former round landed", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     const key = "2026-09-19-17-30-00_add-login";

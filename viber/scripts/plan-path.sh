@@ -106,10 +106,12 @@
 #            and unique; the path (C:/, C:\ or POSIX form) is non-empty. On
 #            every copy (a new run, an --into draft round, never an "existing"
 #            answer), each source of the copy's map, a file or a directory
-#            (copied recursively), is copied to <run>/attachments/<name>,
-#            the directory a former round left being
-#            removed first (a copy with no map leaves none); the map keeps its
-#            source values. A source missing, a copy that failed or a former
+#            (copied recursively), is copied to <run>/attachments/<name>
+#            in a set built beside the run, which then replaces the directory
+#            a former round left (a copy with no map leaves none); an entry
+#            whose source is missing or fails to copy keeps the former
+#            attachments/<name> when there is one. The map keeps its source
+#            values. A source missing, a copy that failed or a former
 #            directory that could not be removed is one "warning:" line on
 #            stderr, the plan landed and exit and stdout unchanged. A
 #            "prototype:" key is not read.
@@ -468,22 +470,27 @@ inmap { inmap = 0 }
 # attachments/<name>, a directory copied whole, so the run keeps every file
 # its plan is built from once .temp/ is cleared. The map keeps its source values: nothing rewrites them to
 # the run path. A C:/ or C:\ value goes through cygpath -u where cygpath
-# exists; without it the value is used as written. The directory a former round
-# left is removed first, so a run never names a file its plan dropped; a copy
-# with no map leaves none. Fail-open: a missing source, a failed copy or a
-# failed removal is one warning on stderr, never an exit, since the plan is
-# landed either way.
+# exists; without it the value is used as written. The new set is built beside
+# the run (attachments.new.<pid>), an entry whose source is missing or fails to
+# copy carrying over the former attachments/<name> when there is one, and only
+# then replaces the directory a former round left, so a run never names a file
+# its plan dropped and never loses a copy whose source is gone; a copy with no
+# map leaves none. Fail-open: a missing source, a failed copy or a failed
+# removal is one warning on stderr, never an exit, since the plan is landed
+# either way.
 land_attachments() {
-  local run dir i src_file
+  local run dir new i src_file
   run="${1%/*}"
   dir="$run/attachments"
-  if [[ -e "$dir" ]] && ! rm -rf -- "$dir" 2>/dev/null; then
-    echo "warning: could not remove $dir" >&2
+  new="$run/attachments.new.$$"
+  rm -rf -- "$new" 2>/dev/null || true
+  if ! read_attachments "$1" 2>/dev/null || [[ "$att_n" -eq 0 ]]; then
+    if [[ -e "$dir" ]] && ! rm -rf -- "$dir" 2>/dev/null; then
+      echo "warning: could not remove $dir" >&2
+    fi
     return 0
   fi
-  read_attachments "$1" 2>/dev/null || return 0
-  [[ "$att_n" -gt 0 ]] || return 0
-  mkdir -p -- "$dir" 2>/dev/null || true
+  mkdir -p -- "$new" 2>/dev/null || true
   for ((i = 0; i < att_n; i++)); do
     src_file="${att_paths[i]}"
     if command -v cygpath >/dev/null 2>&1; then
@@ -491,10 +498,23 @@ land_attachments() {
     fi
     if [[ ! -f "$src_file" && ! -d "$src_file" ]]; then
       echo "warning: attachment not found, not landed: ${att_paths[i]}" >&2
-    elif ! cp -R -- "$src_file" "$dir/${att_names[i]}" 2>/dev/null; then
+    elif ! cp -R -- "$src_file" "$new/${att_names[i]}" 2>/dev/null; then
       echo "warning: could not copy attachment ${att_names[i]}" >&2
+      rm -rf -- "$new/${att_names[i]}" 2>/dev/null || true
+    fi
+    if [[ ! -e "$new/${att_names[i]}" && -e "$dir/${att_names[i]}" ]]; then
+      cp -R -- "$dir/${att_names[i]}" "$new/${att_names[i]}" 2>/dev/null || true
     fi
   done
+  if [[ -e "$dir" ]] && ! rm -rf -- "$dir" 2>/dev/null; then
+    echo "warning: could not remove $dir" >&2
+    rm -rf -- "$new" 2>/dev/null || true
+    return 0
+  fi
+  if ! mv -- "$new" "$dir" 2>/dev/null; then
+    rm -rf -- "$new" 2>/dev/null || true
+    return 0
+  fi
   rmdir -- "$dir" 2>/dev/null || true
   return 0
 }
