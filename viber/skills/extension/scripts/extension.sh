@@ -28,7 +28,8 @@
 #              MISSING=<name>, <name> | none
 #              AGENT=<name> | contract | plain
 #            CONFIG is `no-config` without a viber.yml, `stale` when the file
-#            has no `extensions:` key directly under `build:`, else `ok`.
+#            has no `extensions:` key directly under `build:` or that key
+#            carries an inline value (`extensions: {}`), else `ok`.
 #            LISTED is config.sh's `build.extensions` steps with every ` + `
 #            written as `, `: a plain list of the entries with an agent file in
 #            run order. MISSING is `build.extensions-missing`: the entries
@@ -71,7 +72,8 @@ agents_dir="$(dirname "$cfg")/agents"
 # The first key line of the map sets the entry depth; a key line at that depth
 # is an entry named by the key. The name arrives as ENVIRON["EXT_NAME"], the
 # mode as ENVIRON["EXT_WRITE"]. Mode 0 prints `P` when the name is an entry,
-# `A` when the key is there without it, nothing when there is no key. Mode 1
+# `A` when the key is there without it, nothing when there is no key or the key
+# line carries an inline value other than a comment. Mode 1
 # prints three lines: the number of the line the new entry goes after (the last
 # map line that is neither blank nor a comment, else the key line), the number
 # of the key line, and the entry indentation followed by a `|`. The splice
@@ -125,7 +127,7 @@ BEGIN { name = ENVIRON["EXT_NAME"]; write = (ENVIRON["EXT_WRITE"] == "1") }
   if (ind == entind && key == name) found = 1
 }
 END {
-  if (!write) { if (haskey) print (found ? "P" : "A"); exit }
+  if (!write) { if (haskey && !noentry) print (found ? "P" : "A"); exit }
   print (lastkeep ? lastkeep : extline)
   print extline
   print (entind ? entpre : extpre "  ") "|"

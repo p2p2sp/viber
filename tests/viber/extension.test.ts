@@ -146,6 +146,24 @@ test("--add on a config with no extensions: key under build: prints STATUS=stale
   });
 });
 
+test("--add under an extensions: key carrying an inline value prints STATUS=stale and leaves the file byte-identical", async () => {
+  await withGitRepo(async (repo) => {
+    const before = config(["  extensions: {}"]);
+    writeFile(repo.dir, ".claude/viber.yml", before);
+    const result = await run(["--add", "doc-writer"], repo.dir, repo.env);
+    assert.deepEqual([lines(result), readConfig(repo.dir)], [["STATUS=stale"], before]);
+  });
+});
+
+test("--add of the same name twice under a bare extensions: key prints STATUS=added, then STATUS=present", async () => {
+  await withGitRepo(async (repo) => {
+    writeFile(repo.dir, ".claude/viber.yml", config(["  extensions:"]));
+    const first = lines(await run(["--add", "doc-writer"], repo.dir, repo.env));
+    const second = lines(await run(["--add", "doc-writer"], repo.dir, repo.env));
+    assert.deepEqual([first, second], [["STATUS=added"], ["STATUS=present"]]);
+  });
+});
+
 for (const name of ["Docs", "-docs", "../escape", "a b", ""]) {
   test(`--add of the invalid name ${JSON.stringify(name)} prints STATUS=invalid-name and leaves the file untouched`, async () => {
     await withGitRepo(async (repo) => {
