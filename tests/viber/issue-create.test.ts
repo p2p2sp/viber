@@ -48,7 +48,8 @@ const ISSUE_URL = "https://github.com/acme/widgets/issues/42";
 
 /** A `gh` stub logging every call's argv one-arg-per-line (a "===" separator
  *  after each) into `$ARGV_FILE`; the `issue create` call answers from
- *  CREATE_STDOUT/CREATE_STDERR/CREATE_EXIT, an `api` call carrying PATCH (the
+ *  CREATE_STDOUT/CREATE_STDERR/CREATE_EXIT, a `project view` call (the --project
+ *  title lookup) from PROJECT_STDOUT/PROJECT_STDERR/PROJECT_EXIT, an `api` call carrying PATCH (the
  *  type step) from API_STDERR/API_EXIT, one carrying POST (the sub-issue
  *  attach) from POST_STDERR/POST_EXIT, and any other `api` call (the issue id
  *  lookup) from LOOKUP_STDOUT/LOOKUP_STDERR/LOOKUP_EXIT - so one stub body
@@ -59,6 +60,10 @@ if [ "$1" = "issue" ]; then
   if [ -n "\${CREATE_STDERR:-}" ]; then printf '%s' "$CREATE_STDERR" >&2; fi
   printf '%s' "\${CREATE_STDOUT:-}"
   exit "\${CREATE_EXIT:-0}"
+elif [ "$1" = "project" ]; then
+  if [ -n "\${PROJECT_STDERR:-}" ]; then printf '%s' "$PROJECT_STDERR" >&2; fi
+  printf '%s\\n' "\${PROJECT_STDOUT:-}"
+  exit "\${PROJECT_EXIT:-0}"
 elif [ "$1" = "api" ]; then
   case " $* " in
     *" PATCH "*)
@@ -200,6 +205,50 @@ test("no --type: the body reaches gh issue create through --body-file, flags for
     ]);
   });
 });
+
+// --- --project <owner>/<number> -------------------------------------------------------
+
+test("--project <owner>/<number> is resolved to the project's title by gh project view and reaches gh issue create as --project <title>", async () => {
+  await assertPosix(async (shell) => {
+    const { result, calls, body } = await runStubbed(shell, ["<body>", "A title", "--label", "bug", "--project", "octo-org/44"], {
+      CREATE_STDOUT: ISSUE_URL + "\n",
+      PROJECT_STDOUT: "Roadmap",
+    });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(calls.length, 2);
+    assert.deepEqual(calls[0], ["project", "view", "44", "--owner", "octo-org", "--format", "json", "--jq", ".title"]);
+    assert.deepEqual(calls[1], ["issue", "create", "--title", "A title", "--body-file", body, "--label", "bug", "--project", "Roadmap"]);
+  });
+});
+
+for (const stub of [
+  { PROJECT_EXIT: "1", PROJECT_STDERR: "could not resolve to a ProjectV2" },
+  { PROJECT_EXIT: "0", PROJECT_STDOUT: "" },
+]) {
+  test(`--project <owner>/<number> whose lookup fails (${JSON.stringify(stub)}): exit 1, the ERROR line on stderr, nothing on stdout and no gh issue create`, async () => {
+    await assertPosix(async (shell) => {
+      const { result, calls, bodyKept } = await runStubbed(shell, ["<body>", "A title", "--project", "octo-org/44"], {
+        CREATE_STDOUT: ISSUE_URL + "\n",
+        ...stub,
+      });
+      assert.equal(result.status, 1);
+      assert.equal(result.stdout, "");
+      assert.equal(result.stderr, "ERROR issue-create.sh: project octo-org/44 not found\n");
+      assert.ok(bodyKept, "a failed lookup keeps the body file");
+      assert.ok(!calls.some((c) => c[0] === "issue"), "no issue is created");
+    });
+  });
+}
+
+for (const value of ["Roadmap", "octo-org/Roadmap", "a/b/44"]) {
+  test(`--project ${value} is not an <owner>/<number> reference: it reaches gh issue create unchanged and no lookup runs`, async () => {
+    await assertPosix(async (shell) => {
+      const { result, calls, body } = await runStubbed(shell, ["<body>", "A title", "--project", value], { CREATE_STDOUT: ISSUE_URL + "\n" });
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(calls, [["issue", "create", "--title", "A title", "--body-file", body, "--project", value]]);
+    });
+  });
+}
 
 // --- success, --type applied on a non-github.com host --------------------------------
 

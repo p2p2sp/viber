@@ -21,7 +21,10 @@
 #                             (optional)
 #            --label <L>      repeatable, passed to gh verbatim
 #            --assignee <A>   repeatable, passed to gh verbatim
-#            --project <P>    repeatable, passed to gh verbatim
+#            --project <P>    repeatable; <owner>/<number> is resolved to the
+#                             project's title (`gh project view <number>
+#                             --owner <owner> --format json --jq .title`),
+#                             any other value is passed to gh verbatim
 #   cwd  : gh resolves the repository from the cwd.
 #   env  : none of its own; gh reads its usual auth and host config.
 #   file : $1, sent verbatim as the issue body, then removed once the issue
@@ -44,8 +47,11 @@
 #          and the POST of that id to repos/<owner>/<repo>/issues/<parent>/
 #          sub_issues both succeeded; error = either failed. Either way the
 #          issue is never removed and the exit stays 0.
-#   exit 1: one ERROR line on stderr, nothing on stdout - gh missing, `gh
-#           issue create` failed or printed no parsable issue URL.
+#   exit 1: one ERROR line on stderr, nothing on stdout - gh missing, a
+#           --project <owner>/<number> whose lookup failed or answered no
+#           title (`project <owner>/<number> not found`, before any issue is
+#           created), `gh issue create` failed or printed no parsable issue
+#           URL.
 #   exit 2: missing body file or title, body file not found, an unknown or
 #           valueless flag, or a --parent that is not a positive integer - gh
 #           is never invoked.
@@ -91,6 +97,31 @@ if ! command -v gh >/dev/null 2>&1; then
   echo "ERROR issue-create.sh: gh not found on PATH" >&2
   exit 1
 fi
+
+# Resolve each `--project <owner>/<number>` to the project's title, which is
+# what `gh issue create --project` takes; any other value passes unchanged.
+n=$#
+while [ $n -gt 0 ]; do
+  flag=$1; val=$2; shift 2; n=$((n-2))
+  if [ "$flag" = "--project" ]; then
+    case $val in
+      */*/*|/*|*/) ;;
+      */*)
+        pnum=${val#*/}
+        case $pnum in
+          ''|*[!0-9]*) ;;
+          *)
+            ptitle=$(gh project view "$pnum" --owner "${val%%/*}" --format json --jq .title 2>/dev/null | tr -d '\r' | tail -n 1)
+            if [ -z "$ptitle" ]; then
+              echo "ERROR issue-create.sh: project $val not found" >&2
+              exit 1
+            fi
+            val=$ptitle ;;
+        esac ;;
+    esac
+  fi
+  set -- "$@" "$flag" "$val"
+done
 
 out=$(gh issue create --title "$title" --body-file "$body" "$@" 2>&1)
 st=$?
