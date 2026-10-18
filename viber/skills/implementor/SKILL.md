@@ -263,7 +263,7 @@ Complete every task the last `progress: <n>/<total>` settled and every entry sti
 
 Then close:
 
-- `closeout` returned `VERDICT: ARCHIVED` -> print `<n>/<total> tasks committed, tests <the test verdict>, <elapsed>` (`, <elapsed>` left out on `elapsed: unknown`), then `Summary: <path>/outcome.md`, then, only with a `next: part` index line, `/viber:intent <path>/roadmap.md`; `<path>` is the directory its `PATH:` line names, the parenthesized file count dropped. Nothing else.
+- `closeout` returned `VERDICT: ARCHIVED` -> print `<n>/<total> tasks committed, tests <the test verdict>, <elapsed>` (`, <elapsed>` left out on `elapsed: unknown`), then `Summary: <path>/outcome.md`, then the closing sentence, then, only with a `next: part` index line, `/viber:intent <path>/roadmap.md`; `<path>` is the directory its `PATH:` line names, the parenthesized file count dropped. Nothing else.
 - Every other case (the close part not run, `abort`, `BLOCKED`, an accepted `DENIED`) -> print the final summary in its screen form.
 
 Final summary, both forms: max 7 lines, then every line this step places after them. The 7 lines: tasks committed, review rounds spent, test verdict, the clock's `elapsed:` (none on `elapsed: unknown`, never estimated), what memory, rules and QA recorded, then the form's own line below, then everything the steps carried to it but the `FIXED:`, `OWNER:` and `left uncommitted:` lines.
@@ -275,7 +275,16 @@ After the summary and outside its 7 lines, list every `FIXED:` line the final re
 
 After those, also outside its 7 lines, list the rulings: each index `ruling:` line, then each ruling this session recorded that is not already one, every one with its ruling, `why:` and `cost if wrong:`.
 
-With a `next: part` index line and a build not ended on `abort`, the last line of the screen form, after the summary and outside its 7, is `/viber:intent <dir>/roadmap.md`.
+Closing sentence, in both forms: one sentence in the conversation's language, printed after everything above it (archived form: after the `Summary:` line). All clear when no problem kind below was found; otherwise it says `outcome.md` records a problem (on the screen form with no `outcome.md`: the summary above records a problem), naming each kind found. `OWNER:` lines and drift markers are no problem kind. The kinds:
+
+- skipped task
+- commit without review
+- tests accepted while failing
+- final review fix accepted over a failed recheck
+- file left uncommitted (a `left uncommitted:` line, or `closeout`'s `LEFT:` line above `none`)
+- deferred path without an owner
+
+With a `next: part` index line and a build not ended on `abort`, the last line of the screen form, after the closing sentence, is `/viber:intent <dir>/roadmap.md`.
 
 On a pull request branch (step 1) with no `next: part` index line:
 

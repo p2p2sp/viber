@@ -10,8 +10,10 @@
  * with nothing in flight or ready, gives the owing task an owed-path pass of at most 2
  * attempts, then `--repaired`. A task failing attempt 5 is held with its dependents, its
  * repair pass runs first at `tiers.max`, and only a failed pass reaches the arbiter's
- * `cap` case. The files read here are shipped prompts, whose text is
- * the behaviour. Nothing is spawned.
+ * `cap` case. Every build then closes on one sentence (all clear, or `outcome.md`
+ * records a problem naming each kind), in both close forms of `implementor`, with
+ * `closeout` returning its `LEFT:` count of files left uncommitted. The files read
+ * here are shipped prompts, whose text is the behaviour. Nothing is spawned.
  *
  * Run directly by Node's type stripping:
  *   node --test tests/viber/repair-prose.unit.test.ts
@@ -317,4 +319,123 @@ test("arbiter's cap line names the failed repair pass", () => {
   const cap = lines(ARBITER).find((line) => line.startsWith("- `cap` ")) ?? "";
   assert.ok(cap.includes("failed repair pass"));
   assert.ok(cap.includes("`accept` commits it unreviewed, `skip` drops it with every task depending on it"));
+});
+
+const CLOSEOUT = fs.readFileSync(path.join(AGENTS, "closeout.md"), "utf8");
+const CLEANUP = fs.readFileSync(path.join(AGENTS, "../skills/implementor/fragments/cleanup.true.md"), "utf8");
+const CLOSEOUT_OUTPUT = CLOSEOUT.slice(CLOSEOUT.indexOf("## Output"));
+const OUTPUT_INTRO = lines(CLOSEOUT_OUTPUT).find((line) => line.includes(" lines on `VERDICT: ARCHIVED`")) ?? "";
+const ARCHIVED_OUTPUT = bulletsOpening(CLOSEOUT_OUTPUT, "- `VERDICT: ARCHIVED`")[0] ?? "";
+const BLOCKED_OUTPUT = bulletsOpening(CLOSEOUT_OUTPUT, "- or `VERDICT: BLOCKED`")[0] ?? "";
+const DENIED_OUTPUT = bulletsOpening(CLOSEOUT_OUTPUT, "- or `VERDICT: DENIED`")[0] ?? "";
+const LINE_COUNTS: Record<string, number> = { three: 3, four: 4 };
+
+function listedLines(bullet: string): number {
+  return bullet.split(", then ").length;
+}
+
+test("closeout ARCHIVED output puts the LEFT line after the PATH line", () => {
+  assert.ok(ARCHIVED_OUTPUT.indexOf("`PATH: ") > 0);
+  assert.ok(ARCHIVED_OUTPUT.indexOf("`LEFT: <n>`") > ARCHIVED_OUTPUT.indexOf("`PATH: "));
+});
+
+test("closeout LEFT line counts the outcome.md leftover lines ending left uncommitted, else none", () => {
+  assert.ok(ARCHIVED_OUTPUT.includes("the leftover lines of `outcome.md` ending `left uncommitted`"));
+  assert.ok(ARCHIVED_OUTPUT.includes("`LEFT: none`"));
+});
+
+test("closeout ARCHIVED output lists four lines and its intro counts four", () => {
+  const counts = OUTPUT_INTRO.match(/^(Four|Three) lines on `VERDICT: ARCHIVED`/i);
+  assert.equal(listedLines(ARCHIVED_OUTPUT), 4);
+  assert.equal(LINE_COUNTS[(counts?.[1] ?? "").toLowerCase()], 4);
+});
+
+test("closeout BLOCKED and DENIED outputs list three lines and the intro counts three for any other verdict", () => {
+  const counts = OUTPUT_INTRO.match(/(four|three) on any other verdict/i);
+  assert.equal(LINE_COUNTS[(counts?.[1] ?? "").toLowerCase()], 3);
+  assert.equal(listedLines(BLOCKED_OUTPUT), 3);
+  assert.equal(listedLines(DENIED_OUTPUT), 3);
+});
+
+const ARCHIVED_CLOSE = bulletsOpening(SKILL, "- `closeout` returned `VERDICT: ARCHIVED` ->")[0] ?? "";
+const SUMMARY_PRINT = "`Summary: <path>/outcome.md`";
+const ARCHIVED_NEXT_LINE = "`/viber:intent <path>/roadmap.md`";
+const SENTENCE_START = SKILL.indexOf("Closing sentence");
+const SENTENCE_END = SKILL.indexOf("\n\n", SENTENCE_START + SKILL.slice(SENTENCE_START).indexOf("\n- "));
+const SENTENCE = SENTENCE_START < 0 ? "" : SKILL.slice(SENTENCE_START, SENTENCE_END);
+
+test("the archived close prints the closing sentence after the Summary line", () => {
+  assert.ok(ARCHIVED_CLOSE.indexOf(SUMMARY_PRINT) > 0);
+  assert.ok(ARCHIVED_CLOSE.indexOf("the closing sentence") > ARCHIVED_CLOSE.indexOf(SUMMARY_PRINT));
+});
+
+test("the archived close prints the closing sentence before the next-part line", () => {
+  assert.ok(ARCHIVED_CLOSE.indexOf("the closing sentence") > 0);
+  assert.ok(ARCHIVED_CLOSE.indexOf(ARCHIVED_NEXT_LINE) > ARCHIVED_CLOSE.indexOf("the closing sentence"));
+});
+
+test("step 7 defines one closing sentence in the conversation's language for both forms", () => {
+  assert.equal(SKILL.split("Closing sentence").length, 2);
+  assert.ok(SENTENCE.includes("one sentence in the conversation's language"));
+  assert.ok(SENTENCE.includes("in both forms"));
+});
+
+test("the closing sentence is all clear when no problem kind was found", () => {
+  assert.ok(SENTENCE.includes("All clear when no problem kind below was found"));
+});
+
+test("the closing sentence says outcome.md records a problem, the summary above on a screen form with no outcome.md", () => {
+  assert.ok(SENTENCE.includes("`outcome.md` records a problem"));
+  assert.ok(SENTENCE.includes("with no `outcome.md`: the summary above records a problem"));
+});
+
+test("the screen form prints the closing sentence after the rulings", () => {
+  const rulings = SKILL.indexOf("After those, also outside its 7 lines, list the rulings");
+  assert.ok(rulings > 0);
+  assert.ok(SENTENCE_START > rulings);
+});
+
+test("the screen form prints the closing sentence before the next-part line, which stays last", () => {
+  const next = SKILL.indexOf("With a `next: part` index line");
+  assert.ok(next > SENTENCE_START);
+  const nextLine = lines(SKILL).find((line) => line.startsWith("With a `next: part` index line")) ?? "";
+  assert.ok(nextLine.includes("after the closing sentence"));
+  assert.ok(nextLine.includes("the last line of the screen form"));
+});
+
+test("the pull request question still comes once everything is printed", () => {
+  assert.ok(SKILL.includes("once everything above is printed -> `AskUserQuestion`"));
+});
+
+const PROBLEM_KINDS = [
+  "- skipped task",
+  "- commit without review",
+  "- tests accepted while failing",
+  "- final review fix accepted over a failed recheck",
+  "- file left uncommitted",
+  "- deferred path without an owner",
+];
+
+for (const kind of PROBLEM_KINDS) {
+  test(`the closing sentence names the problem kind "${kind.slice(2)}"`, () => {
+    assert.ok(lines(SENTENCE).some((line) => line.startsWith(kind)));
+  });
+}
+
+test("the closing sentence counts a left uncommitted line and closeout's LEFT line above none toward files left uncommitted", () => {
+  const kind = lines(SENTENCE).find((line) => line.startsWith("- file left uncommitted")) ?? "";
+  assert.ok(kind.includes("`left uncommitted:` line"));
+  assert.ok(kind.includes("`LEFT:` line above `none`"));
+});
+
+test("the closing sentence states that OWNER lines and drift are no problem kind", () => {
+  assert.ok(SENTENCE.includes("`OWNER:` lines and drift markers are no problem kind"));
+});
+
+test("the cleanup fragment names no two-line close", () => {
+  assert.ok(!CLEANUP.includes("two-line"));
+});
+
+test("the cleanup fragment points the archived verdict to the close of step 7 without a line count", () => {
+  assert.ok(CLEANUP.includes("- `VERDICT: ARCHIVED` -> the close of step 7."));
 });

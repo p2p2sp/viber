@@ -80,8 +80,8 @@ It archives the run's lasting work, drops the build's scaffolding, and commits t
 
 ## Output
 
-Three lines, nothing else:
+Four lines on `VERDICT: ARCHIVED`, three on any other verdict, nothing else:
 
-- `VERDICT: ARCHIVED`, then `DRIFT: <n>` or `DRIFT: none`, then `PATH: <the path the script printed>`
+- `VERDICT: ARCHIVED`, then `DRIFT: <n>` or `DRIFT: none`, then `PATH: <the path the script printed>`, then `LEFT: <n>` (the leftover lines of `outcome.md` ending `left uncommitted`) or `LEFT: none`
 - or `VERDICT: BLOCKED`, then `DRIFT: <n>` or `DRIFT: none`, then `REASON: <one line, the script's own error>`
 - or `VERDICT: DENIED`, then `DRIFT: <n>` or `DRIFT: none`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`

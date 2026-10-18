@@ -6,7 +6,7 @@ summary:
 <the final summary, archived form>
 ```
 
-- `VERDICT: ARCHIVED` -> the two-line close of step 7.
+- `VERDICT: ARCHIVED` -> the close of step 7.
 - `VERDICT: DENIED` -> `AskUserQuestion`: retry / accept, `accept` then read as `BLOCKED`.
 - `VERDICT: BLOCKED` -> no archive commit landed; name its `REASON:` in the final summary, plus that the leftovers commit (`chore(viber): commit changes made outside the plan`) may already have landed, that `<dir>/outcome.md` may be left uncommitted, on a `DRIFT:` other than `none` that `<dir>/spec.md` holds uncommitted drift markers, and that a failed git step may have left the run moved but uncommitted (`git status` shows it).
 
