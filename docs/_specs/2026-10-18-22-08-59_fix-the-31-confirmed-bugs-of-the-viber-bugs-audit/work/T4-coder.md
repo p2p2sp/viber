@@ -1,4 +1,0 @@
-- Folding lives in one `named_path()` (leading "./" cut, then `cwd_relative`); it is applied where --with, --owe, the --defer path half and extras lines are collected, so every later check sees the relative form.
-- Not folded (out of the task's Delivers): the fix-number form's files and the --repair/--chore/--qa/--e2e/--review/--outside/--extension file lists. An absolute `.temp/` path there still passes their `.temp` refusal.
-- `cwd_relative` leaves a path whose parent directory does not exist unchanged, so an absolute spelling of a not-yet-created file is not folded.
-- DoD.4 characterised: an absolute path outside the repo exits non-zero in git and commits nothing (that test passed before the change).

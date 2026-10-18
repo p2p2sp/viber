@@ -1,3 +1,0 @@
-- The refusal sits after the "no such task" check (exit 3 still wins for an unknown id) and fires only when neither a fix number nor --landed is given, matching C2's "unchanged" forms.
-- `tests/viber/resume-prose.unit.test.ts` is new; it pins the `dirty:` bullet of implementor/SKILL.md by exact phrases.
-- Not touched (outside Files): `viber/scripts/CLAUDE.md` exit-code contract line for commit-task.sh code 2 does not yet mention a skipped task commit.

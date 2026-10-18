@@ -1,3 +1,0 @@
-- The fold runs in bash (extra_paths, through ENVIRON) with cwd_relative, so the awk scope() reads no file any more.
-- cwd_relative leaves a path whose parent directory does not exist as written: an absolute extras path of a deleted file in a deleted directory stays absolute.
-- viber/scripts/CLAUDE.md "Extras files" still says "one repo-relative path per line"; it was outside Files and is left untouched.

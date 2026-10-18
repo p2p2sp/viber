@@ -1,3 +1,0 @@
-- Both regression payloads are denser in `\"` than the audit's wording suggests: the 11.5 KB kill-guard payload only went red (timeout) with 6 quoted strings per line; 160 lines of one quoted string took 3.9 s on this macOS machine even before the fix.
-- After the fix both cases still take about 3 s locally: the bash `${var//x/y}` chain stays slow, `LC_ALL=C` removes the locale-dependent part only. A faster hook would need fewer substitutions (not in this task).
-- `hooks/CLAUDE.md` Traps still names only `shell-guard.sh` as setting `LC_ALL=C`; it is outside this task's Files, so left unedited.

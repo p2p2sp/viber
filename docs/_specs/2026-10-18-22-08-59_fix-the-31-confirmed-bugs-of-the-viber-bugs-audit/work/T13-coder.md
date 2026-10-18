@@ -1,2 +1,0 @@
-- Root cause: strip_guidance collapses a whitespace-only line into an empty one, which read_attachments (landing reads the stripped copy, validation the source) took as the end of the map. Fix: any blank line inside the map is skipped in the one awk grammar.
-- A blank line no longer ends the map: an indented entry after it still belongs to the map (header Contract line updated).

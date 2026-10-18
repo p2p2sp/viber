@@ -1,3 +1,0 @@
-- Fix is `export GIT_LITERAL_PATHSPECS=1` at the top of commit.sh and commit-context.sh (before sourcing commit-args.sh): it also makes commit-args.sh's own `git ls-files --error-unmatch` / `ls-tree` probes literal, so commit-args.sh (outside Files) needed no edit.
-- A selector like `src/*.ts` with only `src/a.ts` tracked now resolves to mode missing (exit 3), where the glob used to match the tracked file.
-- commit-context.sh prints recent commit subjects, so a test asserting an unselected path is absent must target the status/diff lines, not the whole stdout.
