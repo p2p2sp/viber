@@ -178,24 +178,23 @@ Start with every task whose `deps` are done, in one message. On every return, an
 - Commit exit 4 -> nothing was committed; `TaskUpdate` back to in progress and `AskUserQuestion`: retry / skip / abort. When it names `--landed`, add a first option: already committed - the user names the commit, and the same call re-runs with `--landed "<sha>"`.
 - Commit any other non-zero exit on attempt 1 to 4 -> nothing was committed; `TaskUpdate` back to in progress, then the next attempt.
 
-Held-task pass: the repair pass of a task held at attempt 5. It is a coder dispatch of the task, never step 5's repair dispatch.
+Repair pass: the second chance of a task, of two kinds: the held-task pass, for a task held at attempt 5, and the owed-path pass, for a done task for the paths it owes. It is a coder dispatch of the task, never step 5's repair dispatch.
 
-- Start only when no agent is in flight and no task is ready to dispatch, before every owed-path pass and before step 5; one held task at a time, in the order held.
-- Dispatch: the task's ordinary coder and reviewer dispatch lines, plus `repair: <one line: the problem this pass fixes>` on both and `reason:` the last failure's `REASON:` (the commit's error after a refused commit) on the coder's; its coder reads every `review-<id>-*.md` report of the task itself. Both run at `tiers.max` for coder and reviewer, the review never waived.
-- Entry: `TaskCreate` `R<n> - repair <id> (<tier>, review <review tier>)`, `<n>` counting from 1 in the session; it completes with the task's commit, or with the second failure.
+- Start only when no agent is in flight and no task is ready to dispatch, before step 5.
+  - held-task pass: before every owed-path pass, one held task at a time, in the order held.
+  - owed-path pass: owing tasks are the index `owed:` entries plus every `--owe` this build passed; one pass per task covering all its paths, run one at a time, in index order.
+- Dispatch: the task's ordinary coder and reviewer dispatch lines, plus `repair: <one line: the problem this pass fixes>` on both, the review never waived.
+  - held-task pass: also `reason:` the last failure's `REASON:` (the commit's error after a refused commit) on the coder's; its coder reads every `review-<id>-*.md` report of the task itself; both run at `tiers.max` for coder and reviewer.
+  - owed-path pass: also `deferred: <the task's owed paths>` on the coder's; its tier is the tier of the task's last attempt, its review tier the task's review tier raised to `sonnet`.
+- Entry: `TaskCreate` `R<n> - repair <id> (<tier>, review <review tier>)`, `<n>` counting from 1 in the session; it completes with the task's commit (held-task pass) or the `--repaired` call (owed-path pass), or with the second failure.
 - At most 2 attempts: a coder failure (a `DECIDE:` line included, never sent to the arbiter), a review failure and a task commit exiting other than 4 each cost one. The second attempt is the same fresh dispatch carrying the new failure's `reason:` and, after a review failure, the `REVIEW` path as `report:`.
-- Commit: a coder `PASS` goes to review, a reviewer `PASS` to the task commit `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>"`, `--defer` and `--owe` as above, with its `TaskUpdate` -> completed; its exit 4 is the commit exit 4 above. Once it succeeds, the task is done and its dependents dispatch as ordinary tasks.
-- Both attempts failed -> the arbiter with `case: cap` (never `decide`), `task: <dir>/tasks/<id>.md`, `report:` lines for `<dir>/work/<id>-coder.md` and the task's last `REVIEW` path when it has one, `reason:` the repair's last failure, and `options: accept | skip` after a review failure, `options: skip` otherwise. Record its ruling with subject `<id>`, then carry it out: `accept` -> the task's commit with `--unreviewed` appended, the task named unreviewed in the final summary; `skip` -> the `skip` answer's calls. An `accept` commit exiting other than 4 -> the arbiter again with `options: skip`, that commit's error as `reason:` and the same `report:` lines, its ruling recorded and carried out the same way.
-
-Owed-path pass: a repair pass of a done task for the paths it owes. It is a coder dispatch of the task, never step 5's repair dispatch.
-
-- Start passes only when no agent is in flight and no task is ready to dispatch, before step 5. Owing tasks are the index `owed:` entries plus every `--owe` this build passed: one pass per task covering all its paths, run one at a time, in index order.
-- Dispatch: the task's ordinary coder and reviewer dispatch lines, plus `repair: <one line: the problem this pass fixes>` on both and `deferred: <the task's owed paths>` on the coder's. Its tier is the tier of the task's last attempt, its review tier the task's review tier raised to `sonnet`, never waived.
-- Entry: `TaskCreate` `R<n> - repair <id> (<tier>, review <review tier>)`, `<n>` counting from 1 in the session; it completes with the `--repaired` call, or with the second failure.
-- At most 2 attempts: a coder failure (a `DECIDE:` line included, never sent to the arbiter), a review failure and a task commit exiting other than 4 each cost one. The second attempt is the same fresh dispatch carrying `reason:` and, after a review failure, the `REVIEW` path as `report:`.
-- Commit: a coder `PASS` goes to review, a reviewer `PASS` to the task commit form `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>"`, `--defer` as above; its exit 4 after a reviewer `PASS` counts as done. Once it succeeds, `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --repaired "<plan>" "<id>"` with the entry's `TaskUpdate` -> completed; exiting non-zero -> name it in the final summary, ask nothing.
-- Both attempts failed: name the task's owed paths in the final summary as deferred paths without an owner, and one `left uncommitted: <path> | repair pass of <id> failed` line per path on the union of both attempts' `FILES:` and `EXTRA:` lines. Never `--repaired`.
-- A `-> none` path a repair pass defers is never `--owe`d again: name it in the final summary as a deferred path without an owner.
+- Commit: a coder `PASS` goes to review, a reviewer `PASS` to the task commit `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>"`.
+  - held-task pass: `--defer` and `--owe` as above, with its `TaskUpdate` -> completed; its exit 4 is the commit exit 4 above. Once it succeeds, the task is done and its dependents dispatch as ordinary tasks.
+  - owed-path pass: `--defer` as above; its exit 4 after a reviewer `PASS` counts as done. Once it succeeds, `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --repaired "<plan>" "<id>"` with the entry's `TaskUpdate` -> completed; exiting non-zero -> name it in the final summary, ask nothing.
+- Both attempts failed:
+  - held-task pass: the arbiter with `case: cap` (never `decide`), `task: <dir>/tasks/<id>.md`, `report:` lines for `<dir>/work/<id>-coder.md` and the task's last `REVIEW` path when it has one, `reason:` the repair's last failure, and `options: accept | skip` after a review failure, `options: skip` otherwise. Record its ruling with subject `<id>`, then carry it out: `accept` -> the task's commit with `--unreviewed` appended, the task named unreviewed in the final summary; `skip` -> the `skip` answer's calls. An `accept` commit exiting other than 4 -> the arbiter again with `options: skip`, that commit's error as `reason:` and the same `report:` lines, its ruling recorded and carried out the same way.
+  - owed-path pass: name the task's owed paths in the final summary as deferred paths without an owner, and one `left uncommitted: <path> | repair pass of <id> failed` line per path on the union of both attempts' `FILES:` and `EXTRA:` lines. Never `--repaired`.
+- A `-> none` path an owed-path pass defers is never `--owe`d again: name it in the final summary as a deferred path without an owner.
 
 ## 5 to 7. Close and archive
 
