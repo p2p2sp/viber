@@ -271,6 +271,9 @@ while ((i < len)); do
         i=$((i + 2))
         while [[ "${cmd:i:1}" =~ ^[0-9]$ ]]; do i=$((i + 1)); done
       else
+        # >&word with a non-descriptor word duplicates into a file: skip the &
+        # so the word is the redirect target.
+        [[ "${cmd:i:1}" == '&' ]] && i=$((i + 1))
         add R '>'
       fi
       ;;
