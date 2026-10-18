@@ -488,6 +488,56 @@ test("--defer and --owe record the repo-relative form of an absolute path", asyn
   });
 });
 
+test("--defer and --owe write a backslashed path byte for byte, each on one line (awk -v would turn \\n and \\t into control characters)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+
+    const result = await run(repo.dir, repo.env, [
+      PLAN_REL,
+      "T1",
+      "--defer",
+      "T2:src\\new\\b.ts",
+      "--owe",
+      "src\\lib\\table.ts",
+    ]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      readStatus(repo),
+      "# status\n\nprogress: 1/2\ndone: T1\nskipped: none\nunreviewed: none\n" +
+        "deferred: T2:src\\new\\b.ts\nclosed: none\nowed: T1:src\\lib\\table.ts\n",
+    );
+  });
+});
+
+test("--with refuses a path whose owner's Files entry holds a backslash (the claimant check compares it byte for byte)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, [
+      ["T1", "src/a.ts"],
+      ["T2", "src\\new\\table.ts"],
+    ]);
+    write(repo.dir, "src/a.ts", "work\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", "src\\new\\table.ts"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, /refused src\\new\\table\.ts - claimed by task T2/);
+  });
+});
+
+test("a task id holding a backslash is found in the plan and recorded byte for byte", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, [
+      ["T1", "src/a.ts"],
+      ["T\\t9", "src/b.ts"],
+    ]);
+    write(repo.dir, "src/b.ts", "work\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T\\t9"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(readStatus(repo), /^done: T\\t9$/m);
+  });
+});
+
 test("--with combines with --unreviewed in either order, and --with alone with no path exits 2", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo);

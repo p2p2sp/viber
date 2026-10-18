@@ -681,9 +681,10 @@ mark_status() {
   status="$(status_of "$plan")"
   tmp="$status.tmp.$$"
   [[ -f "$status" ]] || write_status "$status" "$(task_total "$plan")"
-  awk -v name="$name" -v want="$want" -v ntask="$(task_total "$plan")" '
+  ST_NAME="$name" ST_WANT="$want" ST_NTASK="$(task_total "$plan")" awk '
 function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
 function value(s) { sub(/^[A-Za-z]+:/, "", s); s = trim(s); return (s == "none" || s == "-" ? "" : s) }
+BEGIN { name = ENVIRON["ST_NAME"]; want = ENVIRON["ST_WANT"]; ntask = ENVIRON["ST_NTASK"] + 0 }
 { lines[NR] = $0 }
 $0 ~ ("^" name ":") && row == 0 { row = NR }
 /^progress:/ && prow == 0 { prow = NR }
@@ -770,8 +771,9 @@ intask && /^-[[:space:]]*Files:/ {
 # whether an extra path may ride in this commit: a path with another owner waits
 # for that owner instead.
 claimants() {
-  awk -v want="$2" '
+  CLAIM_WANT="$2" awk '
 function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+BEGIN { want = ENVIRON["CLAIM_WANT"] }
 /^[[:space:]]*<!--[[:space:]]*TASK[[:space:]]*-->[[:space:]]*$/   { intask = 1; cur = ""; next }
 /^[[:space:]]*<!--[[:space:]]*\/TASK[[:space:]]*-->[[:space:]]*$/ { intask = 0; next }
 intask && /^###[[:space:]]/ {
@@ -1265,8 +1267,9 @@ if [[ ! -f "$plan" ]]; then
 fi
 
 # --- the task's heading and file map ---
-parsed="$(awk -v want="$task_id" '
+parsed="$(TASK_WANT="$task_id" awk '
 function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+BEGIN { want = ENVIRON["TASK_WANT"] }
 /^[[:space:]]*<!--[[:space:]]*TASK[[:space:]]*-->[[:space:]]*$/   { intask = 1; cur = ""; next }
 /^[[:space:]]*<!--[[:space:]]*\/TASK[[:space:]]*-->[[:space:]]*$/ { intask = 0; next }
 intask && /^###[[:space:]]/ {
