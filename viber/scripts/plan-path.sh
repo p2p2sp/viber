@@ -101,12 +101,13 @@
 #            source's frontmatter "attachments:" map, checked before the run
 #            branch step (exit 7, see below): "attachments:" alone on its line,
 #            then one "<name>: <source path>" entry per line, indented, the map
-#            ending at the first line not indented. A name is one file name
-#            with an extension (^[A-Za-z0-9][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)+$)
+#            ending at the first line not indented. A name is one path
+#            component (^[A-Za-z0-9][A-Za-z0-9_.-]*$), an extension optional,
 #            and unique; the path (C:/, C:\ or POSIX form) is non-empty. On
 #            every copy (a new run, an --into draft round, never an "existing"
-#            answer), each source file of the copy's map is copied to
-#            <run>/attachments/<name>, the directory a former round left being
+#            answer), each source of the copy's map, a file or a directory
+#            (copied recursively), is copied to <run>/attachments/<name>,
+#            the directory a former round left being
 #            removed first (a copy with no map leaves none); the map keeps its
 #            source values. A source missing, a copy that failed or a former
 #            directory that could not be removed is one "warning:" line on
@@ -441,7 +442,7 @@ inmap && /^[ \t]/ {
   name = e
   path = ""
   if (p) { name = trim(substr(e, 1, p - 1)); path = trim(substr(e, p + 1)) }
-  if (name !~ /^[A-Za-z0-9][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)+$/) { print "E invalid name " name; exit }
+  if (name !~ /^[A-Za-z0-9][A-Za-z0-9_.-]*$/) { print "E invalid name " name; exit }
   if (path == "") { print "E entry without a path: " name; exit }
   if (name in seen) { print "E duplicate name " name; exit }
   seen[name] = 1
@@ -464,8 +465,8 @@ inmap { inmap = 0 }
 }
 
 # The attachments of the copy $1, put beside the landed plan under
-# attachments/<name>, so the run keeps every file its plan is built from once
-# .temp/ is cleared. The map keeps its source values: nothing rewrites them to
+# attachments/<name>, a directory copied whole, so the run keeps every file
+# its plan is built from once .temp/ is cleared. The map keeps its source values: nothing rewrites them to
 # the run path. A C:/ or C:\ value goes through cygpath -u where cygpath
 # exists; without it the value is used as written. The directory a former round
 # left is removed first, so a run never names a file its plan dropped; a copy
@@ -488,9 +489,9 @@ land_attachments() {
     if command -v cygpath >/dev/null 2>&1; then
       src_file="$(cygpath -u -- "$src_file" 2>/dev/null || printf '%s\n' "$src_file")"
     fi
-    if [[ ! -f "$src_file" ]]; then
+    if [[ ! -f "$src_file" && ! -d "$src_file" ]]; then
       echo "warning: attachment not found, not landed: ${att_paths[i]}" >&2
-    elif ! cp -- "$src_file" "$dir/${att_names[i]}" 2>/dev/null; then
+    elif ! cp -R -- "$src_file" "$dir/${att_names[i]}" 2>/dev/null; then
       echo "warning: could not copy attachment ${att_names[i]}" >&2
     fi
   done

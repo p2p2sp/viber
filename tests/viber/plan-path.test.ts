@@ -1230,6 +1230,36 @@ test("a plan naming two attachments lands both under attachments/<name> byte for
   });
 });
 
+for (const name of ["bench-llm", "bench.v2"]) {
+  test(`a directory attachment named ${name} lands recursively under attachments/${name}/`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      const root = path.dirname(attachment(dir, "bench/results/run.json", "{}\n"));
+      fs.writeFileSync(path.join(root, "..", "notes.md"), "# notes\n");
+      const src = sourcePlan(dir, "outside/add-login.md", withAttachments([`${name}: ${posixForm(path.dirname(root))}`], PLAN_BODY));
+
+      const result = await run(dir, ["--land", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(result.stderr, "");
+      const landed = path.join(dir, path.dirname(parse(result.stdout).path), "attachments", name);
+      assert.equal(fs.readFileSync(path.join(landed, "notes.md"), "utf-8"), "# notes\n");
+      assert.equal(fs.readFileSync(path.join(landed, "results", "run.json"), "utf-8"), "{}\n");
+    });
+  });
+}
+
+test("a file attachment with no extension lands under attachments/<name>", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const file = posixForm(attachment(dir, "Makefile", "all:\n"));
+    const src = sourcePlan(dir, "outside/add-login.md", withAttachments([`Makefile: ${file}`], PLAN_BODY));
+
+    const result = await run(dir, ["--land", src]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stderr, "");
+    const landed = path.join(dir, path.dirname(parse(result.stdout).path), "attachments", "Makefile");
+    assert.equal(fs.readFileSync(landed, "utf-8"), "all:\n");
+  });
+});
+
 for (const form of ["mixed", "native"] as const) {
   test(
     `an attachment source in the ${form === "mixed" ? "C:/" : "C:\\"} form lands too (cygpath normalizes it)`,
@@ -1256,7 +1286,7 @@ for (const [what, frontmatter, reason] of [
   ["a name that is a ..", ["attachments:", "  ..: /x/one"], "invalid name .."],
   ["a name with a .. segment before the extension", ["attachments:", "  ../a.png: /x/one"], "invalid name ../a.png"],
   ["a name with a leading dot", ["attachments:", "  .a.png: /x/one"], "invalid name .a.png"],
-  ["a name with no file extension", ["attachments:", "  issue: /x/one"], "invalid name issue"],
+  ["a name with a space", ["attachments:", "  a b.png: /x/one"], "invalid name a b.png"],
   ["an entry with an empty path", ["attachments:", "  a.png:"], "entry without a path: a.png"],
   ["an entry with no colon", ["attachments:", "  a.png"], "entry without a path: a.png"],
   ["an attachments: line carrying a value", ["attachments: a.png"], "attachments: carries a value"],

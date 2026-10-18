@@ -2044,6 +2044,17 @@ test("--split over a run whose attachments directory holds two files ends spec.m
   });
 });
 
+test("--split over a run whose attachments directory holds a directory lists it with a trailing slash", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody(TWO_TASKS));
+    write(dir, `${ATTACH_DIR}/bench-llm/run.json`, "{}\n");
+
+    const result = await run(dir, {}, [PLAN_REL, "--split"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(readRun(dir, "spec.md"), `${liteHead(2).join("\n")}\n## Attachments\n${ATTACH_DIR}/bench-llm/\n`);
+  });
+});
+
 test("--split over a run whose attachments directory is empty ends spec.md exactly where the head ends (no empty ## Attachments section)", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     seed(dir, planBody(TWO_TASKS));

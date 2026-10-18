@@ -135,10 +135,11 @@
 #                    stays whole, comments and blank lines included. The
 #                    "## Roadmap" section is cut out of it too, into roadmap.md.
 #                    It ends with "## Attachments" when <run>/attachments/ (the
-#                    files plan-path.sh --land copied there) holds a file: one
-#                    line per file, its repo-relative path ("$dir" is the
-#                    repo-relative run directory, as for the orphan line),
-#                    sorted by name; no directory or no file, no section.
+#                    files plan-path.sh --land copied there) holds an entry:
+#                    one line per file or directory, its repo-relative path
+#                    ("$dir" is the repo-relative run directory, as for the
+#                    orphan line), a directory ending in "/", sorted by name;
+#                    no directory or no entry, no section.
 #   roadmap.md    - only when the plan carries a "## Roadmap" section: that
 #                    section, heading included, up to the next "## " heading,
 #                    its HTML comments dropped. The parts of a split change and
@@ -1162,14 +1163,18 @@ END {
 ' "$plan"
 
 # --- the attachments, closing the specification ---
-# The files --land copied into <run>/attachments/ are listed by repo-relative
-# path, sorted by name (byte order, whatever the locale), so a task that needs
-# one names it itself. No directory, or no file in it, means no section.
+# The files and directories --land copied into <run>/attachments/ are listed
+# by repo-relative path, a directory ending in "/", sorted by name (byte order,
+# whatever the locale), so a task that needs one names it itself. No
+# directory, or nothing in it, means no section.
 attach_list=""
 if [[ -d "$dir/attachments" ]]; then
   while IFS= read -r attach; do
-    [[ -f "$attach" ]] || continue
-    attach_list="$attach_list$attach"$'\n'
+    if [[ -f "$attach" ]]; then
+      attach_list="$attach_list$attach"$'\n'
+    elif [[ -d "$attach" ]]; then
+      attach_list="$attach_list$attach/"$'\n'
+    fi
   done < <(printf '%s\n' "$dir"/attachments/* | LC_ALL=C sort)
 fi
 if [[ -n "$attach_list" ]]; then

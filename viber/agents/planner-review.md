@@ -32,7 +32,7 @@ Gate every `(review)` rule of `plan-rules.md`, each clause of it, and report a b
 - Buildable: an engineer could execute each task without stopping to ask what was meant.
 - Grounded: paths exist or are plausibly new, and the approach fits how this codebase actually works rather than how such code usually looks. A `modify` entry has to be a change the file can take: a dependency edge a task adds must not reverse one that already exists.
 - Sliced right: when the plan carries an integration test, read `<refs>/integration-tests.md`; every rule in it ending in `(blocking)` that the plan breaks is a Blocking finding.
-- Faithful: when `input:` is present, a criterion, boundary or constraint of it missing from the plan, or one the plan adds beyond it, is a Blocking finding; so is an `Attachment:` line of it with no entry in the frontmatter `attachments:` map, a name repeated within that map, and an `attachments/<name>` reference in a `DoD` to a name the map does not hold.
+- Faithful: when `input:` is present, a criterion, boundary or constraint of it missing from the plan, or one the plan adds beyond it, is a Blocking finding; so is an `Attachment:` line of it with no entry in the frontmatter `attachments:` map, a name repeated within that map, a name not matching `^[A-Za-z0-9][A-Za-z0-9_.-]*$`, and an `attachments/<name>` reference in a `DoD` to a name the map does not hold.
 
 ## Check the big spec shape
 
