@@ -26,7 +26,7 @@ You orchestrate and delegate: every piece of work runs inside a subagent. Open n
 - Every bundled-script run is one literal Bash line, `"${CLAUDE_PLUGIN_ROOT}/scripts/<name>.sh" "<arg>" ...`, every argument double-quoted: never prefixed with an interpreter, never assigned to a variable, never preceded by `cd`, never chained with `;`.
 - Every dispatch or call that starts or ends a task-list entry carries that entry's `TaskUpdate` in the same message.
 - Never two `commit-task.sh` calls in one message: each rewrites the git index and `status.md`.
-- A `commit-task.sh` call exiting non-zero committed nothing. Except a task's own commit, a commit outside a task, a `--rule` call, a `--skip` or `--decide` call made after an arbiter ruling (step 4 owns these four) and an `--extension` call (step 6's extension text owns it): `AskUserQuestion`: retry / abort, on abort one `left uncommitted: <path> | commit refused, the build was aborted` line per path in the final summary.
+- A `commit-task.sh` call exiting non-zero committed nothing. Except a task's own commit, a commit outside a task, a `--rule` call, a `--skip` or `--decide` call made after an arbiter ruling, a `--repaired` call (step 4 owns these five) and an `--extension` call (step 6's extension text owns it): `AskUserQuestion`: retry / abort, on abort one `left uncommitted: <path> | commit refused, the build was aborted` line per path in the final summary.
 - An agent's completion notice saying it "stopped with background work of its own still running": hold its verdict and `SendMessage` that agent, once: `Stop every process you started that is still running, then return your output lines again.` Act on what it returns then. The same notice again -> act on the verdict and name that agent's task in the final summary.
 - An agent returning no `VERDICT:` line -> act as on its `VERDICT: FAIL` when its output defines one, else on its `VERDICT: DENIED`, with `REASON: no verdict returned`.
 
@@ -78,6 +78,7 @@ Never dispatch a `done` or `skipped` task again. Also on the index:
   - Leave uncommitted: one `left uncommitted: <path> | the user chose to leave it uncommitted` line per path in the final summary.
 - `unreviewed: <ids>` -> carry to the final summary.
 - `deferred: <id>:<path>` -> that task's `deferred:` line in step 4.
+- `owed: <id>:<path>` -> the owed-path passes of step 4.
 - `closed: <parts>` -> those parts of steps 6 and 7 are already recorded.
 - `decision: <id>: <text>` -> a `decision:` line in step 4.
 - `ruling: <subject>: <text>` -> carry to step 7.
@@ -142,7 +143,7 @@ Reviewer dispatch: `viber:task-reviewer` (Agent tool, `model` = the review tier)
 
 Commit: `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>"` with its `TaskUpdate` -> completed, plus:
 
-- `--defer "<target-id>:<path>" [...]` for every `DEFERRED:` line its coder returned. `-> none` takes the earliest unfinished task other than this one whose `files` column claims that path; a path no task claims is named in the final summary.
+- `--defer "<target-id>:<path>" [...]` for every `DEFERRED:` line its coder returned. `-> none` takes the earliest unfinished task other than this one whose `files` column claims that path; a `-> none` path no unfinished task claims is recorded through `--owe "<path>" ["<path>"...]` on the same call, for the owed-path pass below to prove.
 
 Warnings off the commit never stop the build: carry `refused <path> - claimed by task <id>`, `took <path> - claimed by committed task <id>` and `changed, claimed by no task in the plan` to the final summary.
 
@@ -176,6 +177,16 @@ Start with every task whose `deps` are done, in one message. On every return, an
 - Reviewer `VERDICT: DENIED` -> `AskUserQuestion` naming the task: retry / accept / abort.
 - Commit exit 4 -> nothing was committed; `TaskUpdate` back to in progress and `AskUserQuestion`: retry / skip / abort. When it names `--landed`, add a first option: already committed - the user names the commit, and the same call re-runs with `--landed "<sha>"`.
 - Commit any other non-zero exit on attempt 1 to 4 -> nothing was committed; `TaskUpdate` back to in progress, then the next attempt.
+
+Owed-path pass: a repair pass of a done task for the paths it owes. It is a coder dispatch of the task, never step 5's repair dispatch.
+
+- Start passes only when no agent is in flight and no task is ready to dispatch, before step 5. Owing tasks are the index `owed:` entries plus every `--owe` this build passed: one pass per task covering all its paths, run one at a time, in index order.
+- Dispatch: the task's ordinary coder and reviewer dispatch lines, plus `repair: <one line: the problem this pass fixes>` on both and `deferred: <the task's owed paths>` on the coder's. Its tier is the tier of the task's last attempt, its review tier the task's review tier raised to `sonnet`, never waived.
+- Entry: `TaskCreate` `R<n> - repair <id> (<tier>, review <review tier>)`, `<n>` counting from 1 in the session; it completes with the `--repaired` call, or with the second failure.
+- At most 2 attempts: a coder failure (a `DECIDE:` line included, never sent to the arbiter), a review failure and a task commit exiting other than 4 each cost one. The second attempt is the same fresh dispatch carrying `reason:` and, after a review failure, the `REVIEW` path as `report:`.
+- Commit: a coder `PASS` goes to review, a reviewer `PASS` to the task commit form `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>"`, `--defer` as above; its exit 4 after a reviewer `PASS` counts as done. Once it succeeds, `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --repaired "<plan>" "<id>"` with the entry's `TaskUpdate` -> completed; exiting non-zero -> name it in the final summary, ask nothing.
+- Both attempts failed: name the task's owed paths in the final summary as deferred paths without an owner, and one `left uncommitted: <path> | repair pass of <id> failed` line per path on the union of both attempts' `FILES:` and `EXTRA:` lines. Never `--repaired`.
+- A `-> none` path a repair pass defers is never `--owe`d again: name it in the final summary as a deferred path without an owner.
 
 ## 5. Close
 
