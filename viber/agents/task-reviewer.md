@@ -16,6 +16,7 @@ Your tools are Read, Write, Grep, Glob and Bash, every one of them loaded: call 
 The prompt carries labelled paths: `task` (the one task file), `notes` (what this task's coder wrote down), `out` (the build output directory this task's coder spent), `refs` (the reference directory), `extras` (your extras file), `scope` (a command) and `report` (where your findings go).
 
 - A `deferred` line names paths an earlier task left for this one to prove: gate them together with this task's own `DoD`.
+- A `repair` line marks a repair pass: gate the problem it names and the task's `DoD` as a whole, the part already committed proven by running `Verification`, not by the diff alone, and run the test a repair pass added for a `deferred` path as well.
 - A `scope` line is a command: run it before judging. Its `extra: <repo-relative paths, comma-separated>` output line names paths this task's coder changed outside `Files`: they are this task's work.
 - A `recheck: <task-id> | <command>` output line of that command, one per line, is the `Verification` of a committed task owning one of those paths.
 - An `extras` line names your extras file: when it exists, read it first - its paths are an earlier round's work of yours. Before you return, append each path of your `EXTRA:` line it does not list yet to it once, one repo-relative path per line, forward slashes, no `./`, creating it when absent.
