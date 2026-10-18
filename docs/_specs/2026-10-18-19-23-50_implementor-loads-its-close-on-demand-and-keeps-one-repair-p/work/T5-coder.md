@@ -1,4 +1,0 @@
-- SKILL.md size: 22,882 bytes at task start (T3 already brought it under 23,500), 22,187 after the merge; the 28,826 baseline is the plan's figure.
-- The merged section keeps per-kind differences as indented sub-bullets (`  - held-task pass:` / `  - owed-path pass:`) under each shared bullet; repair-prose reads them through `kindLine`.
-- The `-> none` bullet now says "an owed-path pass defers" (it sat in the owed section; the held-task commit still takes `--owe` as before).
-- skill-part.sh was still 100644 in the index (T3's exec bit never reached HEAD); the portability sweep failed on it, so I set 100755 again with git update-index.

@@ -1,4 +1,0 @@
-- skill-part.sh expands the two placeholders per ordinary line and per unchanged block; a fragment's output is appended as switch-text.sh printed it (already expanded), never expanded twice.
-- A fenced block never closed before end of file prints unchanged as plain text.
-- DoD.6 exec bit and shebang are proven by the existing `tests/portability.unit.test.ts` sweep (index mode), not by a new case; the no-heredoc rule is checked by the task's grep (a test may not read source text).
-- Tests run the script with `shell: "bash"`, so no filesystem exec bit is needed; only the index mode (100755) is set.

@@ -1,4 +1,0 @@
-- skill-part.sh was in the index at 100644 (T1 left it); the portability exec-bit sweep failed once SKILL.md named it, so I set 100755 with git update-index. Its content is untouched.
-- Step 3 creates `Run extensions` unless both build.extensions and build.extensions-missing read none, mirroring switch-text.sh's derived on/off value.
-- ruling-prose and extras-prose join SKILL.md and parts/close.md into one string for their whole-file checks; roadmap-prose still names its constant SKILL but reads close.md.
-- Trap: the pointer sentence must keep "before the first action of step 5, 6 or 7" in lower case; close-part-prose pins that phrase.
