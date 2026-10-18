@@ -223,8 +223,11 @@ holds_other() {
   # index() with an empty needle (the root node) answers 1 in BWK awk and 0 in
   # gawk. A prefix ends in "/", so no tracked file ever equals it. awk reads
   # to the end instead of exiting on the first match: an early exit breaks the
-  # pipe under printf, which can then print a write error on stderr.
-  printf '%s' "$tracked" | awk -v p="$1" -v n="$2" '
+  # pipe under printf, which can then print a write error on stderr. The prefix
+  # and the node path reach awk through ENVIRON: -v runs escape processing, so
+  # a backslash in a directory name would be read as an escape sequence.
+  printf '%s' "$tracked" | HOLDS_PREFIX="$1" HOLDS_NODE="$2" awk '
+    BEGIN { p = ENVIRON["HOLDS_PREFIX"]; n = ENVIRON["HOLDS_NODE"] }
     !found && $0 != "" && $0 != n && substr($0, 1, length(p)) == p {
       rest = substr($0, length(p) + 1)
       if (rest != "CLAUDE.local.md" && rest ~ /^CLAUDE\.[abcdefghijklmnopqrstuvwxyz0123456789-]+\.md$/) next
@@ -421,9 +424,9 @@ done < <(
 cand_out=""
 if [ -n "$tracked" ]; then
   cand_out="$(
-    printf '%s' "$tracked" | tr '\n' '\0' | xargs -0 wc -c 2>/dev/null | awk -v manifests="$MANIFESTS" '
+    printf '%s' "$tracked" | tr '\n' '\0' | xargs -0 wc -c 2>/dev/null | MANIFEST_LIST="$MANIFESTS" awk '
       function is_manifest(base,   i, n, list) {
-        n = split(manifests, list, " ")
+        n = split(ENVIRON["MANIFEST_LIST"], list, " ")
         for (i = 1; i <= n; i++) if (base == list[i]) return 1
         return (base ~ /\.csproj$/ || base ~ /\.sln$/)
       }

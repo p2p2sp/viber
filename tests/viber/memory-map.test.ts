@@ -238,6 +238,22 @@ test("only a node with no other tracked file anywhere beneath its directory is a
   });
 });
 
+test("a node whose directory name holds a backslash is no orphan when four other files are tracked beside it, like the same layout under a plain name (awk -v would read the backslash as an escape)", async () => {
+  await withGitRepo(async (repo) => {
+    const files: Record<string, string> = {};
+    for (const dir of ["we\\tird", "plain"]) {
+      files[`${dir}/CLAUDE.md`] = node(40);
+      for (const name of ["a.ts", "b.ts", "c.ts", "d.ts"]) files[`${dir}/${name}`] = "export const a = 1;\n";
+    }
+    await commit(repo, files);
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(pick(lines(result.stdout), "orphan:"), []);
+  });
+});
+
 test("a directory deserving a node is a candidate, marked toolchain only when it holds a manifest", async () => {
   await withGitRepo(async (repo) => {
     await commit(repo, {
