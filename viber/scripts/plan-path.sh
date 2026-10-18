@@ -103,7 +103,8 @@
 #            then one "<name>: <source path>" entry per line, indented, the map
 #            ending at the first line not indented. A name is one path
 #            component (^[A-Za-z0-9][A-Za-z0-9_.-]*$), an extension optional,
-#            and unique; the path (C:/, C:\ or POSIX form) is non-empty. On
+#            a blank or whitespace-only line inside the map skipped, in the
+#            source and in the landed copy alike, and unique; the path (C:/, C:\ or POSIX form) is non-empty. On
 #            every copy (a new run, an --into draft round, never an "existing"
 #            answer), each source of the copy's map, a file or a directory
 #            (copied recursively), is copied to <run>/attachments/<name>
@@ -437,9 +438,9 @@ function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
 NR == 1 { if ($0 !~ /^---[ \t]*\r?$/) exit; next }
 /^---[ \t]*\r?$/ { exit }
 { sub(/\r$/, "") }
+inmap && /^[ \t]*$/ { next }
 inmap && /^[ \t]/ {
   e = trim($0)
-  if (e == "") next
   p = index(e, ":")
   name = e
   path = ""

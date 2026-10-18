@@ -1230,6 +1230,32 @@ test("a plan naming two attachments lands both under attachments/<name> byte for
   });
 });
 
+test("a whitespace-only line between two attachment entries lands both files, exit 0", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const a = posixForm(attachment(dir, "a.html", "<p>a</p>\n"));
+    const b = posixForm(attachment(dir, "b.html", "<p>b</p>\n"));
+    const src = sourcePlan(dir, "outside/add-login.md", withAttachments([`a.html: ${a}`, "", `b.html: ${b}`], PLAN_BODY));
+
+    const result = await run(dir, ["--land", src]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stderr, "");
+    const landed = path.join(dir, path.dirname(parse(result.stdout).path), "attachments");
+    assert.equal(fs.readFileSync(path.join(landed, "a.html"), "utf-8"), "<p>a</p>\n");
+    assert.equal(fs.readFileSync(path.join(landed, "b.html"), "utf-8"), "<p>b</p>\n");
+  });
+});
+
+test("a name repeated after a whitespace-only line still exits 7 with duplicate name (the line does not reset the map)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const src = sourcePlan(dir, "outside/add-login.md", withAttachments(["a.html: /x/one", "", "b.html: /x/two", "b.html: /x/three"], PLAN_BODY));
+
+    const result = await run(dir, ["--land", src]);
+    assert.equal(result.status, 7, `stdout: ${result.stdout}`);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr.trim(), "error: unusable attachments: duplicate name b.html");
+  });
+});
+
 for (const name of ["bench-llm", "bench.v2"]) {
   test(`a directory attachment named ${name} lands recursively under attachments/${name}/`, async () => {
     await withTempDir("p2p2-viber-", async (dir) => {
