@@ -50,7 +50,10 @@
 # manual separator conversion is needed.
 #
 # Issue references are cut out of the arguments BEFORE the selector is
-# recognised, so "src/foo #42" still resolves to path=src/foo.
+# recognised, so "src/foo #42" still resolves to path=src/foo. An existing path
+# wins over a reference: the whole argument, or a whitespace token, that is an
+# existing path is never cut, so a file "bugs/#12.md" is that path with no
+# reference. A cut removes only the "#42" itself, never the characters around it.
 #
 # Contract:
 #   argv   : none - it is sourced, never run. resolve_commit_selector takes $1,
@@ -83,36 +86,57 @@ add_issue_ref() {
   esac
 }
 
-# Cuts every match of regex $2 out of $1, adding the number from group $3 to
+# Cuts every match of regex $2 out of $1, adding the issue number to
 # COMMIT_ISSUE_REFS; the text left without matches lands in COMMIT_SELECTOR_RAW.
-# The loop consumes a prefix (out += before-match, scan := after-match), so it
-# shrinks every iteration and always ends - an in-place replacement could hit
-# an earlier, unmatched occurrence of the same text.
+# The regex holds four groups: 1 the boundary before the reference, 2 the text
+# to cut, 3 the issue number, 4 the boundary after it. Only group 2 is removed;
+# the boundaries stay, so "bugs/#12.md" loses just the "#12". The loop consumes
+# a prefix (out += before-match, scan := after-match), so it shrinks every
+# iteration and always ends - an in-place replacement could hit an earlier,
+# unmatched occurrence of the same text.
 strip_issue_refs() {
-  local scan="$1" re="$2" grp="$3" out="" full
+  local scan="$1" re="$2" full
+  local out=""
   while [[ "$scan" =~ $re ]]; do
     full="${BASH_REMATCH[0]}"
-    add_issue_ref "${BASH_REMATCH[$grp]}"
-    out="$out${scan%%"$full"*} "
-    scan="${scan#*"$full"}"
+    add_issue_ref "${BASH_REMATCH[3]}"
+    out="$out${scan%%"$full"*}${BASH_REMATCH[1]}"
+    scan="${BASH_REMATCH[4]}${scan#*"$full"}"
   done
   COMMIT_SELECTOR_RAW="$out$scan"
 }
 
-extract_issue_refs() {
-  local raw="${1:-}"
+# Cuts the references out of one whitespace token into COMMIT_SELECTOR_RAW.
+cut_issue_refs() {
   # A bare "#123" needs a non-alphanumeric boundary on both sides, or a hex
   # colour (#1a2b3c) or a URL fragment (#issue-12x) would pass for an issue.
-  local url_re='(https?://[^[:space:]]+/issues/([0-9]+)[^[:space:]]*)'
+  local url_re='()(https?://[^[:space:]]+/issues/([0-9]+)[^[:space:]]*)()'
   local hash_re='(^|[^[:alnum:]_])(#([0-9]+))([^[:alnum:]_]|$)'
-  COMMIT_ISSUE_REFS=""
   # Links first: a URL may carry a fragment (.../issues/42#issuecomment-1),
   # and nothing of it is left once the whole link is cut out.
-  strip_issue_refs "$raw" "$url_re" 2
-  strip_issue_refs "$COMMIT_SELECTOR_RAW" "$hash_re" 3
-  raw="$COMMIT_SELECTOR_RAW"
+  strip_issue_refs "$1" "$url_re"
+  strip_issue_refs "$COMMIT_SELECTOR_RAW" "$hash_re"
+}
+
+# Fills COMMIT_ISSUE_REFS and leaves the arguments without their references in
+# COMMIT_SELECTOR_RAW. A whitespace token that is an existing path is kept
+# whole, so a file named "#12.md" is not read as a reference.
+extract_issue_refs() {
+  local raw="${1:-}" tok kept=""
+  local -a words=()
+  COMMIT_ISSUE_REFS=""
+  IFS=$' \t\n' read -r -d '' -a words <<<"$raw" || true
+  for tok in ${words[@]+"${words[@]}"}; do
+    if resolve_commit_path "$tok"; then
+      kept="$kept $tok"
+    else
+      cut_issue_refs "$tok"
+      kept="$kept $COMMIT_SELECTOR_RAW"
+    fi
+  done
   # Cutting the references leaves doubled spaces - collapse them and trim the
   # ends, or the rest of the arguments matches neither the keyword nor a path.
+  raw="$kept"
   while [[ "$raw" == *"  "* ]]; do raw="${raw//  / }"; done
   raw="${raw#"${raw%%[![:space:]]*}"}"
   raw="${raw%"${raw##*[![:space:]]}"}"
@@ -155,10 +179,17 @@ resolve_commit_path() {
 resolve_commit_selector() {
   local raw tok
   local -a toks=()
-  extract_issue_refs "${1:-}"
-  raw="$COMMIT_SELECTOR_RAW"
   COMMIT_PATHS=()
   COMMIT_MISSING=""
+  # The whole argument first: a file named "bugs/#12.md" is that path, never a
+  # reference to issue 12.
+  if resolve_commit_path "${1:-}"; then
+    COMMIT_ISSUE_REFS=""
+    COMMIT_MODE="paths"; COMMIT_PATHS=("$COMMIT_RESOLVED")
+    return 0
+  fi
+  extract_issue_refs "${1:-}"
+  raw="$COMMIT_SELECTOR_RAW"
   # Path check BEFORE the keyword: otherwise a file named "all" could never be
   # committed alone (the keyword would silently widen the commit).
   if resolve_commit_path "$raw"; then

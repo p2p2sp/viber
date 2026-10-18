@@ -252,6 +252,24 @@ test("mode paths with a glob-looking selector and no file of that literal name: 
   });
 });
 
+test("mode paths with a file named 'bugs/#12.md': it alone is committed, 'bugs/other.md' stays modified and no Refs footer is written (the '#12' used to be cut out as an issue reference)", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      fs.mkdirSync(path.join(repo.dir, "bugs"));
+      await commitFile(repo, "bugs/#12.md", "bug\n");
+      await commitFile(repo, "bugs/other.md", "other\n");
+      fs.writeFileSync(path.join(repo.dir, "bugs", "#12.md"), "bug, changed\n");
+      fs.writeFileSync(path.join(repo.dir, "bugs", "other.md"), "other, changed\n");
+
+      const result = await runCommit(bash, repo, ["docs: bug 12", "bugs/#12.md"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal((await repo.git("show", "--name-only", "--format=", "HEAD")).stdout.trim(), "bugs/#12.md");
+      assert.equal((await repo.git("status", "--porcelain")).stdout.replace(/\n$/, ""), " M bugs/other.md");
+      assert.doesNotMatch((await repo.git("log", "-1", "--format=%B")).stdout, /Refs:/);
+    });
+  });
+});
+
 // --- exit codes and messages ------------------------------------------------------
 
 test("missing message -> exit 1 with usage on stderr, nothing committed", async () => {

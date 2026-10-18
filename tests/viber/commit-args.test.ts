@@ -228,6 +228,38 @@ test("a bare reference plus an existing path resolves to mode 'paths' with the r
   });
 });
 
+test("an existing path holding '#12' resolves to mode 'paths' with that path and no reference (the reference cut used to mangle it)", async () => {
+  await assertBash(async (bash) => {
+    await withTempDir("p2p2-commit-args-", async (dir) => {
+      fs.mkdirSync(path.join(dir, "bugs"));
+      fs.writeFileSync(path.join(dir, "bugs", "#12.md"), "bug\n");
+      const sel = await resolve(bash, dir, "bugs/#12.md");
+      assert.deepEqual(sel, { mode: "paths", path: "bugs/#12.md", issueRefs: "" });
+    });
+  });
+});
+
+test("a whitespace token that is an existing path holding '#12' stays a path beside a bare reference, which is still cut", async () => {
+  await assertBash(async (bash) => {
+    await withTempDir("p2p2-commit-args-", async (dir) => {
+      fs.mkdirSync(path.join(dir, "bugs"));
+      fs.writeFileSync(path.join(dir, "bugs", "#12.md"), "bug\n");
+      fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
+      const sel = await resolve(bash, dir, "a.txt bugs/#12.md #5");
+      assert.deepEqual(sel, { mode: "paths", path: "a.txt|bugs/#12.md", issueRefs: "5" });
+    });
+  });
+});
+
+test("a path-shaped token holding '#12' that does not exist resolves to mode 'missing' (the cut removes only the '#12', so the rest stays path-shaped)", async () => {
+  await assertBash(async (bash) => {
+    await withTempDir("p2p2-commit-args-", async (dir) => {
+      const sel = await resolve(bash, dir, "bugs/#12.md");
+      assert.equal(sel.mode, "missing");
+    });
+  });
+});
+
 test("an issue URL and a bare reference combine into one deduplicated ref list", async () => {
   await assertBash(async (bash) => {
     await withTempDir("p2p2-commit-args-", async (dir) => {
