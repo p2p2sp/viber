@@ -54,6 +54,33 @@ fi
 enter_repo_root
 resolve_commit_selector "$selector"
 
+# Gives the working tree the exec bit the index holds for every path whose staged
+# mode differs from HEAD's (a new path included): sync_tree_modes [<path>...].
+# Under core.fileMode=true "git add -u" and "git add -A" read a tracked path's
+# mode back from the tree, so an exec bit staged with "git update-index
+# --chmod=+x" over a 0644 file was dropped before the commit. Once the tree
+# agrees with the index the add keeps the mode. Under core.fileMode=false git
+# keeps the index mode by itself and chmod leaves the index alone. A path whose
+# mode only the tree changed is not touched: that change is the caller's. The
+# same shape as sync_tree_modes in viber's commit-task.sh.
+sync_tree_modes() {
+  local meta p mode base=HEAD
+  local -a scope=()
+  [[ $# -eq 0 ]] || scope=(-- "$@")
+  git rev-parse -q --verify HEAD >/dev/null || base="$(git hash-object -t tree /dev/null)"
+  # a --raw record is ":<old mode> <new mode> <old sha> <new sha> <status>",
+  # each mode six digits, then the path
+  while IFS= read -r -d '' meta && IFS= read -r -d '' p; do
+    mode="${meta:8:6}"
+    [[ "${meta:1:6}" != "$mode" && -f "$p" && ! -L "$p" ]] || continue
+    if [[ "$mode" == 100755 && ! -x "$p" ]]; then
+      chmod +x -- "$p" || true
+    elif [[ "$mode" == 100644 && -x "$p" ]]; then
+      chmod -x -- "$p" || true
+    fi
+  done < <(git diff --cached --raw -z --no-renames "$base" ${scope[@]+"${scope[@]}"})
+}
+
 if [[ "$COMMIT_MODE" == "missing" ]]; then
   echo "error: none of the named paths exists: $COMMIT_MISSING - nothing committed" >&2
   exit 3
@@ -70,6 +97,7 @@ if [[ "$COMMIT_MODE" == "paths" ]]; then
   # (index or HEAD) enter that pathspec - an ignored untracked one would make
   # "git commit" refuse the whole list. A mode change staged with
   # "git update-index --chmod=+x" is committed like any other staged change.
+  sync_tree_modes "${COMMIT_PATHS[@]}"
   known=()
   for p in "${COMMIT_PATHS[@]}"; do
     if [[ -n "$(git ls-files -- "$p")" ]]; then
@@ -111,6 +139,7 @@ if [[ "$COMMIT_MODE" == "paths" ]]; then
   git ls-files -s -z --full-name -- "${known[@]}" | GIT_INDEX_FILE="$idx" git update-index -z --index-info
   GIT_INDEX_FILE="$idx" git commit -m "$message"
 else
+  sync_tree_modes
   git add -A
   if git diff --cached --quiet; then
     echo "Nothing to commit."

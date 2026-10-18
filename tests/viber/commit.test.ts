@@ -409,6 +409,36 @@ test("mode paths: an exec bit staged with 'git update-index --chmod=+x' under co
   });
 });
 
+// --- a staged mode change under core.fileMode=true ---------------------------------
+
+test("mode paths: an exec bit staged with 'git update-index --chmod=+x' over a 0644 file under core.fileMode=true is committed at 100755 (git add -u read the mode back from the tree and dropped it)", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      await repo.git("config", "core.fileMode", "true");
+      await commitFile(repo, "run.sh", "echo run\n");
+      await repo.git("update-index", "--chmod=+x", "--", "run.sh");
+
+      const result = await runCommit(bash, repo, ["chore: exec", "run.sh"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.match((await repo.git("ls-tree", "HEAD", "--", "run.sh")).stdout, /^100755 /);
+    });
+  });
+});
+
+test("mode 'all': an exec bit staged with 'git update-index --chmod=+x' over a 0644 file under core.fileMode=true is committed at 100755 (git add -A read the mode back from the tree and dropped it)", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      await repo.git("config", "core.fileMode", "true");
+      await commitFile(repo, "run.sh", "echo run\n");
+      await repo.git("update-index", "--chmod=+x", "--", "run.sh");
+
+      const result = await runCommit(bash, repo, ["chore: exec"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.match((await repo.git("ls-tree", "HEAD", "--", "run.sh")).stdout, /^100755 /);
+    });
+  });
+});
+
 test("mode paths: a staged deletion is committed and a path staged outside the selector stays staged, out of the commit", async () => {
   await assertBash(async (bash) => {
     await withGitRepo(async (repo) => {
