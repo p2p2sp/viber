@@ -40,12 +40,13 @@ This area owns `hooks.json`, the six hook scripts under `scripts/`, the two text
 
 ## Traps
 
+- A transcript `"type":"api-request-blob"` record replays whole messages, a `VERDICT:` line or a Skill call included, and reads as a live event: every transcript scan of `plan-gate.sh` and `plan-hints.sh` skips it, so a new scan must too.
 - No hook script uses `set -e`: fail-open needs every non-zero exit swallowed. Each awk result is checked for its numeric shape before use, because a broken awk on PATH must allow, never deny.
 - `systemMessage` nested inside `hookSpecificOutput` is silently ignored by Claude Code: it must stay top-level.
 - `resume` is excluded by the `hooks.json` matcher, not by `session-start.sh`; SessionStart never fires for subagents.
 - Claude Code can flush the old permission mode mid-turn between the planner's Skill call and its `EnterPlanMode`, putting the Skill line before the episode start: that is why the following `EnterPlanMode` also counts, ended early by a user prompt or a plan-mode record.
 - Any write to the plan after its PASS voids it through the mtime check, applying a Minor finding included; an edit through `sed -i` or an editor is caught the same way.
 - A refused planner leaves `plan-hints.sh` silent for the rest of the episode: it runs before any plan file exists, so it cannot check the frontmatter.
-- `kill-guard.sh`, `shell-guard.sh` and `verdict-nudge.sh` run on every `Bash` call or agent stop of every session: a call from outside the agents they act on must return on bash builtins alone, before any external command. `shell-guard.sh` sets `LC_ALL=C` and scans by byte: in a UTF-8 locale a 20 KB command took 5 s against the 10 s timeout.
-- `shell-guard.sh` treats an unquoted newline as no chain, a `#` opening a word as a comment, `>&2`, `2>&1` and an absolute or `.temp/` redirect target as no write, and `git rm`, the exec-bit `git update-index` and a quoted `rm` as allowed.
+- `kill-guard.sh`, `shell-guard.sh` and `verdict-nudge.sh` run on every `Bash` call or agent stop of every session: a call from outside the agents they act on must return on bash builtins alone, before any external command. All three set `LC_ALL=C` and scan by byte: in a UTF-8 locale a 20 KB command took 5 s against the 10 s timeout. `kill-guard.sh` and `verdict-nudge.sh` unescape the JSON in one left-to-right awk pass (value through `ENVIRON`) because bash 3.2 (macOS `/bin/bash`) rescans the string per `${var//x/y}` match, which ran an 11 KB command past the timeout; `shell-guard.sh` still unescapes with `${var//}`, with the same cost.
+- `shell-guard.sh` treats an unquoted newline as no chain, a `#` opening a word as a comment, `>&2`, `>&-`, `2>&1` and an absolute or `.temp/` redirect target as no write, `>&file` and `N>&file` onto a relative path as a write, and `git rm`, the exec-bit `git update-index` and a quoted `rm` as allowed.
 - The Write rescue keys on the harness guard's literal error text: a reworded guard disables it silently.
