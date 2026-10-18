@@ -216,7 +216,7 @@ export function mergeLabels(d) {
 /** Fills the template in one pass, so text inserted for one placeholder is never re-scanned. */
 export function render(d, template) {
   const values = {
-    __REPORT_DATA__: JSON.stringify(d).replaceAll("</", "<\\/"),
+    __REPORT_DATA__: JSON.stringify(d).replaceAll("<", "\\u003c"),
     __LANG__: String(d.meta.language),
     __TITLE__: String(d.meta.title).replaceAll("<", "&lt;"),
   };

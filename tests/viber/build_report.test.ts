@@ -45,6 +45,25 @@ test("invalid data exits 1, prints the problem count and one line per problem, a
   });
 });
 
+test("a fact text holding a comment marker and a script tag builds OK and its report-data element holds no '<' and parses back to the input (a live '<!--' or '<script' would swallow the rest of the page)", async () => {
+  await withTempDir("idea-validator-", (dir) => {
+    const d = validReport();
+    d.research.problem.facts = [{ text: "Users paste <!-- comment markers and a <script src=x> embed snippet" }];
+    const src = path.join(dir, "report-data.json");
+    const dest = path.join(dir, "report.html");
+    fs.writeFileSync(src, JSON.stringify(d), "utf-8");
+    const out = capture();
+    assert.equal(main([src, dest], out.log), 0);
+    assert.match(out.lines[0], /^OK /);
+    const html = fs.readFileSync(dest, "utf-8");
+    const open = html.indexOf('<script id="report-data" type="application/json">');
+    const start = html.indexOf(">", open) + 1;
+    const payload = html.slice(start, html.indexOf("</script>", start));
+    assert.ok(!payload.includes("<"), payload);
+    assert.equal(JSON.parse(payload).research.problem.facts[0].text, d.research.problem.facts[0].text);
+  });
+});
+
 test("valid data exits 0 and writes the filled template with every placeholder replaced and LF line endings", async () => {
   await withTempDir("idea-validator-", (dir) => {
     const src = path.join(dir, "report-data.json");
