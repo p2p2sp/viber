@@ -46,10 +46,13 @@ msg="${BASH_REMATCH[1]}"
 
 # JSON-unescape the message in one awk pass, left to right, so that \\n stays a
 # backslash followed by n. awk, not bash ${var//pat/rep}: bash 3.2 rescans the
-# whole string per match, which took seconds on a long message.
-msg="$(MSG_TEXT="$msg" awk '
+# whole string per match, which took seconds on a long message. The message goes
+# in on stdin, not in an env var: Linux caps one env string at 128 KB. The raw
+# JSON string holds no newline, so it is one awk record.
+msg="$(printf '%s' "$msg" | awk '
 BEGIN {
-  s = ENVIRON["MSG_TEXT"]
+  s = ""
+  getline s
   out = ""
   while ((i = index(s, "\\")) > 0) {
     out = out substr(s, 1, i - 1)
