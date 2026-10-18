@@ -6,8 +6,8 @@
 #
 # It exists so `viber:pr-feedback` publishes through ONE pre-approved command and
 # so a second run never answers a thread twice: the posted body opens with the
-# marker `<!-- viber:pr-feedback <comment-id> -->`, and a reply to that comment
-# already opening with the same marker yields `STATUS=skip`. Self-verifying:
+# marker `<!-- viber:pr-feedback <comment-id> -->`, and a newest reply to that
+# comment already opening with the same marker yields `STATUS=skip`. Self-verifying:
 # REPLY_URL is printed only after gh exited 0 AND returned a well-formed
 # `.../pull/<N>#discussion_r<id>` URL - the caller trusts it and never re-posts.
 #
@@ -39,7 +39,10 @@
 #            or
 #              STATUS=skip
 #              REASON=exists
-#            exists = a reply to <comment-id> whose first line is the marker.
+#            exists = the newest reply to <comment-id> (the comments come oldest
+#            first) has the marker as its first line; a reviewer reply after the
+#            viber one is a follow-up and gets answered, the rule pr-threads.sh
+#            lists threads by.
 #   exit   : 0 with either block; 1 with one `ERROR pr-reply.sh: ...` line on
 #            stderr and nothing on stdout when gh is not on PATH, the cwd is not
 #            inside a git repository, gh failed reading the comments or posting,
@@ -97,7 +100,8 @@ marker="<!-- viber:pr-feedback $id -->"
 comments=$(ghapi --paginate --jq '.[] | "\(.in_reply_to_id) \(.body | split("\n") | .[0])"' \
   "repos/$slug/pulls/$n/comments" 2>&1) \
   || fail "gh api comments failed: $(printf '%s' "$comments" | tr '\n\r' '  ')"
-if printf '%s\n' "$comments" | tr -d '\r' | grep -Fxq -- "$id $marker"; then
+newest=$(printf '%s\n' "$comments" | tr -d '\r' | grep -- "^$id " | tail -n 1)
+if [ "$newest" = "$id $marker" ]; then
   printf 'STATUS=skip\nREASON=exists\n'
   exit 0
 fi

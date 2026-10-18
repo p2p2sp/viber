@@ -157,6 +157,28 @@ test("a reply to the comment opening with its marker prints STATUS=skip and REAS
   });
 });
 
+test("a thread whose newest reply is the marker, after an older reviewer follow-up, still prints STATUS=skip and REASON=exists and posts nothing", async () => {
+  await assertPosix(async (shell) => {
+    const { result, calls } = await runInRepo(shell, ["42", "101", "<file>"], {
+      env: { COMMENTS: `null Please fix\n101 ${MARKER}\n101 One more thing\n101 ${MARKER}\n` },
+    });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "STATUS=skip\nREASON=exists\n");
+    assert.equal(posts(calls).length, 0);
+  });
+});
+
+test("a reviewer follow-up newer than the viber reply is answered: the reply is posted once and STATUS=posted is printed", async () => {
+  await assertPosix(async (shell) => {
+    const { result, calls } = await runInRepo(shell, ["42", "101", "<file>"], {
+      env: { COMMENTS: `null Please fix\n101 ${MARKER}\n101 One more thing\n` },
+    });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, `STATUS=posted\nREPLY_URL=${REPLY_URL}\n`);
+    assert.equal(posts(calls).length, 1);
+  });
+});
+
 const NOT_A_SKIP: Array<[string, string]> = [
   ["the marker is the first line of a reply to another comment", `202 ${MARKER}\n`],
   ["a reply to the comment opens with another line", `101 I disagree, see ${MARKER}\n`],

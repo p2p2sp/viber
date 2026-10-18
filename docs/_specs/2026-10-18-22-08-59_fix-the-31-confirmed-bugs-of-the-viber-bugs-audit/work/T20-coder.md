@@ -1,0 +1,2 @@
+- pr-reply.sh keeps the `<in_reply_to_id> <first body line>` jq shape; "newest" relies on gh returning comments oldest first (id ascending), same as pr-threads.sh's graphql order.
+- viber/scripts/CLAUDE.md (pr-reply.sh contract bullet) still says "a reply to `<id>` already opening with the marker"; left unedited (outside Files), should read "the newest reply to `<id>`".
