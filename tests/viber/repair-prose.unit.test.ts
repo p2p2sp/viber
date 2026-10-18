@@ -502,3 +502,22 @@ test("the cleanup fragment names no two-line close", () => {
 test("the cleanup fragment points the archived verdict to the close of step 7 without a line count", () => {
   assert.ok(CLEANUP.includes("- `VERDICT: ARCHIVED` -> the close of step 7."));
 });
+
+const OUTSIDE_COMMIT = lines(SKILL).find((line) => line.startsWith("Commit outside a task:")) ?? "";
+
+test("the commit outside a task rule names exit 4 of the fix-number repair form and --repair as handled by step 5", () => {
+  assert.ok(OUTSIDE_COMMIT.includes("Exit 4 of the fix-number repair form and of `--repair` is handled by step 5 alone"));
+});
+
+test("the commit outside a task exit 4 exception allows no retry, no commit arbiter and no left uncommitted line", () => {
+  assert.ok(OUTSIDE_COMMIT.includes("with no retry, no `commit` arbiter and no `left uncommitted:` line"));
+});
+
+test("the commit outside a task rule still retries then rules through the commit arbiter for other refusals", () => {
+  assert.ok(OUTSIDE_COMMIT.includes("Any other non-zero exit -> run the same call once more, asking nothing."));
+  assert.ok(OUTSIDE_COMMIT.includes("the arbiter with `case: commit`"));
+});
+
+test("the step 5 no-change rule keeps routing a round of repair commits all exiting 4 to the arbiter", () => {
+  assert.ok(CLOSE.includes("every repair commit call of the round exiting 4 (no changes) -> the tree is the one that failed: no next round, the arbiter as on round 6"));
+});
