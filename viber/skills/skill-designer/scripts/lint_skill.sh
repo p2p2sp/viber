@@ -35,7 +35,7 @@ else
 fi
 
 # --- frontmatter ---------------------------------------------------------
-first_line="$(head -n 1 "$main")"
+first_line="$(head -n 1 "$main" | tr -d '\r')"
 if [ "$first_line" != "---" ]; then
   fail "$main: no YAML frontmatter"
   fm=""
