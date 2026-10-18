@@ -1535,6 +1535,67 @@ test("spec.md still loses a comment opened outside any fence whole, a fence line
   });
 });
 
+// --- headings inside a code fence are body text -------------------------------
+
+/** A contract whose shape is a fenced report skeleton: three heading lines that
+ *  are example text, with the closing fence after them. */
+const FENCED_SHAPE = ["```md", "# Report", "", "## Findings", "", "## Coverage notes", "```"];
+
+test("a contract whose fenced shape holds # Report, ## Findings and ## Coverage notes reaches tasks/T1.md whole, closing fence included", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody(TWO_TASKS, 2, ["### C1 - Report shape", "", "File: none", "", ...FENCED_SHAPE]));
+
+    const r = await run(dir, {}, [PLAN_REL, "--split"]);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+
+    const t1 = readRun(dir, "tasks/T1.md");
+    assert.ok(t1.includes(`### C1 - Report shape\n\nFile: none\n\n${FENCED_SHAPE.join("\n")}\n`), t1);
+  });
+});
+
+test("a second contract after a fenced shape holding ## headings is recognized, so a plan whose task uses it validates", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const contracts = [
+      "### C1 - Report shape",
+      "",
+      "File: none",
+      "",
+      ...FENCED_SHAPE,
+      "",
+      "### C2 - Login endpoint",
+      "",
+      "File: none",
+      "",
+      "POST /login -> 200 | 401",
+    ];
+    seed(dir, planBody([{ ...TWO_TASKS[0], uses: "C1" }, { ...TWO_TASKS[1], uses: "C2" }], 2, contracts));
+
+    const r = await run(dir, {}, [PLAN_REL]);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+  });
+});
+
+test("a fenced example opening ## Tasks above the real heading leaves spec.md its Acceptance criteria and Scope and every task file its Covered criteria", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(
+      dir,
+      planBody(TWO_TASKS).replace(
+        "## Acceptance criteria\n",
+        ["```md", "## Tasks", "```", "", "## Acceptance criteria", ""].join("\n"),
+      ),
+    );
+
+    const r = await run(dir, {}, [PLAN_REL, "--split"]);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+
+    const spec = readRun(dir, "spec.md");
+    assert.match(spec, /^## Acceptance criteria\n/m);
+    assert.match(spec, /^## Scope\n/m);
+    assert.match(readRun(dir, "tasks/T1.md"), /\n## Covered criteria\n1\. A user with valid credentials gets a session\./);
+    assert.match(readRun(dir, "tasks/T2.md"), /\n## Covered criteria\n2\. An invalid password is rejected\./);
+  });
+});
+
 test("a plan frontmatter issue: line makes spec.md open with its own three-line frontmatter, then the specification as today", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     // source and into ride the plan for the run's own plumbing; issue is the

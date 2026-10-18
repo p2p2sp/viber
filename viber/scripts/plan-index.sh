@@ -137,8 +137,10 @@
 #                    both belong to the run, not to the specification the
 #                    archive keeps. A fenced block (``` or ~~~ up to the
 #                    closing fence of the same character) is content and
-#                    stays whole, comments and blank lines included. The
-#                    "## Roadmap" section is cut out of it too, into roadmap.md.
+#                    stays whole, comments and blank lines included, and a
+#                    heading line inside one is body text: it neither cuts
+#                    the plan, opens a section nor splits a contract block.
+#                    The "## Roadmap" section is cut out of it too, into roadmap.md.
 #                    It ends with "## Attachments" when <run>/attachments/ (the
 #                    files plan-path.sh --land copied there) holds an entry:
 #                    one line per file or directory, its repo-relative path
@@ -422,6 +424,22 @@ function selfproven(text, own,   t, pad, k) {
 
 function listed(s) { s = trim(s); return (s == "none" || s == "-" ? "" : s) }
 
+# Fed every line in order: 1 when the line sits inside a ``` or ~~~ fence (the
+# fence lines included), so a heading-looking line there is body text. A comment
+# opened outside a fence runs to its closing arrow and opens no fence; inside a
+# fence a comment opener is text. fch and fcom carry the state between lines.
+function fstep(raw,   t) {
+  t = trim(raw)
+  if (fch == "") {
+    if (fcom) { if (t ~ /-->/) fcom = 0; return 0 }
+    if (t ~ /^<!--/) { if (t !~ /-->/) fcom = 1; return 0 }
+    if (t ~ /^(```|~~~)/) { fch = substr(t, 1, 3); return 1 }
+    return 0
+  }
+  if (substr(t, 1, 3) == fch && t ~ /^(```+|~~~+)$/) fch = ""
+  return 1
+}
+
 # the "verify:" value: a task Verification text cut at its first " -> ",
 # trimmed - the whole text when it carries no arrow. The command is always the
 # LAST field, so a "|" inside it (a shell pipeline) is part of the command.
@@ -525,8 +543,11 @@ BEGIN {
   for (k = 1; k <= nch; k++) if (ch[k] != "") chg[ch[k]] = 1
 }
 
+# infc: this line sits inside a code fence, so no heading rule below fires on it
+{ infc = fstep($0) }
+
 # plan title: the first H1
-/^#[[:space:]]/ && title == "" { title = trim(substr($0, 2)); next }
+!infc && /^#[[:space:]]/ && title == "" { title = trim(substr($0, 2)); next }
 
 # the "## Roadmap" section above "## Tasks": its numbered entries in build order
 # and which one carries the "(this plan)" marker. Guidance comments are skipped;
@@ -535,7 +556,7 @@ BEGIN {
   rt = trim($0)
   if (rcom) { if (rt ~ /-->/) rcom = 0 }
   else if (rt ~ /^<!--/) { if (rt !~ /-->/) rcom = 1 }
-  else if ($0 ~ /^##[[:space:]]/) inroad = ($0 ~ /^##[[:space:]]*Roadmap[[:space:]]*$/)
+  else if (!infc && $0 ~ /^##[[:space:]]/) inroad = ($0 ~ /^##[[:space:]]*Roadmap[[:space:]]*$/)
   else if (inroad && $0 ~ /^[0-9]+\. /) {
     rname = $0
     sub(/^[0-9]+\.[[:space:]]+/, "", rname)
@@ -547,11 +568,11 @@ BEGIN {
 
 # the heading --split cuts the plan in two at, matched by the SAME pattern the
 # cut uses: a plan that validates is a plan that splits where this says it will
-/^##[[:space:]]*Tasks/ { hastasks = 1 }
+!infc && /^##[[:space:]]*Tasks/ { hastasks = 1 }
 
 # acceptance criteria: the numbered list inside its own section; contract blocks:
 # the "### <id> - <name>" headings inside theirs
-/^##[[:space:]]/ {
+!infc && /^##[[:space:]]/ {
   incrit = ($0 ~ /Acceptance criteria/) ? 1 : 0
   incon  = ($0 ~ /Contracts/) ? 1 : 0
   cid = ""
@@ -562,7 +583,7 @@ incrit && /^[0-9]+\./ {
   crit[c + 0] = 1
   if (c + 0 > ncrit) ncrit = c + 0
 }
-incon && !intask && /^###[[:space:]]/ {
+!infc && incon && !intask && /^###[[:space:]]/ {
   cid = ""
   h = trim(substr($0, 4))
   p = index(h, " - ")
@@ -599,7 +620,7 @@ incon && !intask && cid != "" && trim($0) != "" { cfresh = 0 }
 /^[[:space:]]*<!--[[:space:]]*\/TASK[[:space:]]*-->[[:space:]]*$/ { intask = 0; next }
 
 intask {
-  if ($0 ~ /^###[[:space:]]/) {
+  if (!infc && $0 ~ /^###[[:space:]]/) {
     h = trim(substr($0, 4))
     p = index(h, " - ")
     if (p == 0) { fail("task heading must be \"### <id> - <title>\", got: " h); next }
@@ -989,8 +1010,8 @@ function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); ret
 function section(pat,   i, started, out, pend) {
   started = 0; out = ""; pend = 0
   for (i = 1; i <= NR; i++) {
-    if (!started) { if (line[i] ~ pat) started = 1; continue }
-    if (line[i] ~ /^##/) break
+    if (!started) { if (!fnc[i] && line[i] ~ pat) started = 1; continue }
+    if (!fnc[i] && line[i] ~ /^##/) break
     if (trim(line[i]) == "") { if (out != "") pend++; continue }
     while (pend > 0) { out = out "\n"; pend-- }
     out = out line[i] "\n"
@@ -1031,12 +1052,28 @@ function covnums(s, out,   c, m, k, j) {
   return j
 }
 
+# Fed every line in order: 1 when the line sits inside a ``` or ~~~ fence (the
+# fence lines included), so a heading-looking line there is body text. A comment
+# opened outside a fence runs to its closing arrow and opens no fence; inside a
+# fence a comment opener is text. fch and fcom carry the state between lines.
+function fstep(raw,   t) {
+  t = trim(raw)
+  if (fch == "") {
+    if (fcom) { if (t ~ /-->/) fcom = 0; return 0 }
+    if (t ~ /^<!--/) { if (t !~ /-->/) fcom = 1; return 0 }
+    if (t ~ /^(```|~~~)/) { fch = substr(t, 1, 3); return 1 }
+    return 0
+  }
+  if (substr(t, 1, 3) == fch && t ~ /^(```+|~~~+)$/) fch = ""
+  return 1
+}
+
 BEGIN { dir = ENVIRON["dir"] }
-{ line[NR] = $0 }
+{ line[NR] = $0; fnc[NR] = fstep($0) }
 
 END {
   # the cut: everything above the task list is the specification
-  for (i = 1; i <= NR; i++) if (line[i] ~ /^##[[:space:]]*Tasks/) { cut = i; break }
+  for (i = 1; i <= NR; i++) if (!fnc[i] && line[i] ~ /^##[[:space:]]*Tasks/) { cut = i; break }
   if (!cut) cut = NR + 1
 
   # The specification: everything above the task list, minus the frontmatter and
@@ -1113,9 +1150,9 @@ END {
   # the task files their "Uses:" names and nowhere else
   for (i = 1; i <= NR; i++) {
     s = line[i]
-    if (s ~ /^##[[:space:]]/) { incon = (s ~ /Contracts/); cid = ""; continue }
+    if (!fnc[i] && s ~ /^##[[:space:]]/) { incon = (s ~ /Contracts/); cid = ""; continue }
     if (!incon) continue
-    if (s ~ /^###[[:space:]]/) {
+    if (!fnc[i] && s ~ /^###[[:space:]]/) {
       h = trim(substr(s, 4)); p = index(h, " - ")
       cid = (p ? trim(substr(h, 1, p - 1)) : trim(h))
       cbody[cid] = s "\n"
@@ -1128,7 +1165,7 @@ END {
   # the next number, a blank line or the end of the section
   for (i = 1; i < cut; i++) {
     s = line[i]
-    if (s ~ /^##[[:space:]]/) { incrit = (s ~ /Acceptance criteria/); cur = 0; continue }
+    if (!fnc[i] && s ~ /^##[[:space:]]/) { incrit = (s ~ /Acceptance criteria/); cur = 0; continue }
     if (!incrit) continue
     if (s ~ /^[0-9]+\./)    { c = s; sub(/\..*/, "", c); cur = c + 0; crit[cur] = s; continue }
     if (trim(s) == "")      { cur = 0; continue }
@@ -1166,7 +1203,7 @@ END {
     if (!intask) continue
     if (line[i] ~ /^-[[:space:]]*DoD:/) { body = body dodlines(line[i]); continue }
     body = body line[i] "\n"
-    if (id == "" && line[i] ~ /^###[[:space:]]/) {
+    if (id == "" && !fnc[i] && line[i] ~ /^###[[:space:]]/) {
       h = trim(substr(line[i], 4)); p = index(h, " - ")
       id = (p ? trim(substr(h, 1, p - 1)) : trim(h))
     }
