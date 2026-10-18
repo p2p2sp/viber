@@ -231,7 +231,10 @@ $2
 stamp="$(date +%Y-%m-%d-%H-%M-%S 2>/dev/null || true)"
 [ -n "$stamp" ] || stamp="unknown"
 
-tracked="$(git -c core.quotePath=false ls-files 2>/dev/null || true)"
+# -z: without it git wraps a path holding `"` or `\` in quotes and escapes it,
+# so it never equals the raw path. A bash variable cannot hold a NUL, so the
+# records are turned into the newline-separated list `contains_line` reads.
+tracked="$(git ls-files -z 2>/dev/null | tr '\0' '\n' || true)"
 # Outside a repository both of these come back empty, which is the honest
 # answer: nothing is tracked, so every rule file is untracked and no reset can
 # be allowed to touch one.

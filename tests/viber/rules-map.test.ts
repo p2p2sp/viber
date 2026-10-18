@@ -244,6 +244,52 @@ test("a modified rule whose path holds a space is dirty and a reset refuses it (
   });
 });
 
+/** Tracked names git quotes in its newline-separated listing: a `"` and a `\`
+ *  cannot be spelled on a Windows filesystem, so the cases skip there. */
+const QUOTED_NAMES = {
+  skip: process.platform === "win32" ? "a double quote or backslash cannot be a Windows file name" : false,
+};
+
+async function seedQuotedNames(repo: GitRepo): Promise<void> {
+  await seed(repo, {
+    'lib/q"x.ts': "q\n",
+    "lib/back\\slash.ts": "b\n",
+    '.claude/rules/a"b.md': rule(["docs/*.md"]),
+    ".claude/rules/lib.md": rule(["lib/*.ts"]),
+    "docs/x.md": "x\n",
+  });
+}
+
+test('map mode counts tracked paths holding " or \\ as tracked and matching (git quotes them in its plain listing)', QUOTED_NAMES, async () => {
+  await withGitRepo(async (repo) => {
+    await seedQuotedNames(repo);
+    const lib = rule(["lib/*.ts"]);
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(section(result.stdout, "dirty"), []);
+    assert.deepEqual(section(result.stdout, "dead"), []);
+    assert.ok(
+      section(result.stdout, "rule").includes(
+        `.claude/rules/lib.md ${Buffer.byteLength(lib)} paths lib/*.ts matches 2 ok`,
+      ),
+    );
+  });
+});
+
+test('reset deletes a clean tracked rule whose name holds a " (it is tracked, not untracked)', QUOTED_NAMES, async () => {
+  await withGitRepo(async (repo) => {
+    await seedQuotedNames(repo);
+    const target = '.claude/rules/a"b.md';
+
+    const result = await run(repo, ["--reset", target]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(lines(result.stdout), [`removed: ${target}`, "removed: 1"]);
+  });
+});
+
 test("map mode marks a rule past its own 4000 character budget", async () => {
   await withGitRepo(async (repo) => {
     const body = rule(["src/*.ts"], "x".repeat(4100));
