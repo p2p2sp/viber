@@ -1,6 +1,6 @@
 # viber/scripts - the plugin-level bundled scripts
 
-This directory holds the scripts more than one viber skill or agent calls: the config parser, the run lifecycle (`plan-path.sh`, `plan-index.sh`, `commit-task.sh`, `archive-run.sh`, `run-clock.sh`), the switch fragment selector and the GitHub and browser wrappers. A script used by one skill alone lives under that skill's `scripts/`, and the hook scripts live under `hooks/scripts/`.
+This directory holds the scripts more than one viber skill or agent calls: the config parser, the run lifecycle (`plan-path.sh`, `plan-index.sh`, `commit-task.sh`, `archive-run.sh`, `run-clock.sh`), the switch fragment selector, the skill part printer and the GitHub and browser wrappers. A script used by one skill alone lives under that skill's `scripts/`, and the hook scripts live under `hooks/scripts/`.
 
 ## Terms
 
@@ -9,9 +9,9 @@ This directory holds the scripts more than one viber skill or agent calls: the c
 
 ## Relationships
 
-- Callers: `config.sh` is preloaded by `implementor`, `planner`, `e2e` and run by `skills/extension/scripts/extension.sh` and `hooks/scripts/plan-gate.sh`; `run-clock.sh` by `implementor` alone; `switch-text.sh` by `implementor`, `planner`, `intent`, `fixer`, `triage` and `prototype`; `plan-path.sh` by `planner`, `implementor`, `intent` and `fixer` (`--start`/`--checkout`) and `e2e` (no argument, the latest run); `plan-index.sh` by `planner` (validate), `implementor` (`--split`), `task-reviewer` (`--extra`, through its `scope` line) and `closeout`; `commit-task.sh` by `implementor`, `e2e` (`--e2e`) and `closeout` (`--outside`); `archive-run.sh` by the `closeout` agent alone.
+- Callers: `config.sh` is preloaded by `implementor`, `planner`, `e2e` and run by `skills/extension/scripts/extension.sh` and `hooks/scripts/plan-gate.sh`; `run-clock.sh` by `implementor` alone; `switch-text.sh` by `implementor`, `planner`, `intent`, `fixer`, `triage` and `prototype`; `skill-part.sh` by `implementor` alone (its `close` part); `plan-path.sh` by `planner`, `implementor`, `intent` and `fixer` (`--start`/`--checkout`) and `e2e` (no argument, the latest run); `plan-index.sh` by `planner` (validate), `implementor` (`--split`), `task-reviewer` (`--extra`, through its `scope` line) and `closeout`; `commit-task.sh` by `implementor`, `e2e` (`--e2e`) and `closeout` (`--outside`); `archive-run.sh` by the `closeout` agent alone.
 - GitHub callers: `issue-facts.sh` by `intent`, `fixer`, `triage`, `prototype`; `issue-templates.sh` and `issue-create.sh` by `issue-create`, `intent`, `fixer`; `post-comment.sh` by `intent`, `triage`, `prototype`; `pr-facts.sh` and `pr-create.sh` by `pr-create`; `pr-threads.sh` and `pr-reply.sh` by `pr-feedback`; `qa-comment.sh` by `pr-create` and the `implementor` close (`qa.true.md`); `open-page.sh` by `setup`, `help`, `prototype`; `check-playwright.sh` by `e2e`.
-- Sibling calls inside the directory: `switch-text.sh`, `issue-templates.sh` and `pr-facts.sh` run `bash "$here/config.sh"`; `run-branch.sh` runs `config.sh --branching` and `sh issue-facts.sh` (for the issue type); `plan-path.sh` sources `run-branch.sh`.
+- Sibling calls inside the directory: `skill-part.sh` runs `switch-text.sh` once per fragment block of the part; `switch-text.sh`, `issue-templates.sh` and `pr-facts.sh` run `bash "$here/config.sh"`; `run-branch.sh` runs `config.sh --branching` and `sh issue-facts.sh` (for the issue type); `plan-path.sh` sources `run-branch.sh`.
 
 ## Contracts
 
@@ -25,6 +25,7 @@ This directory holds the scripts more than one viber skill or agent calls: the c
 - `qa-comment.sh` posts on the run's issue, the frontmatter `issue:` of the `spec.md` beside the qa file, and on the `--pr` or branch pull request only when the run has none. It posts at most once per run: the body's first line `<!-- viber:qa <path> -->` marks the run key (the qa file's parent directory name), and a comment already carrying the same key, from the run directory or its archive, yields `STATUS=skip`, `REASON=exists`. It writes the body to `.temp/viber/qa-comment/<run key>.md` and leaves it there.
 - `pr-threads.sh` lists only unresolved review threads and lists nothing (`REASON=wrong-branch`, no threads file) unless the checked-out branch is the pull request's head branch; it never checks out or pushes. A ready run replaces `.temp/viber/pr-feedback/<N>/threads.md`; `PUSHED=` says whether local `HEAD` is the head commit. A thread whose latest comment opens with the reply marker is left out and counted in `SKIPPED=`.
 - `pr-reply.sh` replies only through the `.../pulls/<N>/comments/<id>/replies` endpoint, `<id>` the thread's first comment (GitHub has no reply to a reply), at most once per comment: the body is the reply marker `<!-- viber:pr-feedback <id> -->`, a blank line and the reply file, kept in `.temp/viber/pr-feedback/<N>/posted/<id>.md`; a reply to `<id>` already opening with the marker yields `STATUS=skip`, `REASON=exists`. A relative reply file resolves from the cwd, unlike `qa-comment.sh`.
+- `skill-part.sh <skill dir> <part>` prints `<skill dir>/parts/<part>.md` (exit 1 with `error:` on stderr for a missing argument, a part outside `[a-z0-9-]+` or an absent file). Only a fenced block opening with ```` ```! ```` whose single body line is the exact `switch-text.sh` call shape is run, and it is replaced, fence lines included, by that call's output; any other block prints as plain text. A fragment's output is appended as `switch-text.sh` printed it, never expanded twice; `${CLAUDE_SKILL_DIR}` and `${CLAUDE_PLUGIN_ROOT}` in every other line are expanded here, the plugin root being the skill dir minus its last two segments. A block never closed before end of file prints unchanged.
 - The `--branching` report of `config.sh` is read by `run-branch.sh` and `pr-facts.sh` only; every other reader takes the default block.
 
 ## Commands
@@ -40,6 +41,7 @@ This directory holds the scripts more than one viber skill or agent calls: the c
 
 ## Traps
 
+- `skill-part.sh` is invoked bare by `implementor/SKILL.md`, so its index mode must stay 100755: the portability exec-bit sweep fails on 100644, and `core.fileMode` is false on some machines, so `git update-index --chmod=+x` is the only place the bit holds.
 - The GitHub wrappers are `#!/bin/sh` and must stay POSIX: CI runs them under every POSIX shell present, and the portability sweep flags bash-only syntax in them. The other scripts are bash and may use arrays and `[[ ]]`.
 - A failed GitHub call is never retried by its caller: `post-comment.sh` exits 1 when whether the comment landed is unknown, and `pr-create.sh` exits 1 after the push may already have happened (its ERROR line names the pushed branch); `pr-reply.sh` exits 1 when a reply may or may not have landed; the caller reports instead.
 - The portability sweep reads the awk block of `pr-threads.sh` as shell: it flags `function NAME` and `((` there, so the block defines no function (a sentinel `T` line closes the last thread) and the `--jq` filter avoids `((`.

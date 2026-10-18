@@ -1,10 +1,11 @@
 # viber/skills - the twenty-two viber skills and their bundled files
 
-Owns every `skills/<name>/` directory: its `SKILL.md` and the `fragments/`, `templates/`, `references/`, `assets/` and skill-local `scripts/` beside it. The plugin-level scripts the skills call (`config.sh`, `switch-text.sh`, `plan-path.sh`, `plan-index.sh`, `commit-task.sh`, the `issue-*`, `pr-*` and `qa-comment.sh` scripts) belong to `viber/scripts/`, the agents they dispatch to `viber/agents/`; a skill's own body is its contract.
+Owns every `skills/<name>/` directory: its `SKILL.md` and the `fragments/`, `parts/`, `templates/`, `references/`, `assets/` and skill-local `scripts/` beside it. The plugin-level scripts the skills call (`config.sh`, `switch-text.sh`, `skill-part.sh`, `plan-path.sh`, `plan-index.sh`, `commit-task.sh`, the `issue-*`, `pr-*` and `qa-comment.sh` scripts) belong to `viber/scripts/`, the agents they dispatch to `viber/agents/`; a skill's own body is its contract.
 
 ## Terms
 
 - Preload: a ```` ```! ```` fenced block or a `` !`...` `` line in a `SKILL.md`, run by the shell when the skill loads, its stdout standing in its place before the model reads a word. A non-zero exit aborts the whole skill load, so every script used as a preload exits 0 in every data condition.
+- Part: `skills/<skill>/parts/<name>.md`, a stretch of a skill's steps that its `SKILL.md` prints on demand with `scripts/skill-part.sh` instead of holding it in context from the start; `implementor` has one, `close` (steps 5 to 7). A part keeps the fenced `switch-text.sh` calls it would have carried as preloads, and `skill-part.sh` resolves them when it prints.
 - Hand-off lines: the labelled lines carried verbatim into `planner`'s input: `Issue: <URL>` (intent, fixer), `Attachment: <absolute path under .temp/>` (written by prototype for its mockup, added by intent and fixer per `.temp/` path in their input, carried through intent), `Work:` / `Branch:` (the `branching-handoff` fragments of intent and fixer), `Roadmap: <path>` (intent resuming a `roadmap.md`).
 
 ## Relationships
@@ -18,10 +19,11 @@ Owns every `skills/<name>/` directory: its `SKILL.md` and the `fragments/`, `tem
 
 ## Contracts
 
-- Every `switch-text.sh` call in a `SKILL.md` names a key of `switch-text.sh`'s list and a `<name>` with a `fragments/<name>.<value>.md` for at least one valid value; every fragment file is named by a call in its own skill's `SKILL.md`. Values: `true` / `false`, except `off` / `fast` / `full` for `build.baseline-tests`, `off` / `allowed` / `required` for `branching.mode` and `off` / `on` for `build.extensions`.
+- Every `switch-text.sh` call in a `SKILL.md` or a `parts/*.md` names a key of `switch-text.sh`'s list and a `<name>` with a `fragments/<name>.<value>.md` for at least one valid value; every fragment file is named by a call in its own skill's `SKILL.md` or `parts/*.md`. Values: `true` / `false`, except `off` / `fast` / `full` for `build.baseline-tests`, `off` / `allowed` / `required` for `branching.mode` and `off` / `on` for `build.extensions`.
 - A `branching.mode` call is written `branching.""mode`: the shell joins it into the one word `branching.mode`, and the portability sweep strips the quotes to read the key. A new call copies that spelling.
 - A fragment reaches the model as `switch-text.sh` prints it: Claude Code substitutes nothing in a preload's output, so the script expands only `${CLAUDE_SKILL_DIR}` and `${CLAUDE_PLUGIN_ROOT}`; `$ARGUMENTS` or any other variable in a fragment stays literal.
 - `planner` turns the hand-off lines into plan frontmatter: `issue:` from `Issue:`, `attachments:` (a map of unique file or directory name to source path) from the `Attachment:` lines, carried over a draft round, `work:` and `branch:` from `Work:` / `Branch:` through its `branching` fragments, `into:` on a draft round, `source:` always. `scripts/plan-path.sh` reads those keys when it lands the plan.
+- A part is printed by one literal `skill-part.sh` call that the skill's `allowed-tools` lists and its body makes before the first action that needs the part; `implementor` makes it before the first action of step 5, 6 or 7 (an `abort` reaching step 7 included), and its step 3 builds the close entries of the task list from the config block's switches, never from the part. The portability sweep counts a part's fragment call as its skill's, quote-checks its preloads and checks the exec bit of the scripts it invokes bare, as for a `SKILL.md`.
 - Temporary files: a skill's own under `.temp/viber/<skill>/`, matched by an `Edit(./.temp/viber/<skill>/**)` allow where it edits there; `implementor` gives each task `.temp/viber/<task-id>/`, `memory` and `rules` use `.temp/viber/<map id:>/`, `pr-feedback` `.temp/viber/pr-feedback/<pull request number>/` (`threads.md`, `review.md`, `replies/`, `posted/`; none committed), `code-auditor` `.temp/viber/code-auditor/<run-id>/`, `idea-validator` `.temp/viber/idea-validator/<slug>-<YYYY-MM-DD>/`.
 - `code-auditor` reads one lens file of `references/lenses/` per run, never the other five; the `<lens>.signals.md` beside it holds its map-signal commands, read only by `mapper`. A lens's `Worktree:` line under `## Verify` (`required` or `none`) decides whether its hunters and critics get reserved worktrees from `worktree.sh` and, on the diff scope, the working tree's uncommitted changes through `diff-overlay.sh`.
 
@@ -41,5 +43,6 @@ Owns every `skills/<name>/` directory: its `SKILL.md` and the `fragments/`, `tem
 
 ## Traps
 
+- The pointer sentence of `implementor/SKILL.md` keeps the lower-case phrase "before the first action of step 5, 6 or 7": `tests/viber/close-part-prose.unit.test.ts` pins it, and a reworded pointer lets an `abort` reach step 7 with the part never printed.
 - Skill arguments reach a preload by text substitution before the shell runs: `commit` passes `'$ARGUMENTS'` and `handoff` `'$0'`, single-quoted so `$`, backticks and backslashes stay literal. An apostrophe in the arguments breaks the preload, and `$0` arrives as the literal `$0` when no argument came.
 - A map-signal command in a `<lens>.signals.md` tells a test file by its path alone, never by a substring of the whole output line, and its test-or-spec filter matches a path shape (`tests/`, `.test.`, `test_`), never the bare substring `test`, which drops `src/latest.ts` and `src/inspector.ts`; `git grep -E` patterns use bracket classes, never `\b`. `tests/viber/lens-map-signals.test.ts` pins each of these cases.
