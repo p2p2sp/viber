@@ -62,6 +62,19 @@ test("DoD.1: a very long message with no output line still prints the block obje
   assert.equal(await runMessage("x".repeat(200000) + "\nend"), BLOCK);
 });
 
+test("DoD.2: a 17.8 KB message of quoted lines with no output line prints the block object inside the 10 s hook timeout under a UTF-8 locale (the unescape must not scan by character)", async () => {
+  const message = Array.from({ length: 240 }, (_, i) => `Step ${i}: the "build" step said "ok" and the run went on to the next task.`).join("\n");
+  assert.ok(message.length > 17000 && message.length < 18500, `message size ${message.length}`);
+  const input = JSON.stringify({ hook_event_name: "SubagentStop", agent_type: "viber:task-coder", stop_hook_active: false, last_assistant_message: message });
+  const result = await runScript(SUT, [], {
+    shell: "bash",
+    input,
+    env: { LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8" },
+    timeout: 10000,
+  });
+  assert.equal(result.stdout, BLOCK);
+});
+
 const withVerdict: Array<[string, string]> = [
   ["a bare line", "work done\nVERDICT: PASS"],
   ["the first line", "VERDICT: PASS\nREASON: none"],

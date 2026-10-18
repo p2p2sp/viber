@@ -16,7 +16,8 @@
 # Contract:
 #   argv   : none - every input arrives on stdin.
 #   cwd    : irrelevant; no path is read or written.
-#   env    : none read.
+#   env    : none read; LC_ALL=C is set so the command is scanned by byte, in linear
+#            time (a UTF-8 locale makes each character lookup scan from the start).
 #   reads  : nothing but stdin. A call whose input does not name a viber: agent
 #            returns before any external command runs (bash builtins only).
 #   stdin  : PreToolUse JSON. Read: the top-level "agent_type" (present only
@@ -39,6 +40,7 @@
 #   exit 0 : always (fail-open: a broken guard must never block a command).
 #            JSON is read with bash regexes; jq is not assumed.
 set -u
+LC_ALL=C
 
 IFS= read -r -d '' input || true
 [[ "$input" =~ \"agent_type\"[[:space:]]*:[[:space:]]*\"viber: ]] || exit 0

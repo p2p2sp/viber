@@ -120,6 +120,20 @@ test("a command quoting agent_type text does not make a main-session call a vibe
   assert.equal(await runCommand('echo "agent_type":"viber:x"; killall node'), "");
 });
 
+test("DoD.1: an 11.5 KB pkill command holding a node -e script of 160 escaped-quote lines is refused inside the 10 s hook timeout under a UTF-8 locale (the unescape must not scan by character)", async () => {
+  const script = Array.from({ length: 160 }, (_, i) => `log("alpha", "beta", "gamma", "delta", "eta", "mu", "pi"); // probe ${i}`).join("\n");
+  const command = `pkill -f vite\nnode -e "\n${script}\n"`;
+  assert.ok(command.length > 11000 && command.length < 12000, `payload size ${command.length}`);
+  const input = JSON.stringify({ hook_event_name: "PreToolUse", tool_name: "Bash", agent_type: "viber:test-runner", tool_input: { command } });
+  const result = await runScript(SUT, [], {
+    shell: "bash",
+    input,
+    env: { LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8" },
+    timeout: 10000,
+  });
+  assert.equal(result.stdout, DENY);
+});
+
 test("DoD.4: the hooks.json description says both guards open their refusal with the viber guard: marker and every hook fails open", () => {
   const description: string = JSON.parse(fs.readFileSync(HOOKS_JSON, "utf8")).description;
   assert.match(description, /Both guards open every refusal with "viber guard:"/);
