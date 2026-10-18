@@ -2694,6 +2694,39 @@ test("blank lines are ignored and a carriage return or a leading ./ is stripped 
   });
 });
 
+test("an absolute coder-file path of a file a task not yet done claims is left off exactly as its repo-relative spelling is (the ownership comparison sees one spelling)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    write(dir, "src/todo.ts", "x\n");
+    seedScope(dir, `${dir}/src/todo.ts\n`);
+
+    const result = await scope(dir);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+  });
+});
+
+test("an absolute coder-file path of a file a done task claims prints on the extra line repo-relative with that task's recheck line", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    write(dir, "src/done-a.ts", "x\n");
+    seedScope(dir, `${dir}/src/done-a.ts\r\n`);
+
+    const result = await scope(dir);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "extra: src/done-a.ts\nrecheck: T1 | npm test\n");
+  });
+});
+
+test("an absolute coder-file path outside the repository prints as written", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const outside = `${path.dirname(dir)}/p2p2-viber-outside/lib/x.ts`;
+    seedScope(dir, `${outside}\n`);
+
+    const result = await scope(dir);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, `extra: ${outside}\n`);
+  });
+});
+
 test("a missing coder file prints nothing and exits 0", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     seedScope(dir, null);

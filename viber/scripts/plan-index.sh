@@ -47,13 +47,16 @@
 #
 # --extra <task-id> prints, instead of the index, the scope a reviewer checks
 # beyond the task's own Files, read from the coder extras file
-# <run-dir>/work/<task-id>-extra.md (one repo-relative path per line; the
-# reviewer file <task-id>-extra-review.md is never read):
+# <run-dir>/work/<task-id>-extra.md (one path per line; the reviewer file
+# <task-id>-extra-review.md is never read):
 #   extra: lib/x.ts,src/a.ts        the file paths in file order, minus a blank
 #                                   line, a repeat, one under .temp/, one the
 #                                   task's own Files lists and one a task not yet
 #                                   done lists; a carriage return and a leading
-#                                   "./" are stripped first
+#                                   "./" are stripped first, and an absolute path
+#                                   inside the repository is folded to its
+#                                   repo-relative form (one outside stays as
+#                                   written)
 #   recheck: T1 | node --test tests/a.test.ts
 #                                   one per done task whose Files lists a path of
 #                                   the extra line, in task order, its Verification
@@ -392,12 +395,28 @@ fi
 awk_mode="$mode"
 [[ "$has_extra" -eq 0 ]] || awk_mode="--split"
 
+# The coder extras file of the --extra task, one path per line, each folded to its
+# repo-relative form so the ownership comparison below sees one spelling of a file
+# (an absolute path inside the repository, as the coder may have written it, equals
+# its relative one); a path outside the repository stays as written.
+extra_paths=""
+if [[ "$has_extra" -eq 1 && -f "$dir/work/$extra_id-extra.md" ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    line="${line#./}"
+    [[ -n "$line" ]] || continue
+    extra_paths="$extra_paths$(cwd_relative "$line")"$'\n'
+  done < "$dir/work/$extra_id-extra.md"
+fi
+
 # The path travels through ENVIRON, not -v: awk -v expands escape sequences and
 # would mangle a Windows path containing backslashes. The output is held until
 # the awk pass has exited 0, so a plan refused for any reason prints nothing and
 # --split below touches nothing.
 index_out="$(plan="$plan" changed="$changed" mode="$awk_mode" rundir="$dir" \
-extra="$extra_id" workdir="$dir/work" \
+extra="$extra_id" extra_paths="$extra_paths" \
 st_done="$st_done" st_skipped="$st_skipped" st_unreviewed="$st_unreviewed" \
 st_deferred="$st_deferred" st_owed="$st_owed" st_repaired="$st_repaired" st_closed="$st_closed" st_decisions="$st_decisions" st_rulings="$st_rulings" \
 awk '
@@ -513,16 +532,14 @@ function patterned(p,   m, seg, k) {
 # order, minus a blank line, a path under .temp/, a repeat, one the task itself
 # lists and one a task not yet done lists; then one recheck line per done task
 # whose Files lists a kept path, in task order. Nothing at all when no path is
-# kept or the file is missing. A carriage return and a leading dot-slash are
-# stripped from each line first.
-function scope(self,   f, line, p, k, out, me, claimed) {
-  f = workdir "/" self "-extra.md"
+# kept or the file is missing. The lines arrive cleaned and folded to their
+# repo-relative form by the shell (extra_paths).
+function scope(self,   nl, lines, j, p, k, out, me, claimed) {
+  nl = split(extrapaths, lines, /\n/)
   me = seen[self]
   out = ""
-  while ((getline line < f) > 0) {
-    sub(/\r$/, "", line)
-    p = trim(line)
-    sub(/^\.\//, "", p)
+  for (j = 1; j <= nl; j++) {
+    p = lines[j]
     if (p == "" || index(p, ".temp/") == 1 || (p in xseen)) continue
     xseen[p] = 1
     if ((me, p) in fset) continue
@@ -532,7 +549,6 @@ function scope(self,   f, line, p, k, out, me, claimed) {
     out = (out == "" ? p : out "," p)
     for (k = 1; k <= n; k++) if ((id[k] in isdone) && ((k, p) in fset)) recheck[k] = 1
   }
-  close(f)
   if (out == "") return
   printf "extra: %s\n", out
   for (k = 1; k <= n; k++) if (k in recheck) printf "recheck: %s | %s\n", id[k], verifycmd(verif[k])
@@ -548,7 +564,7 @@ BEGIN {
   plan = ENVIRON["plan"]
   mode = ENVIRON["mode"]
   extra = ENVIRON["extra"]
-  workdir = ENVIRON["workdir"]
+  extrapaths = ENVIRON["extra_paths"]
   # what is committed, plus the two decisions and the close that no later
   # session could read off the tree, all of it out of the status file
   done    = listed(ENVIRON["st_done"])
