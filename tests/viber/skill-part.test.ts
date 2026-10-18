@@ -211,6 +211,125 @@ test("a fenced block holding another command leaves that command unrun", async (
   });
 });
 
+const IMPLEMENTOR_DIR = path.resolve(import.meta.dirname, "../../viber/skills/implementor");
+const PLUGIN_ROOT = path.dirname(path.dirname(IMPLEMENTOR_DIR));
+
+/** The seven fragment calls of `parts/close.md`, in order: switch key, fragment name. */
+const CLOSE_CALLS = [
+  ["build.final-review", "final-review"],
+  ["build.baseline-tests", "baseline-close"],
+  ["build.memory", "memory"],
+  ["build.rules", "rules"],
+  ["build.qa", "qa"],
+  ["build.extensions", "extensions"],
+  ["build.cleanup", "cleanup"],
+] as const;
+
+const CLOSE_CONFIG_OFF: Record<string, string> = {
+  "build.final-review": "false",
+  "build.baseline-tests": "off",
+  "build.memory": "false",
+  "build.rules": "false",
+  "build.qa": "false",
+  "build.cleanup": "false",
+};
+
+function expand(text: string): string {
+  return text.replaceAll("${CLAUDE_SKILL_DIR}", IMPLEMENTOR_DIR).replaceAll("${CLAUDE_PLUGIN_ROOT}", PLUGIN_ROOT);
+}
+
+function fragmentOf(name: string, value: string): string {
+  const file = path.join(IMPLEMENTOR_DIR, "fragments", `${name}.${value}.md`);
+  return fs.existsSync(file) ? expand(fs.readFileSync(file, "utf8")) : "";
+}
+
+/** The real close part with each call block replaced by the fragment text of its value (none: nothing). */
+function closeWith(fragments: Record<string, string>): string {
+  let text = fs.readFileSync(path.join(IMPLEMENTOR_DIR, "parts", "close.md"), "utf8");
+  for (const [key, name] of CLOSE_CALLS) {
+    const block = `${FENCE}!\n"\${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" ${key} "\${CLAUDE_SKILL_DIR}" ${name}\n${FENCE}\n`;
+    assert.ok(text.includes(block), `close.md holds the ${name} call block`);
+    text = text.replace(block, () => fragments[name] ?? "");
+  }
+  return expand(text);
+}
+
+/** Runs the real `implementor` skill dir's close part under a config with every switch off but the given lines. */
+async function runClose(repo: GitRepo, lines: Record<string, string>, extensions = false): Promise<RunResult> {
+  const config = { ...CLOSE_CONFIG_OFF, ...lines };
+  const leaf = (key: string) => `  ${key.slice("build.".length)}: ${config[key]}\n`;
+  writeConfig(repo, `build:\n${Object.keys(config).map(leaf).join("")}${extensions ? "  extensions:\n    docs:\n" : "  extensions:\n"}`);
+  if (extensions) {
+    fs.mkdirSync(path.join(repo.dir, ".claude", "agents"), { recursive: true });
+    fs.writeFileSync(path.join(repo.dir, ".claude", "agents", "docs.md"), "agent\n");
+  }
+  return await runScript(SUT, [IMPLEMENTOR_DIR, "close"], { cwd: repo.dir, env: repo.env, shell: "bash" });
+}
+
+test("the real implementor close part with every switch off prints no fragment text", async () => {
+  await withGitRepo(async (repo) => {
+    const result = await runClose(repo, {});
+
+    assert.deepEqual([result.status, result.stdout], [0, closeWith({})]);
+  });
+});
+
+for (const [key, name] of CLOSE_CALLS.filter(([key]) => key !== "build.baseline-tests" && key !== "build.extensions")) {
+  test(`the real implementor close part prints the ${name} fragment only when ${key} is on`, async () => {
+    await withGitRepo(async (repo) => {
+      const fragment = fragmentOf(name, "true");
+      assert.notEqual(fragment, "");
+
+      const on = await runClose(repo, { [key]: "true" });
+      const off = await runClose(repo, { [key]: "false" });
+
+      assert.deepEqual(
+        [on.status, on.stdout, off.status, off.stdout.includes(fragment)],
+        [0, closeWith({ [name]: fragment }), 0, false],
+      );
+    });
+  });
+}
+
+test("the real implementor close part prints the extensions fragment only when build.extensions names an agent", async () => {
+  await withGitRepo(async (repo) => {
+    const fragment = fragmentOf("extensions", "on");
+    assert.notEqual(fragment, "");
+
+    const on = await runClose(repo, {}, true);
+    const off = await runClose(repo, {});
+
+    assert.deepEqual(
+      [on.status, on.stdout, off.status, off.stdout.includes(fragment)],
+      [0, closeWith({ extensions: fragment }), 0, false],
+    );
+  });
+});
+
+for (const value of ["fast", "full"]) {
+  test(`the real implementor close part prints the baseline-close text of ${value} under build.baseline-tests ${value}`, async () => {
+    await withGitRepo(async (repo) => {
+      const fragment = fragmentOf("baseline-close", value);
+      assert.notEqual(fragment, "");
+
+      const result = await runClose(repo, { "build.baseline-tests": value });
+
+      assert.deepEqual([result.status, result.stdout], [0, closeWith({ "baseline-close": fragment })]);
+    });
+  });
+}
+
+test("the real implementor close part prints no baseline-close text under build.baseline-tests off", async () => {
+  await withGitRepo(async (repo) => {
+    const result = await runClose(repo, { "build.baseline-tests": "off" });
+
+    assert.deepEqual(
+      [result.status, result.stdout, ["fast", "full"].some((value) => result.stdout.includes(fragmentOf("baseline-close", value)))],
+      [0, closeWith({}), false],
+    );
+  });
+});
+
 for (const [label, argsFor] of [
   ["no argument", () => []],
   ["an empty skill dir", () => ["", "close"]],

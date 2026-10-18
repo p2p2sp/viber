@@ -10,5 +10,6 @@ paths:
   preloads `issues-report` at "## Resolving the report" and a separate `issues-diagnosis` call
   further down at the diagnosis handoff payload; `triage/SKILL.md` makes three separate calls
   (`issues-read`, `issues-next`, `issues-publish`) at its three matching steps; `implementor/SKILL.md`
-  calls `baseline-run` at the task dispatch step and `baseline-close` at the final test run, each
-  where its own text applies, then `memory`, `rules`, `qa`, `extensions`, `cleanup` at the close parts.
+  calls `baseline-run` at the task dispatch step, and `parts/close.md` (printed on demand by
+  `scripts/skill-part.sh`) calls `final-review`, `baseline-close`, `memory`, `rules`, `qa`,
+  `extensions` and `cleanup`, each where its own text applies.

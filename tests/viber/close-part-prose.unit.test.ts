@@ -145,6 +145,22 @@ test("step 3 always creates the Final test run entry", () => {
   assert.ok(stepThree().includes("`Final test run` always"));
 });
 
+test("switch-fragments.md names parts/close.md as where implementor calls its seven close fragments", () => {
+  const rule = fs.readFileSync(path.resolve(import.meta.dirname, "../../.claude/rules/viber/switch-fragments.md"), "utf8");
+  const sentence = rule.replace(/\s+/g, " ");
+  const start = sentence.indexOf("`parts/close.md`");
+  assert.ok(start >= 0);
+  const names = ["final-review", "baseline-close", "memory", "rules", "qa", "extensions", "cleanup"];
+  const tail = sentence.slice(start);
+  assert.ok(/calls (`[a-z-]+`(, | and )?)+/.test(tail));
+  let at = 0;
+  for (const name of names) {
+    const found = tail.indexOf(`\`${name}\``, at);
+    assert.ok(found >= at, `names ${name} after parts/close.md, in order`);
+    at = found;
+  }
+});
+
 test("step 3 no longer waits on a close part being loaded", () => {
   assert.ok(!stepThree().includes("loaded below"));
 });
