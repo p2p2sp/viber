@@ -246,8 +246,11 @@
 #   4 - the named files produced no change to the working tree (a task
 #       commit's message names --landed); for --landed, the sha touches none
 #       of the task's files or those files still carry uncommitted changes
-#   5 - staging or committing failed; status.md is restored, nothing is recorded
-#       (the named files stay staged, so the call can be retried as is)
+#   5 - staging or committing failed, a named path git tracks (in the index or in
+#       HEAD) that "git add" could not stage included; status.md is restored,
+#       nothing is recorded (the named files stay staged, so the call can be
+#       retried as is). A named path git does not know, or an untracked one an
+#       ignore rule covers, only warns "could not stage <path>" and is left out
 #
 set -euo pipefail
 shopt -s nullglob
@@ -493,19 +496,27 @@ stage_path_each() {
 
 # stage_paths for callers that keep the staged paths and warn about the rest:
 # prints every named path stage_paths prints, in order, and warns on stderr
-# "could not stage <path>" for each one it does not. stage_named <path>...
+# "could not stage <path>" for each one it does not. A path it does not print
+# that git KNOWS (in the index or in HEAD) is a staging failure, not an unknown
+# path: it gets an error instead of the warning and the status is 1 after the
+# last path, so the caller ends the call rather than commit without it.
+# stage_named <path>...
 stage_named() {
-  local f i=0
+  local f i=0 rc=0
   local -a got=()
   while IFS= read -r f; do got+=("$f"); done < <(stage_paths "$@")
   for f in "$@"; do
     if [[ $i -lt ${#got[@]} && "${got[$i]}" == "$f" ]]; then
       printf '%s\n' "$f"
       i=$(( i + 1 ))
+    elif [[ -n "$(git ls-files -- "$f")" || -n "$(git ls-tree -r --name-only HEAD -- "$f" 2>/dev/null)" ]]; then
+      echo "error: could not stage $f - git tracks it, so the commit would leave it out" >&2
+      rc=1
     else
       echo "warning: could not stage $f" >&2
     fi
   done
+  return $rc
 }
 
 # Commits exactly the named paths, each as the index holds it, and nothing else
@@ -1086,9 +1097,10 @@ if [[ "${1:-}" == "--repair" || "${1:-}" == "--chore" || "${1:-}" == "--qa" || "
     esac
     named+=("$f")
   done
+  staged="$(stage_named ${named[@]+"${named[@]}"})" || exit 5
   while IFS= read -r f; do
-    paths+=("$f")
-  done < <(stage_named ${named[@]+"${named[@]}"})
+    [[ -n "$f" ]] && paths+=("$f")
+  done <<< "$staged"
 
   if [[ ${#paths[@]} -eq 0 ]] || git_paths diff --cached --quiet -- "${paths[@]}"; then
     echo "error: the named files produced no changes to commit" >&2
@@ -1423,9 +1435,10 @@ if [[ -z "$landed" ]]; then
     esac
     named+=("$f")
   done <<< "$files"
+  staged="$(stage_named ${named[@]+"${named[@]}"})" || exit 5
   while IFS= read -r f; do
-    paths+=("$f")
-  done < <(stage_named ${named[@]+"${named[@]}"})
+    [[ -n "$f" ]] && paths+=("$f")
+  done <<< "$staged"
 
   if [[ ${#paths[@]} -eq 0 ]] || git_paths diff --cached --quiet -- "${paths[@]}"; then
     if [[ -n "$fix_n" ]]; then

@@ -3244,3 +3244,73 @@ test("the usage text lists the --owe and --repaired forms", async () => {
     assert.match(result.stderr, /--repaired <plan-file> <task-id>/);
   });
 });
+
+/*
+ * Root cause: a "git add" failing on a path of the task made stage_named drop it with the same
+ * "could not stage" warning an unknown path gets, and the commit went ahead without it, so the task
+ * was recorded done with part of its work uncommitted. Fix: a path git knows (index or HEAD) that
+ * could not be staged ends the call with exit 5; an unknown or ignored-untracked path only warns.
+ */
+
+/** A `git` function that holds .git/index.lock around the first `failures` "git add"
+ *  calls, so the real git refuses them the way a concurrent writer makes it. */
+function lockedAddEnv(repo: GitRepo, failures: number): Record<string, string> {
+  const gitDir = path.join(repo.dir, ".git").replace(/\\/g, "/");
+  const file = path.join(repo.dir, ".git", "index-lock-shim.sh");
+  fs.writeFileSync(path.join(repo.dir, ".git", "add-calls.txt"), "");
+  fs.writeFileSync(
+    file,
+    [
+      "git() {",
+      '  if [ "$1" = add ]; then',
+      `    echo x >> "${gitDir}/add-calls.txt"`,
+      `    if [ "$(wc -l < "${gitDir}/add-calls.txt")" -le ${failures} ]; then`,
+      `      : > "${gitDir}/index.lock"`,
+      '      command git "$@"',
+      "      local rc=$?",
+      `      rm -f "${gitDir}/index.lock"`,
+      "      return $rc",
+      "    fi",
+      "  fi",
+      '  command git "$@"',
+      "}",
+      "",
+    ].join("\n"),
+  );
+  return { ...repo.env, BASH_ENV: file.replace(/\\/g, "/") };
+}
+
+test("a tracked Files path whose git add fails ends the call with exit 5, status.md restored and no commit made (the task would be recorded done with part of its work uncommitted)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, [["T1", "src/a.ts, src/c.ts"]]);
+    write(repo.dir, "src/a.ts", "first\n");
+    write(repo.dir, "src/c.ts", "first\n");
+    await repo.git("add", "-A");
+    await repo.git("commit", "-m", "tracked");
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "src/c.ts", "work\n");
+    const before = readStatus(repo);
+
+    const result = await run(repo.dir, lockedAddEnv(repo, 2), [PLAN_REL, "T1"]);
+    assert.equal(result.status, 5, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /src\/a\.ts/);
+
+    assert.equal(readStatus(repo), before);
+    assert.doesNotMatch(readStatus(repo), /^done: T1$/m);
+    assert.deepEqual(await subjects(repo), ["tracked", "seed"]);
+  });
+});
+
+test("a Files path git does not know still gets 'warning: could not stage <path>' and the commit goes ahead", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, [["T1", "src/a.ts, src/ghost.ts"]]);
+    write(repo.dir, "src/a.ts", "work\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, /warning: could not stage src\/ghost\.ts/);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts"].sort());
+    assert.match(readStatus(repo), /^done: T1$/m);
+  });
+});
