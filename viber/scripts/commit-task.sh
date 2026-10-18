@@ -143,7 +143,8 @@
 # only its own named paths (see commit_named), so a path staged before or beside
 # the run stays in the index instead of riding along. A named path is taken in
 # whatever state it arrives: already staged (a mode change from
-# "git update-index --chmod=+x" included), already removed with "git rm", or tracked under a
+# "git update-index --chmod=+x" included, the file on disk then given the
+# index's exec bit, see sync_tree_modes), already removed with "git rm", or tracked under a
 # directory an ignore rule covers (see stage_path). An UNTRACKED path an ignore
 # rule covers is never force-added: it is warned about and left out. A ".temp/" entry is refused outright, so
 # machine state and anything written outside the file map stay uncommitted and
@@ -358,6 +359,31 @@ git_chunk_run() {
   [[ $rc -ne 0 ]] || rc=$crc
 }
 
+# Gives the tree the exec bit the index holds for every named path whose staged
+# mode differs from HEAD's (a new path included): sync_tree_modes <path>...
+# Under core.fileMode=true "git add -u" reads a tracked path's mode back from
+# the tree, so an exec bit staged with "git update-index --chmod=+x" over a
+# 0644 file was dropped before the commit, and a mode-only change then failed
+# as "no changes". Once the tree agrees with the index, "add -u" keeps the
+# mode, and a later "git add -A" no longer undoes it. Under core.fileMode=false
+# git keeps the index mode by itself, and chmod leaves the index alone. A path
+# whose mode only the tree changed is not touched: that change is the caller's.
+sync_tree_modes() {
+  local meta p mode base=HEAD
+  git rev-parse -q --verify HEAD >/dev/null || base="$(git hash-object -t tree /dev/null)"
+  # a --raw record is ":<old mode> <new mode> <old sha> <new sha> <status>",
+  # each mode six digits, then the path
+  while IFS= read -r -d '' meta && IFS= read -r -d '' p; do
+    mode="${meta:8:6}"
+    [[ "${meta:1:6}" != "$mode" && -f "$p" && ! -L "$p" ]] || continue
+    if [[ "$mode" == 100755 && ! -x "$p" ]]; then
+      chmod +x -- "$p" || true
+    elif [[ "$mode" == 100644 && -x "$p" ]]; then
+      chmod -x -- "$p" || true
+    fi
+  done < <(git_paths diff --cached --raw -z --no-renames "$base" -- "$@")
+}
+
 # Stages one named path whatever state it arrives in, and succeeds when git
 # knows it afterwards - in the index or in HEAD - so it can stand in the
 # commit's pathspec. A single "git add -A" is not that: it fails outright on a
@@ -371,6 +397,7 @@ stage_path() {
   local f="$1" u
   local -a new=()
   if [[ -n "$(git ls-files -- "$f")" ]]; then
+    sync_tree_modes "$f"
     git add -u -- "$f" 2>/dev/null || return 1
   fi
   if [[ -e "$f" ]]; then
@@ -402,6 +429,7 @@ stage_paths() {
   local -a tracked=() new=()
   while IFS= read -r -d '' u; do tracked+=("$u"); done < <(git_paths ls-files -z -- "$@")
   if [[ ${#tracked[@]} -gt 0 ]]; then
+    sync_tree_modes "${tracked[@]}"
     git_paths add -u -- "${tracked[@]}" 2>/dev/null || { stage_path_each "$@"; return 0; }
   fi
   while IFS= read -r -d '' u; do new+=("$u"); done < <(git_paths ls-files -z -o --exclude-standard -- "$@")

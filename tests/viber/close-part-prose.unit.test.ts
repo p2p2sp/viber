@@ -161,6 +161,23 @@ test("switch-fragments.md names parts/close.md as where implementor calls its se
   }
 });
 
+/** The step 5 bullet that opens on the given text, whole. */
+function stepFiveBullet(opening: string): string {
+  const step = PART.slice(0, PART.indexOf("## 6."));
+  return lines(step).find((line) => line.startsWith(`- ${opening}`)) ?? "";
+}
+
+test("a repair round that changed nothing goes to the tests arbiter at once, never to another test run (an empty repair commit looped on the same failure up to round 6)", () => {
+  const bullet = stepFiveBullet("Repair coder with no `FILES:` line");
+  assert.ok(bullet.includes("every repair commit call of the round exiting 4"));
+  assert.ok(bullet.includes("the arbiter as on round 6"));
+  assert.ok(bullet.includes("`report:` the last `REPORT` path"));
+});
+
+test("a repair coder with no FILES line no longer leads to a test run at the next round", () => {
+  assert.ok(!PART.includes("No `FILES:` line -> no commit, test-runner at the next round"));
+});
+
 test("step 3 no longer waits on a close part being loaded", () => {
   assert.ok(!stepThree().includes("loaded below"));
 });

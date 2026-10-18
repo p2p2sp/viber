@@ -21,7 +21,8 @@ Repair commit, every path on the coder's `FILES:` line through the form that own
 - Test-runner `VERDICT: FAIL`, round 1 to 5 -> repair dispatch.
 - Test-runner `VERDICT: FAIL`, round 6 -> the arbiter with `case: tests`, `options: accept`, `report:` that run's `REPORT` path. Record its ruling with subject `tests`, then go to step 6, that failing run named in the final summary.
 - Test-runner `VERDICT: DENIED` -> `AskUserQuestion`: retry / accept / abort.
-- Repair coder `PASS` or `FAIL` -> repair commit, then test-runner at the next round. No `FILES:` line -> no commit, test-runner at the next round.
+- Repair coder `PASS` or `FAIL` -> repair commit, then test-runner at the next round.
+- Repair coder with no `FILES:` line, or every repair commit call of the round exiting 4 (no changes) -> the tree is the one that failed: no next round, the arbiter as on round 6, `report:` the last `REPORT` path.
 - Repair coder `VERDICT: DENIED` -> commit nothing; `AskUserQuestion`: retry / accept / abort.
 
 ## 6. Record what the build taught

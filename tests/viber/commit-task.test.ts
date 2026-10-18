@@ -1338,6 +1338,67 @@ test("a task commit carries a staged deletion and a staged exec bit of its own f
   });
 });
 
+/** Every commit form that takes a caller's path, as the argv after the script,
+ *  each naming the one script whose exec bit the index holds. */
+const MODE_FORMS: Array<[form: string, args: string[]]> = [
+  ["a task commit", [PLAN_REL, "T1"]],
+  ["a fix-number repair", [PLAN_REL, "T1", "2", "scripts/run.sh"]],
+  ["--repair", ["--repair", PLAN_REL, "1", "scripts/run.sh"]],
+  ["--review", ["--review", PLAN_REL, "scripts/run.sh"]],
+  ["--chore", ["--chore", PLAN_REL, "scripts/run.sh"]],
+  ["--qa", ["--qa", PLAN_REL, "scripts/run.sh"]],
+  ["--outside", ["--outside", PLAN_REL, "scripts/run.sh"]],
+];
+
+/** Stages scripts/run.sh at 100755 in the index while the file on disk stays
+ *  0644: a new script added that way, or a committed 100644 one whose only
+ *  staged change is its mode - what a coder's "git update-index --chmod=+x"
+ *  leaves behind. */
+async function stageExecBit(repo: GitRepo, fileMode: boolean, committed: boolean): Promise<void> {
+  await seed(repo, [["T1", "scripts/run.sh"]]);
+  await repo.git("config", "core.fileMode", String(fileMode));
+  write(repo.dir, "scripts/run.sh", "echo run\n");
+  fs.chmodSync(path.join(repo.dir, "scripts/run.sh"), 0o644);
+  if (committed) {
+    await repo.git("add", "--", "scripts/run.sh");
+    await repo.git("commit", "-m", "script at 100644");
+    await repo.git("update-index", "--chmod=+x", "--", "scripts/run.sh");
+  } else {
+    await repo.git("update-index", "--add", "--chmod=+x", "--", "scripts/run.sh");
+  }
+}
+
+for (const [form, args] of MODE_FORMS) {
+  for (const committed of [false, true]) {
+    const what = committed ? "a mode-only change of a committed script" : "a new script";
+    test(
+      `${form} under core.fileMode=true keeps the 100755 the index holds for ${what} whose file on disk is 0644, and leaves the tree clean (git add -u read the mode back from the tree and the commit was refused as empty)`,
+      { skip: process.platform === "win32" ? "core.fileMode=true does not occur on a Windows checkout" : false },
+      async () => {
+        await withGitRepo(async (repo) => {
+          await stageExecBit(repo, true, committed);
+
+          const result = await run(repo.dir, repo.env, args);
+          assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+          assert.equal(await headMode(repo, "scripts/run.sh"), "100755");
+          assert.deepEqual(await stagedFiles(repo), []);
+          assert.equal((await repo.git("status", "--porcelain", "--", "scripts/run.sh")).stdout, "");
+        });
+      },
+    );
+  }
+  test(`${form} under core.fileMode=false keeps the 100755 the index holds for a new script`, async () => {
+    await withGitRepo(async (repo) => {
+      await stageExecBit(repo, false, false);
+
+      const result = await run(repo.dir, repo.env, args);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(await headMode(repo, "scripts/run.sh"), "100755");
+      assert.deepEqual(await stagedFiles(repo), []);
+    });
+  });
+}
+
 // --- the run's own state: the two decisions and the trail -------------------
 
 test("a task commit carries its own trail and no other task's, so the notes travel with the code they describe", async () => {
