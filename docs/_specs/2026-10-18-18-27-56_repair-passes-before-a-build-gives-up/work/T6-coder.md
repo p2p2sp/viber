@@ -1,3 +1,0 @@
-- Flow SVG node lines have no wrap: keep each `desc-s` line at most 73 characters (the longest existing one); the task-coder and task-reviewer lines are now 69, 70 and 62-63 characters.
-- The stale "two lines" wording of the archived close (README, help.html en/pl, viber-functions.html closing-screen item) was rewritten as "a short result plus one sentence", since T5 made the close four lines.
-- help.html Polish Start entry uses the inflected "naprawę zadania"; the plain "naprawa zadania" appears in the stall bullet, ts-task-fails and the SVG.

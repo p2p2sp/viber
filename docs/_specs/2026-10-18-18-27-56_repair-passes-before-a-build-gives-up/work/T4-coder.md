@@ -1,4 +1,0 @@
-- The held-task pass is a labelled paragraph `Held-task pass:` placed BEFORE T3's `Owed-path pass:` in step 4 (so T3's tests, slicing from the owed label, are untouched); its bullets are `- Start only`, `- Dispatch:`, `- Entry:`, `- At most 2 attempts:`, `- Commit:`, `- Both attempts failed ->`.
-- The cap-case text moved from the attempt-5 bullet into the held pass's last bullet, unchanged but for `reason:` being the repair's last failure.
-- Left open by the task: a `DECIDE:` line in a held pass follows the owed pass (a coder failure, no arbiter); the held pass's second attempt carries `reason:` of the new failure plus `report:` after a review failure; the first attempt carries no `report:` (the coder reads every `review-<id>-*.md` itself).
-- Held tasks are not recorded: a resumed session starts every task's attempts over.

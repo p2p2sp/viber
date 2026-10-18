@@ -1,4 +1,0 @@
-- The section is a labelled paragraph `Owed-path pass:` at the end of step 4 (no heading), named apart from step 5's `Repair dispatch:`; its tests slice step 4 from that label.
-- Left open by the task: the second attempt of a pass is the plain fresh dispatch with `reason:` (and `report:` after a review failure), with no tier rise; a coder `DENIED` in a pass is not specified and follows the ordinary loop line.
-- The `--repaired` call joins the non-zero-exit exemption list of the opening bullets (now "these five"), so it asks no retry / abort question.
-- The index `owed:` line is only carried; whether a task is settled is the same "nothing in flight, nothing ready" test, so a held or skipped task never blocks the passes.

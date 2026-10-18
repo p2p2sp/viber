@@ -1,3 +1,0 @@
-- The closing sentence is a labelled paragraph `Closing sentence, in both forms:` in step 7, placed after the rulings paragraph and before the `next: part` paragraph; the ARCHIVED bullet and the next-part paragraph refer to it as "the closing sentence".
-- `closeout`'s Output intro now reads "Four lines on `VERDICT: ARCHIVED`, three on any other verdict"; BLOCKED and DENIED stay three lines.
-- Outside Files and left alone: `viber/README.md:174` and `help.html:1730` still say the archived screen shows "two lines"; docs now stale on that point.
