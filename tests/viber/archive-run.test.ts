@@ -506,6 +506,35 @@ test("a path staged beside the run stays in the index: the commit's pathspec is 
   });
 });
 
+test("a run holding attachments/run.sh staged 100755 over a 0644 file archives it at 100755 under core.fileMode=false, leaving the tree clean (a pathspec commit took the mode from HEAD)", async () => {
+  await withSeededRepo(
+    async (repo, runDir) => {
+      await repo.git("config", "core.fileMode", "false");
+      const script = path.join(runDir, "attachments", "run.sh").split(path.sep).join("/");
+      fs.chmodSync(path.join(repo.dir, script), 0o644);
+      await repo.git("update-index", "--chmod=+x", "--", script);
+
+      const result = await run(repo.dir, [runDir], repo.env);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.match((await repo.git("ls-tree", "HEAD", `docs/specs/${KEY}/attachments/run.sh`)).stdout, /^100755 blob /);
+      assert.equal((await repo.git("status", "--short")).stdout.trim(), "");
+    },
+    { extra: { "attachments/run.sh": "#!/bin/sh\necho hi\n" } },
+  );
+});
+
+test("a path staged beside the run stays staged under core.fileMode=false while the run archives", async () => {
+  await withSeededRepo(async (repo, runDir) => {
+    await repo.git("config", "core.fileMode", "false");
+    fs.writeFileSync(path.join(repo.dir, "tool.sh"), "#!/bin/sh\n");
+    await repo.git("add", "--chmod=+x", "tool.sh");
+
+    assert.equal((await run(repo.dir, [runDir], repo.env)).status, 0);
+    assert.equal((await repo.git("status", "--porcelain")).stdout.trim(), "A  tool.sh");
+    assert.match((await repo.git("ls-files", "-s", "tool.sh")).stdout, /^100755 /);
+  });
+});
+
 test("an existing destination is exit 3, and the run is left exactly where it was", async () => {
   await withSeededRepo(async (repo, runDir) => {
     fs.mkdirSync(path.join(repo.dir, "docs", "specs", KEY), { recursive: true });

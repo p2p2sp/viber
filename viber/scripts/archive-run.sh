@@ -262,6 +262,38 @@ if [[ $in_git -eq 0 ]]; then
   exit 0
 fi
 
+# Commits exactly the named paths as the real index holds them, leaving every
+# other staged path staged: commit_named <git commit option>... -- <path>...
+# "git commit -- <paths>" re-reads each named path from the working tree into an
+# index built from HEAD, and under core.fileMode=false (every Windows checkout)
+# the mode then comes from HEAD, so an exec bit staged with "git update-index
+# --chmod=+x" was dropped from the archive. Here a temporary index starts from
+# HEAD, takes each named path's entry from the real index (a staged deletion is
+# its absence there; printed --full-name, since update-index reads every path as
+# root-relative), and the commit runs on it with no pathspec. The real index
+# already holds those entries, so afterwards it agrees with HEAD on them. The
+# same function is in commit-task.sh.
+commit_named() {
+  local idx rc=0
+  local -a opts=()
+  while [[ $# -gt 0 && "$1" != "--" ]]; do opts+=("$1"); shift; done
+  [[ $# -gt 0 ]] && shift
+  idx="$(git rev-parse --absolute-git-dir)/index.archive-run.$$"
+  rm -f "$idx"
+  GIT_INDEX_FILE="$idx" git read-tree HEAD || rc=1
+  if [[ $rc -eq 0 ]]; then
+    GIT_INDEX_FILE="$idx" git rm -r -q --cached --ignore-unmatch -- "$@" >/dev/null || rc=1
+  fi
+  if [[ $rc -eq 0 ]]; then
+    git ls-files -s -z --full-name -- "$@" | GIT_INDEX_FILE="$idx" git update-index -z --index-info || rc=1
+  fi
+  if [[ $rc -eq 0 ]]; then
+    GIT_INDEX_FILE="$idx" git commit "${opts[@]}" || rc=$?
+  fi
+  rm -f "$idx"
+  return $rc
+}
+
 # --- inside a repository: one rename, one removal, one commit ---
 # `git mv` on the whole directory is what makes the archive a rename in the
 # history: the caller's edit of spec.md is already in the working tree, so the
@@ -293,6 +325,6 @@ fi
 
 rmdir -- "docs/$runs_dir" 2>/dev/null || true
 
-git commit -q -m "docs(viber): archive run $key" -- "${paths[@]}" >&2 || exit 5
+commit_named -q -m "docs(viber): archive run $key" -- "${paths[@]}" >&2 || exit 5
 
 echo "ARCHIVED: $dest ($n files)"
