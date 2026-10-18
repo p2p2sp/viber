@@ -420,6 +420,50 @@ test("the status file's other entries pass through, and a skipped task is settle
   });
 });
 
+test("the owed line follows the deferred line and lists every entry whose id is not on the repaired line", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody(TWO_TASKS));
+    seedStatus(dir, {
+      progress: "2/2",
+      done: "T1 T2",
+      deferred: "T2:src/reject.ts",
+      owed: "T1:src/a.ts T2:src/b.ts T1:src/c.ts",
+      repaired: "T2",
+      closed: "memory",
+    });
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stdout, /^deferred: T2:src\/reject\.ts\nowed: T1:src\/a\.ts T1:src\/c\.ts\nclosed: memory\n/m);
+    assert.doesNotMatch(result.stdout, /^repaired:/m);
+  });
+});
+
+test("the owed line is left out when every owing task is repaired, and when the status file carries none", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody(TWO_TASKS));
+    seedStatus(dir, { progress: "2/2", done: "T1 T2", owed: "T1:src/a.ts T1:src/c.ts", repaired: "T1" });
+    const repaired = await run(dir, {}, [PLAN_REL]);
+    assert.equal(repaired.status, 0, `stderr: ${repaired.stderr}`);
+    assert.doesNotMatch(repaired.stdout, /^owed:/m);
+
+    seedStatus(dir, { progress: "2/2", done: "T1 T2", owed: "none", repaired: "none" });
+    const none = await run(dir, {}, [PLAN_REL]);
+    assert.equal(none.status, 0, `stderr: ${none.stderr}`);
+    assert.doesNotMatch(none.stdout, /^owed:/m);
+  });
+});
+
+test("the header's stdout block lists the owed line and the status block names the owed and repaired keys", () => {
+  // the header comment is the script's documented contract, the text read here
+  const source = fs.readFileSync(SUT, "utf-8");
+  const stdoutDoc = source.slice(source.indexOf("# stdout"), source.indexOf("# \"feeds\""));
+  assert.match(stdoutDoc, /^#\s+owed: T1:src\/a\.ts\s+only/m);
+  const stateDoc = source.slice(source.indexOf("# The run's state is read"), source.indexOf("\"state\" is"));
+  assert.match(stateDoc, /"owed"/);
+  assert.match(stateDoc, /"repaired"/);
+});
+
 test("a run whose status file carries none of those entries reports none of them, so a run that needed no decision stays quiet", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     seed(dir, planBody(TWO_TASKS));

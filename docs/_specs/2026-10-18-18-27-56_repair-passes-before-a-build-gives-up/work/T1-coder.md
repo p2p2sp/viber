@@ -1,0 +1,5 @@
+- DoD.3 needed no production change: a plain re-commit of a done task already reads its work/<id>-extra.md and stages an unclaimed path. Its test passes on first run (no red possible); it pins that behavior. The re-commit changes no status.md, so status.md is not in that commit.
+- `--owe` stores `<this-task-id>:<path>` (leading ./ stripped), stages and checks nothing; unlike `--defer` it never refuses an entry.
+- `write_status` (commit-task.sh) and the --split status template (plan-index.sh) are unchanged: `owed:` and `repaired:` are appended by mark_status on first use, absent means none. An existing test pins the exact --split status text.
+- `--repaired` requires the id on the `done:` line (exit 2 otherwise), checked after the plan (2) and id (3) checks.
+- Header tests read the script text as the documented contract, as the existing header tests of both files do.

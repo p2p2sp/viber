@@ -6,9 +6,11 @@
 # Usage:
 #   commit-task.sh <plan-file> <task-id> [--unreviewed] [--with <file> [<file>...]]
 #                                        [--defer <task-id>:<path> [...]]
+#                                        [--owe <path> [<path>...]]
 #                                        [--landed <sha>]
 #   commit-task.sh <plan-file> <task-id> <fix-number> <file> [<file>...]
 #   commit-task.sh --skip <plan-file> <task-id>
+#   commit-task.sh --repaired <plan-file> <task-id>
 #   commit-task.sh --decide <plan-file> <task-id> <text>
 #   commit-task.sh --decide <plan-file> <task-id> --from <ruling-file>
 #   commit-task.sh --decide <plan-file> <task-id> --first-of <options-file>
@@ -60,6 +62,14 @@
 # with a warning, the shape --with already uses: untested code with no owner is
 # not deferred, it is unfinished, and recording it against an id nobody will
 # dispatch would hide exactly that.
+#
+# --owe records code this task left behind that no later task will prove, one
+# "<path>" per entry, stored as "<task-id>:<path>" with this task as the one that
+# owes it. It stages nothing and checks nothing: the entry rides in the task's own
+# commit, so it survives a context reset, and the build later gives the task a
+# repair pass. --repaired closes that entry for a done task without a commit: the
+# task id lands on the "repaired:" line and its entries stop counting as owed.
+# Both lines are append-only - nothing here removes an entry.
 #
 # --landed records a task whose work ANOTHER commit already carried - a coder
 # that committed on its own, a manual commit, a commit that swept the files in,
@@ -155,6 +165,8 @@
 #   skipped: T3          --skip, the user or an arbiter ruling dropped that task
 #   unreviewed: T7       --unreviewed, the user or an arbiter ruling waived the review gate
 #   deferred: T7:src/a.ts   --defer, T7 owes that path the test that proves it
+#   owed: T7:src/a.ts       --owe, T7 left that path behind with no task to prove it
+#   repaired: T7            --repaired, T7's owed paths are dealt with
 #   closed: memory qa extension:<name>
 #                        --chore / --qa / --extension, that part of the close is done
 #   decision: T3: <text> --decide, the build's ruling on a stalled task; one
@@ -189,10 +201,10 @@
 # The entry has to ride IN the commit, so it is written first and rolled back
 # from a backup if staging or committing fails: a status claiming a task is done
 # that was never committed would be skipped forever on resume. Either the commit
-# exists and the entry is set, or neither is. Only --skip and --decide write
-# without committing: neither has a commit of its own to ride in, so the entry
-# waits in status.md for whichever commit comes next, and a failed commit rolls
-# status.md back with those entries intact.
+# exists and the entry is set, or neither is. Only --skip, --decide and
+# --repaired write without committing: none has a commit of its own to ride in,
+# so the entry waits in status.md for whichever commit comes next, and a failed
+# commit rolls status.md back with those entries intact.
 #
 # Every form also stages the run's own trail - the notes and reports under
 # <run-dir>/work/ - with the commit it belongs to, so the trail travels with the
@@ -201,13 +213,14 @@
 # cannot ride along.
 #
 # stdout by form:
-#   task (--unreviewed / --with / --defer): "committed: <sha>", "progress: x/N"
+#   task (--unreviewed / --with / --defer / --owe): "committed: <sha>", "progress: x/N"
 #   --landed:                    "committed: <sha>", "subject: <line>", "progress: x/N"
 #   <fix-number>:                "committed: <sha>", "progress: unchanged"
 #   --repair:                    "committed: <sha>", "subject: <line>", "progress: unchanged"
 #   --chore, --qa, --e2e:        "committed: <sha>", "subject: <line>"
 #   --review, --outside, --extension: "committed: <sha>", "subject: <line>"
 #   --skip:                      "skipped: <id>", "progress: unchanged" (no commit)
+#   --repaired:                  "repaired: <id>", "progress: unchanged" (no commit)
 #   --decide:                    "decided: <id>", "progress: unchanged" (no commit)
 #   --rule:                      "ruled: <subject>", "progress: unchanged" (no commit)
 # stderr: a warning listing changed paths no task in the plan claims, the run's
@@ -219,6 +232,7 @@
 # exit != 0:
 #   2 - bad arguments / missing plan; for --extension also an invalid <name>; for --decide also an empty or multi-line
 #       <text>, or a task on the done or skipped list (status.md untouched);
+#       for --repaired also a task that is not done (status.md untouched);
 #       for --rule an empty or multi-line field, or a subject that is neither
 #       a task id of the plan nor a fixed subject (rulings.md untouched);
 #       for --from and --first-of also a file that is absent, unreadable or
@@ -240,7 +254,7 @@ shopt -s nullglob
 export GIT_LITERAL_PATHSPECS=1
 
 usage() {
-  echo "error: usage: commit-task.sh <plan-file> <task-id> [--unreviewed] [--with <file> [<file>...]] [--defer <task-id>:<path> [...]] [--landed <sha>] | <plan-file> <task-id> <fix-number> <file> [<file>...] | --skip <plan-file> <task-id> | --decide <plan-file> <task-id> <text> | --decide <plan-file> <task-id> --from <ruling-file> | --decide <plan-file> <task-id> --first-of <options-file> | --rule <plan-file> <subject> <ruling> <why> <cost> | --rule <plan-file> <subject> --from <ruling-file> | --repair <plan-file> <round> <file> [<file>...] | --chore <plan-file> <file> [<file>...] | --qa <plan-file> <file> [<file>...] | --e2e <file> [<file>...] | --review <plan-file> <file> [<file>...] | --outside <plan-file> <file> [<file>...] | --extension <plan-file> <name> <file> [<file>...]" >&2
+  echo "error: usage: commit-task.sh <plan-file> <task-id> [--unreviewed] [--with <file> [<file>...]] [--defer <task-id>:<path> [...]] [--owe <path> [...]] [--landed <sha>] | <plan-file> <task-id> <fix-number> <file> [<file>...] | --skip <plan-file> <task-id> | --repaired <plan-file> <task-id> | --decide <plan-file> <task-id> <text> | --decide <plan-file> <task-id> --from <ruling-file> | --decide <plan-file> <task-id> --first-of <options-file> | --rule <plan-file> <subject> <ruling> <why> <cost> | --rule <plan-file> <subject> --from <ruling-file> | --repair <plan-file> <round> <file> [<file>...] | --chore <plan-file> <file> [<file>...] | --qa <plan-file> <file> [<file>...] | --e2e <file> [<file>...] | --review <plan-file> <file> [<file>...] | --outside <plan-file> <file> [<file>...] | --extension <plan-file> <name> <file> [<file>...]" >&2
   exit 2
 }
 
@@ -834,6 +848,31 @@ if [[ "${1:-}" == "--skip" ]]; then
   exit 0
 fi
 
+# --- a done task whose owed paths the build dealt with, recorded without a commit ---
+# Like --skip it waits in status.md for the next commit. Only a done task can
+# have been repaired: its owed entries rode in its own commit.
+if [[ "${1:-}" == "--repaired" ]]; then
+  plan="$(plan_arg "${2:-}")"
+  task_id="${3:-}"
+  [[ -n "$plan" && -n "$task_id" && $# -eq 3 ]] || usage
+  if [[ ! -f "$plan" ]]; then
+    echo "error: plan file not found: $plan" >&2
+    exit 2
+  fi
+  if ! task_ids_of "$plan" | grep -Fxq -- "$task_id"; then
+    echo "error: no task '$task_id' in $plan" >&2
+    exit 3
+  fi
+  if ! done_ids "$plan" | grep -Fxq -- "$task_id"; then
+    echo "error: task '$task_id' is not done - it owes nothing to repair" >&2
+    exit 2
+  fi
+  mark_status "$plan" repaired "$task_id" >/dev/null
+  echo "repaired: $task_id"
+  echo "progress: unchanged"
+  exit 0
+fi
+
 # --- the build's decision on one task, recorded without a commit ---
 # How the build settled a stalled task: it reaches that task's coder and reviewer
 # through the index, survives a resumed session and ends up in the archive. Like
@@ -1133,9 +1172,10 @@ unreviewed=0
 extra=""
 deferred=""
 landed=""
+owed=""
 case "${3:-}" in
   "") ;;
-  --unreviewed|--with|--defer|--landed)
+  --unreviewed|--with|--defer|--owe|--landed)
     set -- "${@:3}"
     while [[ $# -gt 0 ]]; do
       case "$1" in
@@ -1158,6 +1198,14 @@ case "${3:-}" in
           [[ $# -gt 0 && "$1" != --* ]] || usage
           while [[ $# -gt 0 && "$1" != --* ]]; do
             deferred="$deferred$1"$'\n'
+            shift
+          done
+          ;;
+        --owe)
+          shift
+          [[ $# -gt 0 && "$1" != --* ]] || usage
+          while [[ $# -gt 0 && "$1" != --* ]]; do
+            owed="$owed${1#./}"$'\n'
             shift
           done
           ;;
@@ -1412,6 +1460,14 @@ while IFS= read -r d; do
   fi
   mark_status "$plan" deferred "$d" >/dev/null
 done <<< "$deferred"
+
+# What this task left behind that no later task proves. The entry names this
+# task as the one that owes it, rides in the same commit and is rolled back
+# with it.
+while IFS= read -r o; do
+  [[ -n "$o" ]] || continue
+  mark_status "$plan" owed "$task_id:$o" >/dev/null
+done <<< "$owed"
 
 git add -- "$status" || exit 5
 

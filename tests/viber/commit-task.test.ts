@@ -2899,3 +2899,152 @@ for (const [form, arrange] of RULE_CARRIERS) {
     });
   });
 }
+
+// --- C2: the owed and repaired records ---------------------------------------
+
+test("--owe records the task and the path on the owed line, in the same commit as the done entry", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--owe", "src/a.ts", "./src/lib.ts"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(readStatus(repo), /^owed: T1:src\/a\.ts T1:src\/lib\.ts$/m);
+
+    // read back out of history: a resumed session finds the record in the commit
+    const fromHistory = (await repo.git("show", `HEAD:${STATUS_REL}`)).stdout;
+    assert.match(fromHistory, /^owed: T1:src\/a\.ts T1:src\/lib\.ts$/m);
+    assert.match(fromHistory, /^done: T1$/m);
+  });
+});
+
+test("--owe combines with --defer and --unreviewed", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+
+    const result = await run(repo.dir, repo.env, [
+      PLAN_REL, "T1", "--defer", "T2:src/a.ts", "--owe", "src/lib.ts", "--unreviewed",
+    ]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(readStatus(repo), /^owed: T1:src\/lib\.ts$/m);
+    assert.match(readStatus(repo), /^deferred: T2:src\/a\.ts$/m);
+    assert.match(readStatus(repo), /^unreviewed: T1$/m);
+  });
+});
+
+test("--owe with no path exits 2", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+
+    assert.equal((await run(repo.dir, repo.env, [PLAN_REL, "T1", "--owe"])).status, 2);
+    assert.equal((await run(repo.dir, repo.env, [PLAN_REL, "T1", "--owe", "--unreviewed"])).status, 2);
+  });
+});
+
+test("a refused git commit rolls the owed entry back with the done entry", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    const before = readStatus(repo);
+    await breakCommit(repo);
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--owe", "src/lib.ts"]);
+    assert.equal(result.status, 5);
+    assert.equal(readStatus(repo), before);
+  });
+});
+
+test("--repaired adds the id to the repaired line of a done task, makes no commit and exits 0", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    assert.equal((await run(repo.dir, repo.env, [PLAN_REL, "T1", "--owe", "src/lib.ts"])).status, 0);
+    const commitsBefore = await subjects(repo);
+
+    const result = await run(repo.dir, repo.env, ["--repaired", PLAN_REL, "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "repaired: T1\nprogress: unchanged\n");
+    assert.match(readStatus(repo), /^repaired: T1$/m);
+    assert.match(readStatus(repo), /^owed: T1:src\/lib\.ts$/m);
+    assert.deepEqual(await subjects(repo), commitsBefore);
+  });
+});
+
+test("--repaired twice for one id keeps one entry on the repaired line", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    assert.equal((await run(repo.dir, repo.env, [PLAN_REL, "T1"])).status, 0);
+
+    assert.equal((await run(repo.dir, repo.env, ["--repaired", PLAN_REL, "T1"])).status, 0);
+    assert.equal((await run(repo.dir, repo.env, ["--repaired", PLAN_REL, "T1"])).status, 0);
+    assert.match(readStatus(repo), /^repaired: T1$/m);
+  });
+});
+
+test("--repaired on an id the plan does not hold exits 3 and leaves status.md untouched", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    const before = readStatus(repo);
+
+    const result = await run(repo.dir, repo.env, ["--repaired", PLAN_REL, "T9"]);
+    assert.equal(result.status, 3);
+    assert.match(result.stderr, /no task 'T9'/);
+    assert.equal(readStatus(repo), before);
+  });
+});
+
+test("--repaired on a task that is not done exits 2 and leaves status.md untouched", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    const before = readStatus(repo);
+
+    const result = await run(repo.dir, repo.env, ["--repaired", PLAN_REL, "T2"]);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /not done/);
+    assert.equal(readStatus(repo), before);
+  });
+});
+
+test("--repaired without an id exits 2", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    assert.equal((await run(repo.dir, repo.env, ["--repaired", PLAN_REL])).status, 2);
+  });
+});
+
+test("committing a done task again stages a new path its extras file lists that no task claims", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    assert.equal((await run(repo.dir, repo.env, [PLAN_REL, "T1"])).status, 0);
+
+    write(repo.dir, "src/owed.ts", "the repair pass's file\n");
+    write(repo.dir, EXTRA_CODER_REL, "src/owed.ts\n");
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(await committedFiles(repo), ["src/owed.ts", EXTRA_CODER_REL].sort());
+    assert.match(readStatus(repo), /^done: T1$/m);
+  });
+});
+
+test("the header names the --owe and --repaired forms and the owed and repaired lines of status.md", () => {
+  // the header comment is the script's documented contract, the text read here
+  const source = fs.readFileSync(SUT, "utf-8");
+  const header = source.slice(0, source.indexOf("set -euo pipefail"));
+  assert.match(header, /commit-task\.sh --repaired <plan-file> <task-id>/);
+  assert.match(header, /\[--owe <path> \[<path>\.\.\.\]\]/);
+  assert.match(header, /^#\s+owed: T7:src\/a\.ts\s+--owe/m);
+  assert.match(header, /^#\s+repaired: T7\s+--repaired/m);
+});
+
+test("the usage text lists the --owe and --repaired forms", async () => {
+  await withGitRepo(async (repo) => {
+    const result = await run(repo.dir, repo.env, []);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /\[--owe <path> \[\.\.\.\]\]/);
+    assert.match(result.stderr, /--repaired <plan-file> <task-id>/);
+  });
+});
