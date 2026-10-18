@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-const SKILL = fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/skills/implementor/SKILL.md"), "utf8");
+const SKILL = fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/skills/implementor/parts/close.md"), "utf8");
 
 const ARCHIVED_NEXT = "`/viber:intent <path>/roadmap.md`";
 const SCREEN_NEXT = "`/viber:intent <dir>/roadmap.md`";

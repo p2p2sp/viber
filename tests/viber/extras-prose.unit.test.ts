@@ -40,7 +40,7 @@ function between(text: string, from: string, to: string): string {
   return text.slice(start, end);
 }
 
-const SKILL = read("skills/implementor/SKILL.md");
+const SKILL = `${read("skills/implementor/SKILL.md")}\n${read("skills/implementor/parts/close.md")}`;
 const CODER = read("agents/task-coder.md");
 const REVIEWER = read("agents/task-reviewer.md");
 

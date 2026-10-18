@@ -104,7 +104,7 @@ test("the reviewer repair bullet runs the test a repair pass added for a deferre
 });
 
 const SKILL = fs.readFileSync(path.join(AGENTS, "../skills/implementor/SKILL.md"), "utf8");
-const STEP_4 = SKILL.slice(SKILL.indexOf("## 4. Run the plan"), SKILL.indexOf("## 5. Close"));
+const STEP_4 = SKILL.slice(SKILL.indexOf("## 4. Run the plan"), SKILL.indexOf("## 5 to 7. Close and archive"));
 const PASS_START = STEP_4.indexOf("Owed-path pass:");
 const PASS = PASS_START < 0 ? "" : STEP_4.slice(PASS_START);
 const COMMIT_BULLET = bulletsOpening(STEP_4, "- `--defer ")[0] ?? "";
@@ -357,12 +357,13 @@ test("closeout BLOCKED and DENIED outputs list three lines and the intro counts 
   assert.equal(listedLines(DENIED_OUTPUT), 3);
 });
 
-const ARCHIVED_CLOSE = bulletsOpening(SKILL, "- `closeout` returned `VERDICT: ARCHIVED` ->")[0] ?? "";
+const CLOSE = fs.readFileSync(path.join(AGENTS, "../skills/implementor/parts/close.md"), "utf8");
+const ARCHIVED_CLOSE = bulletsOpening(CLOSE, "- `closeout` returned `VERDICT: ARCHIVED` ->")[0] ?? "";
 const SUMMARY_PRINT = "`Summary: <path>/outcome.md`";
 const ARCHIVED_NEXT_LINE = "`/viber:intent <path>/roadmap.md`";
-const SENTENCE_START = SKILL.indexOf("Closing sentence");
-const SENTENCE_END = SKILL.indexOf("\n\n", SENTENCE_START + SKILL.slice(SENTENCE_START).indexOf("\n- "));
-const SENTENCE = SENTENCE_START < 0 ? "" : SKILL.slice(SENTENCE_START, SENTENCE_END);
+const SENTENCE_START = CLOSE.indexOf("Closing sentence");
+const SENTENCE_END = CLOSE.indexOf("\n\n", SENTENCE_START + CLOSE.slice(SENTENCE_START).indexOf("\n- "));
+const SENTENCE = SENTENCE_START < 0 ? "" : CLOSE.slice(SENTENCE_START, SENTENCE_END);
 
 test("the archived close prints the closing sentence after the Summary line", () => {
   assert.ok(ARCHIVED_CLOSE.indexOf(SUMMARY_PRINT) > 0);
@@ -375,7 +376,7 @@ test("the archived close prints the closing sentence before the next-part line",
 });
 
 test("step 7 defines one closing sentence in the conversation's language for both forms", () => {
-  assert.equal(SKILL.split("Closing sentence").length, 2);
+  assert.equal(CLOSE.split("Closing sentence").length, 2);
   assert.ok(SENTENCE.includes("one sentence in the conversation's language"));
   assert.ok(SENTENCE.includes("in both forms"));
 });
@@ -390,21 +391,21 @@ test("the closing sentence says outcome.md records a problem, the summary above 
 });
 
 test("the screen form prints the closing sentence after the rulings", () => {
-  const rulings = SKILL.indexOf("After those, also outside its 7 lines, list the rulings");
+  const rulings = CLOSE.indexOf("After those, also outside its 7 lines, list the rulings");
   assert.ok(rulings > 0);
   assert.ok(SENTENCE_START > rulings);
 });
 
 test("the screen form prints the closing sentence before the next-part line, which stays last", () => {
-  const next = SKILL.indexOf("With a `next: part` index line");
+  const next = CLOSE.indexOf("With a `next: part` index line");
   assert.ok(next > SENTENCE_START);
-  const nextLine = lines(SKILL).find((line) => line.startsWith("With a `next: part` index line")) ?? "";
+  const nextLine = lines(CLOSE).find((line) => line.startsWith("With a `next: part` index line")) ?? "";
   assert.ok(nextLine.includes("after the closing sentence"));
   assert.ok(nextLine.includes("the last line of the screen form"));
 });
 
 test("the pull request question still comes once everything is printed", () => {
-  assert.ok(SKILL.includes("once everything above is printed -> `AskUserQuestion`"));
+  assert.ok(CLOSE.includes("once everything above is printed -> `AskUserQuestion`"));
 });
 
 const PROBLEM_KINDS = [

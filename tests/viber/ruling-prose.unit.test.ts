@@ -47,7 +47,7 @@ function inputBullet(text: string, label: string): string {
   return lines(text).find((line) => line.startsWith(`- A \`${label}\``) || line.startsWith(`- \`${label}:`)) ?? "";
 }
 
-const SKILL = read("skills/implementor/SKILL.md");
+const SKILL = `${read("skills/implementor/SKILL.md")}\n${read("skills/implementor/parts/close.md")}`;
 const ARBITER = read("agents/arbiter.md");
 const CODER = read("agents/task-coder.md");
 const COMMIT_TASK = read("scripts/commit-task.sh");
