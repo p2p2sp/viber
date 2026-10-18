@@ -35,6 +35,8 @@ viber owns the pipeline that runs across its skills, agents, hooks, scripts and 
 - The plan's `attachments:` map and the `attachments/<name>` form a task's `DoD` names: `skills/planner/templates/spec-full.md`/`spec-lite.md`, `planner/SKILL.md`, `agents/planner-review.md`, `scripts/plan-path.sh` (validates and lands), `scripts/plan-index.sh` (lists in `spec.md`), `agents/task-coder.md` and `agents/task-reviewer.md` (read it from the run directory).
 - `status.md`'s `done:`/`skipped:` lines: written by `commit-task.sh`, read by `plan-index.sh`.
 - The plan frontmatter `source:` line: `skills/planner/templates/spec-full.md`/`spec-lite.md`, `planner/SKILL.md`, `implementor/SKILL.md` step 1 and `hooks/scripts/plan-gate.sh` (it picks `planner-review` over `plain-plan-review`).
+- The root cause of a fixed defect: the optional `## Root cause` of `skills/planner/templates/spec-full.md`/`spec-lite.md`, its `references/plan-rules.md` rule (present only for a `viber:fixer` diagnosis or code-auditor findings) and `agents/memory-writer.md` (turns it into the first traps of the run).
+- The build-close rules behavior: `agents/rules-writer.md` (spec shape adds and corrects only, map shape compacts and splits), the per-run cap of `references/rule-admission.md` and the `/viber:rules` pointer of `skills/implementor/fragments/rules.true.md`.
 - A user-facing behavior: `README.md`, `docs/` and `help.html` (`en` and `pl` spans) describe the same features; a headline capability also reaches the root `README.md`.
 
 ## Traps
