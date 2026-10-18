@@ -6,7 +6,8 @@
  * executed), no CRLF line ending anywhere, and the `100755` exec bit
  * whenever a `SKILL.md` or a plugin's `hooks/hooks.json` invokes it without an
  * interpreter word (`bash …`/`sh …`) in front. Every `!` preload line and
- * every ```! ``` fenced block in every `SKILL.md` gets its own sweep: a glob
+ * every ```! ``` fenced block in every `SKILL.md` and every `parts/*.md` beside
+ * one (found on disk, so an untracked part is swept too) gets its own sweep: a glob
  * character (`?`, `*`, `[`) in a bare (unquoted) argument aborts a whole
  * fork load under zsh's default `nomatch`, so every such argument must be
  * quoted, and `${CLAUDE_PLUGIN_ROOT}`/`${CLAUDE_SKILL_DIR}` must be
@@ -422,8 +423,8 @@ function switchTextCalls(content: string): SwitchTextCall[] {
 }
 
 /** The fragment-call sweep for one skill (DoD.1-4): every `switch-text.sh`
- *  call in its SKILL.md cross-checked against the basenames actually present
- *  in its own `fragments/` directory.
+ *  call in its SKILL.md and in its `parts/*.md` files cross-checked against the
+ *  basenames actually present in its own `fragments/` directory.
  *   - DoD.1: a call's name has no `<name>.<value>.md` file for ANY valid
  *     value of its key - a fragment family the skill never wrote.
  *   - DoD.2: a call's key is not one of SWITCH_VALUES - an unknown switch.
@@ -431,13 +432,21 @@ function switchTextCalls(content: string): SwitchTextCall[] {
  *     valid values for the key its own skill's calls name it under.
  *   - DoD.4: an existing fragment file that no call in its own skill's
  *     SKILL.md names at all (dead weight - never selected, ever). */
-function fragmentCallViolations(skillMdPath: string, skillMdContent: string, fragmentBasenames: string[]): string[] {
+function fragmentCallViolations(
+  skillMdPath: string,
+  skillMdContent: string,
+  fragmentBasenames: string[],
+  partFiles: Array<{ file: string; content: string }> = [],
+): string[] {
   const violations: string[] = [];
-  const calls = switchTextCalls(skillMdContent);
-  const callsByName = new Map<string, SwitchTextCall[]>();
+  // a call in a part file of the skill counts as a call of that skill
+  const calls = [{ file: skillMdPath, content: skillMdContent }, ...partFiles].flatMap(({ file, content }) =>
+    switchTextCalls(content).map((call) => ({ ...call, file })),
+  );
+  const callsByName = new Map<string, Array<SwitchTextCall & { file: string }>>();
   for (const call of calls) {
     if (!(call.key in SWITCH_VALUES)) {
-      violations.push(`${skillMdPath}:${call.lineNo}: switch-text.sh call names unknown key '${call.key}'`);
+      violations.push(`${call.file}:${call.lineNo}: switch-text.sh call names unknown key '${call.key}'`);
       continue;
     }
     const list = callsByName.get(call.name) ?? [];
@@ -451,7 +460,7 @@ function fragmentCallViolations(skillMdPath: string, skillMdContent: string, fra
       const hasAny = values.some((value) => fragmentBasenames.includes(`${name}.${value}.md`));
       if (!hasAny) {
         violations.push(
-          `${skillMdPath}:${call.lineNo}: switch-text.sh call names fragment '${name}' with no file for any value of key '${call.key}'`,
+          `${call.file}:${call.lineNo}: switch-text.sh call names fragment '${name}' with no file for any value of key '${call.key}'`,
         );
       }
     }
@@ -475,6 +484,35 @@ function fragmentCallViolations(skillMdPath: string, skillMdContent: string, fra
   }
 
   return violations;
+}
+
+/** The `parts/*.md` files beside each SKILL.md, read through `readDir` (the
+ *  names in a directory, or none when it does not exist). Found on disk rather
+ *  than in the git index, so a part file of a task still in progress is swept
+ *  before it is added. */
+function skillPartFiles(skillMdFiles: string[], readDir: (dir: string) => string[]): string[] {
+  return skillMdFiles.flatMap((skillMd) => {
+    const partsDir = `${path.dirname(skillMd)}/parts`;
+    return readDir(partsDir)
+      .filter((name) => name.endsWith(".md"))
+      .sort()
+      .map((name) => `${partsDir}/${name}`);
+  });
+}
+
+/** The preload-quoting sweep over a corpus of SKILL.md and part files. */
+function preloadQuotingSweep(corpus: Array<{ file: string; content: string }>): string[] {
+  return corpus.flatMap(({ file, content }) => preloadQuotingViolations(file, content));
+}
+
+/** The files the exec-bit rule searches for a bare script call. */
+function execBitCorpusFiles(groups: {
+  skillMdFiles: string[];
+  hooksJsonFiles: string[];
+  fragmentFiles: string[];
+  partFiles: string[];
+}): string[] {
+  return [...groups.skillMdFiles, ...groups.hooksJsonFiles, ...groups.fragmentFiles, ...groups.partFiles];
 }
 
 // ---------------------------------------------------------------------------
@@ -753,6 +791,51 @@ test("self-check: fragmentCallViolations does not fire when every call resolves 
   assert.deepEqual(violations, []);
 });
 
+test("self-check: fragmentCallViolations counts a call in a skill's part file as a call of that skill (a fragment called only there is not reported)", () => {
+  const part = {
+    file: "plugin/skills/foo/parts/close.md",
+    content: '```!\n"${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" build.memory "${CLAUDE_SKILL_DIR}" memory\n```\n',
+  };
+  const violations = fragmentCallViolations("plugin/skills/foo/SKILL.md", "# foo\n", ["memory.true.md"], [part]);
+  assert.deepEqual(violations, []);
+});
+
+test("self-check: fragmentCallViolations reports an unknown key in a part file's call with the part file's path and line", () => {
+  const part = {
+    file: "plugin/skills/foo/parts/close.md",
+    content: 'text\n"${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" bogus "${CLAUDE_SKILL_DIR}" memory\n',
+  };
+  const violations = fragmentCallViolations("plugin/skills/foo/SKILL.md", "# foo\n", [], [part]);
+  assert.deepEqual(violations, ["plugin/skills/foo/parts/close.md:2: switch-text.sh call names unknown key 'bogus'"]);
+});
+
+test("self-check: skillPartFiles finds the parts/*.md of every skill through the directory read, not the git index", () => {
+  const tree: Record<string, string[]> = { "plugin/skills/foo/parts": ["close.md", "notes.txt", "open.md"] };
+  const found = skillPartFiles(["plugin/skills/foo/SKILL.md", "plugin/skills/bar/SKILL.md"], (dir) => tree[dir] ?? []);
+  assert.deepEqual(found, ["plugin/skills/foo/parts/close.md", "plugin/skills/foo/parts/open.md"]);
+});
+
+test("self-check: preloadQuotingSweep checks every fenced ! block of a part file", () => {
+  const part = {
+    file: "plugin/skills/foo/parts/close.md",
+    content: ['```!', 'sh "${CLAUDE_PLUGIN_ROOT}/scripts/a.sh" ?one', '```', 'prose', '```!', 'sh "${CLAUDE_PLUGIN_ROOT}/scripts/b.sh" *two', '```', ''].join("\n"),
+  };
+  const violations = preloadQuotingSweep([part]);
+  assert.equal(violations.length, 2, violations.join("\n"));
+  assert.match(violations[0], /parts\/close\.md:2: unquoted '\?'/);
+  assert.match(violations[1], /parts\/close\.md:6: unquoted '\*'/);
+});
+
+test("self-check: the exec-bit corpus includes every part file", () => {
+  const files = execBitCorpusFiles({
+    skillMdFiles: ["plugin/skills/foo/SKILL.md"],
+    hooksJsonFiles: ["plugin/hooks/hooks.json"],
+    fragmentFiles: ["plugin/skills/foo/fragments/a.true.md"],
+    partFiles: ["plugin/skills/foo/parts/close.md"],
+  });
+  assert.ok(files.includes("plugin/skills/foo/parts/close.md"), files.join("\n"));
+});
+
 // ---------------------------------------------------------------------------
 // The real sweep - every shipped script, enumerated from the git index.
 // ---------------------------------------------------------------------------
@@ -808,6 +891,12 @@ const hooksJsonFiles = listIndexed(root, ["hooks.json"])
 const fragmentFiles = listIndexed(root, ["*/fragments/*.md"])
   .map((entry) => entry.repoRelativePath)
   .filter(shipped);
+// Every `parts/*.md` beside an indexed SKILL.md, found on disk so a part file
+// of a task in progress (not yet `git add`ed) is swept too.
+const partFiles = skillPartFiles(skillMdFiles, (dir) => {
+  const abs = path.join(root, dir);
+  return fs.existsSync(abs) ? fs.readdirSync(abs) : [];
+});
 const fragmentBasenamesBySkillDir = new Map<string, string[]>();
 for (const file of fragmentFiles) {
   const skillDir = path.dirname(path.dirname(file));
@@ -844,8 +933,8 @@ test("no shipped script depends on a GNU-only utility, gawk extension or bash 4 
   assert.equal(violations.length, 0, `GNU-only constructs:\n${violations.join("\n")}`);
 });
 
-test("every script invoked bare from a SKILL.md/hooks.json/fragment line carries the 100755 exec bit", () => {
-  const corpus = [...skillMdFiles, ...hooksJsonFiles, ...fragmentFiles].map((file) => ({
+test("every script invoked bare from a SKILL.md/hooks.json/fragment/part line carries the 100755 exec bit", () => {
+  const corpus = execBitCorpusFiles({ skillMdFiles, hooksJsonFiles, fragmentFiles, partFiles }).map((file) => ({
     file,
     // hooks.json escapes its embedded quotes (\") - unescape so the same
     // literal-substring search used for SKILL.md prose applies unchanged.
@@ -858,12 +947,12 @@ test("every script invoked bare from a SKILL.md/hooks.json/fragment line carries
   assert.equal(violations.length, 0, `exec-bit violations:\n${violations.join("\n")}`);
 });
 
-test("every SKILL.md ! preload quotes its glob-bearing arguments and double-quotes its plugin/skill-root variables", () => {
-  const violations: string[] = [];
-  for (const file of skillMdFiles) {
-    const content = fs.readFileSync(path.join(root, file), "utf-8");
-    violations.push(...preloadQuotingViolations(file, content));
-  }
+test("every SKILL.md and part file ! preload quotes its glob-bearing arguments and double-quotes its plugin/skill-root variables", () => {
+  const corpus = [...skillMdFiles, ...partFiles].map((file) => ({
+    file,
+    content: fs.readFileSync(path.join(root, file), "utf-8"),
+  }));
+  const violations = preloadQuotingSweep(corpus);
   assert.equal(violations.length, 0, `preload quoting violations:\n${violations.join("\n")}`);
 });
 
@@ -873,7 +962,10 @@ test("every switch-text.sh call names a fragment file that exists, a known key, 
     const content = fs.readFileSync(path.join(root, file), "utf-8");
     const skillDir = path.dirname(file);
     const fragmentBasenames = fragmentBasenamesBySkillDir.get(skillDir) ?? [];
-    violations.push(...fragmentCallViolations(file, content, fragmentBasenames));
+    const skillParts = partFiles
+      .filter((part) => path.dirname(path.dirname(part)) === skillDir)
+      .map((part) => ({ file: part, content: fs.readFileSync(path.join(root, part), "utf-8") }));
+    violations.push(...fragmentCallViolations(file, content, fragmentBasenames, skillParts));
   }
   assert.equal(violations.length, 0, `fragment-call violations:\n${violations.join("\n")}`);
 });
