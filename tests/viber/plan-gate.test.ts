@@ -612,6 +612,38 @@ test("a prompt carrying 'VERDICT: PASS' cannot stand in for the real FAIL -> den
   });
 });
 
+// --- api-request-blob: a replay record, never a live event -------------
+
+/** Claude Code's `api-request-blob` record: one line replaying a whole earlier message,
+ *  its tool_use blocks as live-looking JSON (unescaped, unlike a tool_result string). */
+function blob(blocks: Record<string, unknown>[]): string {
+  return line({ type: "api-request-blob", sessionId: "s", hash: "h", message: { role: "assistant", content: blocks } });
+}
+
+test("a blob line replaying [Edit, Agent] after the async launch does not hide the real dispatch: the PASS for it -> allow", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const id = "toolu_01Real";
+    const replay = blob([
+      { type: "tool_use", id: "toolu_01Edit", name: "Edit", input: { file_path: PLAN, old_string: "a", new_string: "b" } },
+      { type: "tool_use", id, name: "Agent", input: { subagent_type: "viber:planner-review", prompt: `review ${PLAN}` } },
+    ]);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(PLAN, "Edit"), dispatch(id), asyncLaunch(id, "review"), replay, notification(id, "PASS")]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("a blob line replaying an Agent call under another id never takes the dispatch id: the PASS of the real call -> allow", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const id = "toolu_01Real";
+    const replay = blob([
+      { type: "tool_use", id: "toolu_01Read", name: "Read", input: { file_path: "/repo/x.md" } },
+      { type: "tool_use", id: "toolu_01Other", name: "Agent", input: { subagent_type: "viber:planner-review", prompt: "review" } },
+    ]);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(), dispatch(id), asyncLaunch(id, "review"), replay, notification(id, "PASS")]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
 // --- the mtime guard: a PASS approves the plan AS REVIEWED -------------
 
 test("a plan modified after its own PASS -> deny (catches an edit made through a channel the transcript scan cannot see)", async () => {

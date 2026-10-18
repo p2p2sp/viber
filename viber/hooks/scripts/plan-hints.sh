@@ -29,6 +29,9 @@
 # see (it runs before any plan exists), so a refused planner leaves the hint
 # silenced for the rest of the episode - accepted, as the hint is soft.
 #
+# Like plan-gate.sh, every transcript scan skips the "api-request-blob" records,
+# whose replayed messages look like live events.
+#
 # Contract:
 #   argv   : none - every input arrives on stdin.
 #   cwd    : irrelevant; the payload carries an absolute "transcript_path".
@@ -68,6 +71,7 @@ if [ -n "$transcript_path" ] && [ -f "$transcript_path" ]; then
   # in a non-plan permission mode.
   episode_start=$(
     grep -nE '"type":"permission-mode"' "$transcript_path" 2>/dev/null \
+      | grep -vE '"type":"api-request-blob"' \
       | grep -vE '"permissionMode":"plan"' \
       | tail -n1 \
       | cut -d: -f1
@@ -81,6 +85,7 @@ if [ -n "$transcript_path" ] && [ -f "$transcript_path" ]; then
   # counts inside the episode. The planner is not user-invocable, so it has none.
   planner_raw="$(
     awk '
+      /"type":"api-request-blob"/ { next }
       /"name":"Skill"/ && /"skill":"(viber:)?(planner|intent|fixer)"/ { skill = NR; entry = 0; pending = 1; next }
       /"message":[{]("role":"user",)?"content":"<command-message>viber:(intent|fixer)<\/command-message>/ { skill = NR; entry = 0; pending = 0; next }
       pending && /"type":"tool_use",("id":"[^"]*",)?"name":"EnterPlanMode"/ { entry = NR; pending = 0; next }

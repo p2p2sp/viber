@@ -271,6 +271,26 @@ test("a planner that stopped before EnterPlanMode, then a new user prompt enters
   });
 });
 
+/** Claude Code's `api-request-blob` record: one line replaying an earlier message, its blocks as live-looking JSON. */
+function blob(role: "assistant" | "user", content: unknown): string {
+  return line({ type: "api-request-blob", sessionId: "s", hash: "h", message: { role, content } });
+}
+
+test("a blob line replaying a planner Skill tool_use -> the hint fires as without it (a replay is no live Skill call)", async () => {
+  await withTempDir("p2p2-plan-hints-", async (dir) => {
+    const replay = blob("assistant", [{ type: "tool_use", id: "toolu_s", name: "Skill", input: { skill: "viber:planner" } }]);
+    const f = writeTranscript(dir, [permissionMode("plan"), replay]);
+    assertHint(await runPayload({ permission_mode: "plan", transcript_path: f }));
+  });
+});
+
+test("a blob line replaying a user prompt between the planner Skill and its EnterPlanMode does not end the pending entry -> nothing printed", async () => {
+  await withTempDir("p2p2-plan-hints-", async (dir) => {
+    const f = writeTranscript(dir, [permissionMode("acceptEdits"), skillUse(), permissionMode("acceptEdits"), blob("user", "earlier prompt"), enterPlanMode(), permissionMode("plan")]);
+    assert.equal(await runPayload({ permission_mode: "plan", transcript_path: f }), "");
+  });
+});
+
 test("plan mode with a transcript that does not exist -> the hint still fires (a missing transcript counts as no planner)", async () => {
   await withTempDir("p2p2-plan-hints-", async (dir) => {
     assertHint(await runPayload({ permission_mode: "plan", transcript_path: path.join(dir, "gone.jsonl") }));

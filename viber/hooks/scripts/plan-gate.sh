@@ -35,6 +35,9 @@
 # dispatch line that carries no id at all keeps the older, looser pairing: the
 # first verdict line after it.
 #
+# Every transcript scan skips the "api-request-blob" records: each replays a whole
+# earlier message on one line, so its tool_use blocks look like live events.
+#
 # Contract:
 #   argv   : none - every input arrives on stdin.
 #   cwd    : irrelevant; the payload's own "cwd" key is the session directory.
@@ -92,6 +95,7 @@ project_cwd="$(json_str cwd "$input")"
 # since touched by the implementor - from arming the gate on a later, unrelated exit.
 episode_start=$(
   grep -nE '"type":"permission-mode"' "$transcript_path" 2>/dev/null \
+    | grep -vE '"type":"api-request-blob"' \
     | grep -vE '"permissionMode":"plan"' \
     | tail -n1 \
     | cut -d: -f1
@@ -103,6 +107,7 @@ episode_start="${episode_start:-0}"
 # are matched: Windows records "C:\\Users\\..\\plans\\..".
 plan_write_line=$(
   grep -nE '"file_path":"[^"]*[\\/]+plans[\\/]+[^"]*\.md"' "$transcript_path" 2>/dev/null \
+    | grep -vE '"type":"api-request-blob"' \
     | grep -E '"(tool_name|name)":"(Write|Edit)"' \
     | tail -n1 \
     | cut -d: -f1
@@ -144,6 +149,7 @@ plan_name="${plan_path##*[\\/]}"
 # file that cannot be read, keeps planner-review: a read miss never loosens the gate.
 planner_raw="$(
   awk '
+    /"type":"api-request-blob"/ { next }
     /"name":"Skill"/ && /"skill":"(viber:)?planner"/ { skill = NR; entry = 0; pending = 1; next }
     pending && /"type":"tool_use",("id":"[^"]*",)?"name":"EnterPlanMode"/ { entry = NR; pending = 0; next }
     pending && (/"permissionMode":"plan"/ || /"message":[{]("role":"user",)?"content":"/) { pending = 0 }
@@ -213,7 +219,8 @@ fi
 pair_raw="$(
   awk -v start="$((plan_write_line + 1))" -v agent="$agent" '
     NR < start { next }
-    $0 ~ ("\"subagent_type\":\"([a-zA-Z0-9_.-]+:)?" agent "\"") {
+    /"type":"api-request-blob"/ { next }
+    $0 ~("\"subagent_type\":\"([a-zA-Z0-9_.-]+:)?" agent "\"") {
       last_dispatch = NR; call = NR; cid = ""
       if (match($0, /"id":"toolu_[A-Za-z0-9_-]+"/)) cid = substr($0, RSTART + 6, RLENGTH - 7)
       next
