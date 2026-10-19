@@ -8,7 +8,7 @@ Every rule a plan must hold. A rule tagged `(script)` is rejected by `plan-index
 - Reach: a change to a rule other code also applies - the shared symbol itself, or how one caller applies it - puts every place applying it, directly or through to what a person observes, in `### File map`; each one sits in some task's `Files` or under `### Out of scope` naming the behaviour it keeps. A place left in neither is a finding: a coder changes only its own `Files`, so that caller silently diverges. (review)
 - Lean: everything the plan adds traces to an acceptance criterion or to a file `Reach` or `Owned` forces. A feature, option, parameter, configuration key or extension point no criterion asks for is a finding, and so is a new file, type or function with one caller and nothing to hide (deleting it would move no complexity, only remove a hop), a seam another rule requires (a port, an extracted pure function) excepted, or a task restructuring working code the criteria do not reach, splitting an unwieldy file the change must touch excepted. (review)
 
-- Root cause: a plan built from a `viber:fixer` diagnosis or from code-auditor findings carries `## Root cause` above `## Acceptance criteria`, stating the cause the input names; a plan from any other input carries none, and a section there is a finding. (review)
+- Root cause: a plan built from a `viber:fixer` diagnosis, from code-auditor findings or from an input carrying a `Root cause:` line carries `## Root cause` above `## Acceptance criteria`, stating the cause the input names (for a `Root cause:` line, the cause that line names); a plan from any other input carries none, and a section there is a finding. (review)
 
 ## Tasks
 

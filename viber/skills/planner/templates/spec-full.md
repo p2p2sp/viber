@@ -86,9 +86,10 @@ Then <...>
 
 ## Root cause
 
-<!-- Only when the input is a `viber:fixer` diagnosis or code-auditor findings
-     (`.temp/viber/code-auditor/`); drop this section otherwise. 1-3 sentences:
-     the cause of the defect, not its symptom, as the diagnosis or finding states it. -->
+<!-- Only when the input is a `viber:fixer` diagnosis, code-auditor findings
+     (`.temp/viber/code-auditor/`) or an input carrying a `Root cause:` line; drop this
+     section otherwise. 1-3 sentences: the cause of the defect, not its symptom, as the
+     diagnosis, finding or `Root cause:` line states it. -->
 
 <why the defect happens>
 
