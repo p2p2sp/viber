@@ -160,6 +160,12 @@ build. A finished build names the next part, which resumes from the decisions al
 nothing is stubbed in between. With GitHub issues on, each part gets its own sub-issue under
 one parent issue, and a part that resumes is tied to its sub-issue.
 
+The planner checks the size too. When its plan grows past 30 tasks, it stops and asks through the
+interview whether to split the change into parts or keep one plan of that many tasks; a split
+resumes the interview from the planner's own proposal. The planner also asks, one question at a time,
+every decision its exploration of the code finds that the interview left open and that belongs to you,
+such as a behaviour, a scope or a product choice. Implementation choices stay with it.
+
 ### When it decides for you
 
 A task gets up to 5 attempts, each one model tier up. Where the build would otherwise stop and ask,

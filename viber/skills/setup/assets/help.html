@@ -1042,10 +1042,10 @@ się krótkim projektem na czacie, a Claude buduje zmianę w twojej sesji, gdy p
   <ul class="rare">
     <li><span lang="en">A request too large for one plan (over about 30 tasks) gets a proposed split into ordered parts first, a
     mechanical cut, never a release of its own, and every part holds at least about 8 tasks. Every part is interviewed up front and each gets its own cycle; the later parts' decisions are kept
-    in <code>roadmap.md</code>, and a finished build names the next part. With GitHub issues on, each part gets its own sub-issue under one parent issue, and a part that resumes is tied to its sub-issue.</span><span lang="pl">Prośba
+    in <code>roadmap.md</code>, and a finished build names the next part. With GitHub issues on, each part gets its own sub-issue under one parent issue, and a part that resumes is tied to its sub-issue. The planner checks the size too: when its plan grows past 30 tasks, it asks whether to split through the interview or keep one plan, and it asks every decision its exploration finds that the interview left open.</span><span lang="pl">Prośba
     zbyt duża na jeden plan (ponad około 30 zadań) najpierw dostaje propozycję podziału na uporządkowane części, czysto mechanicznego, nigdy osobnego wydania, a każda część ma co najmniej około 8 zadań. Wywiad obejmuje
     każdą z nich, a każda przechodzi własny cykl; decyzje późniejszych części zostają w
-    <code>roadmap.md</code>, a zakończony build wskazuje następną część. Przy włączonych zgłoszeniach GitHub każda część dostaje własne zgłoszenie podrzędne pod jednym zgłoszeniem nadrzędnym, a wznawiana część jest związana ze swoim zgłoszeniem podrzędnym.</span></li>
+    <code>roadmap.md</code>, a zakończony build wskazuje następną część. Przy włączonych zgłoszeniach GitHub każda część dostaje własne zgłoszenie podrzędne pod jednym zgłoszeniem nadrzędnym, a wznawiana część jest związana ze swoim zgłoszeniem podrzędnym. Rozmiar sprawdza też planner: gdy jego plan przekroczy 30 zadań, pyta, czy podzielić zmianę przez wywiad, czy zostawić jeden plan, i pyta o każdą decyzję, którą znajdzie w swoim badaniu, a której wywiad nie rozstrzygnął.</span></li>
     <li><span lang="en"><code>/viber:intent --prove let admins deactivate a user account</code> has
     <a href="#agent-prover"><code>prover</code></a> check the claims of every question against the code before
     you see it.</span><span lang="pl"><code>/viber:intent --prove pozwól administratorom dezaktywować konto
@@ -2489,14 +2489,18 @@ z nich mówi, jak nim sterować.</p>
   question at a time, each with three options and its recommendation first. A large request is split into
   subprojects first, and every part is interviewed. It closes on a summary you confirm, then hands it
   to <a href="#skill-planner"><code>planner</code></a>. When a build of one part finishes, it names the next
-  part: run the interview on it and it resumes from the decisions of the first. When the change alters a
+  part: run the interview on it and it resumes from the decisions of the first. It can also resume from
+  the split proposal of <a href="#skill-planner"><code>planner</code></a>, when the plan grew too large.
+  When the change alters a
   screen and no mockup exists yet, the confirmation also offers to go to
   <a href="#skill-prototype"><code>/viber:prototype</code></a> before the plan.</p>
   <p lang="pl">Wywiad planistyczny. Pyta tylko o to, czego nie rozstrzygają rozmowa i kod, jedno pytanie
   naraz, każde z trzema opcjami i rekomendacją na pierwszym miejscu. Dużą prośbę najpierw dzieli na
   podprojekty i omawia każdy z nich. Kończy się podsumowaniem, które potwierdzasz, a potem
   przekazuje je do <a href="#skill-planner"><code>planner</code></a>. Gdy build jednej części się kończy,
-  wskazuje następną: uruchom na niej wywiad, a wznowi go od decyzji pierwszej. Gdy zmiana dotyczy ekranu,
+  wskazuje następną: uruchom na niej wywiad, a wznowi go od decyzji pierwszej. Może też wznowić się od
+  propozycji podziału z <a href="#skill-planner"><code>planner</code></a>, gdy plan urósł zbyt mocno.
+  Gdy zmiana dotyczy ekranu,
   a makiety jeszcze nie ma, potwierdzenie proponuje też przejście do
   <a href="#skill-prototype"><code>/viber:prototype</code></a> przed planem.</p>
   <p lang="en">A small change to existing code can take the <a href="#key-planning-fast-path">fast path</a>
@@ -2558,19 +2562,23 @@ z nich mówi, jak nim sterować.</p>
   <p lang="en">Turns a confirmed interview or a <a href="#skill-fixer"><code>fixer</code></a> diagnosis into a plan,
   inside Claude Code's plan mode: acceptance criteria, a file map, then tasks with their dependencies,
   contracts, verification and definition of done. The <a href="#agent-planner-review"><code>planner-review</code></a>
-  agent reviews the plan against your code, and plan mode can be left only after it passes.</p>
+  agent reviews the plan against your code, and plan mode can be left only after it passes. When the plan
+  grows past 30 tasks it asks whether to split through the interview or keep one plan, and it asks every
+  decision its exploration finds that the interview left open.</p>
   <p lang="pl">Zamienia potwierdzony wywiad albo diagnozę z <a href="#skill-fixer"><code>fixer</code></a> w plan,
   w trybie planowania Claude Code: kryteria akceptacji, mapę plików, a potem zadania z zależnościami,
   kontraktami, weryfikacją i definicją ukończenia. Agent <a href="#agent-planner-review"><code>planner-review</code></a>
-  sprawdza plan na twoim kodzie, a wyjść z trybu planowania można dopiero po jego akceptacji.</p>
+  sprawdza plan na twoim kodzie, a wyjść z trybu planowania można dopiero po jego akceptacji. Gdy plan
+  przekroczy 30 zadań, pyta, czy podzielić zmianę przez wywiad, czy zostawić jeden plan, i pyta o każdą
+  decyzję, którą znajdzie w swoim badaniu, a której wywiad nie rozstrzygnął.</p>
   <dl>
     <div>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
       <dd><span lang="en">It starts when the interview or the diagnosis hands off; asked for a plan with neither,
-      it suggests the interview. You steer it by approving or rejecting the plan when plan mode ends. Ask during
+      it suggests the interview. You steer it by answering its questions (a split past 30 tasks, a decision the interview left open) and by approving or rejecting the plan when plan mode ends. Ask during
       the interview to stop at a specification, and it writes a draft for you to circulate.</span><span lang="pl">Startuje,
       gdy wywiad albo diagnoza przekaże mu pracę; poproszony o plan bez żadnego z nich proponuje wywiad.
-      Sterujesz nim, akceptując albo odrzucając plan na wyjściu z trybu planowania. Jeśli w wywiadzie
+      Sterujesz nim, odpowiadając na jego pytania (podział po przekroczeniu 30 zadań, decyzja pominięta w wywiadzie) oraz akceptując albo odrzucając plan na wyjściu z trybu planowania. Jeśli w wywiadzie
       poprosisz o zatrzymanie się na specyfikacji, zapisze szkic do przekazania innym.</span></dd>
     </div>
     <div>
