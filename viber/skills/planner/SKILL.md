@@ -36,7 +36,7 @@ Before writing a task, decide which files get created, modified or deleted and w
 
 Close the step on the threshold check, on a draft round as well, before any task is written: estimate from the file map how many tasks the plan needs. At more than 30 tasks, ask through one `AskUserQuestion`: split the change into parts, or keep one plan of that many tasks.
 
-- Split: invoke `viber:intent` through the `Skill` tool with the confirmed input verbatim followed by a `Split proposal:` block in this shape, and write no plan. Its parts come from your file map, a `viber:fixer` input puts the fix in part 1, and `Open decisions:` and its lines are left out when there are none.
+- Split: invoke `viber:intent` through the `Skill` tool with the confirmed input verbatim followed by a `Split proposal:` block in this shape, and write no plan. Its parts come from your file map, a `viber:fixer` input puts the fix in part 1, `Open decisions:` lists each decision owed to the user that your exploration revealed, asked none of them, and it and its lines are left out when there are none.
 
   ```
   Split proposal:
@@ -46,6 +46,8 @@ Close the step on the threshold check, on a draft round as well, before any task
   ```
 
 - Keep: record the estimate as the accepted count and go on.
+
+After the threshold question, and only on a plan that goes on, ask each decision owed to the user that your exploration revealed: a behaviour, scope or product choice the input leaves open, which the user may want otherwise. An implementation choice (a file, a name, a library, a structure, an algorithm) is never asked: it stays with you. Each decision gets its own `AskUserQuestion` with 3 options, your recommendation first, one at a time, each only after the previous answer. Plan on every answer, and keep each as an `Answered:` line for step 3.
 
 ## 2. Write the plan
 
@@ -82,7 +84,10 @@ Dispatch the `viber:planner-review` agent with the plan path, `refs: ${CLAUDE_PL
 ```
 input:
 <the confirmed viber:intent summary or viber:fixer diagnosis in context, verbatim>
+Answered: <decision> -> <chosen option>
 ```
+
+One `Answered:` line after the summary for every answer the user gave you, from step 1 and from a `VERDICT: FAIL` finding alike, none when there are none.
 
 A draft adds the line `scope: spec`. From round 2 on, also pass the previous findings verbatim and one line per fix you applied.
 
@@ -91,7 +96,7 @@ Every round and every retry is a new `Agent` dispatch, never a `SendMessage` to 
 A reply with no `VERDICT:` line gets one more dispatch with the same input; a second reply without one is handled as `VERDICT: DENIED` with `REASON: no verdict returned`.
 
 - `VERDICT: PASS` - go to step 4 without writing the plan again; its Minor findings stay unapplied.
-- `VERDICT: FAIL` - show the findings, fix the plan, re-run `plan-index.sh` after every fix unless the plan is a draft, then dispatch again. A finding that needs a decision only the user can make gets asked first through one `AskUserQuestion`, and the answer starts a fresh round 1.
+- `VERDICT: FAIL` - show the findings, fix the plan, re-run `plan-index.sh` after every fix unless the plan is a draft, then dispatch again. A finding that needs a decision only the user can make gets asked first through one `AskUserQuestion`, and the answer, kept as an `Answered:` line, starts a fresh round 1.
 - `VERDICT: DENIED` - one `AskUserQuestion` naming the refused call from its `REASON:` line: permission added and retry, dispatching again in the same round, or stop with the plan unreviewed and no hand-off.
 
 ```!
