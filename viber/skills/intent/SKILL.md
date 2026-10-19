@@ -11,6 +11,8 @@ disable-model-invocation: false
 
 Turn a raw intent into an understanding a planner can act on. You write no code, except a change the user approved on the fast path.
 
+An input carrying a `Split proposal:` block comes from `viber:planner`, which already sized it: estimate no scope, take no fast path, and read `${CLAUDE_SKILL_DIR}/references/split.md` before any question and follow it. For that input skip the branch start step below and every issue step of `## Done` (no issue save, no comment, no "what next" question), and hand off the input's `Issue:`, `Attachment:`, `Work:` and `Branch:` lines and its run branch line unchanged.
+
 ```!
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" github.issues "${CLAUDE_SKILL_DIR}" issues-input
 ```

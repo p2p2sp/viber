@@ -7,6 +7,14 @@ Ask no detail question yet. Split it as a mechanical cut of that one specificati
 
 Once the split is accepted, interview every part in order, each with the questions of the skill's `## The interview`. A question that hangs on code an earlier part writes is not asked: it becomes an unknown for that part, resolved at the start of that part's own plan.
 
+## From a split proposal
+
+An input carrying a `Split proposal:` block is the planner's cut: show it, one line per part as drafted, instead of drafting one, and ask the same `Accept` or `Correct`. The order, the files and the task counts stand until the user corrects them.
+
+- Each `Open decisions:` line is asked as a numbered decision in the interview of the part it concerns (the first one when it spans several), none dropped and none answered for the user.
+- A proposal for a roadmap part (the input carries `Roadmap: <path>`) replaces that part's entry in place with the proposed parts, numbered on from its position. Every other entry and its `(built)` marker stay unchanged, and the replaced entry's `Issue:` line moves to the first new part. Part 1's summary carries the whole rewritten roadmap and no `Roadmap:` line, so the planner fills `## Roadmap` from the summary.
+- A proposal from a `viber:fixer` input keeps the fix in part 1. Only part 1's summary carries the diagnosis lines, one `Root cause:` and one `Repro:` line (the reproduction test's repo-relative path), as the input stated them; no later part's summary carries either.
+
 ## The summary
 
 A split intent opens its `## Done` summary with the accepted roadmap, one line per part plus which one this cycle covers, carrying under each later part the decisions settled for it and its open unknowns, and names every later part among the boundaries; its cap is 15 lines plus up to 5 per later part carrying its decisions.
