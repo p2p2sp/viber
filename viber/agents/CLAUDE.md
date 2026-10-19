@@ -37,7 +37,7 @@ This directory owns one markdown file per agent registered in `viber/.claude-plu
 - Memory audit vocabulary (`STALE`, `GONE`, `UNVERIFIABLE`, `MISS`, `SHAPE`, `OK`) and the `<out><slug>-audit.md` name (`/` -> `--`): `memory-auditor`, `memory-node-writer` and `skills/memory/SKILL.md`. The rules counterpart (adding `DROP` and `MOVE:`): `rules-auditor`, `rules-writer` and `skills/rules/SKILL.md`.
 - The clean-checkout steps (`worktree.sh add`, `diff-overlay.sh`, replay, `worktree.sh remove`, and `WORKTREE_FAILED` / `OVERLAY_FAILED` ending in `NO FINDING` for `hunter` and `INCONCLUSIVE` for `critic`): `hunter.md` and `critic.md`.
 - An agent added, removed or renamed: `plugin.json` `agents[]`, every `viber:<name>` dispatch in `skills/`, and for `planner-review`/`plain-plan-review` `hooks/scripts/plan-gate.sh`.
-- `planner-review`'s input labels (`refs:`, `memory:`, `input:`): `planner-review.md`, `skills/planner/SKILL.md` and the dispatch text `hooks/scripts/plan-gate.sh` prints in its deny message.
+- `planner-review`'s input labels (`refs:`, `memory:`, `input:`, whose `Answered:` lines `planner/SKILL.md` writes and the Faithful rule reads): `planner-review.md`, `skills/planner/SKILL.md` and the dispatch text `hooks/scripts/plan-gate.sh` prints in its deny message.
 
 - The guarded one-line rules of `task-coder`, `task-reviewer` and `final-reviewer`, and `hooks/scripts/shell-guard.sh` (rules R1-R4 and their rationale): a rule added or dropped changes both.
 - The `viber guard:` marker sentence: the tools paragraph above, `mapper`, `hunter` and `critic` hard rules, `skills/extension/templates/extension.md`, and the marker `kill-guard.sh` and `shell-guard.sh` open their reasons with.
