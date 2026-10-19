@@ -12,7 +12,7 @@ effort: high
 
 # planner
 
-Input: an understood change already in context - a confirmed `viber:intent` interview, or a `viber:fixer` diagnosis. Anything else is unresolved input however clear it reads: suggest the `viber:intent` interview in one line and stop here, never entering plan mode. Never size the scope yourself.
+Input: an understood change already in context - a confirmed `viber:intent` interview, or a `viber:fixer` diagnosis. Anything else is unresolved input however clear it reads: suggest the `viber:intent` interview in one line and stop here, never entering plan mode. Never size the scope yourself: the threshold check below counts tasks against 30 and sizes nothing.
 
 On valid input call `EnterPlanMode` first unless plan mode is already active.
 
@@ -34,6 +34,19 @@ Before writing a task, decide which files get created, modified or deleted and w
 - Read the codebase for everything `plan-rules.md`'s Reach and Owned rules force into the file map, not only what the change introduces.
 - A file you have to touch that has grown unwieldy may be split, as a task.
 
+Close the step on the threshold check, on a draft round as well, before any task is written: estimate from the file map how many tasks the plan needs. At more than 30 tasks, ask through one `AskUserQuestion`: split the change into parts, or keep one plan of that many tasks.
+
+- Split: invoke `viber:intent` through the `Skill` tool with the confirmed input verbatim followed by a `Split proposal:` block in this shape, and write no plan. Its parts come from your file map, a `viber:fixer` input puts the fix in part 1, and `Open decisions:` and its lines are left out when there are none.
+
+  ```
+  Split proposal:
+  <n>. <part> - owns: <what it delivers>; consumes: <what earlier parts produce, or nothing>; files: <repo-relative paths>; tasks: <estimated count>
+  Open decisions:
+  - <decision owed to the user, one per line>
+  ```
+
+- Keep: record the estimate as the accepted count and go on.
+
 ## 2. Write the plan
 
 The specification half is `${CLAUDE_SKILL_DIR}/templates/spec-lite.md` or `${CLAUDE_SKILL_DIR}/templates/spec-full.md`, whichever shape the input names; the task half is `${CLAUDE_SKILL_DIR}/templates/tasks.md` under either. Fill the spec, append the task half under it, and write the result into the plan file plan mode names in its system message, the only file you may write while planning. Keep every section and every HTML marker of both templates, except one a template comment says to drop; add no section of your own.
@@ -47,6 +60,8 @@ An input carrying a roadmap, or a `Roadmap: <path>` line (read that `roadmap.md`
 A plan stopping at a draft writes the specification half alone: no `## Tasks`, no `## Contracts` appendix, no decision record screening.
 
 Every plan but a draft then runs `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh" "<plan-path>"`. It must exit 0: fix whatever it reports and re-run.
+
+Then run the threshold check again on the written plan: count the rows under the `tasks:` header of that output. Ask the step 1 question again only when the count is above 30 and above the accepted count, if the user accepted one; the answers act as in step 1, and a keep records the new count as the accepted one. A draft writes no task and skips this check.
 
 ```!
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" planning.adr "${CLAUDE_SKILL_DIR}" adr
