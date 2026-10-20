@@ -6,7 +6,8 @@
  * work is already in the tree, it reads its notes file and the task's review reports
  * first, and a `deferred` path is its own to prove. The reviewer gates the named problem
  * and the task's whole `DoD`, running `Verification` and the test the pass added for a
- * `deferred` path. `implementor` records a path deferred to no task through `--owe` and
+ * `deferred` path. `implementor` names a path deferred to no task in the final summary,
+ * passes no `--owe`, runs the owed-path pass only for the index's `owed:` entries and
  * holds a task failing attempt 5 with its dependents. Step 4 states both repair passes
  * once, in one `Repair pass:` section: the rules the two kinds share, then per kind what
  * differs (tiers, extra dispatch lines, commit, failure of both attempts). The held-task
@@ -81,6 +82,13 @@ test("the coder deferred bullet still names the paths an earlier task left for t
   assert.ok(CODER_DEFERRED[0].startsWith("- A `deferred` line names paths an earlier task left for THIS one to prove"));
 });
 
+test("the coder DEFERRED output line names a later task whose file names the path, never none (an own path with no prover is done or unfinished, never owed)", () => {
+  const deferred = lines(CODER).find((line) => line.startsWith("- `DEFERRED: ")) ?? "";
+  assert.ok(deferred.includes("whose `Files`, `Delivers` or `DoD` names that path"));
+  assert.ok(deferred.includes("A path no such task names gets no line"));
+  assert.ok(!deferred.includes("-> none"));
+});
+
 test("the coder FILES output line is due on a repair pass too", () => {
   assert.ok(FILES_LINE.includes("or on a repair pass"));
 });
@@ -128,12 +136,12 @@ function kindLine(opening: string, kind: string): string {
   return sub.find((line) => line.startsWith(`  - ${kind}:`)) ?? "";
 }
 
-test("the task commit records a none path no unfinished task claims through --owe", () => {
-  assert.ok(COMMIT_BULLET.includes('`-> none` path no unfinished task claims is recorded through `--owe "<path>" ["<path>"...]`'));
+test("the task commit sends a none line to the final summary as a deferred path without an owner, with no --defer", () => {
+  assert.ok(COMMIT_BULLET.includes("a `-> none` line takes no `--defer` and goes to the final summary as a deferred path without an owner"));
 });
 
-test("implementor no longer leaves a path no task claims to the final summary alone", () => {
-  assert.ok(!SKILL.includes("a path no task claims is named in the final summary"));
+test("implementor passes no --owe (a coder's own unfinished path would trigger a needless owed-path pass)", () => {
+  assert.ok(!SKILL.includes("--owe"));
 });
 
 test("step 2 carries the index owed line to the repair passes", () => {
@@ -185,8 +193,8 @@ test("the owed-path passes run one at a time in index order, one pass per task c
   assert.ok(start.includes("one at a time, in index order"));
 });
 
-test("the owing tasks are the index owed entries plus every --owe this build passed", () => {
-  assert.ok(kindLine("- Start ", OWED).includes("the index `owed:` entries plus every `--owe` this build passed"));
+test("the owing tasks are the index owed entries", () => {
+  assert.ok(kindLine("- Start ", OWED).includes("owing tasks are the index `owed:` entries;"));
 });
 
 test("a repair pass dispatch adds the repair line to the ordinary coder and reviewer lines, the review never waived", () => {
@@ -267,9 +275,9 @@ test("a repair pass commits through the task commit form after a reviewer PASS",
   assert.ok(commit.includes('`"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>"`'));
 });
 
-test("a passing held task is committed with --defer and --owe as above and its TaskUpdate", () => {
+test("a passing held task is committed with --with and --defer as above and its TaskUpdate", () => {
   const commit = kindLine("- Commit", HELD);
-  assert.ok(commit.includes("`--defer` and `--owe` as above"));
+  assert.ok(commit.includes("`--with` and `--defer` as above"));
   assert.ok(commit.includes("its `TaskUpdate` -> completed"));
 });
 
@@ -285,9 +293,9 @@ test("a held-task pass commit never calls --repaired", () => {
   assert.ok(!kindLine("- Commit", HELD).includes("--repaired"));
 });
 
-test("the owed-path pass commits with --defer as above, its exit 4 after a reviewer PASS counting as done", () => {
+test("the owed-path pass commits with --with and --defer as above, its exit 4 after a reviewer PASS counting as done", () => {
   const commit = kindLine("- Commit", OWED);
-  assert.ok(commit.includes("`--defer` as above"));
+  assert.ok(commit.includes("`--with` and `--defer` as above"));
   assert.ok(commit.includes("exit 4 after a reviewer `PASS` counts as done"));
 });
 
@@ -346,13 +354,6 @@ test("the cap ruling is recorded with the task's id and an accept commit refused
 
 test("an owed-path pass failing both attempts reaches no arbiter", () => {
   assert.ok(!kindLine("- Both attempts failed", OWED).includes("arbiter"));
-});
-
-test("a path an owed-path pass defers to no task goes to the summary as a deferred path without an owner, never owed again", () => {
-  const none = passBullet("- A `-> none`");
-  assert.ok(none.includes("an owed-path pass defers"));
-  assert.ok(none.includes("deferred path without an owner"));
-  assert.ok(none.includes("never `--owe`"));
 });
 
 test("task-coder keeps its VERDICT output line unchanged", () => {

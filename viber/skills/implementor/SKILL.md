@@ -144,7 +144,8 @@ Reviewer dispatch: `viber:task-reviewer` (Agent tool, `model` = the review tier)
 
 Commit: `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>"` with its `TaskUpdate` -> completed, plus:
 
-- `--defer "<target-id>:<path>" [...]` for every `DEFERRED:` line its coder returned. `-> none` takes the earliest unfinished task other than this one whose `files` column claims that path; a `-> none` path no unfinished task claims is recorded through `--owe "<path>" ["<path>"...]` on the same call, for the owed-path pass below to prove.
+- `--with "<path>" [...]` for every path on an `EXTRA:` line the task's coders and reviewers returned in this session, so a path missing from the extras files still lands with the task.
+- `--defer "<target-id>:<path>" [...]` for every `DEFERRED:` line its coder returned; a `-> none` line takes no `--defer` and goes to the final summary as a deferred path without an owner.
 
 Warnings off the commit never stop the build: carry `refused <path> - claimed by task <id>`, `took <path> - claimed by committed task <id>` and `changed, claimed by no task in the plan` to the final summary.
 
@@ -187,19 +188,18 @@ Repair pass: the second chance of a task, of two kinds: the held-task pass, for 
 
 - Start only when no agent is in flight and no task is ready to dispatch, before step 5.
   - held-task pass: before every owed-path pass, one held task at a time, in the order held.
-  - owed-path pass: owing tasks are the index `owed:` entries plus every `--owe` this build passed; one pass per task covering all its paths, run one at a time, in index order.
+  - owed-path pass: owing tasks are the index `owed:` entries; one pass per task covering all its paths, run one at a time, in index order.
 - Dispatch: the task's ordinary coder and reviewer dispatch lines, plus `repair: <one line: the problem this pass fixes>` on both, the review never waived.
   - held-task pass: also `reason:` the last failure's `REASON:` (the commit's error after a refused commit) on the coder's; its coder reads every `review-<id>-*.md` report of the task itself; both run at `tiers.max` for coder and reviewer.
   - owed-path pass: also `deferred: <the task's owed paths>` on the coder's; its tier is the tier of the task's last attempt, its review tier the task's review tier raised to `sonnet`.
 - Entry: `TaskCreate` `R<n> - repair <id> (<tier>, review <review tier>)`, `<n>` counting from 1 in the session; it completes with the task's commit (held-task pass) or the `--repaired` call (owed-path pass), or with the second failure.
 - At most 2 attempts: a coder failure (a `DECIDE:` line included, never sent to the arbiter), a review failure and a task commit exiting other than 4 each cost one. The second attempt is the same fresh dispatch carrying the new failure's `reason:` and, after a review failure, the `REVIEW` path as `report:`.
 - Commit: a coder `PASS` goes to review, a reviewer `PASS` to the task commit `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>"`.
-  - held-task pass: `--defer` and `--owe` as above, with its `TaskUpdate` -> completed; its exit 4 is the commit exit 4 above. Once it succeeds, the task is done and its dependents dispatch as ordinary tasks.
-  - owed-path pass: `--defer` as above; its exit 4 after a reviewer `PASS` counts as done. Once it succeeds, `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --repaired "<plan>" "<id>"` with the entry's `TaskUpdate` -> completed; exiting non-zero -> name it in the final summary, ask nothing.
+  - held-task pass: `--with` and `--defer` as above, with its `TaskUpdate` -> completed; its exit 4 is the commit exit 4 above. Once it succeeds, the task is done and its dependents dispatch as ordinary tasks.
+  - owed-path pass: `--with` and `--defer` as above; its exit 4 after a reviewer `PASS` counts as done. Once it succeeds, `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --repaired "<plan>" "<id>"` with the entry's `TaskUpdate` -> completed; exiting non-zero -> name it in the final summary, ask nothing.
 - Both attempts failed:
   - held-task pass: the arbiter with `case: cap` (never `decide`), `task: <dir>/tasks/<id>.md`, `report:` lines for `<dir>/work/<id>-coder.md` and the task's last `REVIEW` path when it has one, `reason:` the repair's last failure, and `options: accept | skip` after a review failure, `options: skip` otherwise. Record its ruling with subject `<id>`, then carry it out: `accept` -> the task's commit with `--unreviewed` appended, the task named unreviewed in the final summary; `skip` -> the `skip` answer's calls. An `accept` commit exiting other than 4 -> the arbiter again with `options: skip`, that commit's error as `reason:` and the same `report:` lines, its ruling recorded and carried out the same way.
   - owed-path pass: name the task's owed paths in the final summary as deferred paths without an owner, and one `left uncommitted: <path> | repair pass of <id> failed` line per path on the union of both attempts' `FILES:` and `EXTRA:` lines. Never `--repaired`.
-- A `-> none` path an owed-path pass defers is never `--owe`d again: name it in the final summary as a deferred path without an owner.
 
 ## 5 to 7. Close and archive
 

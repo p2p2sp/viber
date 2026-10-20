@@ -3,7 +3,8 @@
  * coder and the reviewer instead of `implementor` computing their lines.
  *
  * `implementor` dispatches the coder with an `extras:` line and the reviewer with
- * `extras:` and `scope:` lines, commits a task with no `--with`, and sends a coder
+ * `extras:` and `scope:` lines, commits a task with `--with` only for the `EXTRA:`
+ * paths returned in its own session (the extras files stay the record), and sends a coder
  * `PASS` to review on its own `EXTRA:` line alone. `task-coder` records its
  * `EXTRA:` paths in the coder file, `task-reviewer` runs the scope command and
  * records its own in the reviewer file. The file names and the `--extra` mode come
@@ -64,8 +65,8 @@ test("the reviewer dispatch of implementor carries the C7 scope line", () => {
   assert.ok(lines(REVIEWER_DISPATCH).some((line) => line.includes(`\`${SCOPE_LINE}\``)));
 });
 
-test("implementor names no --with, its commit being the plain task commit and --defer", () => {
-  assert.ok(!SKILL.includes("--with"));
+test("the task commit passes the EXTRA paths returned in this session through --with (a coder that skipped its extras file must not leak the path into a later task's commit)", () => {
+  assert.ok(COMMIT.includes("`--with \"<path>\" [...]` for every path on an `EXTRA:` line the task's coders and reviewers returned in this session"));
   assert.ok(COMMIT.includes("--defer"));
 });
 
