@@ -30,9 +30,9 @@
 #   gh     : `gh repo view` (repository URL and default branch) and `gh pr list
 #            --head <branch> --state open` (url and base branch). Never a create,
 #            never a push.
-#   git    : read-only. The target is resolved as refs/heads/<target>, else the
-#            remote-tracking ref of the branch's remote (`branch.<b>.remote`,
-#            else origin); nothing is fetched.
+#   git    : read-only. The target is resolved as the remote-tracking ref of the
+#            branch's remote (`branch.<b>.remote`, else origin), else
+#            refs/heads/<target>; nothing is fetched.
 #   stdout : exit 0, lines in this order:
 #              STATUS=ready|stop
 #              REASON=no-gh|no-repo|detached|dirty|on-base|pr-exists|no-commits|unknown-entry   (stop only)
@@ -231,18 +231,18 @@ for p in "docs/$runs"/*/plan.md; do
   if [ "$(fm_field "$p" branch)" = "$branch" ]; then open_plan=$p; fi
 done
 
-# Sets tref to the ref of branch $1: refs/heads/<$1>, else the remote-tracking ref, else empty.
+# Sets tref to the ref of branch $1: the remote-tracking ref (the pull request
+# opens against the remote branch, and a local one may hold unpushed commits),
+# else refs/heads/<$1>, else empty.
 resolve_tref() {
   tref=""
   [ -n "$1" ] || return 0
-  if git rev-parse -q --verify "refs/heads/$1^{commit}" >/dev/null 2>&1; then
+  rt_remote=$(git config --get "branch.$branch.remote" 2>/dev/null)
+  rt_remote=${rt_remote:-origin}
+  if git rev-parse -q --verify "refs/remotes/$rt_remote/$1^{commit}" >/dev/null 2>&1; then
+    tref=refs/remotes/$rt_remote/$1
+  elif git rev-parse -q --verify "refs/heads/$1^{commit}" >/dev/null 2>&1; then
     tref=refs/heads/$1
-  else
-    rt_remote=$(git config --get "branch.$branch.remote" 2>/dev/null)
-    rt_remote=${rt_remote:-origin}
-    if git rev-parse -q --verify "refs/remotes/$rt_remote/$1^{commit}" >/dev/null 2>&1; then
-      tref=refs/remotes/$rt_remote/$1
-    fi
   fi
 }
 

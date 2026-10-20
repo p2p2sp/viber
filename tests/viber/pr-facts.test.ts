@@ -625,6 +625,52 @@ test("a target known only through the remote-tracking ref lists the commits ahea
   });
 });
 
+/** Pushes `main` at its first commit, then commits five more on local `main` only and cuts and pushes `hotfix/x` from there. */
+async function aheadOfStaleLocalMain(scene: Scene, files: Record<string, string> = {}) {
+  await scene.work.git("push", "origin", "main");
+  await commit(scene.work, files, "unpushed 1", "Refs: #7");
+  for (const n of [2, 3, 4, 5]) await commit(scene.work, {}, `unpushed ${n}`);
+  await scene.work.git("checkout", "-b", "hotfix/x");
+  await scene.work.git("push", "-u", "origin", "hotfix/x");
+}
+
+test("a local target branch at HEAD is ignored for the remote one the pull request opens against, so the commits ahead of origin are listed (an unpushed local main must not give a false no-commits)", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      writeConfig(scene, branching("allowed", [HOTFIX]));
+      await aheadOfStaleLocalMain(scene);
+      const result = await runFacts(shell, scene);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(value(result, "STATUS"), "ready");
+      assert.equal(value(result, "TARGET"), "main");
+      assert.equal(values(result, "COMMIT").length, 5);
+      assert.deepEqual(values(result, "ISSUE"), ["7"]);
+    });
+  });
+});
+
+test("the pr-exists stop resolves the archived run from the commits ahead of the remote base, not of a local base at HEAD", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      await aheadOfStaleLocalMain(scene, { [`${ARCHIVE}/spec.md`]: "# Spec\n", [`${ARCHIVE}/qa.md`]: "# QA\n" });
+      const result = await runFacts(shell, scene, [], { env: { PR_LIST: `${PR_URL}\nmain\n` } });
+      assert.equal(result.stdout, `STATUS=stop\nREASON=pr-exists\nPR_URL=${PR_URL}\nQA=${ARCHIVE}/qa.md\n`);
+    });
+  });
+});
+
+test("a target with no remote-tracking ref falls back to the local branch and lists the commits ahead of it", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      await onBranch(scene, "feature/x");
+      await commit(scene.work, {}, "more");
+      const result = await runFacts(shell, scene, ["--target", "develop"]);
+      assert.equal(value(result, "STATUS"), "ready");
+      assert.equal(values(result, "COMMIT").length, 2);
+    });
+  });
+});
+
 test("a target unknown locally and at the remote gives no COMMIT line and no stop (DoD 15)", async () => {
   await assertPosix(async (shell) => {
     await withScene(async (scene) => {
