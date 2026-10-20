@@ -1,7 +1,7 @@
 ---
 name: implementor
 description: Builds an approved plan task by task. Requires an existing plan; without one, suggest the viber:intent interview.
-allowed-tools: Agent, SendMessage, AskUserQuestion, Skill, TaskCreate, TaskUpdate, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/run-clock.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/skill-part.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/qa-comment.sh:*)
+allowed-tools: Agent, SendMessage, AskUserQuestion, Skill, TaskCreate, TaskUpdate, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/run-clock.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/skill-part.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/qa-comment.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/red-check.sh:*)
 model: sonnet
 effort: medium
 user-invocable: false
@@ -19,7 +19,7 @@ Carry the preloaded `started:` mark unchanged to step 7.
 
 # implementor
 
-You orchestrate and delegate: every piece of work runs inside a subagent. Open no file, write no file and no code, run no build and no test.
+You orchestrate and delegate: every piece of work runs inside a subagent. Open no file, write no file and no code, run no build and no test, except `red-check.sh` running a task's `Verification` in a worktree: a blocking foreground call during which returning agents wait queued, nothing lost; a timeout counts as `UNRUNNABLE`.
 
 - One status line per event. No prose, never restate what an agent returned.
 - Only coder, reviewer and repair-coder dispatches, and a dispatch its step names a `model` for, carry `model`; every other dispatch carries none.
@@ -95,7 +95,7 @@ Tier:
 - Every other task -> `sonnet`.
 - A floor the host's instructions declare for a kind of task (a minimum tier, a mandatory review) raises both decisions to it.
 
-Review: the reviewer is waived only on a `sonnet` task whose `verify:` line runs the project's build or its tests, never on `haiku` or `opus`, nor on a load-bearing task: a `feeds` entry counting 3 or more. A `verify:` line running `grep`, `test -f` or any other content check is reviewed whatever its tier. Its review tier is the task's tier, raised to `sonnet` from `haiku`, and to `opus` on a load-bearing task.
+Review: the reviewer is waived only on a `sonnet` task whose `verify:` line runs the project's build or its tests, never on `haiku` or `opus`, nor on a load-bearing task: a `feeds` entry counting 3 or more, nor on a `TDD: required` task unless the config block's `build.red-check` reads `true`. A `verify:` line running `grep`, `test -f` or any other content check is reviewed whatever its tier. Its review tier is the task's tier, raised to `sonnet` from `haiku`, and to `opus` on a load-bearing task.
 
 Then clamp both tiers into the config block's `tiers.min` to `tiers.max` range (`haiku` < `sonnet` < `opus` < `fable`). The review waiver is decided before the clamp.
 
@@ -140,6 +140,7 @@ Reviewer dispatch: `viber:task-reviewer` (Agent tool, `model` = the review tier)
 - `report: <dir>/work/review-<id>-<round>.md`, round starting at 1 and rising with every review of that task.
 - `extras: <dir>/work/<id>-extra-review.md`: the same path on every round of the task.
 - `scope: "${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh" "<plan>" --extra "<id>"`: the command the reviewer runs for the task's extra paths and rechecks.
+- `red: <path>`: the path on the coder's last `RED:` line, when it returned one.
 
 Commit: `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>"` with its `TaskUpdate` -> completed, plus:
 
@@ -147,7 +148,7 @@ Commit: `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>"` with it
 
 Warnings off the commit never stop the build: carry `refused <path> - claimed by task <id>`, `took <path> - claimed by committed task <id>` and `changed, claimed by no task in the plan` to the final summary.
 
-Attempts: an attempt is one coder dispatch, a `WAIT:` hold and the retry of a `VERDICT: DENIED` excepted. A coder failure is a `VERDICT: FAIL`, or a `PASS` with its `DOD:` line short of its total.
+Attempts: an attempt is one coder dispatch, a `WAIT:` hold and the retry of a `VERDICT: DENIED` excepted. A coder failure is a `VERDICT: FAIL`, a `PASS` with its `DOD:` line short of its total, or a `PASS` of a `TDD: required` task, an owed-path pass excepted, with no `RED:` line or `RED: 0 failing`, its `REASON:` read as `no red evidence`.
 
 - A task gets at most 5 attempts in this session; a coder failure, a review failure and a task commit exiting other than 4 each end one. A resumed session starts every task's count over.
 - Each attempt after the first runs one tier up from the last, clamped into `tiers.max`, its review tier rising with it (a waived review stays waived) and raised to `sonnet` from `haiku`; a `TaskUpdate` rewrites the task's subject with the new tiers.
@@ -163,6 +164,10 @@ Arbiter dispatch: `viber:arbiter` (Agent tool) carrying `case:`, `options:` (the
 - `VERDICT: DENIED` -> `AskUserQuestion`: retry / accept / abort.
 
 Commit outside a task: every `commit-task.sh` commit but a task's own commit and `--extension` - the fix-number repair form, `--repair`, `--chore`, `--qa`, `--review` and `--outside`. Exit 4 of the fix-number repair form and of `--repair` is handled by step 5 alone, with no retry, no `commit` arbiter and no `left uncommitted:` line. Any other non-zero exit -> run the same call once more, asking nothing. A second refusal -> the arbiter with `case: commit`, `options: leave uncommitted`, `reason:` the error; record its ruling with subject `commit`, leave those paths uncommitted, one `left uncommitted: <path> | commit refused twice, the arbiter ruled leave uncommitted` line per path in the final summary.
+
+```!
+"${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" build.red-check "${CLAUDE_SKILL_DIR}" red-check
+```
 
 Start with every task whose `deps` are done, in one message. On every return, answer with ONE message carrying every dispatch now legal plus at most one commit. Never wait for a batch to drain; when a constraint forces a choice, start whatever unblocks the most tasks.
 

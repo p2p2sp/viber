@@ -15,7 +15,7 @@ reference. Back to the [viber guide](../README.md).
 
 ## Switches
 
-`/viber:setup` turns seven of the ten on and `build.qa`, `github.issues` and
+`/viber:setup` turns eight of the eleven on and `build.qa`, `github.issues` and
 `build.baseline-tests` off.
 
 | Switch | Default | When on |
@@ -29,6 +29,7 @@ reference. Back to the [viber guide](../README.md).
 | `build.rules` | on | The build closes by recording a convention it confirmed in `.claude/rules/`. |
 | `build.qa` | **off** | The build closes by writing test scenarios that `/viber:e2e` can automate. |
 | `build.cleanup` | on | The build closes by archiving the run with its summary and dropping the working files. |
+| `build.red-check` | on | A `TDD: required` task's tests must fail in a separate checkout without the task's production change before the task is reviewed or committed. |
 | `build.extensions` | empty | Not a switch: a map of your own agents, run at the close of a build. |
 | `github.issues` | **off** | Commands can start from a GitHub issue, and an interview can save its conclusions as a new one. |
 
@@ -54,6 +55,22 @@ reference. Back to the [viber guide](../README.md).
   promise, then records every file the build left uncommitted with its reason and commits those
   left without a deliberate reason. The close then prints one sentence saying
   whether `outcome.md` records a problem. What it archives is described in [Where viber writes](files.md#the-archive).
+- **`build.red-check`**: the third part of the TDD seal. With the switch on or off, the coder of a
+  `TDD: required` task must show its tests failing before its first production edit, and the
+  reviewer checks that the failing tests are the task's new ones. With it on, the build then runs
+  the task's tests in a git worktree of `HEAD` in the system temp directory, holding the task's
+  test files but not its production change: tests that pass there send the task back to its coder,
+  and a check that cannot run makes the task's review mandatory. Only then may a `TDD: required`
+  task on the sonnet tier skip review; with it off, every such task is reviewed. Two settings
+  tune it:
+  - `build.red-check-tests`: what counts as a test file. Default: `__tests__/ tests/ test/
+    *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go
+    *Test.java *Test.kt`. An entry ending in `/` matches any directory of the path, any other a
+    file name.
+  - `build.red-check-links`: directories linked from your working tree into the worktree at the
+    same path, so the tests run without an install. Default: `node_modules`.
+  - Both take entries separated by spaces, unquoted; a `#` after a space starts a comment. Empty,
+    a comment only or a missing key reads as the default.
 - **`build.extensions`**: one entry per agent from your project's `.claude/agents/`, run in that
   order just before the run is archived. An entry runs alone unless it holds `parallel: true`:
   consecutive such entries run together in one message, as one step. Empty runs none.

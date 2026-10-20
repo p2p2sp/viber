@@ -29,6 +29,9 @@
  * `--branching` prints the branching report instead of the block: the mode, the
  * valid work entries and issue type mappings in file order, then one `error:`
  * line per configuration problem - still exit 0 whatever the file holds.
+ * `--red-check` prints exactly two lines, the `build.red-check-tests` and
+ * `build.red-check-links` lists joined by one space, each at its default when
+ * empty, a comment alone or absent.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:
@@ -58,6 +61,7 @@ const OFF = {
   "build.rules": "false",
   "build.qa": "false",
   "build.cleanup": "false",
+  "build.red-check": "false",
   "github.issues": "false",
 };
 const DEFAULT_DIRS = { runs: "_specs", specifications: "specs" };
@@ -93,7 +97,7 @@ function config(stdout: string): Record<string, string> {
   return out;
 }
 
-/** The ten switches alone, so a case about a switch need not restate the
+/** The eleven switches alone, so a case about a switch need not restate the
  *  titles, directory names, tiers and branching mode. */
 function switches(stdout: string): Record<string, string | undefined> {
   const all = config(stdout);
@@ -141,6 +145,7 @@ test("no config file: the block is every switch off, both title defaults, no ext
       "build.rules: false",
       "build.qa: false",
       "build.cleanup: false",
+      "build.red-check: false",
       "github.issues: false",
       "github.issue-title: {summary}",
       "github.pr-title: [{issue-number}] {summary}",
@@ -333,7 +338,7 @@ test("`MEMORY: true` inside `build:` resolves to off - the key itself is matched
   });
 });
 
-for (const key of ["adr", "plain-plan-review", "fast-path", "baseline-tests", "final-review", "memory", "rules", "qa", "cleanup", "issues"]) {
+for (const key of ["adr", "plain-plan-review", "fast-path", "baseline-tests", "final-review", "memory", "rules", "qa", "cleanup", "red-check", "issues"]) {
   test(`a flat \`${key}: true\` at column 0 resolves off (a legacy key counts only once setup moves it into its group)`, async () => {
     await withTempDir("p2p2-viber-", async (dir) => {
       writeConfig(dir, `${key}: true\n`);
@@ -367,6 +372,7 @@ test("the shipped template resolves to its own defaults: every switch, both titl
       "build.rules": "true",
       "build.qa": "false",
       "build.cleanup": "true",
+      "build.red-check": "true",
       "github.issues": "false",
     });
     assert.deepEqual(titles(result.stdout), DEFAULT_TITLES);
@@ -687,6 +693,21 @@ test("`build.cleanup` is a switch like the others and nothing about it is specia
     writeConfig(dir, inGroup("build", "cleanup: true"));
 
     assert.deepEqual(switches((await run(dir)).stdout), { ...OFF, "build.cleanup": "true" });
+  });
+});
+
+test("`build.red-check` prints right after `build.cleanup`, on only when `build:` says `true` and off when absent", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    assert.equal(printedLine((await run(dir)).stdout, "build.red-check"), "build.red-check: false");
+
+    writeConfig(dir, inGroup("build", "red-check: True  # sealed"));
+    const keys = (await run(dir)).stdout.trim().split("\n").slice(1).map((line) => line.slice(0, line.indexOf(":")));
+    const at = keys.indexOf("build.red-check");
+    assert.deepEqual(keys.slice(at - 1, at + 2), ["build.cleanup", "build.red-check", "github.issues"]);
+    assert.deepEqual(switches((await run(dir)).stdout), { ...OFF, "build.red-check": "true" });
+
+    writeConfig(dir, inGroup("build", "red-check: false"));
+    assert.deepEqual(switches((await run(dir)).stdout), OFF);
   });
 });
 
@@ -1122,6 +1143,7 @@ const DEFAULT_BLOCK = [
   "build.rules: false",
   "build.qa: false",
   "build.cleanup: false",
+  "build.red-check: false",
   "github.issues: false",
   "github.issue-title: {summary}",
   "github.pr-title: [{issue-number}] {summary}",
@@ -1156,6 +1178,7 @@ test("a local file setting all four keys prints the local value on those four li
       "build.rules: false",
       "build.qa: false",
       "build.cleanup: false",
+      "build.red-check: false",
       "github.issues: true",
       "github.issue-title: {summary}",
       "github.pr-title: [{issue-number}] {summary}",
@@ -1323,5 +1346,76 @@ test("--branching prints the same report with and without a local file carrying 
     writeLocal(dir, ["branching:", "  mode: off", "  work:", "    fix:", "      base: other", "      name: x/{slug}", "      target: other", ""].join("\n"));
 
     assert.deepEqual(await report(dir), without);
+  });
+});
+
+// --- config.sh --red-check: the test patterns and the worktree links ---
+
+const RED_CHECK_TESTS = "__tests__/ tests/ test/ *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go *Test.java *Test.kt";
+const RED_CHECK_DEFAULTS = [`red-check.tests: ${RED_CHECK_TESTS}`, "red-check.links: node_modules"];
+
+/** Every line `--red-check` printed, the exit asserted 0 first: no input may break the call. */
+async function redCheck(dir: string): Promise<string[]> {
+  const result = await runScript(SUT, ["--red-check"], { cwd: dir, shell: "bash" });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  return result.stdout.replace(/\r/g, "").trimEnd().split("\n");
+}
+
+test("--red-check with no config file prints exactly the two default lines and exits 0", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    assert.deepEqual(await redCheck(dir), RED_CHECK_DEFAULTS);
+  });
+});
+
+test("--red-check prints the shipped template as the two defaults (its list settings are commented out)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const template = path.resolve(import.meta.dirname, "../../viber/skills/setup/templates/viber.yml");
+    writeConfig(dir, fs.readFileSync(template, "utf-8"));
+
+    assert.deepEqual(await redCheck(dir), RED_CHECK_DEFAULTS);
+  });
+});
+
+test("--red-check prints custom lists of build: with their entries joined by one space, blanks and tabs between them dropped", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, inGroup("build", "red-check: true", "red-check-tests:   spec/ \t *.cy.ts  ", "red-check-links: node_modules .venv"));
+
+    assert.deepEqual(await redCheck(dir), ["red-check.tests: spec/ *.cy.ts", "red-check.links: node_modules .venv"]);
+  });
+});
+
+test("--red-check cuts a list at the first blank followed by #, keeping a # inside an entry", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, inGroup("build", "red-check-tests: tests/ a#b.spec.ts # our two suites", "red-check-links: vendor\t# linked"));
+
+    assert.deepEqual(await redCheck(dir), ["red-check.tests: tests/ a#b.spec.ts", "red-check.links: vendor"]);
+  });
+});
+
+test("--red-check falls back to the default for an empty value and for a comment alone", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, inGroup("build", "red-check-tests:", "red-check-links: # none"));
+
+    assert.deepEqual(await redCheck(dir), RED_CHECK_DEFAULTS);
+  });
+});
+
+test("--red-check reads a list only as a child of build: (column 0, another group and an extension entry of that name leave the default)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(
+      dir,
+      "red-check-tests: flat/\n" + inGroup("planning", "red-check-links: wrong") + inGroup("build", "extensions:", "  red-check-tests: x/", "  red-check-links: y"),
+    );
+
+    assert.deepEqual(await redCheck(dir), RED_CHECK_DEFAULTS);
+  });
+});
+
+test("--red-check takes the first assignment, ignores a CRLF ending and never reads the local file", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, "build:\r\n  red-check-links: deps\r\n  red-check-links: other\r\n");
+    writeLocal(dir, inGroup("build", "red-check-tests: mine/"));
+
+    assert.deepEqual(await redCheck(dir), [`red-check.tests: ${RED_CHECK_TESTS}`, "red-check.links: deps"]);
   });
 });

@@ -12,7 +12,7 @@ On `resume`, `reason` or `report` input, the code already in the tree is existin
 One behavior, one test, named after the behavior ("user can checkout with valid cart", never "constructor returns instance"). Public interface only.
 
 ### Verify red - watch it fail
-Run it. A run counts as red only when the test fails on an assertion about the missing behavior, never on a typo, import miss or harness error. A compile, import or missing-symbol failure gets a signature-only skeleton with no logic, then a rerun, until the test fails on an assertion. Passes immediately? Sharpen the assertion and restart red.
+Run it. A run counts as red only when the test fails on an assertion about the missing behavior, never on a typo, import miss or harness error. A compile, import or missing-symbol failure gets a signature-only skeleton with no logic, then a rerun, until the test fails on an assertion. Passes immediately? Sharpen the assertion and restart red. The first run, before any production edit, goes to `<out>/red.log`.
 
 ### Green - simplest code that passes
 Only enough to pass this test. No anticipating future tests, no opportunistic refactor of surrounding code.

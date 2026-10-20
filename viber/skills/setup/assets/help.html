@@ -1624,13 +1624,24 @@ samo.</p>
 test first when the task says <code>TDD: required</code>. <a href="#agent-task-reviewer"><code>task-reviewer</code></a>
 then checks it against its definition of done, within the task's 5 attempts. Review is skipped only for a task on
 the sonnet <a href="#term-tier">tier</a> whose verification runs your build or tests; a task verified by a
-text check is always reviewed.</p>
+text check is always reviewed, and so is a <code>TDD: required</code> task with
+<a href="#key-build-red-check"><code>build.red-check</code></a> off.</p>
 <p lang="pl"><a href="#agent-task-coder"><code>task-coder</code></a> realizuje zadanie i dowodzi, że testy
 przechodzą, zaczynając od testu, gdy zadanie ma <code>TDD: required</code>. Potem
 <a href="#agent-task-reviewer"><code>task-reviewer</code></a> sprawdza je względem definicji ukończenia,
 w ramach 5 prób zadania. Recenzję pomija tylko zadanie na <a href="#term-tier">poziomie</a> sonnet, którego
 weryfikacja uruchamia budowanie albo testy projektu; zadanie weryfikowane sprawdzeniem tekstu zawsze
-przechodzi recenzję.</p>
+przechodzi recenzję, podobnie jak zadanie z <code>TDD: required</code> przy wyłączonym
+<a href="#key-build-red-check"><code>build.red-check</code></a>.</p>
+<p lang="en">A <code>TDD: required</code> task is sealed three ways. Its coder shows the failing run of its new tests
+before the first production edit, or the attempt fails. With <code>build.red-check</code> on, the build reruns
+those tests in a separate checkout without the production change, and tests that pass there send the task back.
+Its reviewer checks that the tests that failed are the task's new ones.</p>
+<p lang="pl">Zadanie z <code>TDD: required</code> ma trzy zabezpieczenia. Jego wykonawca pokazuje nieudany przebieg
+nowych testów przed pierwszą zmianą kodu produkcyjnego, inaczej próba przepada. Przy włączonym
+<code>build.red-check</code> build uruchamia te testy ponownie w osobnej kopii roboczej bez zmiany produkcyjnej,
+a testy, które tam przejdą, odsyłają zadanie do wykonawcy. Recenzent sprawdza, że nie przeszły właśnie nowe testy
+zadania.</p>
 <p lang="en">A task that passes gets its own commit, titled <code>T3 - &lt;task title&gt;</code>. Only viber's
 scripts commit, never an agent.</p>
 <p lang="pl">Zadanie, które przejdzie, dostaje własny commit z tytułem <code>T3 - &lt;tytuł zadania&gt;</code>.
@@ -2661,11 +2672,13 @@ z nich mówi, jak nim sterować.</p>
       <a href="#key-build-qa"><code>build.qa</code></a> and <a href="#key-build-cleanup"><code>build.cleanup</code></a> pick the close parts;
       <a href="#key-tiers"><code>tiers</code></a> bounds the models it uses;
       <a href="#key-build-baseline-tests"><code>build.baseline-tests</code></a> (<code>fast</code> or <code>full</code>) adds a baseline test run before the first task;
+      <a href="#key-build-red-check"><code>build.red-check</code></a> checks that a <code>TDD: required</code> task's tests fail without its production change;
       <a href="#key-branching"><code>branching</code></a> decides the branch it commits on.</span><span lang="pl"><a href="#key-build-memory"><code>build.memory</code></a>,
       <a href="#key-build-rules"><code>build.rules</code></a>, <a href="#key-build-qa"><code>build.qa</code></a> i
       <a href="#key-build-cleanup"><code>build.cleanup</code></a> wybierają części zamknięcia;
       <a href="#key-tiers"><code>tiers</code></a> ogranicza modele, których używa;
       <a href="#key-build-baseline-tests"><code>build.baseline-tests</code></a> (<code>fast</code> lub <code>full</code>) dodaje przebieg bazowy testów przed pierwszym zadaniem;
+      <a href="#key-build-red-check"><code>build.red-check</code></a> sprawdza, że testy zadania z <code>TDD: required</code> nie przechodzą bez jego zmiany produkcyjnej;
       <a href="#key-branching"><code>branching</code></a> decyduje, na której gałęzi commituje.</span></dd>
     </div>
     <div>
@@ -3339,7 +3352,7 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
   </div>
 </dl>
 <p lang="en">Every switch counts only inside its group: <code>planning:</code> holds the ones read while a change
-is planned, <code>build:</code> the ones a build reads, <code>github:</code> the GitHub ones. Seven of the ten
+is planned, <code>build:</code> the ones a build reads, <code>github:</code> the GitHub ones. Eight of the eleven
 start on; <code>build.qa</code>, <code>github.issues</code> and <code>build.baseline-tests</code> start off. To
 change any of them, edit <code>.claude/viber.yml</code>: every key has a comment there, and only
 <code>true</code> counts as on. Turn a switch off with <code>false</code> instead of deleting it. Only
@@ -3347,7 +3360,7 @@ change any of them, edit <code>.claude/viber.yml</code>: every key has a comment
 <code>build.extensions</code> is no switch: it holds a map of agent entries.</p>
 <p lang="pl">Każdy przełącznik liczy się tylko wewnątrz swojej grupy: <code>planning:</code> trzyma te czytane
 podczas planowania zmiany, <code>build:</code> te czytane przez build, <code>github:</code> te dotyczące GitHuba.
-Siedem z dziesięciu jest domyślnie włączonych; <code>build.qa</code>, <code>github.issues</code>
+Osiem z jedenastu jest domyślnie włączonych; <code>build.qa</code>, <code>github.issues</code>
 i <code>build.baseline-tests</code> startują wyłączone. Zmienisz to w
 <code>.claude/viber.yml</code>: każdy
 klucz ma tam komentarz, a za włączony liczy się tylko <code>true</code>. Przełącznik wyłączaj wartością
@@ -3503,6 +3516,40 @@ wartość.</p>
     potem przez <a href="#agent-closeout"><code>closeout</code></a> archiwizuje przebieg z podsumowaniem buildu
     w <code>outcome.md</code>, gdzie każdy niezacommitowany plik ma swój powód, i usuwa plan, plik stanu
     i ślad pracy. Wszystko to zostaje w historii gita.</span></dd>
+  </div>
+  <div id="key-build-red-check">
+    <dt><code>build.red-check</code> <span class="tag on"><span lang="en">on</span><span lang="pl">wł.</span></span></dt>
+    <dd><span lang="en">After the coder of a <code>TDD: required</code> task passes, and before review or commit, the build
+    runs the task's tests in a git worktree of <code>HEAD</code> in the system temp directory, holding the task's test
+    files but not its production change, then removes the worktree. Tests that fail there, and pass once the production change is copied in, seal the task; tests that pass
+    send it back to its coder; a check that cannot run makes the task's review mandatory. Only with it on may a
+    <code>TDD: required</code> task on the sonnet tier skip review.</span><span lang="pl">Gdy wykonawca zadania
+    z <code>TDD: required</code> skończy z wynikiem pozytywnym, a przed recenzją i commitem, build uruchamia testy
+    zadania w worktree gita z <code>HEAD</code> w systemowym katalogu tymczasowym, z plikami testów zadania, ale bez
+    jego zmiany produkcyjnej, po czym usuwa worktree. Testy, które tam nie przejdą, a przejdą po dodaniu zmiany produkcyjnej, pieczętują zadanie; testy, które
+    przejdą, odsyłają je do wykonawcy; sprawdzenie, którego nie da się uruchomić, czyni recenzję obowiązkową. Tylko
+    przy włączonym przełączniku zadanie z <code>TDD: required</code> na poziomie sonnet może pominąć
+    recenzję.</span></dd>
+  </div>
+  <div id="key-build-red-check-tests">
+    <dt><code>build.red-check-tests</code> <span class="tag"><span lang="en">list</span><span lang="pl">lista</span></span></dt>
+    <dd><span lang="en">What <code>build.red-check</code> counts as a test file. Default: <code>__tests__/ tests/ test/
+    *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go *Test.java
+    *Test.kt</code>. An entry ending in <code>/</code> matches any directory of the path, any other a file name.
+    Entries are separated by spaces, unquoted; a <code>#</code> after a space starts a comment; empty, a comment only
+    or a missing key reads as the default.</span><span lang="pl">Co <code>build.red-check</code> uznaje za plik
+    testów. Domyślnie: <code>__tests__/ tests/ test/ *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.*
+    test_*.py *_test.py *_test.go *Test.java *Test.kt</code>. Wpis zakończony <code>/</code> pasuje do dowolnego
+    katalogu ścieżki, każdy inny do nazwy pliku. Wpisy oddziela spacja, bez cudzysłowów; <code>#</code> po spacji
+    zaczyna komentarz; pusta wartość, sam komentarz albo brak klucza daje wartość domyślną.</span></dd>
+  </div>
+  <div id="key-build-red-check-links">
+    <dt><code>build.red-check-links</code> <span class="tag"><span lang="en">list</span><span lang="pl">lista</span></span></dt>
+    <dd><span lang="en">Directories linked from your working tree into the <code>build.red-check</code> worktree at
+    the same path, so the tests run without an install. Default: <code>node_modules</code>. Same list form as
+    <code>build.red-check-tests</code>.</span><span lang="pl">Katalogi podlinkowane z twojej kopii roboczej do
+    worktree <code>build.red-check</code> pod tą samą ścieżką, aby testy działały bez instalacji. Domyślnie:
+    <code>node_modules</code>. Ta sama postać listy co <code>build.red-check-tests</code>.</span></dd>
   </div>
   <div id="key-build-extensions">
     <dt><code>build.extensions</code> <span class="tag"><span lang="en">empty</span><span lang="pl">puste</span></span></dt>

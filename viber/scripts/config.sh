@@ -24,9 +24,9 @@
 # default stands and the run is unaffected.
 #
 # Contract:
-#   argv   : none -> the block below. `--branching` -> the branching report
-#            (see its own stdout paragraph) in place of the block. Anything else
-#            -> the block.
+#   argv   : none -> the block below. `--branching` -> the branching report,
+#            `--red-check` -> the red-check report (see their own stdout
+#            paragraphs) in place of the block. Anything else -> the block.
 #   cwd    : any directory inside the host project - the repository root is
 #            resolved here. Outside a repository, the cwd is the base.
 #   env    : none.
@@ -38,7 +38,8 @@
 #            assignment of a child wins; a CR is never part of a value.
 #            planning.adr, planning.plain-plan-review, planning.fast-path,
 #            build.baseline-tests, build.final-review, build.memory,
-#            build.rules, build.qa, build.cleanup, github.issues - switches.
+#            build.rules, build.qa, build.cleanup, build.red-check,
+#            github.issues - switches.
 #            One is `true` ONLY as a child of its own group, spelled exactly
 #            (case-sensitive), whose value is `true` in any letter case (ended
 #            by a space, a comment or the end of the line). A column-0 key of
@@ -96,6 +97,14 @@
 #            (any case, printed lowercase), anything else -> off. The branch
 #            bases and name patterns live in `branching.work` entries, read by
 #            `--branching` alone.
+#            build.red-check-tests and build.red-check-links - lists, children
+#            of `build:` read the same group-bound way by `--red-check` alone.
+#            The value is cut at the first blank followed by `#` (a value
+#            opening on `#` is a comment alone); its entries are separated by
+#            blanks, no quoting. Empty, a comment alone or absent -> the
+#            default: tests `__tests__/ tests/ test/ *.Tests/ *.UnitTests/
+#            *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py
+#            *_test.go *Test.java *Test.kt`, links `node_modules`.
 #   file   : <repo root>/.claude/viber.local.yml (optional, the same layout and
 #            key grammar, personal and git-ignored; outside a repository
 #            .claude/viber.local.yml under the cwd). It overrides exactly four
@@ -109,7 +118,7 @@
 #            indentation of the first key line inside its group; a deeper line
 #            is neither read nor named. The first assignment of a key wins, and
 #            a key is named once however often the file repeats it.
-#            `--branching` never reads this file.
+#            `--branching` and `--red-check` never read this file.
 #   stdout : a header line, then one `<group>.<key>: <true|false>` line per
 #            switch (`build.baseline-tests: <off|fast|full>`), one `github.<key>: <pattern>` line per title,
 #            the two extension lines, one
@@ -127,6 +136,7 @@
 #              build.rules: true
 #              build.qa: false
 #              build.cleanup: true
+#              build.red-check: true
 #              github.issues: false
 #              github.issue-title: {summary}
 #              github.pr-title: [{issue-number}] {summary}
@@ -184,6 +194,11 @@
 #              no valid branching.work entry
 #                (a mode other than off only)
 #            No file or no group -> `mode: off` alone.
+#   stdout (--red-check): exactly two lines, each list's entries joined by one
+#            space:
+#              red-check.tests: <pattern> <pattern> ...
+#              red-check.links: <directory name> ...
+#            No file -> both defaults.
 #   exit  : ALWAYS 0 (fail-open - a missing file or key never breaks a run, and
 #            a non-zero exit in a `!` preload would abort the whole skill load).
 #
@@ -221,11 +236,11 @@ function mapline(line) {
 }
 '
 
-# The switch and title lines of the block, in their fixed order, from one pass
-# over the file. A column-0 key opens its group; a blank line or a column-0
-# comment leaves it open. The first assignment of each child wins; a map line
-# is no child.
-switches_prog='
+# The raw value of every group child, `raw["<group>.<key>"]`, from one pass over
+# the file. A column-0 key opens its group; a blank line or a column-0 comment
+# leaves it open. The first assignment of each child wins; a map line is no
+# child. The block and the --red-check report each add their own END.
+collect_prog='
 {
   line = $0
   sub(/\r$/, "", line)
@@ -248,6 +263,10 @@ grp != "" && /^[[:space:]]+[A-Za-z]/ {
   id = grp "." key
   if (!(id in raw)) raw[id] = val
 }
+'
+
+# The switch and title lines of the block, in their fixed order.
+switches_prog='
 function title(v, dflt,  q, end) {
   q = substr(v, 1, 1)
   end = 0
@@ -261,7 +280,7 @@ function title(v, dflt,  q, end) {
   return v == "" ? dflt : v
 }
 END {
-  n = split("planning.adr planning.plain-plan-review planning.fast-path build.baseline-tests build.final-review build.memory build.rules build.qa build.cleanup github.issues", ids, " ")
+  n = split("planning.adr planning.plain-plan-review planning.fast-path build.baseline-tests build.final-review build.memory build.rules build.qa build.cleanup build.red-check github.issues", ids, " ")
   for (i = 1; i <= n; i++) {
     v = raw[ids[i]]
     sub(/[[:space:]#].*$/, "", v)
@@ -271,6 +290,24 @@ END {
   }
   print "github.issue-title: " title(raw["github.issue-title"], "{summary}")
   print "github.pr-title: " title(raw["github.pr-title"], "[{issue-number}] {summary}")
+}
+'
+
+# The two lines of the --red-check report. A list value is cut at the first
+# blank followed by `#` (a value opening on `#` is a comment alone), its
+# entries split on blanks and joined by one space; no entry -> the default.
+redcheck_prog='
+function list(v, dflt,  n, e, i, out) {
+  if (v ~ /^#/) v = ""
+  if (match(v, /[[:space:]]#/)) v = substr(v, 1, RSTART - 1)
+  n = split(v, e, /[[:space:]]+/)
+  out = ""
+  for (i = 1; i <= n; i++) if (e[i] != "") out = (out == "" ? e[i] : out " " e[i])
+  return out == "" ? dflt : out
+}
+END {
+  print "red-check.tests: " list(raw["build.red-check-tests"], "__tests__/ tests/ test/ *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go *Test.java *Test.kt")
+  print "red-check.links: " list(raw["build.red-check-links"], "node_modules")
 }
 '
 
@@ -531,8 +568,16 @@ fi
 
 src="$cfg"
 [ -f "$src" ] || src=/dev/null
-block="$(awk -v sq="'" "$map_prog$switches_prog" "$src" 2>/dev/null || true)"
-[ -n "$block" ] || block="$(awk -v sq="'" "$map_prog$switches_prog" /dev/null)"
+
+if [ "${1:-}" = "--red-check" ]; then
+  report="$(awk "$map_prog$collect_prog$redcheck_prog" "$src" 2>/dev/null || true)"
+  [ -n "$report" ] || report="$(awk "$map_prog$collect_prog$redcheck_prog" /dev/null)"
+  printf '%s\n' "$report"
+  exit 0
+fi
+
+block="$(awk -v sq="'" "$map_prog$collect_prog$switches_prog" "$src" 2>/dev/null || true)"
+[ -n "$block" ] || block="$(awk -v sq="'" "$map_prog$collect_prog$switches_prog" /dev/null)"
 
 loc_bt=""
 loc_gi=""

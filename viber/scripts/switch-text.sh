@@ -22,7 +22,8 @@
 #            key  : planning.adr | planning.plain-plan-review |
 #                   planning.fast-path | build.baseline-tests |
 #                   build.final-review | build.memory | build.rules |
-#                   build.qa | build.cleanup | github.issues
+#                   build.qa | build.cleanup | build.red-check |
+#                   github.issues
 #                   (value true | false, except build.baseline-tests: off |
 #                   fast | full) or
 #                   branching.mode (value off | allowed | required) - the
@@ -56,7 +57,7 @@ name="${3:-}"
 
 case "$key" in
   planning.adr|planning.plain-plan-review|planning.fast-path) ;;
-  build.baseline-tests|build.final-review|build.memory|build.rules|build.qa|build.cleanup) ;;
+  build.baseline-tests|build.final-review|build.memory|build.rules|build.qa|build.cleanup|build.red-check) ;;
   github.issues|branching.mode|build.extensions) ;;
   *) exit 0 ;;
 esac

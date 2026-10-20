@@ -394,6 +394,7 @@ const SWITCH_VALUES: Record<string, string[]> = {
   "build.rules": ["true", "false"],
   "build.qa": ["true", "false"],
   "build.cleanup": ["true", "false"],
+  "build.red-check": ["true", "false"],
   "github.issues": ["true", "false"],
   "branching.mode": ["off", "allowed", "required"],
   "build.extensions": ["off", "on"],

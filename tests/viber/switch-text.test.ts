@@ -93,6 +93,7 @@ for (const [key, group, child, name] of [
   ["build.final-review", "build", "final-review", "final-review"],
   ["planning.fast-path", "planning", "fast-path", "fast-path"],
   ["github.issues", "github", "issues", "issues-input"],
+  ["build.red-check", "build", "red-check", "red-check"],
 ] as const) {
   test(`\`${key}\` on prints the skill's ${name}.true.md fragment`, async () => {
     await withGitRepo(async (repo) => {

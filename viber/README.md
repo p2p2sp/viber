@@ -154,6 +154,11 @@ task by task, reviewing and committing each one, and finishes with one final rev
 tests plus the integration tests the change reaches. End-to-end tests stay with your CI and
 `/viber:e2e` unless you explicitly ask for them.
 
+A task marked `TDD: required` is sealed three ways. Its coder shows the failing run of its new tests
+before the first production edit, or the attempt fails. With `build.red-check` on, the build reruns
+those tests in a separate checkout without the production change, and tests that pass there send
+the task back. Its reviewer checks that the tests that failed are the task's new ones.
+
 An idea too big for one cycle, such as a whole application, is split into ordered parts before any
 detail question, and the interview covers every part. Each part gets its own plan and its own
 build. A finished build names the next part, which resumes from the decisions already made, and

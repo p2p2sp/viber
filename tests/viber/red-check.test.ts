@@ -1,0 +1,236 @@
+/*
+ * red-check.test.ts - proves viber/scripts/red-check.sh's contract:
+ * `red-check.sh <plan> <id>` builds a detached worktree of HEAD in the system
+ * temp directory, copies in only the task's changed test files and runs the
+ * task's Verification command (the red run), then copies in the task's changed
+ * production files and runs it again (the control run). It prints exactly one
+ * `red-check:` line with exit 0: `FAIL-AS-EXPECTED <log>` when the red run
+ * fails and the control run passes, `PASSED-WITHOUT-CHANGE <files>` when the
+ * red run already passes, `UNRUNNABLE <reason>` when there is no test file, the
+ * control run fails too, or the worktree cannot be built. Bad arguments or plan
+ * exit 2.
+ *
+ * The cases that matter most are the isolation ones: coders build in parallel
+ * in the main tree, so another task's dirty file must never reach the worktree,
+ * the main tree's `git status` must read the same before and after, no
+ * worktree may stay registered, and a linked `node_modules` must survive the
+ * forced worktree removal with its content.
+ *
+ * The fixture's Verification command is a plain `bash tests/check.sh`, which
+ * sources the production file `src/lib.sh`: a shell test keeps each case to a
+ * few spawns.
+ *
+ * Repo reality: no build, no lint, no npm, no package.json - this file is run
+ * directly by Node's native test runner + TypeScript type stripping:
+ *   node --test tests/viber/red-check.test.ts
+ */
+
+import { test } from "../harness/test.ts";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+
+import { runScript } from "../harness/run.ts";
+import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
+import { canSymlinkDir } from "../harness/symlinks.ts";
+
+const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/red-check.sh");
+
+const RUN_DIR = "docs/_specs/2026-10-20-10-00-00_red-check";
+const PLAN_REL = `${RUN_DIR}/plan.md`;
+const LOG_REL = ".temp/viber/T1/red-check.log";
+
+function run(dir: string, env: Record<string, string>, args: string[]) {
+  return runScript(SUT, args, { cwd: dir, env, shell: "bash", timeout: 120000 });
+}
+
+function write(root: string, rel: string, content: string): void {
+  const file = path.join(root, rel);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, content);
+}
+
+/** A lite plan plan-index.sh validates: T1 owns the production file and its
+ *  test, T2 owns another production file a parallel coder is editing. */
+function planBody(): string {
+  const task = (id: string, files: string, verification: string) => [
+    "<!-- TASK -->",
+    `### ${id} - task ${id}`,
+    "- TDD: required",
+    "- Covers: AC1",
+    "- Uses: none",
+    "- Depends-on: none",
+    `- Files: ${files}`,
+    "- Delivers: the thing",
+    `- Verification: ${verification} -> green`,
+    "- DoD: it works",
+    "<!-- /TASK -->",
+    "",
+  ];
+  return [
+    "# Red check",
+    "",
+    "## Goal",
+    "",
+    "The answer is right.",
+    "",
+    "## Acceptance criteria",
+    "",
+    "1. The answer is 42.",
+    "",
+    "## Scope",
+    "",
+    "### File map",
+    "",
+    "- edit - src/lib.sh - the answer",
+    "",
+    "### Out of scope",
+    "",
+    "- Nothing else.",
+    "",
+    "## Tasks",
+    "",
+    ...task("T1", "src/lib.sh, tests/check.sh", "bash tests/check.sh"),
+    ...task("T2", "src/other.sh", "bash src/other.sh"),
+  ].join("\n");
+}
+
+/** Commits the plan, the production files at their HEAD state and an ignore
+ *  file for `.temp/` and `node_modules/`, as a host project carries them. */
+async function seed(repo: GitRepo): Promise<void> {
+  fs.appendFileSync(path.join(repo.dir, ".git", "info", "exclude"), ".gitconfig-global\n");
+  write(repo.dir, PLAN_REL, planBody());
+  write(repo.dir, ".gitignore", ".temp/\nnode_modules/\n");
+  write(repo.dir, "src/lib.sh", "answer() { echo 0; }\n");
+  write(repo.dir, "src/other.sh", "other() { echo ok; }\n");
+  await repo.git("add", "-A");
+  await repo.git("commit", "-m", "seed");
+}
+
+/** The task's production change: the answer becomes 42. */
+function changeProduction(dir: string): void {
+  write(dir, "src/lib.sh", "answer() { echo 42; }\n");
+}
+
+async function status(repo: GitRepo): Promise<string> {
+  return (await repo.git("status", "--porcelain", "-uall")).stdout;
+}
+
+async function worktrees(repo: GitRepo): Promise<string[]> {
+  const out = (await repo.git("worktree", "list", "--porcelain")).stdout;
+  return out.split("\n").filter((l) => l.startsWith("worktree "));
+}
+
+test("a test that passes on HEAD without the production change yields PASSED-WITHOUT-CHANGE naming the test file (a test written after the code proves nothing)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    changeProduction(repo.dir);
+    write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ -n "$(answer)" ]\n');
+    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, "red-check: PASSED-WITHOUT-CHANGE tests/check.sh\n");
+  });
+});
+
+test("a test written first that fails on HEAD and passes with the change yields FAIL-AS-EXPECTED and the log", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    changeProduction(repo.dir);
+    write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
+    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+    const log = fs.readFileSync(path.join(repo.dir, LOG_REL), "utf-8");
+    assert.match(log, /red run exit: 1/);
+    assert.match(log, /control run exit: 0/);
+  });
+});
+
+test("a test file named only on the task's extras line still counts as the task's test", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    changeProduction(repo.dir);
+    write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ -n "$(answer)" ]\n');
+    write(repo.dir, "tests/extra.test.sh", "exit 0\n");
+    write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, "tests/extra.test.sh\n");
+    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, "red-check: PASSED-WITHOUT-CHANGE tests/check.sh tests/extra.test.sh\n");
+  });
+});
+
+test("another task's dirty production file in the shared tree leaves the verdict, the tree and the worktree list untouched (parallel coders share the main tree)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    changeProduction(repo.dir);
+    write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n. ./src/other.sh\n[ "$(answer)" = 42 ]\n');
+    // T2's work in progress: copied into the worktree, it would fail both runs.
+    write(repo.dir, "src/other.sh", "exit 3\n");
+    const before = await status(repo);
+    const listBefore = await worktrees(repo);
+    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+    assert.equal(await status(repo), before);
+    assert.deepEqual(await worktrees(repo), listBefore);
+    assert.equal(fs.readFileSync(path.join(repo.dir, "src/other.sh"), "utf-8"), "exit 3\n");
+  });
+});
+
+test("a task whose changes hold no test file yields UNRUNNABLE without building a worktree", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    changeProduction(repo.dir);
+    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, "red-check: UNRUNNABLE no test files among the task's changes\n");
+    assert.equal((await worktrees(repo)).length, 1);
+  });
+});
+
+test("a control run that fails with the change in place yields UNRUNNABLE, never FAIL-AS-EXPECTED (an environment error must not pose as red)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    changeProduction(repo.dir);
+    write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 43 ]\n');
+    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, `red-check: UNRUNNABLE control run failed (exit 1): ${LOG_REL}\n`);
+    assert.equal((await worktrees(repo)).length, 1);
+  });
+});
+
+test("a node_modules directory of the main tree is linked into the worktree and survives the cleanup with its content (the forced remove must not reach through the link)", {
+  skip: process.platform !== "win32" && !canSymlinkDir() ? "this account cannot create a directory symlink" : false,
+}, async () => {
+  await withGitRepo(async (repo) => {
+    await withTempDir("red-check-tmp-", async (tmp) => {
+      await seed(repo);
+      changeProduction(repo.dir);
+      write(repo.dir, "node_modules/pkg/value.txt", "7\n");
+      write(repo.dir, "tests/check.sh", '[ "$(cat node_modules/pkg/value.txt)" = 7 ] || exit 9\n. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
+      const before = await status(repo);
+      const r = await run(repo.dir, { ...repo.env, TMPDIR: tmp }, [PLAN_REL, "T1"]);
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+      assert.match(fs.readFileSync(path.join(repo.dir, LOG_REL), "utf-8"), /red-check: linked node_modules/);
+      assert.equal(fs.readFileSync(path.join(repo.dir, "node_modules/pkg/value.txt"), "utf-8"), "7\n");
+      assert.equal(await status(repo), before);
+      assert.equal((await worktrees(repo)).length, 1);
+      // The worktree's temp directory is gone too: nothing is left behind in TMPDIR.
+      assert.deepEqual(fs.readdirSync(tmp), []);
+    });
+  });
+});
+
+test("a missing argument, a missing plan or an id the plan does not hold exits 2 with nothing on stdout", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    for (const args of [[], [PLAN_REL], [`${RUN_DIR}/missing.md`, "T1"], [PLAN_REL, "T9"], [PLAN_REL, ""]]) {
+      const r = await run(repo.dir, repo.env, args);
+      assert.equal(r.status, 2, `args ${JSON.stringify(args)}: ${r.stdout}`);
+      assert.equal(r.stdout, "");
+      assert.match(r.stderr, /^error: /);
+    }
+  });
+});

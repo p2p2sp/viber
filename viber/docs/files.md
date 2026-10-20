@@ -14,6 +14,8 @@ Every file viber creates or changes in your project. Back to the [viber guide](.
 | `.claude/settings.json` | The settings viber recommends |
 | `.gitignore` | `.temp/` and `.claude/viber.local.yml`, when no rule ignores them yet |
 | `.temp/viber/` | Scratch files, `/viber:prototype`'s mockups in `.temp/viber/prototype/`, `/viber:idea-validator`'s working files in `.temp/viber/idea-validator/`, `/viber:code-auditor`'s `findings.md` files in `.temp/viber/code-auditor/` and `/viber:pr-feedback`'s review threads, `review.md` and reply files in `.temp/viber/pr-feedback/` |
+| `.temp/viber/<task id>/` | For a `TDD: required` task: `red.log`, the coder's first test run that fails, and `red-check.log`, the run of `build.red-check` |
+| a git worktree in the system temp directory | The checkout `build.red-check` runs a task's tests in, removed after each check |
 | your e2e directory | Playwright tests from `/viber:e2e` |
 
 The names `_specs` and `specs` under `docs/` are the defaults; `directories:` in `.claude/viber.yml`

@@ -73,6 +73,8 @@ Final summary, both forms: max 7 lines, then every line this step places after t
 - Archived form: the archive path `docs/<directories.specifications>/<key>` (the config block's `directories.specifications:` value, the landing's `key:`).
 - Screen form: the drift from `closeout`'s `DRIFT:` line, when `closeout` returned one.
 
+Right after the 7 lines, in both forms: `red-check: <n> sealed, <n> rejected, unrunnable: <ids>` from step 4's counts (`none` for no id), or `red-check: off` when the config block's `build.red-check` does not read `true`.
+
 After the summary and outside its 7 lines, list every `FIXED:` line the final review carried, then every `OWNER:` line it carried, each verbatim. Every `left uncommitted:` line also stands outside the 7 lines, in both forms, verbatim, so it reaches `closeout`'s `summary:`.
 
 After those, also outside its 7 lines, list the rulings: each index `ruling:` line, then each ruling this session recorded that is not already one, every one with its ruling, `why:` and `cost if wrong:`.
