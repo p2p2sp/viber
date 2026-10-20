@@ -1624,15 +1624,13 @@ samo.</p>
 test first when the task says <code>TDD: required</code>. <a href="#agent-task-reviewer"><code>task-reviewer</code></a>
 then checks it against its definition of done, within the task's 5 attempts. Review is skipped only for a task on
 the sonnet <a href="#term-tier">tier</a> whose verification runs your build or tests; a task verified by a
-text check is always reviewed, and so is a <code>TDD: required</code> task with
-<a href="#key-build-red-check"><code>build.red-check</code></a> off.</p>
+text check is always reviewed, and so is every <code>TDD: required</code> task.</p>
 <p lang="pl"><a href="#agent-task-coder"><code>task-coder</code></a> realizuje zadanie i dowodzi, że testy
 przechodzą, zaczynając od testu, gdy zadanie ma <code>TDD: required</code>. Potem
 <a href="#agent-task-reviewer"><code>task-reviewer</code></a> sprawdza je względem definicji ukończenia,
 w ramach 5 prób zadania. Recenzję pomija tylko zadanie na <a href="#term-tier">poziomie</a> sonnet, którego
 weryfikacja uruchamia budowanie albo testy projektu; zadanie weryfikowane sprawdzeniem tekstu zawsze
-przechodzi recenzję, podobnie jak zadanie z <code>TDD: required</code> przy wyłączonym
-<a href="#key-build-red-check"><code>build.red-check</code></a>.</p>
+przechodzi recenzję, podobnie jak każde zadanie z <code>TDD: required</code>.</p>
 <p lang="en">A <code>TDD: required</code> task is sealed three ways. Its coder shows the failing run of its new tests
 before the first production edit, or the attempt fails. With <code>build.red-check</code> on, the build reruns
 those tests in a separate checkout without the production change, and tests that pass there send the task back.
@@ -3522,24 +3520,23 @@ wartość.</p>
     <dd><span lang="en">After the coder of a <code>TDD: required</code> task passes, and before review or commit, the build
     runs the task's tests in a git worktree of <code>HEAD</code> in the system temp directory, holding the task's test
     files but not its production change, then removes the worktree. Tests that fail there, and pass once the production change is copied in, seal the task; tests that pass
-    send it back to its coder; a check that cannot run makes the task's review mandatory. Only with it on may a
-    <code>TDD: required</code> task on the sonnet tier skip review.</span><span lang="pl">Gdy wykonawca zadania
+    send it back to its coder; a check that cannot run is reported to the task's reviewer.</span><span lang="pl">Gdy wykonawca zadania
     z <code>TDD: required</code> skończy z wynikiem pozytywnym, a przed recenzją i commitem, build uruchamia testy
     zadania w worktree gita z <code>HEAD</code> w systemowym katalogu tymczasowym, z plikami testów zadania, ale bez
     jego zmiany produkcyjnej, po czym usuwa worktree. Testy, które tam nie przejdą, a przejdą po dodaniu zmiany produkcyjnej, pieczętują zadanie; testy, które
-    przejdą, odsyłają je do wykonawcy; sprawdzenie, którego nie da się uruchomić, czyni recenzję obowiązkową. Tylko
-    przy włączonym przełączniku zadanie z <code>TDD: required</code> na poziomie sonnet może pominąć
-    recenzję.</span></dd>
+    przejdą, odsyłają je do wykonawcy; wynik sprawdzenia, którego nie da się uruchomić, trafia do recenzenta
+    zadania.</span></dd>
   </div>
   <div id="key-build-red-check-tests">
     <dt><code>build.red-check-tests</code> <span class="tag"><span lang="en">list</span><span lang="pl">lista</span></span></dt>
     <dd><span lang="en">What <code>build.red-check</code> counts as a test file. Default: <code>__tests__/ tests/ test/
     *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go *Test.java
-    *Test.kt</code>. An entry ending in <code>/</code> matches any directory of the path, any other a file name.
+    *Test.kt conftest.py testdata/ __mocks__/ __fixtures__/ fixtures/ jest.config.* vitest.config.*</code>. An entry ending in <code>/</code> matches any directory of the path, any other a file name.
     Entries are separated by spaces, unquoted; a <code>#</code> after a space starts a comment; empty, a comment only
     or a missing key reads as the default.</span><span lang="pl">Co <code>build.red-check</code> uznaje za plik
     testów. Domyślnie: <code>__tests__/ tests/ test/ *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.*
-    test_*.py *_test.py *_test.go *Test.java *Test.kt</code>. Wpis zakończony <code>/</code> pasuje do dowolnego
+    test_*.py *_test.py *_test.go *Test.java *Test.kt conftest.py testdata/ __mocks__/ __fixtures__/ fixtures/
+    jest.config.* vitest.config.*</code>. Wpis zakończony <code>/</code> pasuje do dowolnego
     katalogu ścieżki, każdy inny do nazwy pliku. Wpisy oddziela spacja, bez cudzysłowów; <code>#</code> po spacji
     zaczyna komentarz; pusta wartość, sam komentarz albo brak klucza daje wartość domyślną.</span></dd>
   </div>

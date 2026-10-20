@@ -659,6 +659,28 @@ test("the pr-exists stop resolves the archived run from the commits ahead of the
   });
 });
 
+test("the local target's own upstream wins over the head branch's remote, so a stale fork copy of the target never widens the range (a fork workflow sets the head branch's remote to the fork)", async () => {
+  await assertPosix(async (shell) => {
+    await withGitRepo(
+      async (fork) => {
+        await withScene(async (scene) => {
+          await scene.work.git("remote", "add", "fork", fork.dir);
+          await scene.work.git("push", "fork", "main");
+          await scene.work.git("fetch", "fork");
+          for (const n of [1, 2, 3]) await commit(scene.work, {}, `upstream ${n}`);
+          await scene.work.git("push", "-u", "origin", "main");
+          await onBranch(scene, "feature/x");
+          await scene.work.git("push", "-u", "fork", "feature/x");
+          const result = await runFacts(shell, scene, ["--target", "main"]);
+          assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+          assert.deepEqual(values(result, "COMMIT"), [`${await shortSha(scene.work, "HEAD")} work`]);
+        });
+      },
+      { bare: true },
+    );
+  });
+});
+
 test("a target with no remote-tracking ref falls back to the local branch and lists the commits ahead of it", async () => {
   await assertPosix(async (shell) => {
     await withScene(async (scene) => {

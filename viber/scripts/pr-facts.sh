@@ -30,9 +30,11 @@
 #   gh     : `gh repo view` (repository URL and default branch) and `gh pr list
 #            --head <branch> --state open` (url and base branch). Never a create,
 #            never a push.
-#   git    : read-only. The target is resolved as the remote-tracking ref of the
-#            branch's remote (`branch.<b>.remote`, else origin), else
-#            refs/heads/<target>; nothing is fetched.
+#   git    : read-only. The target is resolved as the remote-tracking ref of
+#            the local target branch's own upstream (`branch.<target>.remote`
+#            and `.merge`), else that of the head branch's remote
+#            (`branch.<b>.remote`, else origin), else refs/heads/<target>;
+#            nothing is fetched.
 #   stdout : exit 0, lines in this order:
 #              STATUS=ready|stop
 #              REASON=no-gh|no-repo|detached|dirty|on-base|pr-exists|no-commits|unknown-entry   (stop only)
@@ -231,12 +233,27 @@ for p in "docs/$runs"/*/plan.md; do
   if [ "$(fm_field "$p" branch)" = "$branch" ]; then open_plan=$p; fi
 done
 
-# Sets tref to the ref of branch $1: the remote-tracking ref (the pull request
-# opens against the remote branch, and a local one may hold unpushed commits),
-# else refs/heads/<$1>, else empty.
+# Sets tref to the ref of branch $1, first match wins: the remote-tracking ref of
+# the local $1's own upstream (branch.<$1>.remote and .merge), then the one of
+# the head branch's remote (else origin), then refs/heads/<$1>, else empty. A
+# remote-tracking ref comes first because the pull request opens against the
+# remote branch and a local one may hold unpushed commits; the target's own
+# upstream comes before the head branch's remote, which in a fork workflow is
+# the fork, whose copy of the target is often stale.
 resolve_tref() {
   tref=""
   [ -n "$1" ] || return 0
+  up_remote=$(git config --get "branch.$1.remote" 2>/dev/null)
+  up_merge=$(git config --get "branch.$1.merge" 2>/dev/null)
+  case "$up_merge" in
+    refs/heads/?*)
+      if [ -n "$up_remote" ] && [ "$up_remote" != . ] \
+        && git rev-parse -q --verify "refs/remotes/$up_remote/${up_merge#refs/heads/}^{commit}" >/dev/null 2>&1; then
+        tref=refs/remotes/$up_remote/${up_merge#refs/heads/}
+        return 0
+      fi
+      ;;
+  esac
   rt_remote=$(git config --get "branch.$branch.remote" 2>/dev/null)
   rt_remote=${rt_remote:-origin}
   if git rev-parse -q --verify "refs/remotes/$rt_remote/$1^{commit}" >/dev/null 2>&1; then

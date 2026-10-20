@@ -63,7 +63,7 @@ build:
   # a directory), red-check-links the directories linked into that worktree;
   # both are separated by spaces, and the defaults stand while they are
   # commented out:
-  # red-check-tests: __tests__/ tests/ test/ *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go *Test.java *Test.kt
+  # red-check-tests: __tests__/ tests/ test/ *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go *Test.java *Test.kt conftest.py testdata/ __mocks__/ __fixtures__/ fixtures/ jest.config.* vitest.config.*
   # red-check-links: node_modules
   red-check: true
   # The agents of this project's own .claude/agents/ that implementor runs at the

@@ -48,12 +48,17 @@ function frontmatter(text: string): string {
 }
 
 test("implementor reads a TDD: required PASS with no RED: line or RED: 0 failing as a coder failure, no red evidence", () => {
-  assert.ok(has(SKILL, "a `PASS` of a `TDD: required` task, an owed-path pass excepted, with no `RED:` line or `RED: 0 failing`"));
+  assert.ok(has(SKILL, "a `PASS` of a `TDD: required` task with no `RED:` line or `RED: 0 failing`"));
   assert.ok(has(SKILL, "its `REASON:` read as `no red evidence`"));
 });
 
-test("implementor step 3 waives no TDD: required review unless build.red-check reads true", () => {
-  assert.ok(has(SKILL, "nor on a `TDD: required` task unless the config block's `build.red-check` reads `true`"));
+test("implementor step 3 never waives the review of a TDD: required task (red-check judges the whole command, so only a reviewer tells which tests failed)", () => {
+  assert.ok(has(SKILL, "nor on a `TDD: required` task."));
+  assert.ok(!has(SKILL, "unless the config block's `build.red-check` reads `true`"));
+});
+
+test("implementor re-runs an exit-4 commit with --landed in place of its --with paths (commit-task.sh refuses --landed with --with)", () => {
+  assert.ok(has(SKILL, "the same call re-runs with `--landed \"<sha>\"` in place of its `--with` paths"));
 });
 
 test("the implementor reviewer dispatch carries the red path of the coder's last RED: line", () => {
@@ -85,17 +90,21 @@ test("the red-check fragment maps PASSED-WITHOUT-CHANGE to a coder failure, test
   assert.ok(has(FRAGMENT, "`red-check: PASSED-WITHOUT-CHANGE <files>` -> a coder failure, `REASON: tests pass without the change: <files>`"));
 });
 
-test("the red-check fragment makes UNRUNNABLE, a non-zero exit or no line a mandatory review, even when waived", () => {
-  assert.ok(has(FRAGMENT, "`red-check: UNRUNNABLE <reason>`, a non-zero exit or no `red-check:` line -> reviewer dispatch, even when waived"));
-});
-
-test("the red-check fragment skips an owed-path pass", () => {
-  assert.ok(has(FRAGMENT, "an owed-path pass excepted"));
+test("the red-check fragment sends UNRUNNABLE, a non-zero exit or no line to the reviewer", () => {
+  assert.ok(has(FRAGMENT, "`red-check: UNRUNNABLE <reason>`, a non-zero exit or no `red-check:` line -> reviewer dispatch."));
 });
 
 test("task-coder returns RED: <n> failing pointing at its red.log on a TDD: required PASS", () => {
-  assert.ok(has(CODER, "on PASS of a `TDD: required` task with a task file, never on a `repair` pass without a `reason` line"));
-  assert.ok(has(CODER, "`RED: <n> failing | <out>/red.log`"));
+  assert.ok(has(CODER, "on PASS of a `TDD: required` task with a task file: `RED: <n> failing | <out>/red.log`"));
+});
+
+test("task-coder on an attempt starting with the production code in the tree takes red from the revert route into a fresh log (a green rerun must not fail the attempt or overwrite earlier evidence)", () => {
+  assert.ok(has(CODER, "On a dispatch carrying `reason`, `report`, `resume` or `repair`, where the production code is already in the tree, a new test's red comes from `tdd.md`'s revert route instead"));
+  assert.ok(has(CODER, "goes to the next free log of `<out>` (`red-2.log`, `red-3.log`, ...), never over an earlier one"));
+});
+
+test("task-coder removes a path it reverted from its extras file", () => {
+  assert.ok(has(CODER, "remove from that file every path you reverted to its committed state"));
 });
 
 test("task-coder returns RED: missing <symbol> only for an error naming a symbol not yet existing", () => {

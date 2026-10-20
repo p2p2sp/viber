@@ -21,8 +21,8 @@
 #
 # Known limit: the verdict is per whole Verification command. A test file that
 # mixes tests depending on the change with tests that pass without it still
-# fails as a whole, so it reads FAIL-AS-EXPECTED; the reviewer catches the
-# individual test names from the log.
+# fails as a whole, so it reads FAIL-AS-EXPECTED; the task's reviewer, never
+# waived for a TDD: required task, checks the individual test names in the log.
 #
 # Contract:
 #   argv   : <plan> <id>. The plan file as plan-path.sh printed it (relative to
@@ -54,8 +54,17 @@
 #            runs' output. No tracked file of the main tree and nothing in its
 #            index changes; a linked directory is shared, so a runner cache
 #            written there lands in the main tree. git records the worktree
-#            under .git/worktrees/ until the cleanup; a git worktree prune
-#            before the add clears an entry a killed earlier call left.
+#            under .git/worktrees/ until the cleanup. Beside the worktree,
+#            <temp dir>/red-check.owner holds the script PID on its first line
+#            and, one per line, the worktree-relative path of each link,
+#            written before the link is made.
+#   recover: before the add, every registered worktree named "wt" whose
+#            parent holds a red-check.owner with a PID no longer alive (a call
+#            killed before its trap ran) loses its listed links first, and
+#            only when every one is gone is it removed (git worktree remove
+#            --force, then its temp directory); a link that would not go leaves
+#            it in place with a "warning:" line on stderr. git worktree prune
+#            follows.
 #   cleanup: an EXIT trap (INT, TERM and HUP exit through it) removes the
 #            links first (cmd rmdir on a junction, rm on a symlink), and only
 #            when every link is gone runs git worktree remove --force and git
@@ -69,9 +78,14 @@
 #                red run zero; every changed test path of the task
 #              red-check: UNRUNNABLE <reason>
 #                no test files among the task's changes, a link that failed
-#                (link failed: <path>), the worktree could not be built or a
-#                task path not placed in it (worktree error: <what>), or the
-#                control run failed (control run failed (exit <n>): <log>)
+#                (link failed: <path>), an entry of a linked directory (<link>/*
+#                or <link>/@*/*) that is itself a link resolving into the
+#                repository, outside every linked directory, to a directory
+#                holding one of the task's production files: a workspace
+#                package the red run would load changed (workspace link
+#                reaches the change: <entry>), the worktree could not be built
+#                or a task path not placed in it (worktree error: <what>), or
+#                the control run failed (control run failed (exit <n>): <log>)
 #   exit   : 0 with the verdict line; 2 on bad arguments or plan, nothing on
 #            stdout.
 #
@@ -266,11 +280,45 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT TERM HUP
 
+# Removes the worktree of an earlier call killed before its trap ran: its links
+# first, read from its owner file, and the worktree only once all are gone.
+reclaim_stale() {
+  local line p owner pid rel all_gone
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) p="${line#worktree }" ;;
+      *) continue ;;
+    esac
+    [[ "$p" == */wt ]] || continue
+    owner="${p%/wt}/red-check.owner"
+    [[ -f "$owner" ]] || continue
+    pid=""
+    IFS= read -r pid < "$owner" || true
+    [[ "$pid" =~ ^[0-9]+$ ]] || continue
+    kill -0 "$pid" 2>/dev/null && continue
+    all_gone=1
+    while IFS= read -r rel; do
+      rel="${rel%$'\r'}"
+      [[ -n "$rel" ]] || continue
+      unlink_dir "$p/$rel" || all_gone=0
+    done < <(tail -n +2 "$owner")
+    if [[ "$all_gone" -eq 1 ]]; then
+      git -C "$root" worktree remove --force "$p" >> "$log" 2>&1 || true
+      rm -rf -- "${p%/wt}" 2>/dev/null || true
+      printf 'red-check: reclaimed %s\n' "$p" >> "$log"
+    else
+      echo "warning: red-check.sh left the stale worktree $p in place: a link would not go" >&2
+    fi
+  done < <(git worktree list --porcelain 2>/dev/null || true)
+}
+
+reclaim_stale
 tmp="$(mktemp -d)" || {
   echo "red-check: UNRUNNABLE worktree error: mktemp -d failed"
   exit 0
 }
 wt="$tmp/wt"
+printf '%s\n' "$$" > "$tmp/red-check.owner"
 git worktree prune >> "$log" 2>&1 || true
 if git worktree add --detach "$wt" HEAD >> "$log" 2>&1; then
   added=1
@@ -294,6 +342,7 @@ if [[ ${#link_names[@]} -gt 0 ]]; then
       [[ -d "$root/$rel" ]] || continue
       [[ -e "$wt/$rel" || -L "$wt/$rel" ]] && continue
       if [[ "$rel" == */* ]]; then mkdir -p "$wt/${rel%/*}" 2>/dev/null || true; fi
+      printf '%s\n' "$rel" >> "$tmp/red-check.owner"
       if [[ "$windows" -eq 1 ]]; then
         MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' cmd /c mklink /J "$(cygpath -w "$wt/$rel")" "$(cygpath -w "$root/$rel")" >> "$log" 2>&1 || true
       else
@@ -309,6 +358,38 @@ if [[ ${#link_names[@]} -gt 0 ]]; then
     done
   done < <({ printf '.\n'; git ls-files -z | tr '\0' '\n' | awk '{ n = split($0, s, "/"); d = ""; for (i = 1; i < n; i++) { d = (d == "" ? s[i] : d "/" s[i]); print d } }'; } | sort -u)
 fi
+
+# Case-folded on Windows, where a junction may resolve in another case.
+fold() {
+  if [[ "$windows" -eq 1 ]]; then printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; else printf '%s' "$1"; fi
+}
+
+# A workspace package inside a linked directory (node_modules/@scope/pkg ->
+# ../../packages/pkg) resolves to the main tree, which holds the task's
+# production change: the red run would load the changed code, never HEAD's.
+root_f="$(fold "$root")"
+for l in ${links[@]+"${links[@]}"}; do
+  for e in "$l"/* "$l"/@*/*; do
+    [[ -L "$e" ]] || continue
+    target="$(cd -P -- "$e" 2>/dev/null && pwd -P)" || continue
+    target="$(fold "$target")"
+    [[ "$target" == "$root_f"/* ]] || continue
+    trel="${target#"$root_f"/}"
+    inside=0
+    for n in ${link_names[@]+"${link_names[@]}"}; do
+      case "/$trel/" in */"$(fold "$n")"/*) inside=1 ;; esac
+    done
+    [[ "$inside" -eq 0 ]] || continue
+    for f in ${prod_files[@]+"${prod_files[@]}"}; do
+      case "$(fold "$f")" in
+        "$trel"/*)
+          echo "red-check: UNRUNNABLE workspace link reaches the change: ${e#"$wt"/}"
+          exit 0
+          ;;
+      esac
+    done
+  done
+done
 
 # Brings one task path from the main tree into the worktree: copied when it
 # exists, removed when the change deleted it.

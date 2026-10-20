@@ -26,7 +26,7 @@ You orchestrate and delegate: every piece of work runs inside a subagent. Open n
 - Every bundled-script run is one literal Bash line, `"${CLAUDE_PLUGIN_ROOT}/scripts/<name>.sh" "<arg>" ...`, every argument double-quoted: never prefixed with an interpreter, never assigned to a variable, never preceded by `cd`, never chained with `;`.
 - Every dispatch or call that starts or ends a task-list entry carries that entry's `TaskUpdate` in the same message.
 - Never two `commit-task.sh` calls in one message: each rewrites the git index and `status.md`.
-- A `commit-task.sh` call exiting non-zero committed nothing. Except a task's own commit, a commit outside a task, a `--rule` call, a `--skip` or `--decide` call made after an arbiter ruling, a `--repaired` call (step 4 owns these five) and an `--extension` call (step 6's extension text owns it): `AskUserQuestion`: retry / abort, on abort one `left uncommitted: <path> | commit refused, the build was aborted` line per path in the final summary.
+- A `commit-task.sh` call exiting non-zero committed nothing. Except a task's own commit, a commit outside a task, a `--rule` call, a `--skip` or `--decide` call made after an arbiter ruling (step 4 owns these four) and an `--extension` call (step 6's extension text owns it): `AskUserQuestion`: retry / abort, on abort one `left uncommitted: <path> | commit refused, the build was aborted` line per path in the final summary.
 - An agent's completion notice saying it "stopped with background work of its own still running": hold its verdict and `SendMessage` that agent, once: `Stop every process you started that is still running, then return your output lines again.` Act on what it returns then. The same notice again -> act on the verdict and name that agent's task in the final summary.
 - An agent returning no `VERDICT:` line -> act as on its `VERDICT: FAIL` when its output defines one, else on its `VERDICT: DENIED`, with `REASON: no verdict returned`.
 
@@ -78,7 +78,6 @@ Never dispatch a `done` or `skipped` task again. Also on the index:
   - Leave uncommitted: one `left uncommitted: <path> | the user chose to leave it uncommitted` line per path in the final summary.
 - `unreviewed: <ids>` -> carry to the final summary.
 - `deferred: <id>:<path>` -> that task's `deferred:` line in step 4.
-- `owed: <id>:<path>` -> the owed-path passes of step 4.
 - `closed: <parts>` -> those parts of steps 6 and 7 are already recorded.
 - `decision: <id>: <text>` -> a `decision:` line in step 4.
 - `ruling: <subject>: <text>` -> carry to step 7.
@@ -95,7 +94,7 @@ Tier:
 - Every other task -> `sonnet`.
 - A floor the host's instructions declare for a kind of task (a minimum tier, a mandatory review) raises both decisions to it.
 
-Review: the reviewer is waived only on a `sonnet` task whose `verify:` line runs the project's build or its tests, never on `haiku` or `opus`, nor on a load-bearing task: a `feeds` entry counting 3 or more, nor on a `TDD: required` task unless the config block's `build.red-check` reads `true`. A `verify:` line running `grep`, `test -f` or any other content check is reviewed whatever its tier. Its review tier is the task's tier, raised to `sonnet` from `haiku`, and to `opus` on a load-bearing task.
+Review: the reviewer is waived only on a `sonnet` task whose `verify:` line runs the project's build or its tests, never on `haiku` or `opus`, nor on a load-bearing task: a `feeds` entry counting 3 or more, nor on a `TDD: required` task. A `verify:` line running `grep`, `test -f` or any other content check is reviewed whatever its tier. Its review tier is the task's tier, raised to `sonnet` from `haiku`, and to `opus` on a load-bearing task.
 
 Then clamp both tiers into the config block's `tiers.min` to `tiers.max` range (`haiku` < `sonnet` < `opus` < `fable`). The review waiver is decided before the clamp.
 
@@ -144,12 +143,12 @@ Reviewer dispatch: `viber:task-reviewer` (Agent tool, `model` = the review tier)
 
 Commit: `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>"` with its `TaskUpdate` -> completed, plus:
 
-- `--with "<path>" [...]` for every path on an `EXTRA:` line the task's coders and reviewers returned in this session, so a path missing from the extras files still lands with the task.
+- `--with "<path>" [...]` for every path on an `EXTRA:` line of the attempt being committed, its coder's and its reviewers', so a path missing from the extras files still lands with the task.
 - `--defer "<target-id>:<path>" [...]` for every `DEFERRED:` line its coder returned; a `-> none` line takes no `--defer` and goes to the final summary as a deferred path without an owner.
 
 Warnings off the commit never stop the build: carry `refused <path> - claimed by task <id>`, `took <path> - claimed by committed task <id>` and `changed, claimed by no task in the plan` to the final summary.
 
-Attempts: an attempt is one coder dispatch, a `WAIT:` hold and the retry of a `VERDICT: DENIED` excepted. A coder failure is a `VERDICT: FAIL`, a `PASS` with its `DOD:` line short of its total, or a `PASS` of a `TDD: required` task, an owed-path pass excepted, with no `RED:` line or `RED: 0 failing`, its `REASON:` read as `no red evidence`.
+Attempts: an attempt is one coder dispatch, a `WAIT:` hold and the retry of a `VERDICT: DENIED` excepted. A coder failure is a `VERDICT: FAIL`, a `PASS` with its `DOD:` line short of its total, or a `PASS` of a `TDD: required` task with no `RED:` line or `RED: 0 failing`, its `REASON:` read as `no red evidence`.
 
 - A task gets at most 5 attempts in this session; a coder failure, a review failure and a task commit exiting other than 4 each end one. A resumed session starts every task's count over.
 - Each attempt after the first runs one tier up from the last, clamped into `tiers.max`, its review tier rising with it (a waived review stays waived) and raised to `sonnet` from `haiku`; a `TaskUpdate` rewrites the task's subject with the new tiers.
@@ -174,32 +173,24 @@ Start with every task whose `deps` are done, in one message. On every return, an
 
 - Coder `VERDICT: FAIL` carrying `WAIT:` -> hold the task; once every task in flight at that return has returned, dispatch its coder fresh at the same tier, counting as no attempt and asking nothing. Nothing else in flight at that return, or the task already waited once on a path it names -> act on it as an ordinary `FAIL` below.
 - Coder failure on attempt 1 to 4 -> the next attempt, asking nothing. From attempt 2 on, a `DECIDE:` line -> first the arbiter: `case: decide`, `options:` those options only, `task: <dir>/tasks/<id>.md`, `report: <dir>/work/<id>-coder.md`, `reason:` the returned `REASON:` (the short `DOD:` line when none came); record its ruling with subject `<id>`, then its decision: `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --decide "<plan>" "<id>" --from "<dir>/work/ruling-<id>.md"`, or the `--first-of` call above when its `RULING` names no listed option, then the next attempt with its `decision:` lines, the new one among them, the attempt count not starting over. No `DECIDE:` line -> no arbiter.
-- Coder failure on attempt 5, reviewer `FAIL` on attempt 5, or a task commit exiting other than 4 on attempt 5 -> the limit: hold the task and every task depending on it, directly or through another dependent, asking nothing and calling no arbiter. None of them dispatches while held, the rest of the plan goes on, and the failure's `REASON:` (the commit's error after a refused commit) waits for the held-task pass below.
+- Coder failure on attempt 5, reviewer `FAIL` on attempt 5, or a task commit exiting other than 4 on attempt 5 -> the limit: hold the task and every task depending on it, directly or through another dependent, asking nothing and calling no arbiter. None of them dispatches while held, the rest of the plan goes on, and the failure's `REASON:` (the commit's error after a refused commit) waits for the repair pass below.
 - Coder `VERDICT: DENIED` -> `AskUserQuestion` naming the task: retry / skip / abort.
 - Coder `PASS`, and review due or the task's coder returned an `EXTRA:` line in any attempt -> reviewer dispatch at the next round.
 - Coder `PASS` otherwise -> commit.
 - Reviewer `VERDICT: PASS` -> commit.
 - Reviewer `VERDICT: FAIL` on attempt 1 to 4 -> the next attempt, with the returned `REVIEW` path as `report:`.
 - Reviewer `VERDICT: DENIED` -> `AskUserQuestion` naming the task: retry / accept / abort.
-- Commit exit 4 -> nothing was committed; `TaskUpdate` back to in progress and `AskUserQuestion`: retry / skip / abort. When it names `--landed`, add a first option: already committed - the user names the commit, and the same call re-runs with `--landed "<sha>"`.
+- Commit exit 4 -> nothing was committed; `TaskUpdate` back to in progress and `AskUserQuestion`: retry / skip / abort. When it names `--landed`, add a first option: already committed - the user names the commit, and the same call re-runs with `--landed "<sha>"` in place of its `--with` paths.
 - Commit any other non-zero exit on attempt 1 to 4 -> nothing was committed; `TaskUpdate` back to in progress, then the next attempt.
 
-Repair pass: the second chance of a task, of two kinds: the held-task pass, for a task held at attempt 5, and the owed-path pass, for a done task for the paths it owes. It is a coder dispatch of the task, never step 5's repair dispatch.
+Repair pass: the second chance of a task held at attempt 5. It is a coder dispatch of the task, never step 5's repair dispatch.
 
-- Start only when no agent is in flight and no task is ready to dispatch, before step 5.
-  - held-task pass: before every owed-path pass, one held task at a time, in the order held.
-  - owed-path pass: owing tasks are the index `owed:` entries; one pass per task covering all its paths, run one at a time, in index order.
-- Dispatch: the task's ordinary coder and reviewer dispatch lines, plus `repair: <one line: the problem this pass fixes>` on both, the review never waived.
-  - held-task pass: also `reason:` the last failure's `REASON:` (the commit's error after a refused commit) on the coder's; its coder reads every `review-<id>-*.md` report of the task itself; both run at `tiers.max` for coder and reviewer.
-  - owed-path pass: also `deferred: <the task's owed paths>` on the coder's; its tier is the tier of the task's last attempt, its review tier the task's review tier raised to `sonnet`.
-- Entry: `TaskCreate` `R<n> - repair <id> (<tier>, review <review tier>)`, `<n>` counting from 1 in the session; it completes with the task's commit (held-task pass) or the `--repaired` call (owed-path pass), or with the second failure.
+- Start only when no agent is in flight and no task is ready to dispatch, before step 5, one held task at a time, in the order held.
+- Dispatch: the task's ordinary coder and reviewer dispatch lines, plus `repair: <one line: the problem this pass fixes>` on both and `reason:` the last failure's `REASON:` (the commit's error after a refused commit) on the coder's, the review never waived; its coder reads every `review-<id>-*.md` report of the task itself; both run at `tiers.max` for coder and reviewer.
+- Entry: `TaskCreate` `R<n> - repair <id> (<tier>, review <review tier>)`, `<n>` counting from 1 in the session; it completes with the task's commit or with the second failure.
 - At most 2 attempts: a coder failure (a `DECIDE:` line included, never sent to the arbiter), a review failure and a task commit exiting other than 4 each cost one. The second attempt is the same fresh dispatch carrying the new failure's `reason:` and, after a review failure, the `REVIEW` path as `report:`.
-- Commit: a coder `PASS` goes to review, a reviewer `PASS` to the task commit `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>"`.
-  - held-task pass: `--with` and `--defer` as above, with its `TaskUpdate` -> completed; its exit 4 is the commit exit 4 above. Once it succeeds, the task is done and its dependents dispatch as ordinary tasks.
-  - owed-path pass: `--with` and `--defer` as above; its exit 4 after a reviewer `PASS` counts as done. Once it succeeds, `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --repaired "<plan>" "<id>"` with the entry's `TaskUpdate` -> completed; exiting non-zero -> name it in the final summary, ask nothing.
-- Both attempts failed:
-  - held-task pass: the arbiter with `case: cap` (never `decide`), `task: <dir>/tasks/<id>.md`, `report:` lines for `<dir>/work/<id>-coder.md` and the task's last `REVIEW` path when it has one, `reason:` the repair's last failure, and `options: accept | skip` after a review failure, `options: skip` otherwise. Record its ruling with subject `<id>`, then carry it out: `accept` -> the task's commit with `--unreviewed` appended, the task named unreviewed in the final summary; `skip` -> the `skip` answer's calls. An `accept` commit exiting other than 4 -> the arbiter again with `options: skip`, that commit's error as `reason:` and the same `report:` lines, its ruling recorded and carried out the same way.
-  - owed-path pass: name the task's owed paths in the final summary as deferred paths without an owner, and one `left uncommitted: <path> | repair pass of <id> failed` line per path on the union of both attempts' `FILES:` and `EXTRA:` lines. Never `--repaired`.
+- Commit: a coder `PASS` goes to review, a reviewer `PASS` to the task commit `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>"`, `--with` and `--defer` as above, with its `TaskUpdate` -> completed; its exit 4 is the commit exit 4 above. Once it succeeds, the task is done and its dependents dispatch as ordinary tasks.
+- Both attempts failed: the arbiter with `case: cap` (never `decide`), `task: <dir>/tasks/<id>.md`, `report:` lines for `<dir>/work/<id>-coder.md` and the task's last `REVIEW` path when it has one, `reason:` the repair's last failure, and `options: accept | skip` after a review failure, `options: skip` otherwise. Record its ruling with subject `<id>`, then carry it out: `accept` -> the task's commit with `--unreviewed` appended, the task named unreviewed in the final summary; `skip` -> the `skip` answer's calls. An `accept` commit exiting other than 4 -> the arbiter again with `options: skip`, that commit's error as `reason:` and the same `report:` lines, its ruling recorded and carried out the same way.
 
 ## 5 to 7. Close and archive
 

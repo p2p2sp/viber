@@ -14,7 +14,8 @@
  * in the main tree, so another task's dirty file must never reach the worktree,
  * the main tree's `git status` must read the same before and after, no
  * worktree may stay registered, and a linked `node_modules` must survive the
- * forced worktree removal with its content.
+ * forced worktree removal with its content, both after a normal call and when
+ * a later call reclaims the worktree a killed call left behind.
  *
  * The fixture's Verification command is a plain `bash tests/check.sh`, which
  * sources the production file `src/lib.sh`: a shell test keeps each case to a
@@ -27,6 +28,7 @@
 
 import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -219,6 +221,65 @@ test("a node_modules directory of the main tree is linked into the worktree and 
       assert.equal((await worktrees(repo)).length, 1);
       // The worktree's temp directory is gone too: nothing is left behind in TMPDIR.
       assert.deepEqual(fs.readdirSync(tmp), []);
+    });
+  });
+});
+
+test("a fixture under a testdata/ directory travels with the tests into the red run (a fixture counted as production would make any test fail there and seal it falsely)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    changeProduction(repo.dir);
+    write(repo.dir, "src/testdata/expected.txt", "7\n");
+    write(repo.dir, "tests/check.sh", '[ "$(cat src/testdata/expected.txt)" = 7 ]\n');
+    write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, "src/testdata/expected.txt\n");
+    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, "red-check: PASSED-WITHOUT-CHANGE tests/check.sh src/testdata/expected.txt\n");
+  });
+});
+
+test("a workspace package link inside node_modules resolving to the directory of a changed production file yields UNRUNNABLE naming the entry (the red run would load the changed code through it)", {
+  skip: process.platform !== "win32" && !canSymlinkDir() ? "this account cannot create a directory symlink" : false,
+}, async () => {
+  await withGitRepo(async (repo) => {
+    await withTempDir("red-check-tmp-", async (tmp) => {
+      await seed(repo);
+      changeProduction(repo.dir);
+      fs.mkdirSync(path.join(repo.dir, "node_modules", "@acme"), { recursive: true });
+      fs.symlinkSync(path.join(repo.dir, "src"), path.join(repo.dir, "node_modules", "@acme", "core"), "junction");
+      write(repo.dir, "tests/check.sh", '. ./node_modules/@acme/core/lib.sh\n[ "$(answer)" = 42 ]\n');
+      const r = await run(repo.dir, { ...repo.env, TMPDIR: tmp }, [PLAN_REL, "T1"]);
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(r.stdout, "red-check: UNRUNNABLE workspace link reaches the change: node_modules/@acme/core\n");
+      assert.equal(fs.readFileSync(path.join(repo.dir, "src/lib.sh"), "utf-8"), "answer() { echo 42; }\n");
+      assert.equal((await worktrees(repo)).length, 1);
+      assert.deepEqual(fs.readdirSync(tmp), []);
+    });
+  });
+});
+
+test("a worktree an earlier call left behind, its owner PID dead, is reclaimed link first and the linked directory keeps its content (a killed call never ran its trap)", {
+  skip: process.platform !== "win32" && !canSymlinkDir() ? "this account cannot create a directory symlink" : false,
+}, async () => {
+  await withGitRepo(async (repo) => {
+    await withTempDir("red-check-stale-", async (stale) => {
+      await seed(repo);
+      changeProduction(repo.dir);
+      write(repo.dir, "node_modules/pkg/value.txt", "7\n");
+      write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
+      const left = path.join(stale, "wt");
+      await repo.git("worktree", "add", "--detach", left, "HEAD");
+      fs.symlinkSync(path.join(repo.dir, "node_modules"), path.join(left, "node_modules"), "junction");
+      // A PID that belonged to a process already gone.
+      const dead = spawnSync(process.execPath, ["-e", ""]).pid;
+      fs.writeFileSync(path.join(stale, "red-check.owner"), `${dead}\nnode_modules\n`);
+      assert.equal((await worktrees(repo)).length, 2);
+      const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+      assert.equal((await worktrees(repo)).length, 1);
+      assert.equal(fs.existsSync(left), false);
+      assert.equal(fs.readFileSync(path.join(repo.dir, "node_modules/pkg/value.txt"), "utf-8"), "7\n");
     });
   });
 });

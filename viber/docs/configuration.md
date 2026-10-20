@@ -60,13 +60,13 @@ reference. Back to the [viber guide](../README.md).
   reviewer checks that the failing tests are the task's new ones. With it on, the build then runs
   the task's tests in a git worktree of `HEAD` in the system temp directory, holding the task's
   test files but not its production change: tests that pass there send the task back to its coder,
-  and a check that cannot run makes the task's review mandatory. Only then may a `TDD: required`
-  task on the sonnet tier skip review; with it off, every such task is reviewed. Two settings
-  tune it:
+  and a check that cannot run is reported to the task's reviewer. A `TDD: required` task is always
+  reviewed, whatever this switch reads. Two settings tune it:
   - `build.red-check-tests`: what counts as a test file. Default: `__tests__/ tests/ test/
     *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go
-    *Test.java *Test.kt`. An entry ending in `/` matches any directory of the path, any other a
-    file name.
+    *Test.java *Test.kt conftest.py testdata/ __mocks__/ __fixtures__/ fixtures/ jest.config.*
+    vitest.config.*`. An entry ending in `/` matches any directory of the path, any other a file
+    name.
   - `build.red-check-links`: directories linked from your working tree into the worktree at the
     same path, so the tests run without an install. Default: `node_modules`.
   - Both take entries separated by spaces, unquoted; a `#` after a space starts a comment. Empty,

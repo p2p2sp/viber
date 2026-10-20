@@ -1351,7 +1351,7 @@ test("--branching prints the same report with and without a local file carrying 
 
 // --- config.sh --red-check: the test patterns and the worktree links ---
 
-const RED_CHECK_TESTS = "__tests__/ tests/ test/ *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go *Test.java *Test.kt";
+const RED_CHECK_TESTS = "__tests__/ tests/ test/ *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go *Test.java *Test.kt conftest.py testdata/ __mocks__/ __fixtures__/ fixtures/ jest.config.* vitest.config.*";
 const RED_CHECK_DEFAULTS = [`red-check.tests: ${RED_CHECK_TESTS}`, "red-check.links: node_modules"];
 
 /** Every line `--red-check` printed, the exit asserted 0 first: no input may break the call. */

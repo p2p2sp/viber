@@ -104,7 +104,9 @@
 #            blanks, no quoting. Empty, a comment alone or absent -> the
 #            default: tests `__tests__/ tests/ test/ *.Tests/ *.UnitTests/
 #            *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py
-#            *_test.go *Test.java *Test.kt`, links `node_modules`.
+#            *_test.go *Test.java *Test.kt conftest.py testdata/ __mocks__/
+#            __fixtures__/ fixtures/ jest.config.* vitest.config.*`, links
+#            `node_modules`.
 #   file   : <repo root>/.claude/viber.local.yml (optional, the same layout and
 #            key grammar, personal and git-ignored; outside a repository
 #            .claude/viber.local.yml under the cwd). It overrides exactly four
@@ -306,7 +308,7 @@ function list(v, dflt,  n, e, i, out) {
   return out == "" ? dflt : out
 }
 END {
-  print "red-check.tests: " list(raw["build.red-check-tests"], "__tests__/ tests/ test/ *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go *Test.java *Test.kt")
+  print "red-check.tests: " list(raw["build.red-check-tests"], "__tests__/ tests/ test/ *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go *Test.java *Test.kt conftest.py testdata/ __mocks__/ __fixtures__/ fixtures/ jest.config.* vitest.config.*")
   print "red-check.links: " list(raw["build.red-check-links"], "node_modules")
 }
 '

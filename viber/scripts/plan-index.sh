@@ -17,9 +17,6 @@
 #   skipped: T4                     only when status.md carries the entry
 #   unreviewed: T3                  only when status.md carries the entry
 #   deferred: T7:src/a.ts           only when status.md carries the entry
-#   owed: T1:src/a.ts               only the "owed" entries of status.md whose
-#                                   task is not on its "repaired" line, none left
-#                                   no line
 #   closed: memory rules            only when status.md carries the entry
 #   decision: T2: <text>            one per "decision:" line of status.md, in
 #                                   file order, printed as it stands there
@@ -85,7 +82,7 @@
 # break.
 #
 # The run's state is read from status.md beside the plan - "done", "skipped",
-# "unreviewed", "deferred", "owed", "repaired" and "closed", one key per line,
+# "unreviewed", "deferred" and "closed", one key per line,
 # "none" for an empty one. The plan
 # itself is never written to after it lands, so nothing here parses it for
 # progress; a plan with no status.md beside it (one being validated before it
@@ -94,9 +91,7 @@
 # not start the build needs. A "deferred" entry is "<task-id>:<path>" - code an
 # earlier task left without its own test because the criterion that proves it
 # belongs to that task, which is how a resumed session still knows who owes the
-# proof. An "owed" entry is "<task-id>:<path>" too - code that task left behind
-# with no task to prove it; a task on the "repaired" line has had it dealt with,
-# so its entries are not printed. A "decision:" line is the build's ruling on a stalled task
+# proof. Any other key of status.md is ignored. A "decision:" line is the build's ruling on a stalled task
 # (commit-task.sh --decide), "decision: <task-id>: <text>", any number of them;
 # a status.md with none prints exactly what it printed before the line existed.
 # "state" is "done", "skipped" or "todo"; a "dirty"
@@ -358,8 +353,6 @@ st_done=""
 st_skipped=""
 st_unreviewed=""
 st_deferred=""
-st_owed=""
-st_repaired=""
 st_closed=""
 st_decisions=""
 if [[ -f "$dir/status.md" ]]; then
@@ -370,8 +363,6 @@ if [[ -f "$dir/status.md" ]]; then
       skipped:*)    st_skipped="${line#skipped:}" ;;
       unreviewed:*) st_unreviewed="${line#unreviewed:}" ;;
       deferred:*)   st_deferred="${line#deferred:}" ;;
-      owed:*)       st_owed="${line#owed:}" ;;
-      repaired:*)   st_repaired="${line#repaired:}" ;;
       closed:*)     st_closed="${line#closed:}" ;;
       decision:*)   st_decisions="$st_decisions$line"$'\n' ;;
     esac
@@ -418,7 +409,7 @@ fi
 index_out="$(plan="$plan" changed="$changed" mode="$awk_mode" rundir="$dir" \
 extra="$extra_id" extra_paths="$extra_paths" \
 st_done="$st_done" st_skipped="$st_skipped" st_unreviewed="$st_unreviewed" \
-st_deferred="$st_deferred" st_owed="$st_owed" st_repaired="$st_repaired" st_closed="$st_closed" st_decisions="$st_decisions" st_rulings="$st_rulings" \
+st_deferred="$st_deferred" st_closed="$st_closed" st_decisions="$st_decisions" st_rulings="$st_rulings" \
 awk '
 function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
 function val(s)  { sub(/^[^:]*:/, "", s); return trim(s) }
@@ -571,8 +562,6 @@ BEGIN {
   skipped = listed(ENVIRON["st_skipped"])
   unrev   = listed(ENVIRON["st_unreviewed"])
   defer   = listed(ENVIRON["st_deferred"])
-  owed    = listed(ENVIRON["st_owed"])
-  repaired = listed(ENVIRON["st_repaired"])
   closed  = listed(ENVIRON["st_closed"])
   decisions = ENVIRON["st_decisions"]
   rulings = ENVIRON["st_rulings"]
@@ -940,17 +929,6 @@ END {
   if (skipped != "") printf "skipped: %s\n", skipped
   if (unrev   != "") printf "unreviewed: %s\n", unrev
   if (defer   != "") printf "deferred: %s\n", defer
-  # an owed entry is "<task-id>:<path>"; the id is what a repaired line names
-  split(repaired, rlist, /[[:space:]]+/)
-  for (k in rlist) if (rlist[k] != "") isrepaired[rlist[k]] = 1
-  openowed = ""
-  m = split(owed, olist, /[[:space:]]+/)
-  for (k = 1; k <= m; k++) {
-    if (olist[k] == "") continue
-    oid = substr(olist[k], 1, index(olist[k], ":") - 1)
-    if (!(oid in isrepaired)) openowed = (openowed == "" ? olist[k] : openowed " " olist[k])
-  }
-  if (openowed != "") printf "owed: %s\n", openowed
   if (closed  != "") printf "closed: %s\n", closed
   printf "%s", decisions
   printf "%s", rulings

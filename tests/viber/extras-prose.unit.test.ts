@@ -65,8 +65,8 @@ test("the reviewer dispatch of implementor carries the C7 scope line", () => {
   assert.ok(lines(REVIEWER_DISPATCH).some((line) => line.includes(`\`${SCOPE_LINE}\``)));
 });
 
-test("the task commit passes the EXTRA paths returned in this session through --with (a coder that skipped its extras file must not leak the path into a later task's commit)", () => {
-  assert.ok(COMMIT.includes("`--with \"<path>\" [...]` for every path on an `EXTRA:` line the task's coders and reviewers returned in this session"));
+test("the task commit passes the EXTRA paths of the attempt being committed through --with (a path an earlier attempt reverted must not sweep another task's change into this commit)", () => {
+  assert.ok(COMMIT.includes("`--with \"<path>\" [...]` for every path on an `EXTRA:` line of the attempt being committed, its coder's and its reviewers'"));
   assert.ok(COMMIT.includes("--defer"));
 });
 
