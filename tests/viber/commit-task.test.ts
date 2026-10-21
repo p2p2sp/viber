@@ -3372,3 +3372,155 @@ test("the fix-number form for a skipped task still commits (only the task commit
     assert.deepEqual((await subjects(repo))[0], "T2(1) - task T2");
   });
 });
+
+test("--drop deletes an untracked, unignored file no task or extras file lists, prints its dropped line and exits 0, leaving the index, status.md and history alone", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "scratch.txt", "debug\n");
+    const before = readStatus(repo);
+
+    const result = await run(repo.dir, repo.env, ["--drop", PLAN_REL, "scratch.txt"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "dropped: scratch.txt\n");
+    assert.equal(result.stderr, "");
+    assert.equal(fs.existsSync(path.join(repo.dir, "scratch.txt")), false);
+    assert.deepEqual(await stagedFiles(repo), []);
+    assert.equal(readStatus(repo), before);
+    assert.deepEqual(await subjects(repo), ["seed"]);
+  });
+});
+
+test("--drop reads a path given with a leading ./ and a path inside a directory the same way", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "tmp/deep/scratch.txt", "debug\n");
+
+    const result = await run(repo.dir, repo.env, ["--drop", PLAN_REL, "./tmp/deep/scratch.txt"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "dropped: tmp/deep/scratch.txt\n");
+    assert.equal(fs.existsSync(path.join(repo.dir, "tmp/deep/scratch.txt")), false);
+  });
+});
+
+const DROP_KEPT: Array<[name: string, setup: (repo: GitRepo) => Promise<string>, reason: RegExp]> = [
+  [
+    "a tracked file",
+    async (repo) => {
+      write(repo.dir, "src/tracked.ts", "x\n");
+      await repo.git("add", "src/tracked.ts");
+      await repo.git("commit", "-m", "track it");
+      return "src/tracked.ts";
+    },
+    /^warning: kept src\/tracked\.ts - tracked$/m,
+  ],
+  [
+    "a path a task Files line lists",
+    async (repo) => {
+      write(repo.dir, "src/a.ts", "work\n");
+      return "src/a.ts";
+    },
+    /^warning: kept src\/a\.ts - claimed by task T1$/m,
+  ],
+  [
+    "a path the coder extras file of another task lists",
+    async (repo) => {
+      write(repo.dir, `${RUN_DIR}/work/T2-extra.md`, "./lib/helper.ts\n");
+      write(repo.dir, "lib/helper.ts", "x\n");
+      return "lib/helper.ts";
+    },
+    /^warning: kept lib\/helper\.ts - listed by extras of task T2$/m,
+  ],
+  [
+    "a path a reviewer extras file lists",
+    async (repo) => {
+      write(repo.dir, `${RUN_DIR}/work/T1-extra-review.md`, "lib\\helper.ts\r\n");
+      write(repo.dir, "lib/helper.ts", "x\n");
+      return "lib/helper.ts";
+    },
+    /^warning: kept lib\/helper\.ts - listed by extras of task T1$/m,
+  ],
+  [
+    "an ignored path",
+    async (repo) => {
+      write(repo.dir, ".gitignore", "*.log\n");
+      await repo.git("add", ".gitignore");
+      await repo.git("commit", "-m", "ignore logs");
+      write(repo.dir, "build.log", "x\n");
+      return "build.log";
+    },
+    /^warning: kept build\.log - ignored by git$/m,
+  ],
+  [
+    "a path inside the run directory",
+    async (repo) => {
+      write(repo.dir, `${RUN_DIR}/work/notes.md`, "x\n");
+      return `${RUN_DIR}/work/notes.md`;
+    },
+    /^warning: kept docs\/_specs\/[^ ]+\/work\/notes\.md - inside the run directory$/m,
+  ],
+  [
+    "a directory",
+    async (repo) => {
+      write(repo.dir, "scratchdir/file.txt", "x\n");
+      return "scratchdir";
+    },
+    /^warning: kept scratchdir - not a file$/m,
+  ],
+  [
+    "a missing path",
+    async () => "no/such/file.txt",
+    /^warning: kept no\/such\/file\.txt - not found$/m,
+  ],
+];
+
+for (const [name, setup, reason] of DROP_KEPT) {
+  test(`--drop keeps ${name} with its reason while another path of the same call is still dropped`, async () => {
+    await withGitRepo(async (repo) => {
+      await seed(repo);
+      const kept = await setup(repo);
+      write(repo.dir, "scratch.txt", "debug\n");
+      const existedBefore = fs.existsSync(path.join(repo.dir, kept));
+
+      const result = await run(repo.dir, repo.env, ["--drop", PLAN_REL, kept, "scratch.txt"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.match(result.stderr, reason);
+      assert.equal(result.stdout, "dropped: scratch.txt\n");
+      assert.equal(fs.existsSync(path.join(repo.dir, "scratch.txt")), false);
+      assert.equal(fs.existsSync(path.join(repo.dir, kept)), existedBefore);
+    });
+  });
+}
+
+test("--drop with a plan and no path exits 2 with the usage text and deletes nothing", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "scratch.txt", "debug\n");
+
+    const result = await run(repo.dir, repo.env, ["--drop", PLAN_REL]);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /^error: usage: commit-task\.sh/);
+    assert.equal(result.stdout, "");
+    assert.equal(fs.existsSync(path.join(repo.dir, "scratch.txt")), true);
+  });
+});
+
+test("--drop against a missing plan exits 2 and deletes nothing", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "scratch.txt", "debug\n");
+
+    const result = await run(repo.dir, repo.env, ["--drop", `${RUN_DIR}/nope.md`, "scratch.txt"]);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /plan file not found/);
+    assert.equal(result.stdout, "");
+    assert.equal(fs.existsSync(path.join(repo.dir, "scratch.txt")), true);
+  });
+});
+
+test("the usage text lists the --drop form", async () => {
+  await withGitRepo(async (repo) => {
+    const result = await run(repo.dir, repo.env, []);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /--drop <plan-file> <path> \[<path>\.\.\.\]/);
+  });
+});

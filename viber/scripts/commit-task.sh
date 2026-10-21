@@ -21,6 +21,7 @@
 #   commit-task.sh --review <plan-file> <file> [<file>...]
 #   commit-task.sh --outside <plan-file> <file> [<file>...]
 #   commit-task.sh --extension <plan-file> <name> <file> [<file>...]
+#   commit-task.sh --drop <plan-file> <path> [<path>...]
 #
 # The cwd is the repository root. A <plan-file>, <ruling-file> or
 # <options-file> given absolute inside it, or with a leading "./", is read as
@@ -129,6 +130,18 @@
 # "closed:" line in the same commit (once, however often it is called), so a
 # resumed build does not run that extension again. Progress is left alone.
 #
+# --drop deletes scratch files a coder left in the tree that nobody in the plan
+# owns, so the close never commits them. It commits nothing and never touches the
+# index or status.md. A <path> is deleted only when it is an untracked, unignored
+# file outside the run directory that no task's "Files:" line and no extras file
+# of any task lists; every other <path> is kept with a stderr line
+# "warning: kept <path> - <reason>", the reason being tracked, "claimed by task
+# <ids>", "listed by extras of task <ids>", "ignored by git", "inside the run
+# directory", "not a file" (a directory included) or "not found" (a path outside
+# the repository included). The other paths of the same call are still handled.
+# stdout is "dropped: <path>" per deleted path; the exit is 0 once the arguments
+# are valid, kept paths included.
+#
 # Every form that takes the plan closes its message on a "Refs: <plan> ..." line
 # naming the run. A plan whose frontmatter carries "issue: <GitHub issue URL>"
 # (a run tied to an issue) adds "Refs: #<N>" beneath it in the same paragraph,
@@ -216,6 +229,7 @@
 #   --skip:                      "skipped: <id>", "progress: unchanged" (no commit)
 #   --decide:                    "decided: <id>", "progress: unchanged" (no commit)
 #   --rule:                      "ruled: <subject>", "progress: unchanged" (no commit)
+#   --drop:                      "dropped: <path>" per deleted path (no commit)
 # stderr: a warning listing changed paths no task in the plan claims, the run's
 #         own directory excluded - it holds the plan, the decomposition, the
 #         status file and the trail, which no "Files:" line names and every form
@@ -230,7 +244,8 @@
 #       a task id of the plan nor a fixed subject (rulings.md untouched);
 #       for --from and --first-of also a file that is absent, unreadable or
 #       outside <run-dir>/work/, or lacks a required line or holds it empty
-#       (rulings.md, status.md and the file untouched)
+#       (rulings.md, status.md and the file untouched); for --drop also no path
+#       (nothing deleted)
 #   3 - no task with that id in the plan (for --rule, a subject shaped like a
 #       task id, "T<n>...", that the plan does not hold)
 #   4 - the named files produced no change to the working tree (a task
@@ -250,7 +265,7 @@ shopt -s nullglob
 export GIT_LITERAL_PATHSPECS=1
 
 usage() {
-  echo "error: usage: commit-task.sh <plan-file> <task-id> [--unreviewed] [--with <file> [<file>...]] [--defer <task-id>:<path> [...]] [--landed <sha>] | <plan-file> <task-id> <fix-number> <file> [<file>...] | --skip <plan-file> <task-id> | --decide <plan-file> <task-id> <text> | --decide <plan-file> <task-id> --from <ruling-file> | --decide <plan-file> <task-id> --first-of <options-file> | --rule <plan-file> <subject> <ruling> <why> <cost> | --rule <plan-file> <subject> --from <ruling-file> | --repair <plan-file> <round> <file> [<file>...] | --chore <plan-file> <file> [<file>...] | --qa <plan-file> <file> [<file>...] | --e2e <file> [<file>...] | --review <plan-file> <file> [<file>...] | --outside <plan-file> <file> [<file>...] | --extension <plan-file> <name> <file> [<file>...]" >&2
+  echo "error: usage: commit-task.sh <plan-file> <task-id> [--unreviewed] [--with <file> [<file>...]] [--defer <task-id>:<path> [...]] [--landed <sha>] | <plan-file> <task-id> <fix-number> <file> [<file>...] | --skip <plan-file> <task-id> | --decide <plan-file> <task-id> <text> | --decide <plan-file> <task-id> --from <ruling-file> | --decide <plan-file> <task-id> --first-of <options-file> | --rule <plan-file> <subject> <ruling> <why> <cost> | --rule <plan-file> <subject> --from <ruling-file> | --repair <plan-file> <round> <file> [<file>...] | --chore <plan-file> <file> [<file>...] | --qa <plan-file> <file> [<file>...] | --e2e <file> [<file>...] | --review <plan-file> <file> [<file>...] | --outside <plan-file> <file> [<file>...] | --extension <plan-file> <name> <file> [<file>...] | --drop <plan-file> <path> [<path>...]" >&2
   exit 2
 }
 
@@ -1048,6 +1063,57 @@ if [[ "${1:-}" == "--rule" ]]; then
   fi
   echo "ruled: $subject"
   echo "progress: unchanged"
+  exit 0
+fi
+
+# --- scratch files nobody owns, deleted without a commit ---
+# A path is dropped only when nothing in the run could still want it; every
+# other path is kept with its reason, and the call goes on to the next path.
+if [[ "${1:-}" == "--drop" ]]; then
+  plan="$(plan_arg "${2:-}")"
+  [[ -n "$plan" && $# -ge 3 ]] || usage
+  if [[ ! -f "$plan" ]]; then
+    echo "error: plan file not found: $plan" >&2
+    exit 2
+  fi
+  shift 2
+  dir="$(run_dir "$plan")"
+  dir="${dir#./}"
+  for f in "$@"; do
+    f="$(named_path "$f")"
+    f="${f%/}"
+    [[ -n "$f" ]] || continue
+    reason=""
+    if [[ "$f" == /* || "$f" == [A-Za-z]:/* || "/$f/" == */../* ]]; then
+      reason="not found"
+    elif [[ ! -e "$f" && ! -L "$f" ]]; then
+      reason="not found"
+    elif [[ -n "$dir" && ( "$f" == "$dir" || "$f" == "$dir/"* ) ]]; then
+      reason="inside the run directory"
+    elif [[ ! -f "$f" ]]; then
+      reason="not a file"
+    elif [[ -n "$(git ls-files -- "$f")" ]]; then
+      reason="tracked"
+    elif [[ -z "$(git ls-files -o --exclude-standard -- "$f")" ]]; then
+      reason="ignored by git"
+    else
+      ids="$({ claimants "$plan" "$f" || true; } | awk '!seen[$0]++' | tr '\n' ' ')"
+      ids="${ids% }"
+      if [[ -n "$ids" ]]; then
+        reason="claimed by task $ids"
+      else
+        ids="$({ extras_claimants "$plan" "" "$f" || true; } | tr '\n' ' ')"
+        ids="${ids% }"
+        [[ -z "$ids" ]] || reason="listed by extras of task $ids"
+      fi
+    fi
+    if [[ -n "$reason" ]]; then
+      echo "warning: kept $f - $reason" >&2
+    else
+      rm -f -- "$f"
+      echo "dropped: $f"
+    fi
+  done
   exit 0
 fi
 
