@@ -965,3 +965,338 @@ test("a source: line outside a leading frontmatter block does not make the plan 
     }
   });
 });
+
+// --- the review set: a planner plan past 12 tasks ---------------------------
+
+type Verdict = "PASS" | "FAIL" | "DENIED";
+type Member = "spec" | "graph" | "a" | "b" | "c";
+
+const SET_SPEC = "viber:planner-spec-review";
+const SET_GRAPH = "viber:planner-graph-review";
+const SET_TASK = "viber:planner-task-review";
+
+/** The members of a 20-task plan: spec, graph and three task slices of at most 8. */
+const MEMBERS: Record<Member, { agent: string; tasks?: string }> = {
+  spec: { agent: SET_SPEC },
+  graph: { agent: SET_GRAPH },
+  a: { agent: SET_TASK, tasks: "T1-T8" },
+  b: { agent: SET_TASK, tasks: "T9-T16" },
+  c: { agent: SET_TASK, tasks: "T17-T20" },
+};
+
+const STALE = () => new Date(Date.now() - 3600_000).toISOString();
+const FRESH = () => new Date(Date.now() + 3600_000).toISOString();
+
+/** A plan file with `tasks` task blocks; `eol` and `indent` shape the marker lines. */
+function taskPlan(dir: string, tasks: number, opts: { eol?: string; indent?: string; extra?: string } = {}): string {
+  const eol = opts.eol ?? "\n";
+  const indent = opts.indent ?? "";
+  const blocks = Array.from({ length: tasks }, (_, i) => `${indent}<!-- TASK -->${eol}### T${i + 1} - task${eol}<!-- /TASK -->${eol}`).join("");
+  const head = ["---", "source: x.md", "---", "# Plan", ""].join(eol);
+  return realPlan(dir, ".claude/plans/2026-10-21-12-00-00_big/plan.md", head + blocks + (opts.extra ?? ""));
+}
+
+/** One review-set dispatch, its prompt carrying the `tasks:` line of a task slice. */
+function setDispatch(member: Member, id?: string, withTasks = true): string {
+  const { agent, tasks } = MEMBERS[member];
+  const prompt = `review ${PLAN}\nrefs: /refs${tasks && withTasks ? `\ntasks: ${tasks}` : ""}`;
+  const use: Record<string, unknown> = { type: "tool_use", name: "Agent", input: { subagent_type: agent, prompt } };
+  if (id) use.id = id;
+  return line({ type: "assistant", message: { content: [use] } });
+}
+
+/** A member's dispatch and its verdict, paired by a tool-use id of the member's own. */
+function memberRound(member: Member, value: Verdict, opts: { round?: number; timestamp?: string } = {}): [string, string] {
+  const id = `toolu_${member}_r${opts.round ?? 1}`;
+  return [setDispatch(member, id), verdict(value, { id, timestamp: opts.timestamp })];
+}
+
+/** Every member of the 20-task plan, dispatched and answered in order. */
+function reviewSetRound(values: Partial<Record<Member, Verdict>>, opts: { round?: number; timestamp?: string } = {}): string[] {
+  return (Object.keys(MEMBERS) as Member[]).flatMap((m) => (values[m] ? memberRound(m, values[m], opts) : []));
+}
+
+const ALL_PASS: Record<Member, Verdict> = { spec: "PASS", graph: "PASS", a: "PASS", b: "PASS", c: "PASS" };
+
+test("review set: a plan of exactly 12 task blocks is gated on planner-review alone -> its PASS allows", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 12);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), dispatch(), PASS]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: a set member's PASS never counts for a plan of 12 task blocks -> deny on the missing planner-review", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 12);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS)]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /viber:planner-review agent has not run on this version/);
+  });
+});
+
+test("review set: a plan the gate cannot read is gated on planner-review alone, a set member's PASS never counting", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(), ...reviewSetRound(ALL_PASS)]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /viber:planner-review agent has not run on this version/);
+  });
+});
+
+test("review set: marker text that is not a <!-- TASK --> line alone is no task block -> 12 blocks plus quoted markers stay on planner-review", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const quoted = "A task opens with <!-- TASK --> and closes with <!-- /TASK -->.\n".repeat(5);
+    const plan = taskPlan(dir, 12, { extra: quoted });
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), dispatch(), PASS]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: marker lines with surrounding whitespace and CRLF endings count -> 13 blocks refuse a planner-review PASS alone", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 13, { eol: "\r\n", indent: "  " });
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), dispatch(), PASS]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /Next step: review the plan/);
+  });
+});
+
+test("review set: past 12 tasks a planner-review PASS alone is refused with the review next step naming every member", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), dispatch(), PASS]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: review the plan/);
+    assert.match(reason ?? "", new RegExp(SET_SPEC));
+    assert.match(reason ?? "", new RegExp(SET_GRAPH));
+    assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(uncovered tasks T1-T20\\)`));
+  });
+});
+
+test("review set: the refusal names only the members still missing, with the slices of the uncovered tasks to dispatch", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ spec: "PASS", a: "PASS" })]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: review the plan/);
+    assert.doesNotMatch(reason ?? "", new RegExp(SET_SPEC));
+    assert.match(reason ?? "", new RegExp(SET_GRAPH));
+    assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(uncovered tasks T9-T20\\)`));
+    assert.match(reason ?? "", /one dispatch per slice: T9-T16, T17-T20/);
+  });
+});
+
+test("review set: a dispatch that returned no verdict yet leaves its member missing -> deny naming it", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ spec: "PASS", a: "PASS", b: "PASS", c: "PASS" }), setDispatch("graph", "toolu_graph_r1")]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: review the plan/);
+    assert.match(reason ?? "", new RegExp(SET_GRAPH));
+  });
+});
+
+test("review set: every member's latest verdict PASS with the passed slices covering every task -> allow", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS)]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: dispatches carrying no tool-use id pair with the first verdict after each -> allow", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const members = Object.keys(MEMBERS) as Member[];
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...members.flatMap((m) => [setDispatch(m), PASS])]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: a FAIL from the spec reviewer is refused naming it and asking for the findings to be fixed", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ ...ALL_PASS, spec: "FAIL" })]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: fix the findings/);
+    assert.match(reason ?? "", new RegExp(`${SET_SPEC} returned 'VERDICT: FAIL'`));
+  });
+});
+
+test("review set: a FAIL on one task slice is refused naming the task reviewer and the failed tasks, with the whole set to dispatch again", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ ...ALL_PASS, b: "FAIL" })]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: fix the findings/);
+    assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(tasks T9-T16\\) returned 'VERDICT: FAIL'`));
+    assert.match(reason ?? "", new RegExp(SET_SPEC));
+    assert.match(reason ?? "", new RegExp(SET_GRAPH));
+    assert.match(reason ?? "", /one dispatch per slice: T1-T8, T9-T16, T17-T20/);
+  });
+});
+
+test("review set: a DENIED from the graph reviewer is refused with the permission next step naming it", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ ...ALL_PASS, graph: "DENIED" })]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: grant the permission/);
+    assert.match(reason ?? "", new RegExp(`${SET_GRAPH} returned 'VERDICT: DENIED'`));
+  });
+});
+
+test("review set: a DENIED outranks a FAIL of another member -> the permission next step", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ ...ALL_PASS, spec: "FAIL", c: "DENIED" })]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: grant the permission/);
+    assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(tasks T17-T20\\)`));
+  });
+});
+
+test("review set: a missing member outranks a FAIL of another -> the review next step", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ spec: "FAIL", a: "PASS", b: "PASS", c: "PASS" })]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: review the plan/);
+    assert.match(reason ?? "", new RegExp(SET_GRAPH));
+  });
+});
+
+test("review set: after a FAIL the whole set dispatched again with every PASS -> allow (the latest completed pair of each member decides)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [
+      skillUse(),
+      planWrite(plan),
+      ...reviewSetRound({ ...ALL_PASS, b: "FAIL" }),
+      ...reviewSetRound(ALL_PASS, { round: 2 }),
+    ]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: a later FAIL of a member overrides its earlier PASS -> deny", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS), ...reviewSetRound({ graph: "FAIL" }, { round: 2 })]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", new RegExp(`${SET_GRAPH} returned 'VERDICT: FAIL'`));
+  });
+});
+
+test("review set: verdicts of reviews dispatched before the last plan write do not count -> deny naming every member", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS), planWrite(plan, "Edit")]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: review the plan/);
+    assert.match(reason ?? "", new RegExp(SET_SPEC));
+    assert.match(reason ?? "", new RegExp(SET_GRAPH));
+    assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(uncovered tasks T1-T20\\)`));
+  });
+});
+
+test("review set: two task dispatches sent in one message pair each with its own verdict when the second answers first", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const [dispatchA, verdictA] = memberRound("a", "PASS");
+    const [dispatchB, verdictB] = memberRound("b", "FAIL");
+    const rest = reviewSetRound({ spec: "PASS", graph: "PASS", c: "PASS" });
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), dispatchA, dispatchB, verdictB, verdictA, ...rest]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(tasks T9-T16\\) returned 'VERDICT: FAIL'`));
+    assert.doesNotMatch(reason ?? "", /\(tasks T1-T8\)/);
+  });
+});
+
+test("review set: two task dispatches sent in one message pair each with its own verdict when the first answers first -> allow", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const [dispatchA, verdictA] = memberRound("a", "PASS");
+    const [dispatchB, verdictB] = memberRound("b", "PASS");
+    const rest = reviewSetRound({ spec: "PASS", graph: "PASS", c: "PASS" });
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), dispatchA, dispatchB, verdictA, verdictB, ...rest]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: passed slices leaving tasks uncovered are refused naming the uncovered tasks", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ spec: "PASS", graph: "PASS", a: "PASS", c: "PASS" })]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: review the plan/);
+    assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(uncovered tasks T9-T16\\)`));
+  });
+});
+
+test("review set: a task dispatch without a tasks: line covers nothing -> deny naming every task", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const bare = [setDispatch("a", "toolu_bare", false), verdict("PASS", { id: "toolu_bare" })];
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ spec: "PASS", graph: "PASS" }), ...bare]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(uncovered tasks T1-T20\\)`));
+  });
+});
+
+test("review set: one slice spanning several others still decides per task -> a wide PASS slice covers the tasks inside it", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const wide = [
+      line({ type: "assistant", message: { content: [{ type: "tool_use", id: "toolu_wide", name: "Agent", input: { subagent_type: SET_TASK, prompt: `review ${PLAN}\ntasks: T1-T20` } }] } }),
+      verdict("PASS", { id: "toolu_wide" }),
+    ];
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ spec: "PASS", graph: "PASS" }), ...wide]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: a plan modified after the earliest deciding verdict is refused with the re-review next step", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const fresh = reviewSetRound({ graph: "PASS", a: "PASS", b: "PASS", c: "PASS" }, { timestamp: FRESH() });
+    const stale = reviewSetRound({ spec: "PASS" }, { timestamp: STALE() });
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...stale, ...fresh]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: re-review/);
+  });
+});
+
+test("review set: a plan no newer than every deciding verdict -> allow (no false tamper)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS, { timestamp: FRESH() })]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: the hooks.json description states the set rule", () => {
+  const manifest = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/hooks/hooks.json"), "utf8"));
+  assert.match(manifest.description, /review set/);
+  assert.match(manifest.description, /past 12/);
+  assert.match(manifest.description, /planner-spec-review/);
+  assert.match(manifest.description, /planner-graph-review/);
+  assert.match(manifest.description, /planner-task-review/);
+});

@@ -1,0 +1,6 @@
+- DoD.1 (12 tasks or fewer, unreadable plan) is a regression guard: its tests pass before and after the change, so they have no red; the red log covers DoD.2 to DoD.6.
+- The set verdict regex is now in three awk blocks (set awk, pair_raw, verdict_value); keep them identical. Header of plan-gate.sh says so.
+- A set verdict with no matching id pairs with the earliest open id-less set dispatch; a planner-review dispatch is never tracked in set mode.
+- FAIL/DENIED/re-review refusals give the whole set's dispatch text (slices of 8 over 1..n); the missing refusal gives only the missing members, slicing the uncovered tasks.
+- Task blocks are counted by plain grep over the plan file, code fences not excluded.
+- hooks/CLAUDE.md (Contracts, Change together) still describes the single-reviewer gate; the close updates it.

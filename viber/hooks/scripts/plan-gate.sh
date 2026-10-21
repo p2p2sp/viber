@@ -35,6 +35,11 @@
 # dispatch line that carries no id at all keeps the older, looser pairing: the
 # first verdict line after it.
 #
+# A planner plan past 12 task blocks is gated on the whole review set instead of
+# planner-review (see "The review set" below): spec, graph and every task covered by
+# a task-review slice must each have a latest PASS, refusals in the order missing
+# member, DENIED, FAIL, plan touched after the earliest deciding verdict.
+#
 # Every transcript scan skips the "api-request-blob" records: each replays a whole
 # earlier message on one line, so its tool_use blocks look like live events.
 #
@@ -195,6 +200,184 @@ else
   writer="Plan mode"
   dispatch_with="the plan path and one sentence stating the user's goal"
   gate="the plan review gate (planning.plain-plan-review in .claude/viber.yml)"
+fi
+
+# The review set: a planner plan past 12 task blocks (the plan file lines that are
+# `<!-- TASK -->` alone, surrounding whitespace and a CR allowed) is gated on the
+# PASS of every member instead of planner-review alone: planner-spec-review,
+# planner-graph-review and, for every task T<k>, a planner-task-review whose prompt
+# line `tasks: T<a>-T<b>` holds a <= k <= b. 12 tasks or fewer, or a plan that
+# cannot be read, keep planner-review alone.
+#
+# Among the dispatches after the last plan write, every open dispatch is tracked at
+# once: a verdict line carrying a tracked dispatch id pairs with that dispatch, in
+# whatever order the verdicts arrive; a verdict line matching no id pairs with the
+# earliest open dispatch that carries no id. The latest completed pair decides per
+# member (per task for the task reviewers). The verdict pattern below is the one of
+# the pair_raw awk and the verdict_value awk further down: the three must stay
+# identical.
+task_count=0
+if [ "$planner_owns" = "1" ] && [ -n "$plan_path" ] && [ -f "$plan_path" ] && [ -r "$plan_path" ]; then
+  task_count="$(grep -cE '^[[:space:]]*<!-- TASK -->[[:space:]]*$' "$plan_path" 2>/dev/null)"
+  case "$task_count" in ''|*[!0-9]*) task_count=0 ;; esac
+fi
+
+if [ "$task_count" -gt 12 ]; then
+  set_raw="$(
+    awk -v start="$((plan_write_line + 1))" -v n="$task_count" '
+      function pick(k, kind) {
+        if (kind == "all") return 1
+        if (kind == "none") return tval[k] == ""
+        return tval[k] == kind
+      }
+      # The runs of tasks picked by kind: "T9-T16, T20" as ranges, or, with chunk,
+      # as dispatch slices of at most 8 tasks each. A dash when no task is picked.
+      function runs(kind, chunk,    k, s, e, c, ce, out) {
+        out = ""
+        k = 1
+        while (k <= n) {
+          if (!pick(k, kind)) { k++; continue }
+          s = k
+          while (k <= n && pick(k, kind)) k++
+          e = k - 1
+          if (chunk) {
+            for (c = s; c <= e; c += 8) {
+              ce = c + 7
+              if (ce > e) ce = e
+              out = out (out == "" ? "" : ", ") "T" c "-T" ce
+            }
+          } else {
+            out = out (out == "" ? "" : ", ") (s == e ? "T" s : "T" s "-T" e)
+          }
+        }
+        return out == "" ? "-" : out
+      }
+      NR < start { next }
+      /"type":"api-request-blob"/ { next }
+      /"subagent_type":"([a-zA-Z0-9_.-]+:)?planner-(spec|graph|task)-review"/ {
+        m = "task"
+        if ($0 ~ /planner-spec-review"/) m = "spec"
+        else if ($0 ~ /planner-graph-review"/) m = "graph"
+        nd++
+        dag[nd] = m; did[nd] = ""; dlo[nd] = 1; dhi[nd] = 0; opn[nd] = 1
+        if (match($0, /"id":"toolu_[A-Za-z0-9_-]+"/)) did[nd] = substr($0, RSTART + 6, RLENGTH - 7)
+        if (match($0, /(\\n|"prompt":")[[:space:]]*tasks: T[0-9]+-T[0-9]+/)) {
+          t = substr($0, RSTART, RLENGTH)
+          sub(/^.*tasks: T/, "", t)
+          split(t, ab, "-T")
+          dlo[nd] = ab[1] + 0; dhi[nd] = ab[2] + 0
+        }
+        next
+      }
+      /"status":"async_launched"/ { next }
+      nd && /(\\n|"(text|content)":"|<result>)[[:space:]]*[*_`]*VERDICT:[*_`]*[[:space:]]+[*_`]*(PASS|FAIL|DENIED)[*_`]*[[:space:]]*(\\n|"|<)/ {
+        tgt = 0
+        for (i = 1; i <= nd && !tgt; i++) if (opn[i] && did[i] != "" && index($0, did[i]) > 0) tgt = i
+        for (i = 1; i <= nd && !tgt; i++) if (opn[i] && did[i] == "") tgt = i
+        if (!tgt) next
+        match($0, /(\\n|"(text|content)":"|<result>)[[:space:]]*[*_`]*VERDICT:[*_`]*[[:space:]]+[*_`]*(PASS|FAIL|DENIED)[*_`]*[[:space:]]*(\\n|"|<)/)
+        v = substr($0, RSTART, RLENGTH)
+        match(v, /PASS|FAIL|DENIED/)
+        v = substr(v, RSTART, RLENGTH)
+        opn[tgt] = 0
+        if (dag[tgt] == "spec") { sv = v; sl = NR }
+        else if (dag[tgt] == "graph") { gv = v; gl = NR }
+        else for (k = dlo[tgt]; k <= dhi[tgt] && k <= n; k++) if (k >= 1) { tval[k] = v; tln[k] = NR }
+      }
+      END {
+        print "spec", (sv == "" ? "-" : sv)
+        print "graph", (gv == "" ? "-" : gv)
+        print "uncovered", runs("none", 0)
+        print "uslices", runs("none", 1)
+        print "fail", runs("FAIL", 0)
+        print "denied", runs("DENIED", 0)
+        print "allslices", runs("all", 1)
+        out = "lines"
+        if (sl && !(sl in seen)) { seen[sl] = 1; out = out " " sl }
+        if (gl && !(gl in seen)) { seen[gl] = 1; out = out " " gl }
+        for (k = 1; k <= n; k++) if (tln[k] && !(tln[k] in seen)) { seen[tln[k]] = 1; out = out " " tln[k] }
+        print out
+      }
+    ' "$transcript_path" 2>/dev/null
+  )"
+  # Eight tagged lines on success (the END block always prints them); anything
+  # else is a broken read, which allows rather than denies.
+  [ "$(printf '%s\n' "$set_raw" | grep -cE '^(spec|graph|uncovered|uslices|fail|denied|allslices|lines)( .*)?$')" = "8" ] || emit_allow
+  set_val() { printf '%s\n' "$set_raw" | sed -n "s/^$1 *//p"; }
+  spec_v="$(set_val spec)"
+  graph_v="$(set_val graph)"
+  uncovered="$(set_val uncovered)"
+  uslices="$(set_val uslices)"
+  task_fail="$(set_val fail)"
+  task_denied="$(set_val denied)"
+  allslices="$(set_val allslices)"
+  decided="$(set_val lines)"
+
+  d_spec="viber:planner-spec-review with the plan path, \`refs:\` (the reference directory) and \`input:\` (the confirmed interview summary or bug diagnosis the plan answers, verbatim)"
+  d_graph="viber:planner-graph-review with the plan path and \`refs:\`"
+  d_task="viber:planner-task-review with the plan path, \`refs:\`, \`memory:\` (the planner's resolved config value) and a \`tasks: T<a>-T<b>\` line, one dispatch per slice:"
+  gate="the planner's review set gate"
+
+  if [ "$spec_v" = "-" ] || [ "$graph_v" = "-" ] || [ "$uncovered" != "-" ]; then
+    names=""
+    todo=""
+    if [ "$spec_v" = "-" ]; then
+      names="viber:planner-spec-review"
+      todo="$d_spec"
+    fi
+    if [ "$graph_v" = "-" ]; then
+      names="${names:+$names, }viber:planner-graph-review"
+      todo="${todo:+$todo; }$d_graph"
+    fi
+    if [ "$uncovered" != "-" ]; then
+      names="${names:+$names, }viber:planner-task-review (uncovered tasks ${uncovered})"
+      todo="${todo:+$todo; }$d_task ${uslices}"
+    fi
+    emit_deny "Next step: review the plan. ${plan_name} holds ${task_count} tasks, past 12, so a planner-review PASS alone does not open ExitPlanMode: every member of the review set must return 'VERDICT: PASS' after the last write of the plan, and these still miss a dispatch or a verdict: ${names}. Dispatch ${todo} - all in one message - wait for every 'VERDICT: PASS', then retry ExitPlanMode without writing the plan again: Minor findings stay unapplied, since any write after the PASS voids it. (This is ${gate}, not an error.)"
+  fi
+
+  whole_set="${d_spec}; ${d_graph}; ${d_task} ${allslices}"
+
+  names=""
+  if [ "$spec_v" = "DENIED" ]; then names="viber:planner-spec-review"; fi
+  if [ "$graph_v" = "DENIED" ]; then names="${names:+$names, }viber:planner-graph-review"; fi
+  if [ "$task_denied" != "-" ]; then names="${names:+$names, }viber:planner-task-review (tasks ${task_denied})"; fi
+  if [ -n "$names" ]; then
+    emit_deny "Next step: grant the permission. ${names} returned 'VERDICT: DENIED' for ${plan_name}: the harness refused one of its tool calls, the one its REASON: line names. Ask the user to allow that call, dispatch the whole review set again - ${whole_set} - then retry ExitPlanMode. (This is ${gate}, not an error.)"
+  fi
+
+  names=""
+  if [ "$spec_v" = "FAIL" ]; then names="viber:planner-spec-review"; fi
+  if [ "$graph_v" = "FAIL" ]; then names="${names:+$names, }viber:planner-graph-review"; fi
+  if [ "$task_fail" != "-" ]; then names="${names:+$names, }viber:planner-task-review (tasks ${task_fail})"; fi
+  if [ -n "$names" ]; then
+    emit_deny "Next step: fix the findings. ${names} returned 'VERDICT: FAIL' for ${plan_name}, not PASS - apply the findings to the plan, dispatch the whole review set again - ${whole_set} - with the previous findings and your fixes, then retry ExitPlanMode. (This is ${gate}, not an error.)"
+  fi
+
+  # Every member passed. The plan must be no newer than the EARLIEST deciding
+  # verdict (same 2s slack as the single-reviewer check below).
+  plan_mtime=$(stat -c %Y "$plan_path" 2>/dev/null || stat -f %m "$plan_path" 2>/dev/null)
+  case "${plan_mtime:-}" in ''|*[!0-9]*) plan_mtime="" ;; esac
+  earliest=""
+  for vl in $decided; do
+    iso=$(
+      awk -v ln="$vl" 'NR==ln' "$transcript_path" 2>/dev/null \
+        | grep -oE '"timestamp":"[^"]+"' \
+        | head -n1 \
+        | sed -E 's/.*"timestamp":"([^"]+)".*/\1/'
+    )
+    [ -n "$iso" ] || continue
+    ep=$(date -u -d "$iso" +%s 2>/dev/null) \
+      || ep=$(date -j -u -f '%Y-%m-%dT%H:%M:%S' "${iso%%[.Z]*}" +%s 2>/dev/null) \
+      || ep=""
+    case "${ep:-}" in ''|*[!0-9]*) continue ;; esac
+    if [ -z "$earliest" ] || [ "$ep" -lt "$earliest" ]; then earliest="$ep"; fi
+  done
+  if [ -n "$plan_mtime" ] && [ -n "$earliest" ] && [ "$plan_mtime" -gt "$((earliest + 2))" ]; then
+    emit_deny "Next step: re-review. ${plan_name} was modified after the earliest 'VERDICT: PASS' of its review set - dispatch the whole review set again - ${whole_set} - then retry ExitPlanMode. (This is ${gate}, not an error.)"
+  fi
+
+  emit_allow
 fi
 
 # The review of THIS plan version: only dispatches after the last plan write count.
