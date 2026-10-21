@@ -6,8 +6,8 @@ The ten markdown files viber skills and agents read by path while they work: the
 
 - A skill reads a file as `${CLAUDE_PLUGIN_ROOT}/references/<file>`; an agent reads it as `<refs>/<file>`, `refs:` being the `${CLAUDE_PLUGIN_ROOT}/references` line its dispatching skill passes.
 - Readers per file:
-  - `plan-rules.md`: `planner` (every round, a draft included) and `planner-review`.
-  - `integration-tests.md`: `planner` and `planner-review` when the plan carries an integration test; `task-coder` and `task-reviewer` on a task writing or running one or building the shared harness.
+  - `plan-rules.md`: `planner` (every round, a draft included) and `planner-review`, whole; of the review set, `planner-spec-review` reads `## Spec` and `## Contracts`, `planner-graph-review` `## Graph`, `planner-task-review` `## Task`.
+  - `integration-tests.md`: `planner`, `planner-review` and `planner-task-review` when the plan carries an integration test; `task-coder` and `task-reviewer` on a task writing or running one or building the shared harness.
   - `test-strategy.md`: `task-coder` before its first test, `task-reviewer` when the work touched tests or a fixture, `fixer` before writing its reproduction test.
   - `tdd.md`: `task-coder` on a `TDD: required` task, before its first line of production code.
   - `qa-format.md`: `qa-writer` (writes `qa.md` and `qa.e2e.md`) and `e2e-writer` (reads one entry, writes its `## Automation` line).
@@ -19,9 +19,10 @@ The ten markdown files viber skills and agents read by path while they work: the
 
 ## Contracts
 
-- `plan-rules.md` tags every rule: `(script)` is a rule `scripts/plan-index.sh` rejects, `(review)` one `planner-review` gates clause by clause and reports under the rule's name. A rule tagged `(script)` with no matching check in `plan-index.sh` is enforced by nobody.
-- A rule ending in `(blocking)` in `test-strategy.md` or `integration-tests.md` is a Blocking finding for `task-reviewer` and `planner-review` and binds `task-coder` and `fixer`; an untagged rule is guidance only.
-- `plan-rules.md`'s `Memory-owned` rule reads the `build.memory` switch, which `planner-review` receives as its `memory:` line (`false` when missing).
+- `plan-rules.md` tags every rule: `(script)` is a rule `scripts/plan-index.sh` rejects, `(review)` one a plan reviewer gates clause by clause and reports under the rule's name. A rule tagged `(script)` with no matching check in `plan-index.sh` is enforced by nobody.
+- A rule ending in `(blocking)` in `test-strategy.md` or `integration-tests.md` is a Blocking finding for `task-reviewer`, `planner-review` and `planner-task-review` and binds `task-coder` and `fixer`; an untagged rule is guidance only.
+- `plan-rules.md` sits in four `## ` sections by role, `Spec`, `Graph`, `Task`, `Contracts`: a review-set agent reads one by the `## ` line numbers it greps, so a rule belongs to the section of the role that gates it, and a section renamed breaks those reads. The plan-wide clauses moved out of `## Task` live in `Graph`'s `Sequenced`.
+- `plan-rules.md`'s `Memory-owned` rule reads the `build.memory` switch, which `planner-review` and `planner-task-review` receive as their `memory:` line (`false` when missing).
 - `issue-save.md` consumes the `STATUS=ready` block of `scripts/issue-templates.sh` and calls `scripts/issue-create.sh` as one literal line, reading its exit codes 0, 1, 2 and its `TYPE=dropped|error` and `PARENT=error` lines. Every preview shows the path of a body file already written, never the body text.
 
 ## Change together
@@ -36,4 +37,4 @@ The ten markdown files viber skills and agents read by path while they work: the
 ## Traps
 
 - `plan-rules.md` carries some rule names twice (`Exclusive`, `Reproduced`, `Block body`): one half `(script)`, the other `(review)`. Editing one never removes the other.
-- Every reader loads a file whole on each dispatch, `plan-rules.md` (the largest) on every planner round and review: a sentence added here is paid on every run.
+- Every reader loads a file whole on each dispatch, `plan-rules.md` (the largest) on every planner round and single review: a sentence added here is paid on every run.
