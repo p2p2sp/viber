@@ -48,13 +48,14 @@
 # A task commit also takes every path of the task's two extras files, the coder's
 # "<run-dir>/work/<task-id>-extra.md" and the reviewer's
 # "<run-dir>/work/<task-id>-extra-review.md" (one path per line; blank lines
-# skipped, a carriage return and a leading "./" stripped), as if each were passed
-# on --with - same ownership rules, same warnings, a path named twice taken once -
-# a path that an extras file of ANOTHER task lists counting as that task's claim,
-# as its "Files:" line would (refused while that task is not done, taken once it
-# is), for a --with path as well - and stages both files with the task's trail, as it does a changed
-# "<run-dir>/work/<task-id>-options.md" (the coder's options file). --landed and
-# a fix number ignore them.
+# skipped, a carriage return, surrounding whitespace and a leading "./" cut,
+# backslashes read as "/"), as if each were passed on --with - same ownership
+# rules, same warnings, a path named twice taken once - and stages both files with
+# the task's trail, as it does a changed "<run-dir>/work/<task-id>-options.md"
+# (the coder's options file). A path that an extras file of ANOTHER task lists
+# counts as that task's claim, as its "Files:" line would (refused while that task
+# is not done, taken once it is), for a --with path as well. --landed and a fix
+# number ignore them.
 #
 # --defer records code this task left without its own test because the criterion
 # that proves it belongs to a LATER task, one "<task-id>:<path>" entry per path.

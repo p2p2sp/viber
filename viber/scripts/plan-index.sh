@@ -904,7 +904,8 @@ END {
   for (c = 1; c <= ncon; c++) {
     if (!(corder[c] in usedcon)) fail("contract " corder[c] " is used by no task")
     # missing outright, or an appendix where NO block carries the line at all -
-    # exempted under --split alone (see below), required everywhere else
+    # exempted under --split, under --extra and on a landed plan in plain mode
+    # (see below), required everywhere else
     if (!(corder[c] in cfile) && (mode == "--split" ? ncfile > 0 : 1))
       fail("contract " corder[c] ": missing File - name the paths the shape is declared in, or \"none\"")
   }
@@ -914,9 +915,10 @@ END {
   # whoever needs it first, and a path whose holders never name the block leaves
   # its writer blind to it while a consumer writes it outside its own file map.
   # An appendix where NO block carries "File:" is now required everywhere
-  # outside --split, caught above (which already sets err and skips this
-  # block); under --split alone it may still predate the field - a plan that
-  # landed before this check and is being resumed - so nothing here runs for
+  # outside --split, --extra and a landed plan in plain mode, caught above
+  # (which already sets err and skips this block); under those it may still
+  # predate the field - a plan that landed before this check and is being
+  # resumed - so nothing here runs for
   # it either, because a frozen plan cannot grow the line and a build must not
   # stall mid-resume.
   if (!err && ncfile > 0) {
