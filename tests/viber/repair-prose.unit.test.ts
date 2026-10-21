@@ -190,10 +190,32 @@ test("a review failure and a refused commit other than exit 4 each cost a repair
   assert.ok(attempts.includes("a review failure and a task commit exiting other than 4 each cost one"));
 });
 
-test("the second repair attempt is the same fresh dispatch carrying the new reason and, after a review failure, the REVIEW path", () => {
+test("the second repair attempt is the same fresh dispatch carrying the new reason, and after a review failure the REVIEW path as report: and no reason:", () => {
   const attempts = passBullet("- At most 2 attempts");
-  assert.ok(attempts.includes("The second attempt is the same fresh dispatch carrying the new failure's `reason:`"));
-  assert.ok(attempts.includes("after a review failure, the `REVIEW` path as `report:`"));
+  assert.ok(attempts.includes("The second attempt is the same fresh dispatch carrying the new failure's `reason:` after a coder failure or a refused commit"));
+  assert.ok(attempts.includes("after a review failure only the `REVIEW` path as `report:` and no `reason:`"));
+});
+
+test("the repair pass's first dispatch carries the last REVIEW path as report: and no reason: after a review failure (a reviewer returns no REASON)", () => {
+  const dispatch = passBullet("- Dispatch");
+  assert.ok(dispatch.includes("after a coder failure or a refused commit"));
+  assert.ok(dispatch.includes("after a review failure only its last `REVIEW` path as `report:` and no `reason:`"));
+});
+
+const NEXT_ATTEMPT = lines(STEP_4).find((line) => line.startsWith("- A next attempt is")) ?? "";
+
+test("the next-attempt line carries reason: after a coder failure or a refused commit", () => {
+  assert.ok(NEXT_ATTEMPT.includes("carrying `reason: <the returned REASON>`"));
+  assert.ok(NEXT_ATTEMPT.includes("`<the commit's error>` after a refused commit) after a coder failure or a refused commit"));
+});
+
+test("the next-attempt line carries only the REVIEW path as report: after a review failure, never a reason: (a reviewer returns no REASON)", () => {
+  assert.ok(NEXT_ATTEMPT.includes("after a coder failure or a refused commit, only the returned `REVIEW` path as `report:` after a review failure"));
+  assert.ok(!NEXT_ATTEMPT.includes("`reason:` after a review failure"));
+});
+
+test("a task held at attempt 5 by a review failure waits for the repair pass with its last REVIEW path", () => {
+  assert.ok(ATTEMPT_5.includes("or, after a review failure, its last `REVIEW` path) waits for the repair pass"));
 });
 
 test("a repair pass opens the C3 task-list entry", () => {

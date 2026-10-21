@@ -1,0 +1,2 @@
+- The reviewer returns `REVIEW:` and no `REASON:`, so the held attempt-5 bullet now stores the last `REVIEW` path (not a reason) for the repair pass after a review failure.
+- The cap arbiter line of the repair pass still says `reason:` the repair's last failure; the dispatch rule omits an empty reason, and the `report:` lines already carry the last `REVIEW` path. Left unchanged.
