@@ -290,10 +290,13 @@ cwd_relative() {
 
 # A path a caller named for a task commit (--with, --defer, an extras
 # line), in the repo-relative form the ownership check, the .temp refusal and
-# staging compare: a leading "./" cut, an absolute spelling inside the cwd
-# folded; a path outside the repository stays as written, so git rejects it.
+# staging compare: backslashes folded to "/", a leading "./" cut, an absolute
+# spelling inside the cwd folded; a path outside the repository stays as
+# written (separators folded), so git rejects it. --defer keeps its path byte
+# for byte and calls cwd_relative alone.
 named_path() {
-  cwd_relative "${1#./}"
+  local p="${1//\\//}"
+  cwd_relative "${p#./}"
 }
 
 # The plan path every form compares against repo-relative git output (the run
@@ -783,7 +786,7 @@ intask && /^-[[:space:]]*Files:/ {
   s = $0; sub(/^[^:]*:/, "", s)
   m = split(s, fl, /,/)
   for (k = 1; k <= m; k++) {
-    p = trim(fl[k]); sub(/^\.\//, "", p)
+    p = trim(fl[k]); gsub(/\\/, "/", p); sub(/^\.\//, "", p)
     if (p == want) print cur
   }
 }
@@ -1468,7 +1471,7 @@ while IFS= read -r d; do
   fi
   defer_id="${d%%:*}"
   defer_path="${d#*:}"
-  d="$defer_id:$(named_path "$defer_path")"
+  d="$defer_id:$(cwd_relative "${defer_path#./}")"
   if ! task_ids_of "$plan" | grep -Fxq -- "$defer_id"; then
     echo "warning: refused $d - no task $defer_id in the plan" >&2
     continue

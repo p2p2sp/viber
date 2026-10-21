@@ -430,6 +430,46 @@ test("--with an absolute path of a file another open task claims is refused like
   });
 });
 
+test("an extras-file line spelled with a backslash for a file another open task claims is refused in its forward-slash form (a backslash is not a way past the ownership check)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "src/b.ts", "T2's coder, still running\n");
+    write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, "src\\b.ts\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, /warning: refused src\/b\.ts - claimed by task T2/);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts", `${RUN_DIR}/work/T1-extra.md`].sort());
+  });
+});
+
+test("--with a backslash-spelled path of a file another open task claims gets the same refusal as its forward-slash form", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "src/b.ts", "T2's coder, still running\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", "src\\b.ts"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, /warning: refused src\/b\.ts - claimed by task T2/);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts"].sort());
+  });
+});
+
+test("an extras-file line spelled with a backslash for an unowned file is staged under its forward-slash name", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "lib/c.ts", "forced\n");
+    write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, "lib\\c.ts\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "lib/c.ts", "src/a.ts", `${RUN_DIR}/work/T1-extra.md`].sort());
+  });
+});
+
 test("--with an absolute path no task claims is committed under its repo-relative name", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo);
@@ -505,7 +545,7 @@ test("--defer writes a backslashed path byte for byte, on one line (awk -v would
   });
 });
 
-test("--with refuses a path whose owner's Files entry holds a backslash (the claimant check compares it byte for byte)", async () => {
+test("--with refuses a path whose owner's Files entry holds a backslash (the claimant check compares both in their forward-slash form)", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo, [
       ["T1", "src/a.ts"],
@@ -515,7 +555,7 @@ test("--with refuses a path whose owner's Files entry holds a backslash (the cla
 
     const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", "src\\new\\table.ts"]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stderr, /refused src\\new\\table\.ts - claimed by task T2/);
+    assert.match(result.stderr, /refused src\/new\/table\.ts - claimed by task T2/);
   });
 });
 

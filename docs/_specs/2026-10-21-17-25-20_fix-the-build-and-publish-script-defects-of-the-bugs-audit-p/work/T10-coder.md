@@ -1,0 +1,4 @@
+- named_path() folds `\` for --with and extras only; --defer now calls cwd_relative directly because an existing test pins its path byte for byte.
+- claimants() also folds `\` in plan Files entries, so a backslash Files entry stays claimable; the existing backslash-owner test now expects the forward-slash refusal text (its title and regex changed).
+- DoD.3 test passes without the fix on Windows (git accepts lib\c.ts), so its red is not observable here; it guards Linux/macOS where git would not.
+- viber/scripts/CLAUDE.md still says --defer goes through named_path and Files are compared byte for byte: left for the memory close.
