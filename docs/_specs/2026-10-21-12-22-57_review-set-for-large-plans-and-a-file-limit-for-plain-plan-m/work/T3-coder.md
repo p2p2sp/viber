@@ -1,3 +1,0 @@
-- The three reviewers take no `scope: spec` line (C2 gives none); only `planner-review` keeps it.
-- `planner-task-review` reads `integration-tests.md` for its Sliced right check as `planner-review` does; `agents/CLAUDE.md` (agent count, reference reads) and `references/CLAUDE.md` still describe `planner-review` as sole reader: close updates them.
-- The dispatch side (`planner/SKILL.md`, `plan-gate.sh` agent names) is another task's; these agents are not yet dispatched.

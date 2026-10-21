@@ -1,3 +1,0 @@
-- Step 3 counts the `tasks:` rows of each round's `plan-index.sh` output, so a plan that crosses 12 after a fix changes reviewer between rounds; slices are recounted every round.
-- The `skills/CLAUDE.md` agent list for `planner` (and the plan-gate side naming the set's agents) still names `planner-review` only: another task / the close updates them.
-- Nothing here tests the dispatch prose: `TDD: none`, `nudge-prose.unit.test.ts` only pins the `SendMessage` sentence, kept verbatim.

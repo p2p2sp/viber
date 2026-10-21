@@ -1,3 +1,0 @@
-- Sequenced restates the moved Size/Owned/Layered/End-to-end clauses in their original wording; Layered's moved clause reads "where the adapter and its test form one `Exclusive: true` leaf task, its consumers reach it ...".
-- Size's "core bound together with the work consuming it" sentence moved whole into Sequenced with the core clause.
-- Section is `## Task` (singular); the old `## Plan`, `## Tasks` headings are gone. `viber/references/CLAUDE.md` still lists plan-rules readers without the review set (close updates it).
