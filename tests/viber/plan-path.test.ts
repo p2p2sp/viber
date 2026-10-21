@@ -762,6 +762,55 @@ for (const [fence, other] of [["```", "~~~"], ["~~~", "```"]] as const) {
   });
 }
 
+const LONG_FENCE_BLOCK = [
+  "````md",
+  "```",
+  "<!-- still inside: a shorter fence line closes nothing -->",
+  "````",
+].join("\n");
+
+function longFencePlan(tail: string[]): string {
+  return [
+    "# Add Login",
+    "",
+    "## Tasks",
+    "",
+    "<!-- TASK -->",
+    "### T1 - do the thing",
+    "- Files: src/a.ts",
+    "<!-- /TASK -->",
+    "",
+    "## Contracts",
+    "",
+    LONG_FENCE_BLOCK,
+    ...tail,
+  ].join("\n");
+}
+
+test("--land keeps a comment after a bare three-backtick line inside a four-backtick block (a fence closes only on one at least as long)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const src = sourcePlan(dir, "outside/long-fence.md", longFencePlan([""]));
+
+    const result = await run(dir, ["--land", src]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+
+    const landed = fs.readFileSync(path.join(dir, parse(result.stdout).path), "utf-8");
+    assert.ok(landed.includes(`\n${LONG_FENCE_BLOCK}\n`), landed);
+  });
+});
+
+test("--land strips a comment after the real closing line of a four-backtick block", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const src = sourcePlan(dir, "outside/long-fence-tail.md", longFencePlan(["", "<!-- guidance after the block -->", ""]));
+
+    const result = await run(dir, ["--land", src]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+
+    const landed = fs.readFileSync(path.join(dir, parse(result.stdout).path), "utf-8");
+    assert.doesNotMatch(landed, /guidance after the block/);
+  });
+});
+
 test("--land still drops a comment opened outside any fence whole, a fence line inside it included (a fence inside guidance opens nothing)", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     const body = [

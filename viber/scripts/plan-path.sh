@@ -41,7 +41,7 @@
 # (<!-- TASK -->, <!-- /TASK -->, and <!-- source: --> for a plan written before
 # that path moved into the frontmatter), the rest would only ride through
 # spec.md and every task file into the build. A fenced block (``` or ~~~ up to
-# the closing fence of the same character) is content, not guidance: every line
+# a closing fence of the same character at least as long as the opening one) is content, not guidance: every line
 # of it, comments and blank lines included, is copied through untouched. The
 # frontmatter is not a comment and survives whole but for its "source:" line,
 # which the copy rewrites to its own absolute path.
@@ -378,6 +378,7 @@ strip_guidance() {
   tmp="$1.tmp.$$"
   awk '
 function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+function runlen(s, c,  n) { n = 0; while (substr(s, n + 1, 1) == c) n++; return n }
 {
   t = trim($0)
   if (inblock) { if (t ~ /-->/) inblock = 0; next }
@@ -387,8 +388,8 @@ function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); ret
       next
     }
     if (t == "") { blank = 1; next }
-    if (t ~ /^(```|~~~)/) fence = substr(t, 1, 3)
-  } else if (substr(t, 1, 3) == fence && t ~ /^(```+|~~~+)$/) fence = ""
+    if (t ~ /^(```|~~~)/) { fence = substr(t, 1, 1); flen = runlen(t, fence) }
+  } else if (substr(t, 1, 1) == fence && runlen(t, fence) == length(t) && length(t) >= flen) fence = ""
   if (blank && NR > 1 && kept) print ""
   blank = 0; kept = 1
   print
