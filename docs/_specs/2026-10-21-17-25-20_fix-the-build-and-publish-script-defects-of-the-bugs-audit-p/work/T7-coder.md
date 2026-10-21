@@ -1,5 +1,0 @@
-- The Windows TERM case's `cmd` stand-in sends `kill -TERM "$PPID"` itself, right after the real mklink: bash defers the trap until that foreground child exits, so the trap runs before the next script line, deterministically.
-- The stand-in's `sleep 1` (DoD.1 asks for it) keeps it alive until the MSYS signal reaches red-check; without it the stand-in can exit first and the old code would pass by luck.
-- The real cmd.exe comes from `SystemRoot`, slash-separated, passed as `REAL_CMD`; non-mklink calls (the cleanup's `rmdir`) are exec'd through to it.
-- Verified red on Windows: without the fix `git worktree remove --force` deletes `node_modules/precious.txt` through the unrecorded junction (exit still 130).
-- The link-failure case stubs `ln` (exit 1) off Windows and a mklink-refusing `cmd` on Windows, so it runs on every OS.

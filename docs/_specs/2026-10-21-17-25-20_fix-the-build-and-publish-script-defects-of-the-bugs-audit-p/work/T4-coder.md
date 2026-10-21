@@ -1,1 +1,0 @@
-- Backslashes are folded only for a relative extras line; an absolute line (`/...`, `C:\...`) goes to `cwd_relative` untouched, because an existing test pins an outside-repository absolute path "as written" (backslashes kept on Windows).

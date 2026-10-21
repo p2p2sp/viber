@@ -1,4 +1,0 @@
-- Extras-file line cleaning now lives in `extras_paths()` (shared by the task's own reader and the new `extras_claimants()`), so the two cannot drift.
-- An extras claimant joins the `Files:` claimants in the ownership loop: not done refuses, done is taken with the `took` line; a task claiming a path both ways is named once.
-- The DoD.4 test (unrelated extras files stay untouched) passes without the change by nature: it pins unchanged behaviour, so it has no red.
-- `viber/scripts/CLAUDE.md` extras-file contract is left to the memory close, per the task's Out of scope.

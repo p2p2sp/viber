@@ -1,1 +1,0 @@
-The cross-repository filter runs in the script (awk over `<isCrossRepository> <url>` rows from `--jq`), not in gh's jq, so the test stub can emit raw rows and the filter is really exercised. The stub's `pr list` now prints `false <url>` per PR_LIST url and `true <url>` per PR_FORK_LIST url; a jq-side `select` would make the stub bypass the filter.
