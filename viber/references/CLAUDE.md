@@ -22,7 +22,7 @@ The ten markdown files viber skills and agents read by path while they work: the
 - `plan-rules.md` tags every rule: `(script)` is a rule `scripts/plan-index.sh` rejects, `(review)` one a plan reviewer gates clause by clause and reports under the rule's name. A rule tagged `(script)` with no matching check in `plan-index.sh` is enforced by nobody.
 - A rule ending in `(blocking)` in `test-strategy.md` or `integration-tests.md` is a Blocking finding for `task-reviewer`, `planner-review` and `planner-task-review` and binds `task-coder` and `fixer`; an untagged rule is guidance only.
 - `plan-rules.md` sits in four `## ` sections by role, `Spec`, `Graph`, `Task`, `Contracts`: a review-set agent reads one by the `## ` line numbers it greps, so a rule belongs to the section of the role that gates it, and a section renamed breaks those reads. The plan-wide clauses moved out of `## Task` live in `Graph`'s `Sequenced`.
-- `plan-rules.md`'s `Memory-owned` rule reads the `build.memory` switch, which `planner-review` and `planner-task-review` receive as their `memory:` line (`false` when missing).
+- `plan-rules.md`'s `Memory-owned` rule reads the `build.memory` switch, which `planner-review`, `planner-graph-review` and `planner-task-review` receive as their `memory:` line (`false` when missing).
 - `issue-save.md` consumes the `STATUS=ready` block of `scripts/issue-templates.sh` and calls `scripts/issue-create.sh` as one literal line, reading its exit codes 0, 1, 2 and its `TYPE=dropped|error` and `PARENT=error` lines. Every preview shows the path of a body file already written, never the body text.
 
 ## Change together

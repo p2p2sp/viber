@@ -404,7 +404,7 @@ if [ "$task_count" -gt 12 ]; then
   decided="$(set_val lines)"
 
   d_spec="viber:planner-spec-review with the plan path, \`refs:\` (the reference directory) and \`input:\` (the confirmed interview summary or bug diagnosis the plan answers, verbatim)"
-  d_graph="viber:planner-graph-review with the plan path and \`refs:\`"
+  d_graph="viber:planner-graph-review with the plan path, \`refs:\` and \`memory:\` (the planner's resolved config value)"
   d_task="viber:planner-task-review with the plan path, \`refs:\`, \`memory:\` (the planner's resolved config value) and a \`tasks: T<a>-T<b>\` line, one dispatch per slice:"
   gate="the planner's review set gate"
 

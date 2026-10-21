@@ -762,7 +762,7 @@ END {
       nd = 0
       m = dodcut(dod[i], dc)
       for (k = 1; k <= m; k++) if (trim(dc[k]) != "") nd++
-      if (nd > maxdod[tm]) fail("task " id[i] ": " nd " DoD clauses, past the " maxdod[tm] " a TDD: " tm " task may hold - split it, one behaviour per task")
+      if (nd > maxdod[tm]) fail("task " id[i] ": " nd " DoD clauses, past the " maxdod[tm] " a TDD: " tm " task may hold - split it, one behaviour per task; clauses are cut at each semicolon outside backticks, so a semicolon inside a list cuts a clause")
     }
 
     # Repro: the reproduction test the fixer left RED, one path the task already

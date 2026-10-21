@@ -99,7 +99,7 @@ A draft adds the line `scope: spec`. From round 2 on, also pass the previous fin
 The review set is dispatched in one message, one `Agent` call per member, each member getting the plan path and `refs: ${CLAUDE_PLUGIN_ROOT}/references` and:
 
 - `viber:planner-spec-review`: the `input:` block above with its `Answered:` lines.
-- `viber:planner-graph-review`: nothing more.
+- `viber:planner-graph-review`: `memory: <value>` as above.
 - `viber:planner-task-review`, one per slice: `memory: <value>` as above and `tasks: T<a>-T<b>`. The slices are `ceil(n / 8)` runs of consecutive tasks for `n` tasks, sizes differing by at most one, the larger first (13 -> T1-T7, T8-T13; 30 -> T1-T8, T9-T16, T17-T23, T24-T30).
 
 From round 2 on, every member also gets every member's previous findings verbatim and one line per fix you applied. Every round after a `VERDICT: FAIL` dispatches the whole set anew, slices recounted from the plan as fixed.
@@ -111,7 +111,7 @@ A reply with no `VERDICT:` line gets one more dispatch with the same input, that
 The verdict of a round of the review set is `VERDICT: DENIED` when any member returned it, else `VERDICT: FAIL` when any returned it, else `VERDICT: PASS`. The verdicts below read the single reviewer's or the round's.
 
 - `VERDICT: PASS` - go to step 4 without writing the plan again; its Minor findings stay unapplied.
-- `VERDICT: FAIL` - show the findings, every member's of a review set round, fix the plan, re-run `plan-index.sh` after every fix unless the plan is a draft, then dispatch again. A finding that needs a decision only the user can make gets asked first through one `AskUserQuestion`, and the answer, kept as an `Answered:` line, starts a fresh round 1.
+- `VERDICT: FAIL` - show the findings, every member's of a review set round, fix every Blocking finding, and a Minor one only where a Blocking fix already rewrites its text, re-run `plan-index.sh` after every fix unless the plan is a draft, then dispatch again. A finding that needs a decision only the user can make gets asked first through one `AskUserQuestion`, and the answer, kept as an `Answered:` line, starts a fresh round 1.
 - `VERDICT: DENIED` - one `AskUserQuestion` naming the refused call from its `REASON:` line: permission added and retry, dispatching again in the same round (in a review set round only the members that returned `DENIED`, the others keeping their verdicts), or stop with the plan unreviewed and no hand-off.
 
 ```!
