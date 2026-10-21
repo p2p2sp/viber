@@ -80,6 +80,8 @@ interface TaskFields {
   uses?: string | null;
   deps?: string;
   files?: string;
+  /** The whole Verification value; the default names no file. */
+  verification?: string;
   /** Semicolon-separated clauses; the decomposition numbers them one per line. */
   dod?: string;
 }
@@ -231,7 +233,7 @@ function planBody(
       `- Depends-on: ${t.deps ?? "none"}`,
       `- Files: ${t.files ?? "src/a.ts"}`,
       "- Delivers: the thing",
-      "- Verification: npm test -> green",
+      `- Verification: ${t.verification ?? "npm test -> green"}`,
       `- DoD: ${t.dod ?? "it works"}`,
       "<!-- /TASK -->",
       "",
@@ -1363,6 +1365,134 @@ test("a consumer numbered below its only writer raises nothing from the dependen
     const result = await run(dir, {}, [PLAN_REL]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
   });
+});
+
+/** T1 writes src/login.ts; T2 numbered above it names that path where `reader`
+ *  sets it, and depends on T1 only through `deps`. */
+function readAfterPlan(reader: Pick<TaskFields, "verification" | "dod">, deps = "none"): string {
+  return planBody(
+    [
+      { id: "T1", files: "src/login.ts" },
+      { id: "T2", covers: "AC2", uses: "none", deps, files: "src/reject.ts", ...reader },
+    ],
+    2,
+    CONTRACT,
+  );
+}
+
+const READ_AFTER_MESSAGE =
+  /task T2 reads src\/login\.ts, listed by T1, but has no dependency path to T1 - add T1 to its Depends-on/;
+
+test("read-after: a Verification naming a file a lower-numbered task lists, with no dependency path to it, exits 4 naming reader, path and writer", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, readAfterPlan({ verification: "node --test src/login.ts -> green" }));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, READ_AFTER_MESSAGE);
+  });
+});
+
+test("read-after: a DoD naming such a file inside backticks exits 4 as well (the backticks only wrap the token)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, readAfterPlan({ dod: "it reads `src/login.ts`" }));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, READ_AFTER_MESSAGE);
+  });
+});
+
+test("read-after: a path closed by a sentence period still counts", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, readAfterPlan({ dod: "the handler in src/login.ts. It works" }));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, READ_AFTER_MESSAGE);
+  });
+});
+
+test("read-after: the reader depending on the writer directly validates", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, readAfterPlan({ verification: "node --test src/login.ts -> green" }, "T1"));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("read-after: the reader reaching the writer through another task validates", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(
+      dir,
+      planBody(
+        [
+          { id: "T1", files: "src/login.ts" },
+          { id: "T2", covers: "AC2", uses: "none", deps: "T1", files: "src/session.ts" },
+          { id: "T3", uses: "none", deps: "T2", files: "src/reject.ts", dod: "it reads `src/login.ts`" },
+        ],
+        2,
+        CONTRACT,
+      ),
+    );
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("read-after: a path listed only by a higher-numbered task raises nothing", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(
+      dir,
+      planBody(
+        [
+          { id: "T1", files: "src/reject.ts", dod: "it reads `src/login.ts`" },
+          { id: "T2", covers: "AC2", uses: "none", files: "src/login.ts" },
+        ],
+        2,
+        CONTRACT,
+      ),
+    );
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("read-after: a token that is only the tail of a listed path raises nothing (a.ts inside src/a.ts)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, readAfterPlan({ dod: "it reads login.ts" }));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("read-after: a listed path that is only the head of a longer token raises nothing (src/a.ts inside src/a.tsx)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, readAfterPlan({ dod: "it reads src/login.tsx" }));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("read-after: under --split the check does not run (a frozen plan still decomposes)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, readAfterPlan({ dod: "it reads `src/login.ts`" }));
+
+    const result = await run(dir, {}, [PLAN_REL, "--split"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(taskFiles(dir), ["T1.md", "T2.md"]);
+  });
+});
+
+test("read-after: the header's exit-4 list names the case", () => {
+  const source = fs.readFileSync(SUT, "utf-8");
+  assert.match(source, /read-after: a "Verification:" or "DoD:" line naming/);
 });
 
 test("a File entry whose bracket wraps a whole segment is a path, not a glob - like a Files entry", async () => {

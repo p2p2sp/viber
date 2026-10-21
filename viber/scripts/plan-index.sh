@@ -228,7 +228,13 @@
 #       naming a file or symbol instead), or a task holding more "Files:"
 #       entries or "DoD:" clauses than its TDD value allows - 12 and 6 on
 #       "required", 25 and 10 on "none" (it bundles several behaviours -
-#       split it). The last five cases and the
+#       split it), or a read-after: a "Verification:" or "DoD:" line naming,
+#       as a whole path token (a backtick, a quote, a space or a sentence period
+#       bounds it, a longer path or a bare file name inside one does not), a
+#       file a lower-numbered task lists in its "Files:" while no dependency
+#       path, direct or transitive, joins the two (the reader would run beside
+#       the writer; the error names the reader, the path and the writer). The
+#       last six cases and the
 #       parenthetical one above are exempted under --split
 #       alone: a plan that landed before the rule is frozen, and a run resumed
 #       after the upgrade must still validate and decompose.
@@ -456,6 +462,24 @@ function selfproven(text, own,   t, pad, k) {
 }
 
 function listed(s) { s = trim(s); return (s == "none" || s == "-" ? "" : s) }
+
+# p present in text as a whole path token: the character before it is outside
+# [A-Za-z0-9_./-] (a leading "./" is allowed), the one after it outside
+# [A-Za-z0-9_/-], and a "." after it closes the token only when no word
+# character follows (a sentence period, not an extension). A backtick, a quote
+# or a space bound it. Plain index() scans, so a bracket or a dot in p is literal.
+function pathtok(text, p,   t, pl, off, pos, s, b, a, a2, lc, rc) {
+  lc = "[A-Za-z0-9_./-]"; rc = "[A-Za-z0-9_/-]"
+  t = "   " text "   "; pl = length(p); off = 0
+  while ((pos = index(substr(t, off + 1), p)) > 0) {
+    s = off + pos
+    b = substr(t, s - 1, 1); a = substr(t, s + pl, 1); a2 = substr(t, s + pl + 1, 1)
+    if (b !~ lc || (b == "/" && substr(t, s - 2, 1) == "." && substr(t, s - 3, 1) !~ lc))
+      if (a !~ rc && (a != "." || a2 !~ /[A-Za-z0-9_]/)) return 1
+    off = s
+  }
+  return 0
+}
 
 # Fed every line in order: 1 when the line sits inside a ``` or ~~~ fence (the
 # fence lines included), so a heading-looking line there is body text. A comment
@@ -822,6 +846,21 @@ END {
         for (k = 1; k <= nf[i]; k++)
           if ((j, fpath[i, k]) in fset)
             fail("tasks " id[i] " and " id[j] " both list " fpath[i, k] ", with no dependency path between them")
+      }
+    # read-after: a task naming, in its Verification or DoD, a file a lower-numbered
+    # task lists must run after that task, or it reads a file not yet written.
+    # Skipped under --split - a plan that landed before this rule is frozen.
+    if (mode != "--split")
+      for (i = 2; i <= n; i++) {
+        rtext = verif[i] " " dod[i]
+        for (j = 1; j < i; j++) {
+          if ((i, j) in anc) continue
+          for (k = 1; k <= nf[j]; k++) {
+            if ((i, fpath[j, k]) in fset) continue
+            if (pathtok(rtext, fpath[j, k]))
+              fail("task " id[i] " reads " fpath[j, k] ", listed by " id[j] ", but has no dependency path to " id[j] " - add " id[j] " to its Depends-on")
+          }
+        }
       }
   }
 

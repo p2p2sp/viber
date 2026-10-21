@@ -1,0 +1,4 @@
+- read-after text is the whole Verification value (expected-outcome part after " -> " included) plus the DoD line, backticks kept as token boundaries.
+- A path the reader lists itself is skipped (the shared-file collision check already demands a dependency path there).
+- A leading "./" before a path counts; "." after a path closes it only when no word character follows.
+- The header test of "read-after" reads the SUT source, following the existing header-documentation test in the same file.
