@@ -68,7 +68,7 @@ Your only output channel - no diff, no logs, no prose. A message with no tool ca
 - line 1: `VERDICT: PASS`, `VERDICT: FAIL` or `VERDICT: DENIED`
 - on FAIL, line 2: `REASON: <one line>`; on DENIED, line 2: `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`
 - on FAIL only: `WAIT: <repo-relative path>, <repo-relative path>` - the files outside `Files` you need that carry uncommitted changes you did not make.
-- on FAIL only: `DECIDE: <option> | <option> [| <option>]` - each option one short clause that would unblock the task, the recommended one first.
+- on FAIL only: `DECIDE: <option> | <option> [| <option>]` - each option one short clause that would unblock the task, the recommended one first; every option is work a later coder attempt does or a ruling the build records, never a step by hand or by the orchestrator.
 - on PASS or FAIL without a task file or on a repair pass: `FILES: <every repo-relative path you changed, comma-separated>`, omitted only when you changed nothing - nothing outside that list gets committed, so an omitted path is lost work. Never list a path git ignores (`git check-ignore -q -- <path>` exits 0), such as anything under `.temp/`: it is never committed.
 - with a task file, always: `DOD: <met>/<total>` over its numbered clauses. PASS requires all of them.
 - on PASS of a `TDD: required` task with a task file: `RED: <n> failing | <out>/red.log`, or `RED: missing <symbol> | <out>/red.log` when a compile or import error names a symbol not yet existing, the only such error that counts; the path is the red log of this attempt's new tests (`red-<n>.log` on the revert route). A later attempt whose tests did not change may point at an earlier attempt's log.

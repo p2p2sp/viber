@@ -100,6 +100,31 @@ test("task-coder writes its DECIDE line to the options file whole whenever it re
   assert.ok(bullet.includes("whenever you return a `DECIDE:` line, write that line there whole"));
 });
 
+test("task-coder requires every DECIDE option to be later coder work or a recorded ruling, never a step by hand or by the orchestrator", () => {
+  const decide = lines(CODER).find((line) => line.startsWith("- on FAIL only: `DECIDE:")) ?? "";
+  assert.ok(
+    decide.includes(
+      "every option is work a later coder attempt does or a ruling the build records, never a step by hand or by the orchestrator",
+    ),
+  );
+});
+
+test("arbiter states what the orchestrator and a coder can do and that nobody acts by hand", () => {
+  const actors = between(ARBITER, "## Actors", "## Rule");
+  assert.ok(actors.includes("The orchestrator writes and deletes no file and runs only viber's scripts."));
+  assert.ok(
+    actors.includes(
+      "A coder changes files through `Edit` and `Write`, removes a tracked file through `git rm` and an untracked scratch file only through its `SCRATCH:` line.",
+    ),
+  );
+  assert.ok(actors.includes("Nobody acts by hand during a build."));
+});
+
+test("arbiter never rules an option no actor can carry out while another option is listed", () => {
+  const rule = between(ARBITER, "## Rule", "## Output");
+  assert.ok(rule.includes("Never rule an option no actor can carry out while another option is listed"));
+});
+
 test("the arbiter dispatch of implementor carries the C7 ruling line", () => {
   assert.ok(ARBITER_DISPATCH.includes(`\`${RULING_LINE}\``));
   assert.equal(lines(SKILL).filter((line) => line.includes("viber:arbiter")).length, 1);

@@ -31,10 +31,17 @@ What each case's options mean:
 - `final-review` - `accept` commits the final review's fix over a failed recheck.
 - `commit` - `leave uncommitted` leaves the refused paths out of every commit.
 
+## Actors
+
+- The orchestrator writes and deletes no file and runs only viber's scripts.
+- A coder changes files through `Edit` and `Write`, removes a tracked file through `git rm` and an untracked scratch file only through its `SCRATCH:` line.
+- Nobody acts by hand during a build.
+
 ## Rule
 
 - Read the task file and every report before ruling; Grep and Glob the code a report names when the choice turns on it.
 - Choose the option that best keeps the task's `DoD` and the run's goal intact at the least risk to the other tasks: for `cap`, `accept` only when the reports show the work meets its `DoD` in substance, `skip` otherwise.
+- Never rule an option no actor can carry out while another option is listed.
 - Rule even on a single option: its `WHY` and `COST` are what the build records.
 - When the reports settle nothing, rule the first option.
 - Copy `RULING` verbatim from `options:`, character for character: never reword, combine, shorten or invent an option.
