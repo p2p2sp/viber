@@ -470,6 +470,32 @@ test("an extras-file line spelled with a backslash for an unowned file is staged
   });
 });
 
+test("an extras-file line with a trailing space is staged under its trimmed name", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "lib/x.ts", "forced\n");
+    write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, "lib/x.ts \n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "lib/x.ts", "src/a.ts", `${RUN_DIR}/work/T1-extra.md`].sort());
+  });
+});
+
+test("an extras-file line with leading spaces is staged under its trimmed name", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "lib/x.ts", "forced\n");
+    write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, "   lib/x.ts\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "lib/x.ts", "src/a.ts", `${RUN_DIR}/work/T1-extra.md`].sort());
+  });
+});
+
 test("--with an absolute path no task claims is committed under its repo-relative name", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo);

@@ -1340,7 +1340,7 @@ fi
 # <run-dir>/work/<task-id>-extra.md (its coder) and -extra-review.md (its
 # reviewer) hold one path per line; each path is taken as if passed on --with,
 # under the same ownership rules below. Blank lines are skipped, a carriage
-# return and a leading "./" stripped, and a path already collected is not added
+# return, surrounding whitespace and a leading "./" stripped, and a path already collected is not added
 # twice. A plain task commit alone reads them: a fix and --landed ignore both.
 extras_dir="$(run_dir "$plan")"
 if [[ -z "$fix_n" && -z "$landed" && -n "$extras_dir" ]]; then
@@ -1348,6 +1348,8 @@ if [[ -z "$fix_n" && -z "$landed" && -n "$extras_dir" ]]; then
     [[ -f "$xf" ]] || continue
     while IFS= read -r line || [[ -n "$line" ]]; do
       line="${line%$'\r'}"
+      line="${line#"${line%%[![:space:]]*}"}"
+      line="${line%"${line##*[![:space:]]}"}"
       [[ -n "${line#./}" ]] || continue
       line="$(named_path "$line")"
       printf '%s' "$extra" | grep -Fxq -- "$line" || extra="$extra$line"$'\n'
