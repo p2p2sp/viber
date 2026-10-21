@@ -18,7 +18,8 @@
 #   env  : none of its own; git and gh read their usual auth and config.
 #   file : $1, sent verbatim as the pull request body, then removed once the
 #          pull request exists (exit 0); every other exit leaves it in place.
-#   remote: `branch.<branch>.remote`, else `origin`. Push: `git push -u
+#   remote: `branch.<branch>.remote`, else `origin`; a `.` there (the branch
+#          tracks a local branch) counts as no remote. Push: `git push -u
 #          <remote> <branch>`. Create: `gh pr create --base <base> --head
 #          <branch> --title <title> --body-file <file>` plus `--draft`.
 #          Assign: `gh pr edit <url> --add-assignee @me`, the authenticated
@@ -79,6 +80,7 @@ if [ -z "$branch" ]; then
   exit 2
 fi
 remote=$(git config --get "branch.$branch.remote" 2>/dev/null)
+[ "$remote" = . ] && remote=
 remote=${remote:-origin}
 
 if ! pout=$(git push -u "$remote" "$branch" 2>&1); then

@@ -174,6 +174,30 @@ test("a branch whose branch.<name>.remote names another remote is pushed there a
   });
 });
 
+test("a branch tracking a local branch (branch.<name>.remote is '.') is pushed to origin and PUSHED names origin", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      await scene.work.git("checkout", "-b", "feat", "--track", "main");
+      const { result } = await runPr(shell, scene, ["<body>", "Add x", "--base", "main"], { env: { PR_STDOUT: PR_URL + "\n" } });
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, `PR_URL=${PR_URL}\nPR_NUMBER=17\nPUSHED=origin/feat\nASSIGNEE=@me\n`);
+      assert.equal(await remoteHeads(scene), "refs/heads/feat");
+    });
+  });
+});
+
+test("after a push of a branch that tracked a local branch, branch.<name>.remote reads origin and branch.<name>.merge its own ref", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      await scene.work.git("checkout", "-b", "feat", "--track", "main");
+      await runPr(shell, scene, ["<body>", "Add x", "--base", "main"], { env: { PR_STDOUT: PR_URL + "\n" } });
+      const remote = await scene.work.git("config", "--get", "branch.feat.remote");
+      const merge = await scene.work.git("config", "--get", "branch.feat.merge");
+      assert.deepEqual([remote.stdout.trim(), merge.stdout.trim()], ["origin", "refs/heads/feat"]);
+    });
+  });
+});
+
 // --- failures after arguments are valid -------------------------------------------
 
 test("a failed push exits 1 with one ERROR line before gh runs, and prints nothing on stdout", async () => {
