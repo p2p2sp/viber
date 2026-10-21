@@ -9,7 +9,7 @@
 # The layout this file follows. /viber:setup raises it when it brings the file
 # up to a newer layout, and a session start tells you when it lags behind the
 # installed viber. Leave it as it is.
-schema: 3
+schema: 4
 
 # The two directories under docs/: where an open run lives, and where the
 # archive of a finished one lands. Directory NAMES, not paths - a value with a
@@ -94,6 +94,15 @@ build:
   #   help-builder:
   #     parallel: true
   extensions:
+  # On a task that must be built test first, implementor checks in a separate
+  # worktree that the task's new tests fail without its production change.
+  # red-check-tests lists the test path patterns (an entry ending in `/` names
+  # a directory), red-check-links the directories linked into that worktree;
+  # both are separated by spaces, and the defaults stand while they are
+  # commented out:
+  # red-check-tests: __tests__/ tests/ test/ *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go *Test.java *Test.kt conftest.py testdata/ __mocks__/ __fixtures__/ fixtures/ jest.config.* vitest.config.*
+  # red-check-links: node_modules
+  red-check: true
 
 # GitHub issues and pull requests.
 github:
