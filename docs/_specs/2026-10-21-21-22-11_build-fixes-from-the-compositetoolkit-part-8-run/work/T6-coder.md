@@ -1,5 +1,0 @@
-- R5 reads an option cluster letter by letter (target, bail, stop letters per interpreter); the first non-option argument is the script, checked for .temp/. A stop letter last in a cluster skips the next argument (`ruby -I lib -e` is still caught).
-- Bails (scan ends, not refused): `python -m`, `bash -c`/`-s`, `-` alone; `--` checks the argument after it.
-- Node long options taking a separate value (`--require`, `--import`, `--loader`, ...) are skipped by name; an unlisted one ahead of `-e` would hide the code (not caught).
-- The old allowed cases `perl -ne 'print' f` and `perl -MList::Util -e ...` are now refused R5 by spec (cluster holds e).
-- Command words match by bare name only (`python`, not `/usr/bin/python`), like the existing rules.
