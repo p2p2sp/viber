@@ -38,7 +38,7 @@
 #            --pr pull request; else the open pull request whose head is the
 #            current branch.
 #   gh     : `gh pr list --head <branch> --state open` (no issue and no --pr
-#            only), then `gh issue|pr view <target> --json comments` and
+#            only; a cross-repository pull request is never the target), then `gh issue|pr view <target> --json comments` and
 #            `gh issue|pr comment <target> --body-file`.
 #   stdout : exit 0, one block:
 #              STATUS=posted
@@ -49,8 +49,8 @@
 #              REASON=no-gh | no-repo | no-pr | exists
 #            Checks, in order: no-repo (not inside a repository), the qa file
 #            (exit 2 when missing), no-gh (gh not on PATH), no-pr (no issue, no
-#            --pr and a detached HEAD, or no open pull request whose head is the
-#            current branch), exists (a comment of the target holds
+#            --pr and a detached HEAD, or no open same-repository pull request
+#            whose head is the current branch), exists (a comment of the target holds
 #            "<!-- viber:qa " with a path ending in "/<run key>/qa.md").
 #   exit   : 0 with either block; 1 with one ERROR line on stderr and nothing on
 #            stdout when gh failed reading the comments or posting, or printed no
@@ -140,7 +140,9 @@ else
   if [ -z "$target" ]; then
     branch=$(git symbolic-ref --short -q HEAD 2>/dev/null)
     [ -n "$branch" ] || skip no-pr
-    target=$(gh pr list --head "$branch" --state open --json url --jq '.[].url' 2>/dev/null | tr -d '\r' | sed -n 1p)
+    # `--head` matches a fork branch of the same name too: keep a row whose
+    # isCrossRepository is false only.
+    target=$(gh pr list --head "$branch" --state open --json url,isCrossRepository --jq '.[] | "\(.isCrossRepository) \(.url)"' 2>/dev/null | tr -d '\r' | awk '$1 == "false" { print $2; exit }')
     [ -n "$target" ] || skip no-pr
   fi
 fi

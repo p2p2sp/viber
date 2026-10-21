@@ -51,14 +51,18 @@ const ISSUE_URL = "https://github.com/acme/widgets/issues/12";
 const ISSUE_COMMENT_URL = `${ISSUE_URL}#issuecomment-55`;
 
 /** A `gh` stub logging its argv one-arg-per-line (a "===" separator after
- *  each call) into `$ARGV_FILE`. `pr list` prints PR_LIST; `pr|issue view`
+ *  each call) into `$ARGV_FILE`. `pr list` prints the raw `--jq` rows the script
+ *  asks for, `<isCrossRepository> <url>`: one `true` row per URL of
+ *  PR_FORK_LIST, then one `false` row per URL of PR_LIST; `pr|issue view`
  *  prints COMMENTS or fails on VIEW_FAIL; `pr|issue comment` copies its
  *  --body-file into `$BODY_LOG`, then fails on POST_FAIL or prints POST_OUT
  *  (default: a pull request comment URL). */
 const GH_STUB = `
 for a in "$@"; do printf '%s\\n' "$a" >> "$ARGV_FILE"; done; printf '===\\n' >> "$ARGV_FILE"
 case "$1 $2" in
-  "pr list") printf '%s' "\${PR_LIST:-}" ;;
+  "pr list")
+    for u in \${PR_FORK_LIST:-}; do printf 'true %s\\n' "$u"; done
+    for u in \${PR_LIST:-}; do printf 'false %s\\n' "$u"; done ;;
   "pr view"|"issue view")
     if [ -n "\${VIEW_FAIL:-}" ]; then echo "HTTP 401: Bad credentials" >&2; exit 1; fi
     printf '%s' "\${COMMENTS:-}" ;;
@@ -238,6 +242,34 @@ test("without --pr, the open pull request whose head is the current branch is th
     const list = calls.find((c) => c[0] === "pr" && c[1] === "list");
     assert.deepEqual(list?.slice(2, 6), ["--head", "feature/x", "--state", "open"]);
     assert.equal(posts(calls)[0][2], PR_URL);
+  });
+});
+
+test("without --pr, a fork pull request whose head is the current branch name alone: STATUS=skip REASON=no-pr and no post (a cross-repository head of the same name is not this branch)", async () => {
+  await assertPosix(async (shell) => {
+    const { result, calls } = await runInRepo(shell, [QA_REL], {
+      env: { PR_FORK_LIST: "https://github.com/acme/widgets/pull/3" },
+      setup: async (repo) => {
+        await repo.git("checkout", "-q", "-b", "feature/x");
+      },
+    });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "STATUS=skip\nREASON=no-pr\n");
+    assert.equal(posts(calls).length, 0);
+  });
+});
+
+test("without --pr, a fork pull request listed before a same-repository one: the comment goes to the same-repository one", async () => {
+  await assertPosix(async (shell) => {
+    const { result, calls } = await runInRepo(shell, [QA_REL], {
+      env: { PR_FORK_LIST: "https://github.com/acme/widgets/pull/3", PR_LIST: PR_URL },
+      setup: async (repo) => {
+        await repo.git("checkout", "-q", "-b", "feature/x");
+      },
+    });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, `STATUS=posted\nCOMMENT_URL=${COMMENT_URL}\n`);
+    assert.deepEqual(posts(calls).map((c) => c.slice(0, 3)), [["pr", "comment", PR_URL]]);
   });
 });
 
