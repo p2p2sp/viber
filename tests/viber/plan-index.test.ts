@@ -2821,6 +2821,46 @@ test("an absolute coder-file path of a file a done task claims prints on the ext
   });
 });
 
+// --- the verify command value: one pair of wrapping backticks is dropped ------
+
+/** The `verify:` lines of the index a one-task plan prints, T1 carrying `verification`. */
+async function verifyLines(dir: string, verification: string): Promise<string[]> {
+  seed(dir, planBody([{ id: "T1", verification }], 1));
+  const result = await run(dir, {}, [PLAN_REL]);
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  return result.stdout.split("\n").filter((l) => l.startsWith("verify:"));
+}
+
+test("a Verification wrapped in backticks prints on the verify line as the bare command (a wrapped command made red-check always fail)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    assert.deepEqual(await verifyLines(dir, "`cmd a` -> all pass"), ["verify: T1 | cmd a"]);
+  });
+});
+
+test("the recheck line of a done task owning an extra path carries the same unwrapped command", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody([{ id: "T1", files: "src/done-a.ts", verification: "`cmd a` -> all pass" }, { id: "T2", files: "src/own.ts" }], 1));
+    seedStatus(dir, { progress: "1/2", done: "T1" });
+    write(dir, `${PLAN_DIR}/work/T2-extra.md`, "src/done-a.ts\n");
+
+    const result = await scope(dir, "T2");
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "extra: src/done-a.ts\nrecheck: T1 | cmd a\n");
+  });
+});
+
+test("a wrapped Verification holding inner backticks loses only its first and last backtick", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    assert.deepEqual(await verifyLines(dir, "` echo `x` y ` -> all pass"), ["verify: T1 | echo `x` y"]);
+  });
+});
+
+test("a Verification opening without a backtick but holding a backtick pair prints unchanged", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    assert.deepEqual(await verifyLines(dir, "echo `a` `b` -> all pass"), ["verify: T1 | echo `a` `b`"]);
+  });
+});
+
 test("an absolute coder-file path outside the repository prints as written", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     const outside = `${path.dirname(dir)}/p2p2-viber-outside/lib/x.ts`;

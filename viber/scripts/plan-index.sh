@@ -77,7 +77,10 @@
 # reviewer waiver without ever opening a task file: one line per task, in task
 # order, right after the task rows and before any "dirty:" line. Its value is
 # the task's own "Verification" text up to its first " -> ", trimmed - the
-# whole value when it carries no arrow. The command is always the last field,
+# whole value when it carries no arrow - with one pair of wrapping backticks
+# removed (the first and last character of the value, the rest trimmed again;
+# inner backticks stay, and a value not opening AND closing with a backtick is
+# printed unchanged). The "recheck:" value is the same. The command is always the last field,
 # so a "|" inside it (a shell pipeline) is part of the command, not a column
 # break.
 #
@@ -498,11 +501,15 @@ function fstep(raw,   t) {
 }
 
 # the "verify:" value: a task Verification text cut at its first " -> ",
-# trimmed - the whole text when it carries no arrow. The command is always the
+# trimmed - the whole text when it carries no arrow - then, when the whole value
+# opens and closes with a backtick, that first and last backtick removed and the
+# rest trimmed again (every inner backtick kept). The command is always the
 # LAST field, so a "|" inside it (a shell pipeline) is part of the command.
-function verifycmd(s,   p) {
+function verifycmd(s,   p, v) {
   p = index(s, " -> ")
-  return trim(p == 0 ? s : substr(s, 1, p - 1))
+  v = trim(p == 0 ? s : substr(s, 1, p - 1))
+  if (length(v) >= 2 && substr(v, 1, 1) == "`" && substr(v, length(v), 1) == "`") v = trim(substr(v, 2, length(v) - 2))
+  return v
 }
 
 # the criterion numbers of a "Covers:" value: tokens split on commas and
