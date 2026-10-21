@@ -363,6 +363,72 @@ test("--with takes a path claimed by a task already done and names that task on 
   });
 });
 
+test("an extras path that another open task's extras file lists is refused and left out of the commit (that task's coder may be writing it now)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "lib/shared.ts", "both tasks forced this\n");
+    write(repo.dir, `${RUN_DIR}/work/T1-extra-review.md`, "lib/shared.ts\n");
+    write(repo.dir, `${RUN_DIR}/work/T2-extra.md`, "lib/shared.ts\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, /warning: refused lib\/shared\.ts - claimed by task T2/);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts", `${RUN_DIR}/work/T1-extra-review.md`].sort());
+  });
+});
+
+test("--with a path that another open task's extras file lists gets the same refusal", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "lib/shared.ts", "both tasks forced this\n");
+    write(repo.dir, `${RUN_DIR}/work/T2-extra-review.md`, "lib/shared.ts\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", "lib/shared.ts"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, /warning: refused lib\/shared\.ts - claimed by task T2/);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts"].sort());
+  });
+});
+
+test("an extras path that only a done task's extras file lists is taken, naming the committed task", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, `${RUN_DIR}/work/T2-extra.md`, "lib/shared.ts\n");
+    write(repo.dir, STATUS_REL, statusBody(2).replace("done: none", "done: T2").replace("progress: 0/2", "progress: 1/2"));
+    await repo.git("add", "-A");
+    await repo.git("commit", "-m", "T2 done");
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "lib/shared.ts", "both tasks forced this\n");
+    write(repo.dir, `${RUN_DIR}/work/T1-extra-review.md`, "lib/shared.ts\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, /warning: took lib\/shared\.ts - claimed by committed task T2/);
+    assert.doesNotMatch(result.stderr, /refused/);
+    assert.deepEqual(
+      await committedFiles(repo),
+      [STATUS_REL, "lib/shared.ts", "src/a.ts", `${RUN_DIR}/work/T1-extra-review.md`].sort(),
+    );
+  });
+});
+
+test("an extras path that no other task's extras file lists is staged without a warning, whatever the other extras files hold", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "lib/shared.ts", "only T1 forced this\n");
+    write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, "lib/shared.ts\n");
+    write(repo.dir, `${RUN_DIR}/work/T2-extra.md`, "lib/other.ts\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.doesNotMatch(result.stderr, /refused|took/);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "lib/shared.ts", "src/a.ts", `${RUN_DIR}/work/T1-extra.md`].sort());
+  });
+});
+
 test("--with still refuses a path whose owner was skipped (its half-finished files stay uncommitted and visible)", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo);

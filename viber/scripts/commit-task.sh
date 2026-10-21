@@ -50,7 +50,9 @@
 # "<run-dir>/work/<task-id>-extra-review.md" (one path per line; blank lines
 # skipped, a carriage return and a leading "./" stripped), as if each were passed
 # on --with - same ownership rules, same warnings, a path named twice taken once -
-# and stages both files with the task's trail, as it does a changed
+# a path that an extras file of ANOTHER task lists counting as that task's claim,
+# as its "Files:" line would (refused while that task is not done, taken once it
+# is), for a --with path as well - and stages both files with the task's trail, as it does a changed
 # "<run-dir>/work/<task-id>-options.md" (the coder's options file). --landed and
 # a fix number ignore them.
 #
@@ -793,6 +795,38 @@ intask && /^-[[:space:]]*Files:/ {
 ' "$1"
 }
 
+# The paths one extras file lists, one per line in their repo-relative form: a
+# carriage return, surrounding whitespace and a leading "./" cut, blank lines
+# skipped.
+extras_paths() {
+  local line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -n "${line#./}" ]] || continue
+    named_path "$line"
+  done < "$1"
+}
+
+# The ids of the tasks other than the given one whose extras files list one
+# path, one per line: extras_claimants <plan> <task-id> <path>. A path another
+# task's coder or reviewer declared is that task's to stage, as a "Files:" path is.
+extras_claimants() {
+  local dir id xf p
+  dir="$(run_dir "$1")"
+  [[ -n "$dir" ]] || return 0
+  while IFS= read -r id; do
+    [[ -n "$id" && "$id" != "$2" ]] || continue
+    for xf in "$dir/work/$id-extra.md" "$dir/work/$id-extra-review.md"; do
+      [[ -f "$xf" ]] || continue
+      while IFS= read -r p; do
+        if [[ "$p" == "$3" ]]; then printf '%s\n' "$id"; break 2; fi
+      done < <(extras_paths "$xf")
+    done
+  done < <(task_ids_of "$1")
+}
+
 # The ids of every task the plan defines, one per line - what "--skip" and
 # "--defer" compare their <id> against as a fixed string, never as a pattern.
 # A "## Contracts" heading is shaped exactly like a task's ("### C3 - <name>")
@@ -1346,14 +1380,9 @@ extras_dir="$(run_dir "$plan")"
 if [[ -z "$fix_n" && -z "$landed" && -n "$extras_dir" ]]; then
   for xf in "$extras_dir/work/$task_id-extra.md" "$extras_dir/work/$task_id-extra-review.md"; do
     [[ -f "$xf" ]] || continue
-    while IFS= read -r line || [[ -n "$line" ]]; do
-      line="${line%$'\r'}"
-      line="${line#"${line%%[![:space:]]*}"}"
-      line="${line%"${line##*[![:space:]]}"}"
-      [[ -n "${line#./}" ]] || continue
-      line="$(named_path "$line")"
+    while IFS= read -r line; do
       printf '%s' "$extra" | grep -Fxq -- "$line" || extra="$extra$line"$'\n'
-    done < "$xf"
+    done < <(extras_paths "$xf")
   done
 fi
 
@@ -1374,7 +1403,7 @@ while IFS= read -r f; do
     else
       open="${open:-$o}"
     fi
-  done < <(claimants "$plan" "$f" | grep -vFx -- "$task_id" || true)
+  done < <({ claimants "$plan" "$f"; extras_claimants "$plan" "$task_id" "$f"; } | grep -vFx -- "$task_id" | awk '!seen[$0]++' || true)
   if [[ -n "$open" ]]; then
     echo "warning: refused $f - claimed by task $open" >&2
     continue
