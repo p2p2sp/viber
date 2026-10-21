@@ -681,6 +681,20 @@ test("the local target's own upstream wins over the head branch's remote, so a s
   });
 });
 
+test("a head branch tracking a local branch (remote is a dot) compares against origin/<target>, so an unpushed local main is not a false no-commits", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      await scene.work.git("push", "origin", "main");
+      await commit(scene.work, {}, "unpushed 1");
+      await scene.work.git("checkout", "-b", "feat", "--track", "main");
+      const result = await runFacts(shell, scene, ["--target", "main"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(value(result, "STATUS"), "ready");
+      assert.deepEqual(values(result, "COMMIT"), [`${await shortSha(scene.work, "HEAD")} unpushed 1`]);
+    });
+  });
+});
+
 test("a target with no remote-tracking ref falls back to the local branch and lists the commits ahead of it", async () => {
   await assertPosix(async (shell) => {
     await withScene(async (scene) => {

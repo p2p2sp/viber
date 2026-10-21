@@ -235,7 +235,7 @@ done
 
 # Sets tref to the ref of branch $1, first match wins: the remote-tracking ref of
 # the local $1's own upstream (branch.<$1>.remote and .merge), then the one of
-# the head branch's remote (else origin), then refs/heads/<$1>, else empty. A
+# the head branch's remote (origin when it has none or it is "."), then refs/heads/<$1>, else empty. A
 # remote-tracking ref comes first because the pull request opens against the
 # remote branch and a local one may hold unpushed commits; the target's own
 # upstream comes before the head branch's remote, which in a fork workflow is
@@ -255,7 +255,7 @@ resolve_tref() {
       ;;
   esac
   rt_remote=$(git config --get "branch.$branch.remote" 2>/dev/null)
-  rt_remote=${rt_remote:-origin}
+  case "$rt_remote" in "" | .) rt_remote=origin ;; esac
   if git rev-parse -q --verify "refs/remotes/$rt_remote/$1^{commit}" >/dev/null 2>&1; then
     tref=refs/remotes/$rt_remote/$1
   elif git rev-parse -q --verify "refs/heads/$1^{commit}" >/dev/null 2>&1; then
