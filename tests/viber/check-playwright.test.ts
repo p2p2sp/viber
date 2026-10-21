@@ -108,6 +108,21 @@ test("a tracked nested package.json naming @playwright/test reports it found eve
   });
 });
 
+test("a tracked nested package.json under a non-ASCII directory naming @playwright/test reports it found (git quotes such a path in its default listing)", async () => {
+  await withGitRepo(async (repo) => {
+    fs.mkdirSync(path.join(repo.dir, "apps", "źródło"), { recursive: true });
+    fs.writeFileSync(
+      path.join(repo.dir, "apps", "źródło", "package.json"),
+      JSON.stringify({ name: "zrodlo", devDependencies: { "@playwright/test": "^1.40.0" } }, null, 2),
+    );
+    await repo.git("add", "apps/źródło/package.json");
+    await repo.git("commit", "-m", "add zrodlo package.json");
+    const result = await runInRepo(repo.dir);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "playwright-cli: not found\n@playwright/test: found\n");
+  });
+});
+
 test("an untracked nested package.json naming @playwright/test is not probed and reports it not found", async () => {
   await withGitRepo(async (repo) => {
     fs.mkdirSync(path.join(repo.dir, "apps", "web"), { recursive: true });

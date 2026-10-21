@@ -20,8 +20,8 @@
 #            the cwd is the base.
 #   env    : none.
 #   file   : <repo root>/package.json plus every OTHER package.json `git
-#            ls-files` reports as tracked from the repo root (nested, any
-#            depth). Untracked ones (gitignored, new-but-unstaged) are never
+#            ls-files -z` reports as tracked from the repo root (nested, any
+#            depth, any path spelling - none is quoted). Untracked ones (gitignored, new-but-unstaged) are never
 #            read. Outside a repository - or wherever `git` itself is not on
 #            PATH - only the root package.json is checked, matching the prior
 #            behaviour. Absent, untracked or unreadable -> "@playwright/test:
@@ -62,13 +62,18 @@ if [ -f "${root}/package.json" ] && grep -q '"@playwright/test"' "${root}/packag
 fi
 
 if [ "$found" = "not found" ] && command -v git >/dev/null 2>&1; then
-  while IFS= read -r nested; do
-    [ -z "$nested" ] && continue
+  # -z lists every path verbatim: the default listing wraps a non-ASCII or
+  # special-character path in quotes with octal escapes, which names no file.
+  while IFS= read -r -d '' nested; do
+    case "$nested" in
+      package.json | */package.json) ;;
+      *) continue ;;
+    esac
     if grep -q '"@playwright/test"' "${root}/${nested}" 2>/dev/null; then
       found="found"
       break
     fi
-  done < <(git -C "$root" ls-files 2>/dev/null | grep -E '(^|/)package\.json$')
+  done < <(git -C "$root" ls-files -z 2>/dev/null)
 fi
 
 echo "@playwright/test: ${found}"
