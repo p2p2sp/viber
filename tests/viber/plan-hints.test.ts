@@ -128,6 +128,14 @@ test("the hint carries exactly the five rules, with no line telling the model to
   });
 });
 
+test("file limit: the Plan review rule states the 8 repository files a plan may name and that the gate refuses a plan past it", async () => {
+  await withTempDir("p2p2-plan-hints-", async (dir) => {
+    const f = writeTranscript(dir, [permissionMode("plan")]);
+    const ctx = JSON.parse(await runPayload({ permission_mode: "plan", transcript_path: f })).hookSpecificOutput.additionalContext as string;
+    assert.match(ctx, /Plan review:.*names at most 8 repository files: the gate refuses a plan naming more/);
+  });
+});
+
 test("the hint is the shipped hooks/content/plan-hints.md verbatim, trailing newlines cut (the text lives in the file, not the script)", async () => {
   await withTempDir("p2p2-plan-hints-", async (dir) => {
     const f = writeTranscript(dir, [permissionMode("plan")]);

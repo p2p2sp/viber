@@ -7,4 +7,4 @@ Into the plan:
 - Closing review: end the plan with a task in which a subagent reviews the finished implementation against the plan; its findings are fixed before the work is reported done, and the review runs again whenever those fixes surface further errors.
 
 For you, while writing the plan:
-- Plan review: with the planning.plain-plan-review switch on (the default), dispatch the plain-plan-review agent after every write to the plan file and get its PASS on that version before ExitPlanMode, since any write after a PASS voids it.
+- Plan review: with the planning.plain-plan-review switch on (the default), dispatch the plain-plan-review agent after every write to the plan file and get its PASS on that version before ExitPlanMode, since any write after a PASS voids it. The plan names at most 8 repository files: the gate refuses a plan naming more.

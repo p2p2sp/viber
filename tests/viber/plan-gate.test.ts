@@ -34,8 +34,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
-import { withTempDir } from "../harness/tmp.ts";
+import { withGitRepo, withTempDir } from "../harness/tmp.ts";
 import { withStub } from "../harness/stub.ts";
+import { slash } from "../harness/paths.ts";
 
 const SUT = path.resolve(import.meta.dirname, "../../viber/hooks/scripts/plan-gate.sh");
 
@@ -1299,4 +1300,198 @@ test("review set: the hooks.json description states the set rule", () => {
   assert.match(manifest.description, /planner-spec-review/);
   assert.match(manifest.description, /planner-graph-review/);
   assert.match(manifest.description, /planner-task-review/);
+});
+
+// --- plain plan file limit: at most 8 repository files ------------------------
+
+/** Distinct path-shaped tokens `<prefix>1.ts` .. `<prefix>n.ts`. */
+function limitFiles(n: number, prefix = "src/f"): string[] {
+  return Array.from({ length: n }, (_, i) => `${prefix}${i + 1}.ts`);
+}
+
+/** The Git Bash spelling of a drive path: `C:/x` -> `/c/x` (unchanged on POSIX). */
+function gitBashForm(p: string): string {
+  return slash(p).replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`);
+}
+
+/** The drive letter lower-cased: `C:/x` -> `c:/x` (unchanged on POSIX). */
+function lowerDrive(p: string): string {
+  return slash(p).replace(/^[A-Za-z]:/, (m) => m.toLowerCase());
+}
+
+/** A plain plan naming `tokens`, written under `dir`, run through the gate in session `cwd`. */
+async function limitRun(dir: string, cwd: string, tokens: string[], extra: string[] = []): Promise<Decision> {
+  const plan = realPlan(dir, undefined, `# Plan\n\n${tokens.join("\n")}\n`);
+  const f = writeTranscript(dir, "t.jsonl", [planWrite(plan), ...extra]);
+  return await runCase(f, cwd);
+}
+
+/** The plain reviewer dispatched and passed on the plan version. */
+const REVIEWED = [dispatch(undefined, PLAIN), PASS];
+
+test("file limit: a plain plan naming 9 distinct repository files is refused with the narrow-or-planner next step, a plain-plan-review PASS on that version included", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const { decision, reason } = await limitRun(dir, cwd, limitFiles(9), REVIEWED);
+    assert.equal(decision, "deny");
+    assert.equal(
+      reason,
+      "Next step: narrow the plan or switch to the planner. plan.md names 9 repository files, past the 8 a plain plan-mode plan may name - narrow it to at most 8, or leave plan mode and run /viber:intent for a planned build. (This is the plan review gate (planning.plain-plan-review in .claude/viber.yml), not an error.)",
+    );
+  });
+});
+
+test("file limit: a plain plan naming exactly 8 repository files with a plain-plan-review PASS -> allow", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    assert.equal((await limitRun(dir, cwd, limitFiles(8), REVIEWED)).decision, "allow");
+  });
+});
+
+test("file limit: a plain plan naming exactly 8 repository files and no review yet -> the review next step, not the limit", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const { decision, reason } = await limitRun(dir, cwd, limitFiles(8));
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /plain-plan-review agent has not run on this version/);
+  });
+});
+
+test("file limit: a markdown link [x](src/a.ts) yields its path -> 9 linked files are refused", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const linked = limitFiles(9).map((f) => `[file](${f})`);
+    const { decision, reason } = await limitRun(dir, cwd, linked, REVIEWED);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /names 9 repository files/);
+  });
+});
+
+test("file limit: an absolute path under the repository root, native or lower-case drive form, folds to its relative form and counts -> 9 files are refused", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const tokens = [...limitFiles(7), `${slash(cwd)}/src/f8.ts`, `${lowerDrive(cwd)}/src/f9.ts`];
+    const { decision, reason } = await limitRun(dir, cwd, tokens, REVIEWED);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /names 9 repository files/);
+  });
+});
+
+test("file limit: the Git Bash form (/c/...) of a path under the repository root folds to its relative form and counts -> 9 files are refused", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const tokens = [...limitFiles(8), `${gitBashForm(cwd)}/src/f9.ts`];
+    const { decision, reason } = await limitRun(dir, cwd, tokens, REVIEWED);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /names 9 repository files/);
+  });
+});
+
+test("file limit: an absolute path and its relative twin count once -> 8 files named both ways are allowed", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const tokens = [...limitFiles(8), `${slash(cwd)}/src/f1.ts`, `${gitBashForm(cwd)}/src/f2.ts`];
+    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
+  });
+});
+
+test("file limit: a :<line> or :<line>-<line> suffix and surrounding punctuation are stripped -> 8 files cited with them are allowed", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const tokens = [...limitFiles(8), "src/f1.ts:12", "src/f2.ts:3-5", "(`src/f3.ts`).", '"src/f4.ts",', "<src/f5.ts>;", "src/f6.ts:9,"];
+    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
+  });
+});
+
+test("file limit: a path named many times counts once -> allow", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const tokens = Array.from({ length: 20 }, () => "src/a.ts");
+    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
+  });
+});
+
+test("file limit: a leading ./ is stripped once -> 8 files with a ./ twin of the first are allowed", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const tokens = [...limitFiles(8), "./src/f1.ts"];
+    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
+  });
+});
+
+test("file limit: a URL is not a repository file -> 8 files plus a URL are allowed", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const tokens = [...limitFiles(8), "https://example.com/docs/page.html", "[docs](https://example.com/guide.md)"];
+    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
+  });
+});
+
+test("file limit: a token that is neither an existing file nor path-shaped is skipped -> 8 files plus such words are allowed", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const tokens = [...limitFiles(8), "word", "missing.ts", "src/noextension", "e.g.", "and/or"];
+    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
+  });
+});
+
+test("file limit: an existing file with no slash counts -> 8 path-shaped files plus an existing README.md are refused", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    fs.writeFileSync(path.join(cwd, "README.md"), "# readme\n");
+    const { decision, reason } = await limitRun(dir, cwd, [...limitFiles(8), "README.md"], REVIEWED);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /names 9 repository files/);
+  });
+});
+
+test("file limit: an absolute or ~ path outside the repository root is skipped -> 8 files plus such paths are allowed", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const tokens = [...limitFiles(8), "/etc/other/x.conf", "~/notes/y.ts", "Z:/elsewhere/z.ts", "/z/elsewhere/w.ts"];
+    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
+  });
+});
+
+test("file limit: a path under .temp/ is skipped, relative or absolute -> 8 files plus such paths are allowed", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const tokens = [...limitFiles(8), ".temp/viber/notes.md", "./.temp/findings.md", `${slash(cwd)}/.temp/mockup.html`];
+    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
+  });
+});
+
+test("file limit: the repository root is the git top level of a session in a subdirectory -> an absolute path under the top level counts", async () => {
+  await withGitRepo(async (repo) => {
+    fs.mkdirSync(path.join(repo.dir, ".claude"));
+    fs.writeFileSync(path.join(repo.dir, ".claude", "viber.yml"), GROUPED_ON);
+    const cwd = path.join(repo.dir, "sub");
+    fs.mkdirSync(cwd);
+    const tokens = [...limitFiles(8), `${slash(repo.dir)}/src/f9.ts`];
+    const { decision, reason } = await limitRun(repo.dir, cwd, tokens, REVIEWED);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /names 9 repository files/);
+  });
+});
+
+test("file limit: with planning.plain-plan-review off nothing is counted -> 12 files are allowed", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_OFF);
+    assert.equal((await limitRun(dir, cwd, limitFiles(12))).decision, "allow");
+  });
+});
+
+test("file limit: on the planner path nothing is counted -> a planner plan naming 12 files passes on its planner-review PASS", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const plan = realPlan(dir, undefined, `---\nsource: x\n---\n${limitFiles(12).join("\n")}\n`);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), dispatch(), PASS]);
+    assert.equal((await runCase(f, cwd)).decision, "allow");
+  });
+});
+
+test("file limit: the hooks.json description states the 8 repository files limit", () => {
+  const manifest = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/hooks/hooks.json"), "utf8"));
+  assert.match(manifest.description, /more than 8 distinct repository files/);
+  assert.match(manifest.description, /\/viber:intent/);
 });

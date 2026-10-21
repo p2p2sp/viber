@@ -1,0 +1,5 @@
+- DoD.2 (exactly 8 goes on to the review check) is a boundary guard: its two tests pass before and after the change, so they have no red; red.log covers the other clauses (8 failing).
+- The file-limit awk emits "S <token>" (path-shaped) or "T <token>" (counts only if it is an existing file under the root); bash counts them. Pipes `|` are not stripped from a token, so a markdown table cell `|src/a.ts|` is one unfolded token.
+- Root and token are compared in a canonical form (`C:/x` and `/c/x` both become `/c/x`, drive letter lower-cased); the relative part is cut from the original token, so the two forms must stay the same length.
+- No apostrophe inside that awk block (the quote char is built with sprintf("%c", 39)); run `bash -n` after an edit.
+- hooks/CLAUDE.md (Contracts, Change together) does not yet mention the file limit; the close updates it.
