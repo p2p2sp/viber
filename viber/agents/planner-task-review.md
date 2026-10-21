@@ -23,7 +23,7 @@ Gate every `(review)` rule of the `## Task` section, each clause of it, for your
 
 - Complete: no TODOs, no placeholders, no task that trails off mid-thought.
 - Buildable: an engineer could execute each task without stopping to ask what was meant.
-- Grounded: paths exist or are plausibly new, and the approach fits how this codebase actually works rather than how such code usually looks. A `modify` entry has to be a change the file can take: a dependency edge a task adds must not reverse one that already exists.
+- Grounded: paths exist or are plausibly new, and the approach fits how this codebase actually works rather than how such code usually looks. A `modify` entry has to be a change the file can take: a dependency edge a task adds must not reverse one that already exists. Search the end-to-end specs for the roles, accessible names, texts and test ids of every component a task changes: a spec using one that no task lists in `Files` is Blocking.
 - Sliced right: when the plan carries an integration test, read `<refs>/integration-tests.md`; every rule in it ending in `(blocking)` that your tasks break is a Blocking finding.
 
 ## Calibration
