@@ -906,6 +906,38 @@ test("--branching reads no work entry outside the branching group", async () => 
   });
 });
 
+test("a quoted `\"mode\": required` prints `branching.mode: required` in the block (the block reads the mode the way --branching does)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, ["branching:", '  "mode": required', ""].join("\n"));
+
+    assert.equal(branching((await run(dir)).stdout), "branching.mode: required");
+  });
+});
+
+test("--branching prints `mode: required` for a quoted `\"mode\": required`", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, ["branching:", '  "mode": required', ""].join("\n"));
+
+    assert.equal((await report(dir))[0], "mode: required");
+  });
+});
+
+test("a `mode: required` nested under `work:` prints `branching.mode: off` in the block (it is a work entry, not the mode)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, ["branching:", "  work:", "    mode: required", ""].join("\n"));
+
+    assert.equal(branching((await run(dir)).stdout), "branching.mode: off");
+  });
+});
+
+test("--branching prints `mode: off` for a `mode: required` nested under `work:`", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, ["branching:", "  work:", "    mode: required", ""].join("\n"));
+
+    assert.equal((await report(dir))[0], "mode: off");
+  });
+});
+
 test("--branching over a malformed config still exits 0 with the mode off", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     writeConfig(dir, "\u0000\u0001 not: yaml: at: all\n");

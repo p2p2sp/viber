@@ -93,8 +93,9 @@
 #            project names it. Anything else -> that key's default; min above
 #            max -> both defaults.
 #            branching.mode (default `off`) - whether a run works on its own
-#            branch. Read the same group-bound way; off, allowed or required
-#            (any case, printed lowercase), anything else -> off. The branch
+#            branch. Taken from the first line of the `--branching` report, so
+#            both read it by indentation: off, allowed or required (any case,
+#            printed lowercase), anything else -> off. The branch
 #            bases and name patterns live in `branching.work` entries, read by
 #            `--branching` alone.
 #            build.red-check-tests and build.red-check-links - lists, children
@@ -176,7 +177,9 @@
 #              entry: <key> | base: <branch> | name: <pattern> | target: <branch>
 #              map: <issue type> | <entry key>
 #              error: <reason>
-#            mode as in the block. `entry:` once per valid work entry, `map:`
+#            mode: off unless the direct child `mode` (a quoted key allowed)
+#            reads off, allowed or required in any case, printed lowercase; the
+#            block's branching.mode is this line. `entry:` once per valid work entry, `map:`
 #            once per mapping naming a valid entry, each in file order. Entry
 #            key `[A-Za-z0-9._-]+`; base and target `[A-Za-z0-9._/-]+`, not
 #            starting with `-` or `/`, no `..`; name with one surrounding quote
@@ -660,11 +663,10 @@ fi
 printf 'tiers.min: %s\n' "$(tier_name "$min")"
 printf 'tiers.max: %s\n' "$(tier_name "$max")"
 
-mode="$(printf '%s' "$(group_value branching mode || true)" | tr '[:upper:]' '[:lower:]')"
-case "$mode" in
-  off|allowed|required) ;;
-  *) mode=off ;;
-esac
+branching_lines="$(branching_report)"
+mode="${branching_lines%%
+*}"
+mode="${mode#mode: }"
 
 printf 'branching.mode: %s\n' "$mode"
 
