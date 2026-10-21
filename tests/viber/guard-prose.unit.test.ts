@@ -29,6 +29,7 @@ const AUDITOR_RULE =
 const CODER_LINES = [
   "- One command per `Bash` call, never chained with `;`, `&&` or `||`.",
   "- Files change through `Edit` and `Write` alone, never through `Bash`.",
+  "- `Bash` never runs inline or scratch interpreter code - change a file with `Edit` or `Write`, a large rewrite as one `Write` of the whole file, and run tests and project scripts by their own command.",
   "- Remove a file or directory with `git rm -r -q -- <path>`, never `rm`.",
   "- Git is read-only (`status`, `diff`, `log`, `show`), never `stash`, `checkout`, `restore` or `clean`; your only index writes are `git rm` and `git update-index --chmod=+x`.",
 ];
@@ -126,6 +127,19 @@ for (const rel of ["agents/task-coder.md", ...REVIEWERS]) {
     assert.ok(!read(rel).includes("stash stack"));
   });
 }
+
+const R5_WORDS = "never runs inline or scratch interpreter code - change a file with";
+
+for (const rel of ["hooks/scripts/shell-guard.sh", "agents/task-coder.md"]) {
+  test(`${rel} words the interpreter rule as the R5 reason`, () => {
+    assert.ok(read(rel).includes(R5_WORDS));
+  });
+}
+
+test("plan-rules.md Provable rule makes a Verification running inline interpreter code a finding", () => {
+  const rule = lines(read("references/plan-rules.md")).find((line) => line.startsWith("- Provable:")) ?? "";
+  assert.ok(rule.includes("A `Verification` running inline interpreter code"));
+});
 
 test("shell-guard.sh holds the stash stack rationale", () => {
   assert.ok(read("hooks/scripts/shell-guard.sh").includes("stash stack"));

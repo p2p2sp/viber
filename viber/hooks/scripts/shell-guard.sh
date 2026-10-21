@@ -3,8 +3,9 @@
 # shell-guard.sh - viber / PreToolUse hook on Bash: refuses the coder's and the reviewers' forbidden shell and git commands.
 #
 # Inside viber:task-coder, refuses a Bash command that chains parts (R1), runs
-# git stash, checkout, restore or clean (R2), runs rm (R3) or writes a file
-# through Bash (R4). Inside viber:task-reviewer and viber:final-reviewer, refuses
+# git stash, checkout, restore or clean (R2), runs rm (R3), writes a file
+# through Bash (R4) or runs inline or scratch interpreter code (R5). Inside
+# viber:task-reviewer and viber:final-reviewer, refuses
 # R2 only. Every refusal tells the model the fix, so it carries on instead of
 # halting the build.
 #
@@ -29,6 +30,14 @@
 #      check. Scratch output belongs under .temp/. An absolute target
 #      (/dev/null, /tmp/x) is not refused: the rule guards the working tree,
 #      where the coder's cwd is.
+#   R5 interpreter - inline code (python -c, node -e, ruby -e, perl -e) and a
+#      script written under .temp/ then run through an interpreter are
+#      a file edit by another route: they skip the check Edit and Write make, and
+#      a scratch script outside the plan's files is one nobody can delete (R3). A large
+#      rewrite is one Write of the whole file; tests and project scripts run by
+#      their own command (python -m pytest, node --test, node scripts/x.js).
+#      Interpreter code fed through bash -c, sh -c or standard input is not
+#      refused.
 #
 # Rule scope: an unquoted newline is deliberately not refused. R1 names the three
 # operators ; && || only, because a newline inside one Bash call is how a
@@ -66,7 +75,16 @@
 #               is a relative path (not opening with /, ~ or $, not &<digit>) that
 #               does not start .temp/ or ./.temp/; tee in command position with
 #               such a file argument.
-#            Rules are tried in the order R1, R2, R3, R4.
+#            R5 (coder): python, python2 or python3 with -c (alone or ending an
+#               option cluster, -Bc); node with -e, --eval, -p, --print or a cluster
+#               holding e or p; ruby with a cluster holding e; perl with a cluster
+#               holding e or E; and python, python2, python3, node, ruby, perl, bash
+#               or sh whose script (first argument that is no option) opens .temp/ or
+#               ./.temp/. A cluster ends at the first letter taking an attached
+#               argument (python -m -W -X -Q, node -r, ruby -I -r -C -x, perl -I -M
+#               -m -x), so -I, -r, -M and the like never read as code; python -m
+#               and bash -c or -s end the scan. perl -pi stays R4.
+#            Rules are tried in the order R1, R2, R3, R4, R5.
 #   exit 0 : always (fail-open: a broken guard must never block a command).
 #            JSON is read with bash regexes; jq is not assumed.
 set -u
@@ -300,10 +318,68 @@ is_tree_path() {
   return 0
 }
 
+# scan_interp <kind>: walks the options of an interpreter command held in args[0..na-1]
+# and sets r5 when one carries inline code or the script opens .temp/. An option
+# cluster is read letter by letter: a target letter is inline code, a stop letter
+# takes the rest of the cluster (or, last in it, the next argument) as its value, and
+# a bail letter hands the rest of the command to a module, string or stdin.
+scan_interp() {
+  local kind="$1" tgt='' stp='' bail='' x=0 a q ch
+  case "$kind" in
+    python) tgt='c' stp='WXQ' bail='m' ;;
+    node) tgt='ep' stp='r' ;;
+    ruby) tgt='e' stp='IrCx' ;;
+    perl) tgt='eE' stp='IMmx' ;;
+    shell) stp='oO' bail='cs' ;;
+  esac
+  while ((x < na)); do
+    a="${args[x]}"
+    x=$((x + 1))
+    case "$a" in
+      -) return ;;
+      --)
+        if ((x < na)); then
+          case "${args[x]}" in .temp/* | ./.temp/*) r5=1 ;; esac
+        fi
+        return
+        ;;
+      --eval | --eval=* | --print | --print=*)
+        [[ "$kind" == node ]] && r5=1
+        ;;
+      --require | --import | --loader | --experimental-loader | --env-file | --conditions | --rcfile | --init-file)
+        x=$((x + 1))
+        ;;
+      --*) ;;
+      -?*)
+        q=1
+        while ((q < ${#a})); do
+          ch="${a:q:1}"
+          if [[ -n "$tgt" && "$tgt" == *"$ch"* ]]; then
+            r5=1
+            return
+          fi
+          [[ -n "$bail" && "$bail" == *"$ch"* ]] && return
+          if [[ -n "$stp" && "$stp" == *"$ch"* ]]; then
+            ((q == ${#a} - 1)) && x=$((x + 1))
+            break
+          fi
+          q=$((q + 1))
+        done
+        ;;
+      .temp/* | ./.temp/*)
+        r5=1
+        return
+        ;;
+      *) return ;;
+    esac
+  done
+}
+
 r1=0
 r2=0
 r3=0
 r4=0
+r5=0
 cmdpos=1
 pend=0
 args=()
@@ -396,7 +472,12 @@ while ((j < n)); do
             [[ "${args[x]}" =~ ^-[0-9pnlaFsStTuUvwWcA]*i ]] && r4=1
             x=$((x + 1))
           done
+          scan_interp perl
           ;;
+        python | python2 | python3) scan_interp python ;;
+        node) scan_interp node ;;
+        ruby) scan_interp ruby ;;
+        bash | sh) scan_interp shell ;;
         tee)
           while ((x < na)); do
             o="${args[x]}"
@@ -418,6 +499,8 @@ elif ((coder && r3)); then
   reason='remove a file or directory with git rm -r -q -- <path>, never rm.'
 elif ((coder && r4)); then
   reason='Bash never writes a file - change it with Edit or Write, and redirect scratch output only under .temp/.'
+elif ((coder && r5)); then
+  reason='Bash never runs inline or scratch interpreter code - change a file with Edit or Write, and run tests and project scripts by their own command.'
 fi
 
 if [[ -n "$reason" ]]; then

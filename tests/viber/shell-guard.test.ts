@@ -6,7 +6,9 @@
  * What it must do: for viber:task-coder, refuse with the one-line deny object a
  * chained command (an unquoted ;, && or ||), the git subcommands stash, checkout,
  * restore and clean, rm, and a file write through Bash (sed -i, perl -pi, a
- * redirect or tee onto a relative path outside .temp/); for viber:task-reviewer
+ * redirect or tee onto a relative path outside .temp/), and inline interpreter
+ * code or a .temp/ script run through an interpreter (python -c, node -e,
+ * ruby -e, perl -e, bash .temp/x.sh); for viber:task-reviewer
  * and viber:final-reviewer, only the four git subcommands. Every other command,
  * every other caller and unreadable input print nothing, every deny reason opens
  * with the "viber guard: " marker, and every case exits 0. The last cases pin
@@ -39,6 +41,7 @@ const R1 = deny("one command per Bash call - run each part of the chain as its o
 const R2 = deny("git is read-only here (status, diff, log, show) - compare with git show HEAD:<path> or git diff instead.");
 const R3 = deny("remove a file or directory with git rm -r -q -- <path>, never rm.");
 const R4 = deny("Bash never writes a file - change it with Edit or Write, and redirect scratch output only under .temp/.");
+const R5 = deny("Bash never runs inline or scratch interpreter code - change a file with Edit or Write, and run tests and project scripts by their own command.");
 
 // hooks.json invokes the script as `bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/shell-guard.sh"`,
 // so the harness runs it through bash the same way.
@@ -133,6 +136,70 @@ for (const command of writeForbidden) {
   });
 }
 
+const interpreterForbidden = [
+  "python -c 'print(1)'",
+  "python2 -c 'print 1'",
+  "python3 -c 'import os'",
+  "python3 -Bc 'print(1)'",
+  "python3 -B -c 'print(1)'",
+  "python3 -u -W ignore -c 'print(1)'",
+  "node -e 'console.log(1)'",
+  "node --eval 'console.log(1)'",
+  "node --eval=1",
+  "node -p '1+1'",
+  "node --print '1+1'",
+  "node -pe '1+1'",
+  "node -r ts-node/register -e 'x()'",
+  "node --import tsx -e 'x()'",
+  "ruby -e 'puts 1'",
+  "ruby -we 'puts 1'",
+  "ruby -I lib -e 'puts 1'",
+  "perl -e 'print 1'",
+  "perl -E 'say 1'",
+  "perl -ne 'print' f",
+  "perl -le 'print 1'",
+  "perl -MList::Util -e 'print 1'",
+  "perl -I lib -e 'print 1'",
+  "python .temp/viber/T1/probe.py",
+  "python3 -B ./.temp/probe.py",
+  "python2 .temp/p.py",
+  "node .temp/viber/T1/probe.mjs",
+  "node --test .temp/viber/T1/x.test.js",
+  "node -r ts-node/register .temp/p.js",
+  "ruby .temp/p.rb",
+  "perl ./.temp/p.pl",
+  "bash .temp/viber/T1/run.sh",
+  "sh ./.temp/run.sh",
+  "bash -x .temp/run.sh",
+  "bash -o pipefail .temp/run.sh",
+  "echo go | python -c 'print(1)'",
+  "(node -e 'x')",
+  "ls\nnode -e 'x'",
+  "node -e 'x' > .temp/out.log",
+];
+
+for (const command of interpreterForbidden) {
+  test(`DoD.1-2: from viber:task-coder, ${JSON.stringify(command)} is refused with the R5 deny object`, async () => {
+    assert.equal(await runCommand(command, CODER), R5);
+  });
+}
+
+test("DoD.1: perl -pi -e stays R4 (rule order: the write rule is tried before the interpreter rule)", async () => {
+  assert.equal(await runCommand("perl -pi -e 's/a/b/' f", CODER), R4);
+});
+
+test("DoD.1: a chain holding inline interpreter code is refused as R1 first", async () => {
+  assert.equal(await runCommand("ls && node -e 'x'", CODER), R1);
+});
+
+for (const agent of ["viber:task-reviewer", "viber:final-reviewer", "viber:test-runner", "Explore", undefined]) {
+  for (const command of ["node -e 'x'", "python3 .temp/probe.py"]) {
+    test(`DoD.3: from ${agent ?? "the main session"}, ${JSON.stringify(command)} prints nothing (only the task coder is held to R5)`, async () => {
+      assert.equal(await runCommand(command, agent), "");
+    });
+  }
+}
+
 const allowed = [
   'grep -n "a;b" f',
   "grep -n 'a && b' f",
@@ -160,9 +227,33 @@ const allowed = [
   'echo "x > src/a.ts"',
   "echo 'sed -i x'",
   "sed -n 's/a/b/p' f",
-  "perl -ne 'print' f",
-  "perl -MList::Util -e 'print 1'",
   "echo x | tee /tmp/a.txt",
+  "python -m pytest",
+  "python -m pytest -c pytest.ini",
+  "python -B -m pytest -c pytest.ini",
+  "python3 tools/gen.py",
+  "python3 tools/gen.py -c conf",
+  "python3 -W ignore tools/gen.py",
+  "python3 --version",
+  "node --test",
+  "node scripts/x.js",
+  "node scripts/x.js -e prod",
+  "node -r ts-node/register scripts/x.js -p 3",
+  "node --import tsx scripts/x.js --print",
+  "ruby -Itest test/x_test.rb",
+  "ruby -rdebug x.rb",
+  "ruby -I lib x.rb -e foo",
+  "perl -Ilib t/a.t",
+  "perl -MTest::More t/a.t",
+  "perl t/a.t -e foo",
+  "bash scripts/run.sh",
+  "sh -x scripts/run.sh",
+  "bash -o pipefail scripts/run.sh",
+  'bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/shell-guard.sh"',
+  "bash -c '.temp/x.sh'",
+  "python - < .temp/x.py",
+  "echo python -c x",
+  "grep -n 'node -e' notes.md",
   "git commit -m 'git stash and rm x'",
   "echo a\nls",
   "# a; b",
@@ -228,6 +319,7 @@ const markerRows: Array<[string, string]> = [
   ["R2", "git stash"],
   ["R3", "rm x"],
   ["R4", "tee a.txt"],
+  ["R5", "node -e x"],
 ];
 
 for (const [rule, command] of markerRows) {
@@ -242,6 +334,8 @@ const headerPhrases = [
   "one refused part refuses a whole chained call",
   "a scripted substitution missing its pattern exits 0 on unchanged code",
   "an unquoted newline is deliberately not refused",
+  "a file edit by another route",
+  "R5 interpreter",
 ];
 
 for (const phrase of headerPhrases) {
@@ -268,4 +362,16 @@ test("DoD.15: the hooks.json description names shell-guard.sh, says every hook f
   assert.match(description, /Every hook fails open/);
   assert.match(description, /planning\.plain-plan-review/);
   assert.match(description, /schema note/);
+});
+
+test("DoD.4: the hooks.json description names the R5 refusal (inline interpreter code and a .temp/ script run through an interpreter)", () => {
+  const description: string = JSON.parse(fs.readFileSync(HOOKS_JSON, "utf8")).description;
+  assert.match(description, /inline interpreter code/);
+  assert.match(description, /\.temp\/ script/);
+});
+
+test("DoD.4: the script header contract lists the R5 refusal and the rule order up to R5", () => {
+  const header = fs.readFileSync(SUT, "utf8").split("\nset -u")[0];
+  assert.ok(header.includes("R5 (coder):"));
+  assert.ok(header.includes("Rules are tried in the order R1, R2, R3, R4, R5."));
 });

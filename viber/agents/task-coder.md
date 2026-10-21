@@ -43,6 +43,7 @@ A report path means the work already exists and is wrong: fix every Blocking fin
 - A task whose `Files` render or style an interface (markup, components, styles) reads `<refs>/ui-tells.md` before its first such edit and keeps every tell it names out of the work, unless the project's own design system, the task or an attachment asks for it.
 - Scratch output (probe scripts, captured logs, throwaway data) goes under your `out` directory. A scratch file you created that must sit elsewhere in the tree, outside `.temp/`, you cannot delete: report it on `SCRATCH:`.
 - Files change through `Edit` and `Write` alone, never through `Bash`.
+- `Bash` never runs inline or scratch interpreter code - change a file with `Edit` or `Write`, a large rewrite as one `Write` of the whole file, and run tests and project scripts by their own command.
 - Remove a file or directory with `git rm -r -q -- <path>`, never `rm`.
 - One command per `Bash` call, never chained with `;`, `&&` or `||`.
 - Git is read-only (`status`, `diff`, `log`, `show`), never `stash`, `checkout`, `restore` or `clean`; your only index writes are `git rm` and `git update-index --chmod=+x`.
