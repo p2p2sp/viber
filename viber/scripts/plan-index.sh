@@ -138,8 +138,9 @@
 #                    WHAT and WHY, read by the user and by the closing writers.
 #                    The frontmatter and every HTML comment are cut out of it:
 #                    both belong to the run, not to the specification the
-#                    archive keeps. A fenced block (``` or ~~~ up to the
-#                    closing fence of the same character) is content and
+#                    archive keeps. A fenced block (``` or ~~~ up to a
+#                    bare closing fence of the same character at least as long
+#                    as the opening one) is content and
 #                    stays whole, comments and blank lines included, and a
 #                    heading line inside one is body text: it neither cuts
 #                    the plan, opens a section nor splits a contract block.
@@ -489,19 +490,28 @@ function pathtok(text, p,   t, pl, off, pos, s, b, a, a2, lc, rc) {
   return 0
 }
 
+# the length of the run of one repeated first character that opens t
+function frun(t,   c, n) {
+  c = substr(t, 1, 1); n = 0
+  while (substr(t, n + 1, 1) == c) n++
+  return n
+}
+
 # Fed every line in order: 1 when the line sits inside a ``` or ~~~ fence (the
-# fence lines included), so a heading-looking line there is body text. A comment
-# opened outside a fence runs to its closing arrow and opens no fence; inside a
-# fence a comment opener is text. fch and fcom carry the state between lines.
+# fence lines included), so a heading-looking line there is body text. A fence
+# ends only on a bare line of the same character at least as long as the line
+# that opened it. A comment opened outside a fence runs to its closing arrow and
+# opens no fence; inside a fence a comment opener is text. fch (the fence
+# character), flen (its opening length) and fcom carry the state between lines.
 function fstep(raw,   t) {
   t = trim(raw)
   if (fch == "") {
     if (fcom) { if (t ~ /-->/) fcom = 0; return 0 }
     if (t ~ /^<!--/) { if (t !~ /-->/) fcom = 1; return 0 }
-    if (t ~ /^(```|~~~)/) { fch = substr(t, 1, 3); return 1 }
+    if (t ~ /^(```|~~~)/) { fch = substr(t, 1, 1); flen = frun(t); return 1 }
     return 0
   }
-  if (substr(t, 1, 3) == fch && t ~ /^(```+|~~~+)$/) fch = ""
+  if (substr(t, 1, 1) == fch && t ~ /^(`+|~+)$/ && length(t) >= flen) fch = ""
   return 1
 }
 
@@ -1140,19 +1150,28 @@ function covnums(s, out,   c, m, k, j) {
   return j
 }
 
+# the length of the run of one repeated first character that opens t
+function frun(t,   c, n) {
+  c = substr(t, 1, 1); n = 0
+  while (substr(t, n + 1, 1) == c) n++
+  return n
+}
+
 # Fed every line in order: 1 when the line sits inside a ``` or ~~~ fence (the
-# fence lines included), so a heading-looking line there is body text. A comment
-# opened outside a fence runs to its closing arrow and opens no fence; inside a
-# fence a comment opener is text. fch and fcom carry the state between lines.
+# fence lines included), so a heading-looking line there is body text. A fence
+# ends only on a bare line of the same character at least as long as the line
+# that opened it. A comment opened outside a fence runs to its closing arrow and
+# opens no fence; inside a fence a comment opener is text. fch (the fence
+# character), flen (its opening length) and fcom carry the state between lines.
 function fstep(raw,   t) {
   t = trim(raw)
   if (fch == "") {
     if (fcom) { if (t ~ /-->/) fcom = 0; return 0 }
     if (t ~ /^<!--/) { if (t !~ /-->/) fcom = 1; return 0 }
-    if (t ~ /^(```|~~~)/) { fch = substr(t, 1, 3); return 1 }
+    if (t ~ /^(```|~~~)/) { fch = substr(t, 1, 1); flen = frun(t); return 1 }
     return 0
   }
-  if (substr(t, 1, 3) == fch && t ~ /^(```+|~~~+)$/) fch = ""
+  if (substr(t, 1, 1) == fch && t ~ /^(`+|~+)$/ && length(t) >= flen) fch = ""
   return 1
 }
 
@@ -1208,8 +1227,8 @@ END {
       if (t ~ /^<!--/) { if (t !~ /-->/) incom = 1; continue }
       if (line[i] ~ /^##[[:space:]]/) inroad = (line[i] ~ /^##[[:space:]]*Roadmap[[:space:]]*$/)
       if (t == "") { if (inroad) rblank = 1; else sblank = 1; continue }
-      if (t ~ /^(```|~~~)/) sfence = substr(t, 1, 3)
-    } else if (substr(t, 1, 3) == sfence && t ~ /^(```+|~~~+)$/) sfence = ""
+      if (t ~ /^(```|~~~)/) { sfence = substr(t, 1, 1); slen = frun(t) }
+    } else if (substr(t, 1, 1) == sfence && t ~ /^(`+|~+)$/ && length(t) >= slen) sfence = ""
     if (inroad) {
       if (rblank && rkept) print "" > roadmap
       rblank = 0; rkept = 1

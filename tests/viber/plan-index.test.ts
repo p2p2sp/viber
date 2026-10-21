@@ -1718,6 +1718,68 @@ test("a second contract after a fenced shape holding ## headings is recognized, 
   });
 });
 
+/** A four-backtick block quoting a three-backtick line and a heading-looking line:
+ *  only the bare four-backtick line ends it. */
+const LONG_FENCE = ["````md", "```", "## Quoted heading", "````"];
+
+test("a Current behaviour holding a four-backtick block with a bare three-backtick line inside keeps Must not change in tasks/T1.md after --split", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(
+      dir,
+      planBody(TWO_TASKS, 2, CONTRACT, "full").replace(
+        "Every page is public.\n",
+        ["Every page is public.", "", ...LONG_FENCE, ""].join("\n"),
+      ),
+    );
+
+    const r = await run(dir, {}, [PLAN_REL, "--split"]);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+
+    assert.match(
+      readRun(dir, "tasks/T1.md"),
+      /\n## Must not change\n- The public catalogue stays reachable without an account\.\n/,
+    );
+  });
+});
+
+test("a contract block after a four-backtick contract shape holding a bare three-backtick line is found by its task Uses", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const contracts = [
+      "### C1 - Report shape",
+      "",
+      "File: none",
+      "",
+      ...LONG_FENCE,
+      "",
+      "### C2 - Login endpoint",
+      "",
+      "File: none",
+      "",
+      "POST /login -> 200 | 401",
+    ];
+    seed(dir, planBody([{ ...TWO_TASKS[0], uses: "C1" }, { ...TWO_TASKS[1], uses: "C2" }], 2, contracts));
+
+    const r = await run(dir, {}, [PLAN_REL]);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+  });
+});
+
+test("spec.md keeps the headings following a four-backtick block holding a bare three-backtick line", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const block = LONG_FENCE.join("\n");
+    seed(
+      dir,
+      planBody(TWO_TASKS).replace("## Scope\n", [block, "", "## Scope", ""].join("\n")),
+    );
+
+    const r = await run(dir, {}, [PLAN_REL, "--split"]);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+
+    const spec = readRun(dir, "spec.md");
+    assert.ok(spec.includes(`\n\n${block}\n\n## Scope\n\n### File map\n`), spec);
+  });
+});
+
 test("a fenced example opening ## Tasks above the real heading leaves spec.md its Acceptance criteria and Scope and every task file its Covered criteria", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     seed(
