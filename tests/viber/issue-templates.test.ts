@@ -333,6 +333,60 @@ test("ready: surrounding quotes are stripped from scalar values and CRLF line en
   });
 });
 
+test("ready: a trailing YAML comment is cut from a scalar and from an inline list", async () => {
+  await assertPosix(async (shell) => {
+    await withGitRepo(async (repo) => {
+      writeTemplates(repo.dir, {
+        "bug.yml": 'name: Bug report\ndescription: File a bug\ntype: Bug # x\nlabels: ["bug", "triage"] # y\n',
+      });
+      const { result } = await runStubbed(shell, repo.dir, repo.env, [], { GH_STDOUT: "https://github.com/acme/widgets\n" });
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.match(result.stdout, /^TYPE=Bug$/m);
+      assert.match(result.stdout, /^LABELS=bug, triage$/m);
+    });
+  });
+});
+
+test("ready: a full-line comment before the items of a block list does not end the list", async () => {
+  await assertPosix(async (shell) => {
+    await withGitRepo(async (repo) => {
+      writeTemplates(repo.dir, {
+        "bug.yml": "name: Bug report\ndescription: File a bug\nlabels:\n  # the labels\n  - bug\n  # more\n  - triage\n",
+      });
+      const { result } = await runStubbed(shell, repo.dir, repo.env, [], { GH_STDOUT: "https://github.com/acme/widgets\n" });
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.match(result.stdout, /^LABELS=bug, triage$/m);
+    });
+  });
+});
+
+test("ready: a flow list opened with [ and closed on a later line is read whole", async () => {
+  await assertPosix(async (shell) => {
+    await withGitRepo(async (repo) => {
+      writeTemplates(repo.dir, {
+        "bug.yml": 'name: Bug report\ndescription: File a bug\nlabels: [\n  "bug", # first\n  triage\n]\nassignees: [octocat]\n',
+      });
+      const { result } = await runStubbed(shell, repo.dir, repo.env, [], { GH_STDOUT: "https://github.com/acme/widgets\n" });
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.match(result.stdout, /^LABELS=bug, triage$/m);
+      assert.match(result.stdout, /^ASSIGNEES=octocat$/m);
+    });
+  });
+});
+
+test("ready: a quoted title keeps its brackets, colon and a # inside the quotes", async () => {
+  await assertPosix(async (shell) => {
+    await withGitRepo(async (repo) => {
+      writeTemplates(repo.dir, {
+        "bug.yml": 'name: Bug report\ndescription: File a bug\ntitle: "[Bug]: #1 " # c\n',
+      });
+      const { result } = await runStubbed(shell, repo.dir, repo.env, [], { GH_STDOUT: "https://github.com/acme/widgets\n" });
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.match(result.stdout, /^TITLE=\[Bug\]: #1 $/m);
+    });
+  });
+});
+
 test("cwd inside a subdirectory of the repository still resolves the templates via the repo root", async () => {
   await assertPosix(async (shell) => {
     await withGitRepo(async (repo) => {

@@ -52,9 +52,11 @@
 #            in the template file) are read; a same-named key nested under
 #            `body:` or anywhere else indented is not top-level and is
 #            ignored. A value's surrounding quotes are stripped and its CR is
-#            stripped either way it is written: inline (`[a, "b"]`), as a
-#            block of `- a` lines under the key, or as one comma-separated
-#            string.
+#            stripped either way it is written: inline (`[a, "b"]`), across
+#            lines from a `[` to a later `]`, as a block of `- a` lines under
+#            the key (full-line comments between the items are skipped), or as
+#            one comma-separated string. A YAML comment (a `#` at the line
+#            start or after a blank, outside quotes) is cut from every line.
 #   exit   : 0 on both STATUS=ready and STATUS=skip; 2 on any argument.
 #
 set -u
@@ -130,10 +132,44 @@ while IFS= read -r f; do
       islist["assignees"] = 1
       islist["projects"] = 1
       curlist = ""
+      inflow = ""
     }
     {
-      line = $0
-      if (match(line, /^[A-Za-z_][A-Za-z0-9_-]*:/)) {
+      # Cut a YAML comment: a hash at the line start or after a blank, outside
+      # quotes. A quote opens only at the line start or after a blank, bracket,
+      # comma or colon, so an apostrophe inside a word opens nothing.
+      src = $0
+      line = ""
+      q = ""
+      srcn = length(src)
+      for (p = 1; p <= srcn; p++) {
+        ch = substr(src, p, 1)
+        if (p > 1) prev = substr(src, p - 1, 1)
+        else prev = " "
+        if (q != "") {
+          if (ch == q) q = ""
+        } else {
+          if (ch == "#" && (prev == " " || prev == "\t")) break
+          isq = 0
+          if (ch == "\"" || ch == SQ) isq = 1
+          if (isq == 1 && index(" \t[,:", prev) > 0) q = ch
+        }
+        line = line ch
+      }
+      mode = ""
+      if (inflow != "") {
+        content = line
+        sub(/^[[:space:]]+/, "", content)
+        sub(/[[:space:]]+$/, "", content)
+        if (substr(content, length(content), 1) == "]") {
+          content = substr(content, 1, length(content) - 1)
+          target = inflow
+          inflow = ""
+        } else {
+          target = inflow
+        }
+        mode = "items"
+      } else if (match(line, /^[A-Za-z_][A-Za-z0-9_-]*:/)) {
         key = substr(line, 1, RLENGTH - 1)
         rest = substr(line, RLENGTH + 1)
         curlist = ""
@@ -156,54 +192,51 @@ while IFS= read -r f; do
             curlist = key
           } else {
             content = rest2
+            target = key
             if (substr(content, 1, 1) == "[") {
               sub(/^\[/, "", content)
-              sub(/\][[:space:]]*$/, "", content)
+              if (substr(content, length(content), 1) == "]") content = substr(content, 1, length(content) - 1)
+              else inflow = key
             }
-            nitems = split(content, arr, ",")
-            for (ii = 1; ii <= nitems; ii++) {
-              item = arr[ii]
-              sub(/^[[:space:]]+/, "", item)
-              sub(/[[:space:]]+$/, "", item)
-              m = length(item)
-              if (m >= 2) {
-                cc = substr(item, 1, 1)
-                ee = substr(item, m, 1)
-                if (cc == ee && (cc == "\"" || cc == SQ)) item = substr(item, 2, m - 2)
-              }
-              if (item != "") {
-                if (listn[key] > 0) list[key] = list[key] ", " item
-                else list[key] = item
-                listn[key]++
-              }
-            }
+            mode = "items"
           }
         }
-        next
-      }
-      if (curlist != "") {
+      } else if (curlist != "") {
         if (match(line, /^[[:space:]]*-[[:space:]]*/)) {
-          item = substr(line, RLENGTH + 1)
-          sub(/^[[:space:]]+/, "", item)
-          sub(/[[:space:]]+$/, "", item)
-          m = length(item)
-          if (m >= 2) {
-            cc = substr(item, 1, 1)
-            ee = substr(item, m, 1)
-            if (cc == ee && (cc == "\"" || cc == SQ)) item = substr(item, 2, m - 2)
-          }
-          if (item != "") {
-            if (listn[curlist] > 0) list[curlist] = list[curlist] ", " item
-            else list[curlist] = item
-            listn[curlist]++
-          }
-          next
+          content = substr(line, RLENGTH + 1)
+          sub(/^[[:space:]]+/, "", content)
+          sub(/[[:space:]]+$/, "", content)
+          target = curlist
+          mode = "one"
+        } else {
+          trimmed = line
+          sub(/^[[:space:]]+/, "", trimmed)
+          sub(/[[:space:]]+$/, "", trimmed)
+          if (trimmed != "") curlist = ""
         }
-        trimmed = line
-        sub(/^[[:space:]]+/, "", trimmed)
-        sub(/[[:space:]]+$/, "", trimmed)
-        if (trimmed == "") next
-        curlist = ""
+      }
+      if (mode == "") next
+      if (mode == "one") {
+        nitems = 1
+        arr[1] = content
+      } else {
+        nitems = split(content, arr, ",")
+      }
+      for (ii = 1; ii <= nitems; ii++) {
+        item = arr[ii]
+        sub(/^[[:space:]]+/, "", item)
+        sub(/[[:space:]]+$/, "", item)
+        m = length(item)
+        if (m >= 2) {
+          cc = substr(item, 1, 1)
+          ee = substr(item, m, 1)
+          if (cc == ee && (cc == "\"" || cc == SQ)) item = substr(item, 2, m - 2)
+        }
+        if (item != "") {
+          if (listn[target] > 0) list[target] = list[target] ", " item
+          else list[target] = item
+          listn[target]++
+        }
       }
     }
     END {
