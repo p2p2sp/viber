@@ -329,7 +329,7 @@ branch_land() {
   if [[ "$action" == switched ]]; then
     git checkout -q "$target" -- >/dev/null || action=""
   else
-    git checkout -q -b "$target" "$br_base" -- >/dev/null || action=""
+    git checkout -q -b "$target" "$from" -- >/dev/null || action=""
   fi
   if [[ -z "$action" ]]; then
     echo "error: could not put HEAD on the run branch $target" >&2
@@ -339,13 +339,13 @@ branch_land() {
 }
 
 # How many commits branch $1 lacks from its configured upstream, "unknown"
-# when it has none. The upstream is resolved by name rather than refs/heads/,
-# so a base with no local branch (or no tracking ref) reads as unknown instead
-# of erroring under errexit.
+# when it has none. The branch is addressed as refs/heads/$1, so a tag of the
+# same name is never read for it; a base with no local branch (or no tracking
+# ref) reads as unknown instead of erroring under errexit.
 base_behind() {
   local upstream behind=""
-  upstream="$(git rev-parse --abbrev-ref --symbolic-full-name "$1@{upstream}" 2>/dev/null || true)"
-  [[ -z "$upstream" ]] || behind="$(git rev-list --count "$1..$upstream" 2>/dev/null || true)"
+  upstream="$(git for-each-ref --format='%(upstream)' "refs/heads/$1" 2>/dev/null || true)"
+  [[ -z "$upstream" ]] || behind="$(git rev-list --count "refs/heads/$1..$upstream" 2>/dev/null || true)"
   [[ "$behind" =~ ^[0-9]+$ ]] || behind="unknown"
   printf '%s\n' "$behind"
 }

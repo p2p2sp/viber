@@ -2823,6 +2823,43 @@ test("an entry base behind its remote-tracking branch reports the missing commit
   });
 });
 
+/** A commit on main after a tag also named main was set on the first one: the
+ *  tag then sits behind the branch, and a name read as a revision resolves to it. */
+async function tagMainBehind(repo: GitRepo): Promise<void> {
+  await repo.git("tag", "main");
+  fs.writeFileSync(path.join(repo.dir, "later.txt"), "later\n");
+  await repo.git("add", "-A");
+  await repo.git("commit", "-q", "-m", "later");
+}
+
+test("a tag named like the base on an older commit neither stops the run branch being created nor moves its start off the base branch", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    await tagMainBehind(repo);
+    await withSource(["branch: feature/demo"], async (src) => {
+      const result = await runIn(repo, ["--land", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(branchLine(result.stdout), "branch: feature/demo (created)");
+      assert.equal(await commitOf(repo, "refs/heads/feature/demo"), await commitOf(repo, "refs/heads/main"));
+    });
+  });
+});
+
+test("a tag named like the base behind the branch does not skew behind: a base level with its remote-tracking branch reports 0", async () => {
+  await withBranchRepo(["mode: allowed", ...SINGLE.slice(1)], async (repo) => {
+    await tagMainBehind(repo);
+    await repo.git("update-ref", "refs/remotes/origin/main", await commitOf(repo, "refs/heads/main"));
+    await repo.git("config", "remote.origin.url", "./nowhere");
+    await repo.git("config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*");
+    await repo.git("config", "branch.main.remote", "origin");
+    await repo.git("config", "branch.main.merge", "refs/heads/main");
+    await withSource([], async (src) => {
+      const result = await runIn(repo, ["--branch", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.match(linesOf(result.stdout, "entry: ")[0], / \| behind: 0$/);
+    });
+  });
+});
+
 test("an untracked file in the tree reports dirty: yes", async () => {
   await withBranchRepo(SINGLE, async (repo) => {
     fs.writeFileSync(path.join(repo.dir, "untracked.txt"), "x\n");
