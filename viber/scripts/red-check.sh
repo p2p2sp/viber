@@ -68,7 +68,9 @@
 #            it in place with a "warning:" line on stderr. git worktree prune
 #            follows.
 #   cleanup: an EXIT trap (INT, TERM and HUP exit through it) removes the
-#            links first (cmd rmdir on a junction, rm on a symlink), and only
+#            links first (cmd rmdir on a junction, rm on a symlink; each link
+#            joins its list before it is made, so a signal landing right after
+#            the link exists still finds it there), and only
 #            when every link is gone runs git worktree remove --force and git
 #            worktree prune, so the forced remove never reaches the main tree
 #            through a link. A link that would not go leaves the worktree in
@@ -345,13 +347,16 @@ if [[ ${#link_names[@]} -gt 0 ]]; then
       [[ -e "$wt/$rel" || -L "$wt/$rel" ]] && continue
       if [[ "$rel" == */* ]]; then mkdir -p "$wt/${rel%/*}" 2>/dev/null || true; fi
       printf '%s\n' "$rel" >> "$tmp/red-check.owner"
+      # Recorded before it is made: a signal right after mklink or ln returns
+      # still finds it in the cleanup list, so the forced remove never runs
+      # with the link in place.
+      links+=("$wt/$rel")
       if [[ "$windows" -eq 1 ]]; then
         MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' cmd /c mklink /J "$(cygpath -w "$wt/$rel")" "$(cygpath -w "$root/$rel")" >> "$log" 2>&1 || true
       else
         ln -s "$root/$rel" "$wt/$rel" >> "$log" 2>&1 || true
       fi
       if [[ -L "$wt/$rel" || -d "$wt/$rel" ]]; then
-        links+=("$wt/$rel")
         printf 'red-check: linked %s\n' "$rel" >> "$log"
       else
         echo "red-check: UNRUNNABLE link failed: $rel"

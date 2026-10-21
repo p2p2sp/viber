@@ -35,8 +35,19 @@ import path from "node:path";
 import { runScript } from "../harness/run.ts";
 import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
 import { canSymlinkDir } from "../harness/symlinks.ts";
+import { withStub } from "../harness/stub.ts";
 
 const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/red-check.sh");
+
+/** The real Windows `cmd.exe`, slash-separated, for a `cmd` stand-in to pass its calls on to. */
+const REAL_CMD = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "cmd.exe").replace(/\\/g, "/");
+
+/** A stand-in for the tool red-check.sh links with (`cmd /c mklink /J` on
+ *  Windows, `ln -s` elsewhere) that makes no link and exits 1; on Windows every
+ *  other `cmd` call (the cleanup's `rmdir`) reaches the real one. */
+const FAILING_LINK = process.platform === "win32"
+  ? { name: "cmd", body: 'case "$*" in *mklink*) exit 1 ;; esac\nexec "$REAL_CMD" "$@"' }
+  : { name: "ln", body: "exit 1" };
 
 const RUN_DIR = "docs/_specs/2026-10-20-10-00-00_red-check";
 const PLAN_REL = `${RUN_DIR}/plan.md`;
@@ -312,6 +323,59 @@ test("a worktree an earlier call left behind, its owner PID dead, is reclaimed l
       assert.equal((await worktrees(repo)).length, 1);
       assert.equal(fs.existsSync(left), false);
       assert.equal(fs.readFileSync(path.join(repo.dir, "node_modules/pkg/value.txt"), "utf-8"), "7\n");
+    });
+  });
+});
+
+// Root cause: red-check.sh recorded a link in its cleanup list only after mklink returned.
+// Actual: a TERM landing between the two ran the cleanup without that link, so
+// `git worktree remove --force` deleted the main tree's node_modules through the junction.
+// Expected: the linked directory keeps its files and red-check exits 130.
+// Fix direction: record the link before it is made.
+test("on Windows, a TERM landing right after the junction is made leaves the main tree's gitignored node_modules with its files and exits 130 (a link made but not yet recorded was skipped by the cleanup, so the forced remove deleted through it)", {
+  skip: process.platform !== "win32" ? "junctions exist on Windows only" : false,
+}, async () => {
+  await withGitRepo(async (repo) => {
+    await withTempDir("red-check-tmp-", async (tmp) => {
+      await seed(repo);
+      changeProduction(repo.dir);
+      write(repo.dir, "node_modules/precious.txt", "keep\n");
+      write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
+      // The stand-in makes the junction, sends TERM to red-check and sleeps, so
+      // the trap runs once mklink returns, before any later line of the script.
+      const body = 'case "$*" in\n  *mklink*) "$REAL_CMD" "$@"; kill -TERM "$PPID"; sleep 1 ;;\n  *) exec "$REAL_CMD" "$@" ;;\nesac';
+      await withStub("cmd", body, async (stubDir) => {
+        const r = await runScript(SUT, [PLAN_REL, "T1"], {
+          cwd: repo.dir,
+          env: { ...repo.env, TMPDIR: tmp, REAL_CMD },
+          stubDirs: [stubDir],
+          shell: "bash",
+          timeout: 120000,
+        });
+        assert.equal(r.status, 130, r.stderr);
+        assert.equal(fs.readFileSync(path.join(repo.dir, "node_modules/precious.txt"), "utf-8"), "keep\n");
+      });
+    });
+  });
+});
+
+test("a link that cannot be made yields UNRUNNABLE naming the directory (a missing node_modules must never pose as red)", async () => {
+  await withGitRepo(async (repo) => {
+    await withTempDir("red-check-tmp-", async (tmp) => {
+      await seed(repo);
+      changeProduction(repo.dir);
+      write(repo.dir, "node_modules/pkg/value.txt", "7\n");
+      write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
+      await withStub(FAILING_LINK.name, FAILING_LINK.body, async (stubDir) => {
+        const r = await runScript(SUT, [PLAN_REL, "T1"], {
+          cwd: repo.dir,
+          env: { ...repo.env, TMPDIR: tmp, REAL_CMD },
+          stubDirs: [stubDir],
+          shell: "bash",
+          timeout: 120000,
+        });
+        assert.equal(r.stdout, "red-check: UNRUNNABLE link failed: node_modules\n");
+      });
     });
   });
 });
