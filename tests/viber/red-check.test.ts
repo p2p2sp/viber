@@ -202,6 +202,38 @@ test("a control run that fails with the change in place yields UNRUNNABLE, never
   });
 });
 
+// Root cause: red-check.sh place() copies with `cp -p`, keeping the main-tree mtime.
+// Actual: a changed production file older than the red run's build output is skipped
+// by an mtime-comparing build (make, MSBuild CoreCompile), so the control run tests
+// stale output and reads UNRUNNABLE. Expected: FAIL-AS-EXPECTED.
+// Fix direction: place() gives every placed file a fresh mtime (touch after cp -p).
+test("a changed production file whose main-tree mtime is older than the red run's build output is rebuilt in the control run (an mtime-comparing build such as MSBuild must not reuse the red run's output)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    changeProduction(repo.dir);
+    const hourAgo = new Date(Date.now() - 3600 * 1000);
+    fs.utimesSync(path.join(repo.dir, "src/lib.sh"), hourAgo, hourAgo);
+    // A make-like build: out/lib.built is rebuilt only when missing or older than src/lib.sh.
+    write(repo.dir, "tests/check.sh", 'mkdir -p out\n{ [ -f out/lib.built ] && [ ! src/lib.sh -nt out/lib.built ]; } || cp src/lib.sh out/lib.built\n. ./out/lib.built\n[ "$(answer)" = 42 ]\n');
+    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+  });
+});
+
+test("a production change that sets the exec bit reaches the control run with that mode (a plain copy over the HEAD file would keep its old mode)", {
+  skip: process.platform === "win32" ? "Windows has no exec bit to stage" : false,
+}, async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    fs.chmodSync(path.join(repo.dir, "src/lib.sh"), 0o755);
+    write(repo.dir, "tests/check.sh", "[ -x src/lib.sh ]\n");
+    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+  });
+});
+
 test("a node_modules directory of the main tree is linked into the worktree and survives the cleanup with its content (the forced remove must not reach through the link)", {
   skip: process.platform !== "win32" && !canSymlinkDir() ? "this account cannot create a directory symlink" : false,
 }, async () => {

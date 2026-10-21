@@ -43,7 +43,9 @@
 #            git status --porcelain -z -uall of the main tree.
 #   changes: a task path counts when git status shows it modified, added,
 #            untracked, renamed (both names) or deleted. A deleted file is
-#            removed from the worktree, every other one copied over HEAD.
+#            removed from the worktree, every other one copied over HEAD with
+#            its mode kept and a fresh mtime, so a build that compares mtimes
+#            never reuses the red run's output in the control run.
 #   links  : every directory named in red-check.links that sits in the root or
 #            in a directory holding a tracked file (never one inside a linked
 #            directory, never one HEAD already tracks) is linked at the same
@@ -395,7 +397,7 @@ done
 # exists, removed when the change deleted it.
 place() {
   if [[ -e "$root/$1" ]]; then
-    mkdir -p "$wt/$(dirname -- "$1")" && cp -p "$root/$1" "$wt/$1"
+    mkdir -p "$wt/$(dirname -- "$1")" && cp -p "$root/$1" "$wt/$1" && touch "$wt/$1"
   else
     rm -f -- "$wt/$1"
   fi
