@@ -14,4 +14,4 @@ paths:
   export GIT_LITERAL_PATHSPECS=1
   ```
 
-  The same export sits in `viber/skills/commit/scripts/commit-context.sh:39`, `viber/scripts/commit-task.sh:261` and `viber/scripts/archive-run.sh:82`. A glob-shaped selector (`src/*.ts`) is a literal path, never an expansion.
+  The same export sits in `viber/skills/commit/scripts/commit-context.sh:39`, `viber/scripts/commit-task.sh:250` and `viber/scripts/archive-run.sh:85`. A glob-shaped selector (`src/*.ts`) is a literal path, never an expansion.
