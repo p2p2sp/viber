@@ -48,9 +48,18 @@
 #            never reuses the red run's output in the control run.
 #   links  : every directory named in red-check.links that sits in the root or
 #            in a directory holding a tracked file (never one inside a linked
-#            directory, never one HEAD already tracks) is linked at the same
-#            relative path in the worktree: a symlink (ln -s) on macOS and
-#            Linux, a junction (mklink /J) on Windows Git Bash, MSYS and Cygwin.
+#            directory, never one HEAD already tracks) becomes a real directory
+#            at the same relative path in the worktree holding one link per
+#            entry of the main tree's directory, dot entries included; an
+#            @scope directory in it becomes a real directory holding one link
+#            per entry of its own. A link is a symlink (ln -s, one per entry)
+#            on macOS and Linux, a junction (mklink /J, one cmd batch for all)
+#            on Windows Git Bash, MSYS and Cygwin, where a file entry is
+#            copied instead. Each link points to its main-tree entry, except
+#            an entry that is a link resolving into the repository outside
+#            every linked directory (a workspace package): its link points to
+#            the same relative path inside the worktree, so the red run loads
+#            HEAD's package code and the control run the placed change.
 #   writes : .temp/viber/<id>/red-check.log under the repository root, replaced
 #            on each call: the git worktree output, the link lines and both
 #            runs' output. No tracked file of the main tree and nothing in its
@@ -58,23 +67,26 @@
 #            written there lands in the main tree. git records the worktree
 #            under .git/worktrees/ until the cleanup. Beside the worktree,
 #            <temp dir>/red-check.owner holds the script PID on its first line
-#            and, one per line, the worktree-relative path of each link,
-#            written before the link is made.
+#            and, one per line, the worktree-relative path of each directory
+#            holding links, written before the directory is made; on Windows
+#            the batches mklink.cmd and rmlinks.cmd lie beside it.
 #   recover: before the add, every registered worktree named "wt" whose
 #            parent holds a red-check.owner with a PID no longer alive (a call
-#            killed before its trap ran) loses its listed links first, and
+#            killed before its trap ran) loses the links of its listed paths
+#            first (a listed link itself, or every link entry of a listed real
+#            directory, so a whole directory and single entries both go), and
 #            only when every one is gone is it removed (git worktree remove
 #            --force, then its temp directory); a link that would not go leaves
 #            it in place with a "warning:" line on stderr. git worktree prune
 #            follows.
 #   cleanup: an EXIT trap (INT, TERM and HUP exit through it) removes the
-#            links first (cmd rmdir on a junction, rm on a symlink; each link
-#            joins its list before it is made, so a signal landing right after
-#            the link exists still finds it there), and only
-#            when every link is gone runs git worktree remove --force and git
-#            worktree prune, so the forced remove never reaches the main tree
-#            through a link. A link that would not go leaves the worktree in
-#            place with a "warning:" line on stderr.
+#            links first, the same way (one cmd rmdir batch on Windows, rm
+#            elsewhere; a directory joins its list before it is made, so a
+#            signal landing right after a link inside it exists still finds
+#            that link), and only when every link is gone runs git worktree
+#            remove --force and git worktree prune, so the forced remove never
+#            reaches the main tree through a link. A link that would not go
+#            leaves the worktree in place with a "warning:" line on stderr.
 #   stdout : exactly one line, exit 0:
 #              red-check: FAIL-AS-EXPECTED .temp/viber/<id>/red-check.log
 #                red run non-zero, control run zero
@@ -82,13 +94,9 @@
 #                red run zero; every changed test path of the task
 #              red-check: UNRUNNABLE <reason>
 #                no test files among the task's changes, a link that failed
-#                (link failed: <path>), an entry of a linked directory (<link>/*
-#                or <link>/@*/*) that is itself a link resolving into the
-#                repository, outside every linked directory, to a directory
-#                holding one of the task's production files: a workspace
-#                package the red run would load changed (workspace link
-#                reaches the change: <entry>), the worktree could not be built
-#                or a task path not placed in it (worktree error: <what>), or
+#                (link failed: <entry path>, worktree-relative), the worktree
+#                could not be built or a task path not placed in it (worktree
+#                error: <what>), or
 #                the control run failed (control run failed (exit <n>): <log>),
 #                or, when that run exits 127 and its output holds
 #                "<word>: command not found" for a word other than the first
@@ -258,21 +266,62 @@ wt=""
 links=()
 added=0
 
-# Removes one link without ever following it into its target.
-unlink_dir() {
+# Removes every link under <base> that the given base-relative paths hold,
+# never following one: a path that is itself a link goes, a real directory loses
+# each entry that is a link (a real subdirectory is listed on its own), and a
+# path with a link among its parents is skipped, since it lies in another tree.
+# On Windows one cmd call runs an rmdir batch written into <scratch>, so a
+# directory of many junctions costs one process, not one per entry. True when
+# no link is left.
+drop_links() {
+  local scratch="$1" base="$2" rel q p e w through all=1
+  shift 2
+  local gone=() wins=() left=()
+  set +f
+  shopt -s dotglob nullglob
+  for rel in "$@"; do
+    through=0
+    q="$rel"
+    while [[ "$q" == */* ]]; do
+      q="${q%/*}"
+      if [[ -L "$base/$q" ]]; then through=1; fi
+    done
+    [[ "$through" -eq 0 ]] || continue
+    p="$base/$rel"
+    if [[ -L "$p" ]]; then
+      gone+=("$p")
+    elif [[ -d "$p" ]]; then
+      for e in "$p"/*; do
+        if [[ -L "$e" ]]; then gone+=("$e"); fi
+      done
+    fi
+  done
+  shopt -u dotglob nullglob
+  [[ ${#gone[@]} -gt 0 ]] || return 0
   if [[ "$windows" -eq 1 ]]; then
-    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' cmd /c rmdir "$(cygpath -w "$1")" >/dev/null 2>&1 || rm -f -- "$1" 2>/dev/null || true
-  else
-    rm -f -- "$1" 2>/dev/null || true
+    while IFS= read -r w; do wins+=("${w%$'\r'}"); done < <(cygpath -w "${gone[@]}" 2>/dev/null || true)
+    {
+      printf '@echo off\r\nchcp 65001 >nul\r\n'
+      for w in ${wins[@]+"${wins[@]}"}; do printf 'rmdir "%s"\r\n' "${w//%/%%}"; done
+    } 2>/dev/null > "$scratch/rmlinks.cmd" || true
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' cmd /c "$(cygpath -w "$scratch/rmlinks.cmd")" >/dev/null 2>&1 || true
   fi
-  [[ ! -L "$1" && ! -e "$1" ]]
+  for p in "${gone[@]}"; do
+    if [[ -L "$p" || -e "$p" ]]; then left+=("$p"); fi
+  done
+  [[ ${#left[@]} -gt 0 ]] || return 0
+  rm -f -- "${left[@]}" 2>/dev/null || true
+  for p in "${left[@]}"; do
+    if [[ -L "$p" || -e "$p" ]]; then all=0; fi
+  done
+  [[ "$all" -eq 1 ]]
 }
 
 cleanup() {
-  local l all_gone=1
-  for l in ${links[@]+"${links[@]}"}; do
-    unlink_dir "$l" || all_gone=0
-  done
+  local all_gone=1
+  if [[ ${#links[@]} -gt 0 ]]; then
+    drop_links "$tmp" "$wt" "${links[@]}" || all_gone=0
+  fi
   if [[ "$added" -eq 1 ]]; then
     if [[ "$all_gone" -eq 1 ]]; then
       git -C "$root" worktree remove --force "$wt" >/dev/null 2>&1 || true
@@ -291,7 +340,7 @@ trap 'exit 130' INT TERM HUP
 # Removes the worktree of an earlier call killed before its trap ran: its links
 # first, read from its owner file, and the worktree only once all are gone.
 reclaim_stale() {
-  local line p owner pid rel all_gone
+  local line p owner pid rel all_gone rels
   while IFS= read -r line; do
     case "$line" in
       "worktree "*) p="${line#worktree }" ;;
@@ -305,11 +354,15 @@ reclaim_stale() {
     [[ "$pid" =~ ^[0-9]+$ ]] || continue
     kill -0 "$pid" 2>/dev/null && continue
     all_gone=1
+    rels=()
     while IFS= read -r rel; do
       rel="${rel%$'\r'}"
       [[ -n "$rel" ]] || continue
-      unlink_dir "$p/$rel" || all_gone=0
+      rels+=("$rel")
     done < <(tail -n +2 "$owner")
+    if [[ ${#rels[@]} -gt 0 ]]; then
+      drop_links "${p%/wt}" "$p" "${rels[@]}" || all_gone=0
+    fi
     if [[ "$all_gone" -eq 1 ]]; then
       git -C "$root" worktree remove --force "$p" >> "$log" 2>&1 || true
       rm -rf -- "${p%/wt}" 2>/dev/null || true
@@ -335,9 +388,79 @@ else
   exit 0
 fi
 
+# Sets entry_to to the target of the worktree link for one main-tree entry of a
+# linked directory: an entry that is a link resolving into the repository
+# outside every linked directory (a workspace package, node_modules/@scope/pkg
+# -> ../../packages/pkg) points to the same relative path inside the worktree,
+# so the red run loads HEAD's code; any other entry points to itself in the main
+# tree. Builtins only (cd -P, PWD): no process per entry. Case-blind on
+# Windows, where a junction may resolve in another case.
+entry_target() {
+  local src="$1" phys trel n inside=0
+  entry_to="$src"
+  [[ -L "$src" ]] || return 0
+  cd -P -- "$src" 2>/dev/null || return 0
+  phys="$PWD"
+  cd -- "$root"
+  if [[ "$windows" -eq 1 ]]; then shopt -s nocasematch; fi
+  if [[ "$phys" == "$root"/* ]]; then
+    trel="${phys:${#root}+1}"
+    for n in ${link_names[@]+"${link_names[@]}"}; do
+      case "/$trel/" in */"$n"/*) inside=1 ;; esac
+    done
+    if [[ "$inside" -eq 0 ]]; then entry_to="$wt/$trel"; fi
+  fi
+  shopt -u nocasematch
+  return 0
+}
+
+pair_rel=()
+pair_target=()
+copied=()
+
+# Makes <rel> a real directory of the worktree and queues one link per entry of
+# the main tree's <rel>, dot entries included; at the top level (<top> 1) an
+# @scope directory becomes one of its own the same way. Each directory joins
+# the owner file and the cleanup list before it is made, so a signal landing
+# right after any link inside it exists still finds that link. On Windows a
+# file entry is copied in one cp call per directory: a junction holds only a
+# directory.
+queue_dir() {
+  local rel="$1" top="$2" src name
+  local scopes=() files=()
+  printf '%s\n' "$rel" >> "$tmp/red-check.owner"
+  links+=("$rel")
+  mkdir -p "$wt/$rel" 2>/dev/null || {
+    echo "red-check: UNRUNNABLE link failed: $rel"
+    exit 0
+  }
+  shopt -s dotglob nullglob
+  for src in "$root/$rel"/*; do
+    name="${src##*/}"
+    if [[ "$top" -eq 1 && "$name" == @* && -d "$src" && ! -L "$src" ]]; then
+      scopes+=("$rel/$name")
+    elif [[ "$windows" -eq 1 && -f "$src" ]]; then
+      files+=("$src")
+      copied+=("$rel/$name")
+    else
+      entry_target "$src"
+      pair_rel+=("$rel/$name")
+      pair_target+=("$entry_to")
+    fi
+  done
+  shopt -u dotglob nullglob
+  if [[ ${#files[@]} -gt 0 ]]; then
+    cp -p -- "${files[@]}" "$wt/$rel/" >> "$log" 2>&1 || true
+  fi
+  for name in ${scopes[@]+"${scopes[@]}"}; do
+    queue_dir "$name" 0
+  done
+}
+
 # Link candidates: the root and every directory holding a tracked file. A
 # directory inside a linked name is never one, so nothing below node_modules is
 # searched.
+linked=()
 if [[ ${#link_names[@]} -gt 0 ]]; then
   while IFS= read -r d; do
     skip=0
@@ -349,57 +472,53 @@ if [[ ${#link_names[@]} -gt 0 ]]; then
       if [[ "$d" == "." ]]; then rel="$n"; else rel="$d/$n"; fi
       [[ -d "$root/$rel" ]] || continue
       [[ -e "$wt/$rel" || -L "$wt/$rel" ]] && continue
-      if [[ "$rel" == */* ]]; then mkdir -p "$wt/${rel%/*}" 2>/dev/null || true; fi
-      printf '%s\n' "$rel" >> "$tmp/red-check.owner"
-      # Recorded before it is made: a signal right after mklink or ln returns
-      # still finds it in the cleanup list, so the forced remove never runs
-      # with the link in place.
-      links+=("$wt/$rel")
-      if [[ "$windows" -eq 1 ]]; then
-        MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' cmd /c mklink /J "$(cygpath -w "$wt/$rel")" "$(cygpath -w "$root/$rel")" >> "$log" 2>&1 || true
-      else
-        ln -s "$root/$rel" "$wt/$rel" >> "$log" 2>&1 || true
-      fi
-      if [[ -L "$wt/$rel" || -d "$wt/$rel" ]]; then
-        printf 'red-check: linked %s\n' "$rel" >> "$log"
-      else
-        echo "red-check: UNRUNNABLE link failed: $rel"
-        exit 0
-      fi
+      linked+=("$rel")
     done
   done < <({ printf '.\n'; git ls-files -z | tr '\0' '\n' | awk '{ n = split($0, s, "/"); d = ""; for (i = 1; i < n; i++) { d = (d == "" ? s[i] : d "/" s[i]); print d } }'; } | sort -u)
 fi
+for rel in ${linked[@]+"${linked[@]}"}; do
+  queue_dir "$rel" 1
+done
 
-# Case-folded on Windows, where a junction may resolve in another case.
-fold() {
-  if [[ "$windows" -eq 1 ]]; then printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; else printf '%s' "$1"; fi
-}
-
-# A workspace package inside a linked directory (node_modules/@scope/pkg ->
-# ../../packages/pkg) resolves to the main tree, which holds the task's
-# production change: the red run would load the changed code, never HEAD's.
-root_f="$(fold "$root")"
-for l in ${links[@]+"${links[@]}"}; do
-  for e in "$l"/* "$l"/@*/*; do
-    [[ -L "$e" ]] || continue
-    target="$(cd -P -- "$e" 2>/dev/null && pwd -P)" || continue
-    target="$(fold "$target")"
-    [[ "$target" == "$root_f"/* ]] || continue
-    trel="${target#"$root_f"/}"
-    inside=0
-    for n in ${link_names[@]+"${link_names[@]}"}; do
-      case "/$trel/" in */"$(fold "$n")"/*) inside=1 ;; esac
+# The links themselves: one ln per entry elsewhere, one cmd call running a
+# mklink /J batch on Windows, the two worktree and main-tree prefixes converted
+# once rather than one cygpath per entry.
+if [[ ${#pair_rel[@]} -gt 0 ]]; then
+  if [[ "$windows" -eq 1 ]]; then
+    win_wt="$(cygpath -w "$wt")"
+    win_root="$(cygpath -w "$root")"
+    {
+      printf '@echo off\r\nchcp 65001 >nul\r\n'
+      for ((i = 0; i < ${#pair_rel[@]}; i++)); do
+        l="$win_wt\\${pair_rel[i]}"
+        t="${pair_target[i]}"
+        if [[ "$t" == "$wt/"* ]]; then t="$win_wt\\${t#"$wt/"}"; else t="$win_root\\${t#"$root/"}"; fi
+        l="${l//\//\\}"
+        t="${t//\//\\}"
+        printf 'mklink /J "%s" "%s"\r\n' "${l//%/%%}" "${t//%/%%}"
+      done
+    } > "$tmp/mklink.cmd"
+    MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' cmd /c "$(cygpath -w "$tmp/mklink.cmd")" >> "$log" 2>&1 || true
+  else
+    for ((i = 0; i < ${#pair_rel[@]}; i++)); do
+      ln -s "${pair_target[i]}" "$wt/${pair_rel[i]}" >> "$log" 2>&1 || break
     done
-    [[ "$inside" -eq 0 ]] || continue
-    for f in ${prod_files[@]+"${prod_files[@]}"}; do
-      case "$(fold "$f")" in
-        "$trel"/*)
-          echo "red-check: UNRUNNABLE workspace link reaches the change: ${e#"$wt"/}"
-          exit 0
-          ;;
-      esac
-    done
-  done
+  fi
+fi
+for ((i = 0; i < ${#pair_rel[@]}; i++)); do
+  if [[ ! -L "$wt/${pair_rel[i]}" ]]; then
+    echo "red-check: UNRUNNABLE link failed: ${pair_rel[i]}"
+    exit 0
+  fi
+done
+for rel in ${copied[@]+"${copied[@]}"}; do
+  if [[ ! -f "$wt/$rel" ]]; then
+    echo "red-check: UNRUNNABLE link failed: $rel"
+    exit 0
+  fi
+done
+for rel in ${linked[@]+"${linked[@]}"}; do
+  printf 'red-check: linked %s\n' "$rel" >> "$log"
 done
 
 # Brings one task path from the main tree into the worktree: copied when it
