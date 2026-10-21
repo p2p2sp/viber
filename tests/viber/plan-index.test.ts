@@ -2904,6 +2904,26 @@ test("an absolute coder-file path of a file a done task claims prints on the ext
   });
 });
 
+test("a backslashed coder-file path prints on the extra line in its forward-slash form", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seedScope(dir, "src\\b.ts\r\n");
+
+    const result = await scope(dir);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "extra: src/b.ts\n");
+  });
+});
+
+test("a backslashed coder-file path of a file a task not yet done claims is left off exactly as its forward-slash spelling is", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seedScope(dir, "src\\todo.ts\n");
+
+    const result = await scope(dir);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+  });
+});
+
 // --- the verify command value: one pair of wrapping backticks is dropped ------
 
 /** The `verify:` lines of the index a one-task plan prints, T1 carrying `verification`. */

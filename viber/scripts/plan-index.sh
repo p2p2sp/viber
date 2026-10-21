@@ -50,7 +50,8 @@
 #                                   line, a repeat, one under .temp/, one the
 #                                   task's own Files lists and one a task not yet
 #                                   done lists; a carriage return and a leading
-#                                   "./" are stripped first, and an absolute path
+#                                   "./" are stripped first, a backslash of a
+#                                   relative path is read as "/", an absolute path
 #                                   inside the repository is folded to its
 #                                   repo-relative form (one outside stays as
 #                                   written)
@@ -404,13 +405,18 @@ awk_mode="$mode"
 # The coder extras file of the --extra task, one path per line, each folded to its
 # repo-relative form so the ownership comparison below sees one spelling of a file
 # (an absolute path inside the repository, as the coder may have written it, equals
-# its relative one); a path outside the repository stays as written.
+# its relative one); a path outside the repository stays as written. A relative
+# path has its backslashes read as "/" (Windows writes "src\b.ts").
 extra_paths=""
 if [[ "$has_extra" -eq 1 && -f "$dir/work/$extra_id-extra.md" ]]; then
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     line="${line#"${line%%[![:space:]]*}"}"
     line="${line%"${line##*[![:space:]]}"}"
+    case "$line" in
+      /*|[A-Za-z]:[/\\]*) ;;
+      *) line="${line//\\//}" ;;
+    esac
     line="${line#./}"
     [[ -n "$line" ]] || continue
     extra_paths="$extra_paths$(cwd_relative "$line")"$'\n'
