@@ -79,6 +79,11 @@ A draft goes to step 3 next; every other plan dispatches the review below.
 
 ## 3. Review gate
 
+Count the rows under the `tasks:` header of the `plan-index.sh` output of this round.
+
+- A draft, and a plan of 12 tasks or fewer: dispatch the `viber:planner-review` agent alone, as below.
+- A plan of more than 12 tasks: dispatch the review set, as further below.
+
 Dispatch the `viber:planner-review` agent with the plan path, `refs: ${CLAUDE_PLUGIN_ROOT}/references`, `memory: <value>` (the `build.memory:` line of the config block resolved above), and the line:
 
 ```
@@ -91,13 +96,23 @@ One `Answered:` line after the summary for every answer the user gave you, from 
 
 A draft adds the line `scope: spec`. From round 2 on, also pass the previous findings verbatim and one line per fix you applied.
 
+The review set is dispatched in one message, one `Agent` call per member, each member getting the plan path and `refs: ${CLAUDE_PLUGIN_ROOT}/references` and:
+
+- `viber:planner-spec-review`: the `input:` block above with its `Answered:` lines.
+- `viber:planner-graph-review`: nothing more.
+- `viber:planner-task-review`, one per slice: `memory: <value>` as above and `tasks: T<a>-T<b>`. The slices are `ceil(n / 8)` runs of consecutive tasks for `n` tasks, sizes differing by at most one, the larger first (13 -> T1-T7, T8-T13; 30 -> T1-T8, T9-T16, T17-T23, T24-T30).
+
+From round 2 on, every member also gets every member's previous findings verbatim and one line per fix you applied. Every round after a `VERDICT: FAIL` dispatches the whole set anew, slices recounted from the plan as fixed.
+
 Every round and every retry is a new `Agent` dispatch, never a `SendMessage` to an earlier reviewer: the plan gate counts only a dispatch made after the last plan write.
 
-A reply with no `VERDICT:` line gets one more dispatch with the same input; a second reply without one is handled as `VERDICT: DENIED` with `REASON: no verdict returned`.
+A reply with no `VERDICT:` line gets one more dispatch with the same input, that member alone; a second reply without one is handled as `VERDICT: DENIED` with `REASON: no verdict returned`.
+
+The verdict of a round of the review set is `VERDICT: DENIED` when any member returned it, else `VERDICT: FAIL` when any returned it, else `VERDICT: PASS`. The verdicts below read the single reviewer's or the round's.
 
 - `VERDICT: PASS` - go to step 4 without writing the plan again; its Minor findings stay unapplied.
-- `VERDICT: FAIL` - show the findings, fix the plan, re-run `plan-index.sh` after every fix unless the plan is a draft, then dispatch again. A finding that needs a decision only the user can make gets asked first through one `AskUserQuestion`, and the answer, kept as an `Answered:` line, starts a fresh round 1.
-- `VERDICT: DENIED` - one `AskUserQuestion` naming the refused call from its `REASON:` line: permission added and retry, dispatching again in the same round, or stop with the plan unreviewed and no hand-off.
+- `VERDICT: FAIL` - show the findings, every member's of a review set round, fix the plan, re-run `plan-index.sh` after every fix unless the plan is a draft, then dispatch again. A finding that needs a decision only the user can make gets asked first through one `AskUserQuestion`, and the answer, kept as an `Answered:` line, starts a fresh round 1.
+- `VERDICT: DENIED` - one `AskUserQuestion` naming the refused call from its `REASON:` line: permission added and retry, dispatching again in the same round (in a review set round only the members that returned `DENIED`, the others keeping their verdicts), or stop with the plan unreviewed and no hand-off.
 
 ```!
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" branching.""mode "${CLAUDE_SKILL_DIR}" branching-fix
@@ -105,7 +120,7 @@ A reply with no `VERDICT:` line gets one more dispatch with the same input; a se
 
 ## 4. Hand off
 
-Call `ExitPlanMode` only after a PASS from a review dispatched after your last write to the plan file. Every later write voids that PASS, whatever caused it - the user's remark on a refused `ExitPlanMode`, an answer to your question, a Minor finding, your own second thought: re-run `plan-index.sh` unless the plan is a draft, then dispatch step 3 again, as a fresh round 1, before the next `ExitPlanMode`.
+Call `ExitPlanMode` only after a PASS from a review dispatched after your last write to the plan file; on a review set, that is the PASS of every member the round required. Every later write voids that PASS, whatever caused it - the user's remark on a refused `ExitPlanMode`, an answer to your question, a Minor finding, your own second thought: re-run `plan-index.sh` unless the plan is a draft, then dispatch step 3 again, as a fresh round 1, before the next `ExitPlanMode`.
 
 Then exactly one case applies:
 
