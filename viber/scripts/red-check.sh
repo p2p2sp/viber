@@ -89,7 +89,11 @@
 #                package the red run would load changed (workspace link
 #                reaches the change: <entry>), the worktree could not be built
 #                or a task path not placed in it (worktree error: <what>), or
-#                the control run failed (control run failed (exit <n>): <log>)
+#                the control run failed (control run failed (exit <n>): <log>),
+#                or, when that run exits 127 and its output holds
+#                "<word>: command not found" for a word other than the first
+#                word of the command, the command was cut up by shell
+#                substitution (verify command mangled by shell substitution: <log>)
 #   exit   : 0 with the verdict line; 2 on bad arguments or plan, nothing on
 #            stdout.
 #
@@ -442,6 +446,19 @@ control=0
 run_verify control || control=$?
 
 if [[ "$control" -ne 0 ]]; then
+  if [[ "$control" -eq 127 ]]; then
+    first_word="${verify#"${verify%%[![:space:]]*}"}"
+    first_word="${first_word%%[[:space:]]*}"
+    while IFS= read -r line; do
+      word="${line%%: command not found*}"
+      word="${word##*: }"
+      word="${word##* }"
+      if [[ -n "$word" && "$word" != "$first_word" ]]; then
+        echo "red-check: UNRUNNABLE verify command mangled by shell substitution: $log_rel"
+        exit 0
+      fi
+    done < <(awk '/^===== control run: / { s = 1; next } s && /: command not found/' "$log")
+  fi
   echo "red-check: UNRUNNABLE control run failed (exit $control): $log_rel"
   exit 0
 fi

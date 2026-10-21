@@ -65,7 +65,7 @@ function write(root: string, rel: string, content: string): void {
 
 /** A lite plan plan-index.sh validates: T1 owns the production file and its
  *  test, T2 owns another production file a parallel coder is editing. */
-function planBody(): string {
+function planBody(verification = "bash tests/check.sh"): string {
   const task = (id: string, files: string, verification: string) => [
     "<!-- TASK -->",
     `### ${id} - task ${id}`,
@@ -103,16 +103,16 @@ function planBody(): string {
     "",
     "## Tasks",
     "",
-    ...task("T1", "src/lib.sh, tests/check.sh", "bash tests/check.sh"),
+    ...task("T1", "src/lib.sh, tests/check.sh", verification),
     ...task("T2", "src/other.sh", "bash src/other.sh"),
   ].join("\n");
 }
 
 /** Commits the plan, the production files at their HEAD state and an ignore
  *  file for `.temp/` and `node_modules/`, as a host project carries them. */
-async function seed(repo: GitRepo): Promise<void> {
+async function seed(repo: GitRepo, verification?: string): Promise<void> {
   fs.appendFileSync(path.join(repo.dir, ".git", "info", "exclude"), ".gitconfig-global\n");
-  write(repo.dir, PLAN_REL, planBody());
+  write(repo.dir, PLAN_REL, planBody(verification));
   write(repo.dir, ".gitignore", ".temp/\nnode_modules/\n");
   write(repo.dir, "src/lib.sh", "answer() { echo 0; }\n");
   write(repo.dir, "src/other.sh", "other() { echo ok; }\n");
@@ -210,6 +210,39 @@ test("a control run that fails with the change in place yields UNRUNNABLE, never
     assert.equal(r.status, 0, r.stderr);
     assert.equal(r.stdout, `red-check: UNRUNNABLE control run failed (exit 1): ${LOG_REL}\n`);
     assert.equal((await worktrees(repo)).length, 1);
+  });
+});
+
+test("a Verification wrapped in Markdown backticks runs as the bare command and yields FAIL-AS-EXPECTED (the wrapped text ran as a shell substitution and always failed)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, "`bash tests/check.sh`");
+    changeProduction(repo.dir);
+    write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
+    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+  });
+});
+
+test("a control run exiting 127 on a command-not-found word that is not the command's first word yields the mangled-command line (shell substitution ate part of the command)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, "bash tests/check.sh && nosuchword_t8");
+    changeProduction(repo.dir);
+    write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
+    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, `red-check: UNRUNNABLE verify command mangled by shell substitution: ${LOG_REL}\n`);
+  });
+});
+
+test("a control run exiting 127 on the command's own first word keeps the control-run-failed line (a missing tool is not a mangled command)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, "nosuchtool_t8 tests/check.sh");
+    changeProduction(repo.dir);
+    write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
+    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, `red-check: UNRUNNABLE control run failed (exit 127): ${LOG_REL}\n`);
   });
 });
 
