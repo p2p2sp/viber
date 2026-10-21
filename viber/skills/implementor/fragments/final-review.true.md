@@ -22,6 +22,7 @@ review: <a REPORT path this round fixes>, one `review:` line per such report
 notes: <dir>/work/final-fix-coder-1.md
 out: .temp/viber/final-fix/
 refs: ${CLAUDE_PLUGIN_ROOT}/references
+memory: <the config block's build.memory value>
 ```
 
 - Fix coder `VERDICT: DENIED` -> `AskUserQuestion`: retry / accept / abort; `accept` commits the fix, its refused call named in the final summary.

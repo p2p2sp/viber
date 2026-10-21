@@ -1,0 +1,3 @@
+- final-reviewer: the notes-line bullet carries the CLAUDE.md exception itself, worded so lint_skill.sh's "names a CLAUDE.md read" check (read/check before CLAUDE.md on one line) stays quiet.
+- task-coder: the `memory` bullet sits last in the Input list, directly above "Read your task file"; no memory-aware dispatch of task-coder other than the final-review fix coder exists, so a plain task dispatch never carries the line.
+- viber/agents/CLAUDE.md and tests/viber/CLAUDE.md (new final-review-prose file) are left to the close, per Out of scope.

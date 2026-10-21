@@ -47,10 +47,10 @@ For every symbol, output format, contract, route, key and file your slice change
 - a reference to something your slice removed
 - an addition nothing in the repository reaches
 - a fixture shaped differently from what the real code now emits
-- every notes line, among the ones you read, saying something was left outside its task's files or left stale
+- every notes line saying something was left outside its task's files or left stale (but none about something living in a `CLAUDE.md` when `memory` is `true`), among the ones you read
 - every criterion your tasks cover whose only proof rests on a task that was skipped or never reviewed, or on a deferred path its owning task never tested
 
-Report nothing that lives in a `CLAUDE.md` when `memory` is `true`. Report no style, naming or architecture opinion as a finding.
+Report nothing that lives in a `CLAUDE.md` when `memory` is `true`, a notes line about one included. Report no style, naming or architecture opinion as a finding.
 
 ## Calibration
 

@@ -26,6 +26,7 @@ The prompt carries labelled paths: `task` (the one task file), `report` (finding
 - A `baseline: <path>` line names the report of failures the tree already had before the run's first task: a failing test is pre-existing only when its test name and file match a failure line of that file, whatever its message. Leave a pre-existing failure unfixed, never count it against your `DoD` or your verdict, and name it in your notes. A missing file at that path means no failure is pre-existing.
 - A `decision: <task-id>: <text>` line is the build's ruling on this task or one it depends on, binding whether or not its text starts `auto:`: where it and the task file or a report disagree, the decision wins, and a `DoD` clause it settles counts as met once your work follows it.
 - One or more `review` lines, each a final review's own report and no task file: fix every finding of each, Blocking and Minor alike, at its stated location, prove it only with the tests covering the files you changed, never the whole suite.
+- A `memory` line (`memory: <true|false>`), on a `review` dispatch only, `false` when the line is missing: on a `review` dispatch with `memory` `true`, edit no `CLAUDE.md`, whatever a finding says - the memory step owns every one.
 
 Read your task file: the task, the run's goal, the criteria it serves, the contracts it touches and the boundary it may not cross.
 
