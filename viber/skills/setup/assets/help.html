@@ -3220,6 +3220,17 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
   <a href="#skill-planner"><code>planner</code></a> plan and returns pass or fail with blocking
   findings.</span><span lang="pl">recenzuje plan z <a href="#skill-planner"><code>planner</code></a> i zwraca
   akceptację albo odrzucenie z blokującymi uwagami.</span></li>
+  <li id="agent-planner-spec-review"><code>planner-spec-review</code> <span lang="en">reviews the specification half of
+  a plan past 12 tasks, beside <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
+  <a href="#agent-planner-task-review"><code>planner-task-review</code></a>.</span><span lang="pl">recenzuje część
+  specyfikacyjną planu powyżej 12 zadań, obok <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a>
+  i <a href="#agent-planner-task-review"><code>planner-task-review</code></a>.</span></li>
+  <li id="agent-planner-graph-review"><code>planner-graph-review</code> <span lang="en">reviews the task graph of a plan
+  past 12 tasks: dependencies and task boundaries.</span><span lang="pl">recenzuje graf zadań planu powyżej 12
+  zadań: zależności i granice zadań.</span></li>
+  <li id="agent-planner-task-review"><code>planner-task-review</code> <span lang="en">reviews one slice of at most 8
+  tasks of a plan past 12 tasks, one reviewer per slice, working in parallel.</span><span lang="pl">recenzuje jedną
+  porcję, najwyżej 8 zadań, planu powyżej 12 zadań, po jednym recenzencie na porcję, równolegle.</span></li>
   <li id="agent-plain-plan-review"><code>plain-plan-review</code> <span lang="en">gives the same review to a plan
   written in plain plan mode, when <a href="#key-planning-plain-plan-review"><code>planning.plain-plan-review</code></a> is
   on.</span><span lang="pl">robi tę samą recenzję planu napisanego w zwykłym trybie planowania, gdy

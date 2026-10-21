@@ -1,8 +1,8 @@
 # status
 
-progress: 2/7
-done: T1 T2
+progress: 3/7
+done: T1 T2 T3
 skipped: none
 unreviewed: none
-deferred: none
+deferred: T4:viber/agents/planner-spec-review.md T4:viber/agents/planner-graph-review.md T4:viber/agents/planner-task-review.md
 closed: none

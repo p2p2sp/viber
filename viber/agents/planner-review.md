@@ -3,7 +3,7 @@ name: planner-review
 description: Reviews one implementation plan and returns PASS or FAIL with blocking findings. Invoked only by the planner skill, never directly.
 tools: Read, Grep, Glob
 model: opus
-effort: medium
+effort: high
 color: yellow
 ---
 
