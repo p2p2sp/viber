@@ -212,8 +212,7 @@
 #       "Uses:" contract absent from the appendix, a contract block no task's
 #       "Uses:" names, a malformed or duplicate contract heading, a contract
 #       block with no "File:" line (even one where no block in the whole
-#       appendix carries the line at all - exempted under --split alone,
-#       below), a contract file that no task's "Files:" creates and the tree
+#       appendix carries the line at all - exempted as below), a contract file that no task's "Files:" creates and the tree
 #       does not already hold, a contract file whose holders never name the
 #       block in "Uses:", an unparseable "Files:" entry, the same file listed
 #       by two tasks with no dependency path between them - they would run at
@@ -239,8 +238,11 @@
 #       the writer; the error names the reader, the path and the writer). The
 #       last six cases and the
 #       parenthetical one above are exempted under --split
-#       alone: a plan that landed before the rule is frozen, and a run resumed
-#       after the upgrade must still validate and decompose.
+#       and under --extra, and on a plain call whose plan has status.md beside
+#       it (a landed run plan): a plan that landed before the rule is frozen,
+#       and a run resumed after the upgrade must still validate and decompose.
+#       A plain call with no status.md beside the plan (a fresh plan) applies
+#       every rule.
 #
 #       An unparseable "Files:" entry is an empty one, one carrying "*" or "?",
 #       one whose bracket does not wrap a whole segment in one of the three App
@@ -394,6 +396,9 @@ fi
 # must still resolve after a rule was added.
 awk_mode="$mode"
 [[ "$has_extra" -eq 0 ]] || awk_mode="--split"
+# A plain call on a landed plan (status.md beside it) is validated the same way:
+# the plan is frozen, so a rule added after it landed must not refuse it.
+[[ ! -f "$dir/status.md" ]] || awk_mode="--split"
 
 # The coder extras file of the --extra task, one path per line, each folded to its
 # repo-relative form so the ownership comparison below sees one spelling of a file

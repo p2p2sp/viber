@@ -1490,6 +1490,27 @@ test("read-after: under --split the check does not run (a frozen plan still deco
   });
 });
 
+test("read-after: a plain call on a plan with status.md beside it validates the same plan under the --split exemptions (a landed plan is frozen)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, readAfterPlan({ verification: "node --test src/login.ts -> green" }));
+    seedStatus(dir, { done: "none" });
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stdout, /^tasks: /m);
+  });
+});
+
+test("read-after: the same plan with no status.md beside it still exits 4 naming the rule (a fresh plan keeps every rule)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, readAfterPlan({ verification: "node --test src/login.ts -> green" }));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, READ_AFTER_MESSAGE);
+  });
+});
+
 test("read-after: the header's exit-4 list names the case", () => {
   const source = fs.readFileSync(SUT, "utf-8");
   assert.match(source, /read-after: a "Verification:" or "DoD:" line naming/);
