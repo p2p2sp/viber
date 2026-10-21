@@ -307,9 +307,11 @@ if [ "$task_count" -gt 12 ]; then
         if (kind == "none") return tval[k] == ""
         return tval[k] == kind
       }
-      # The runs of tasks picked by kind: "T9-T16, T20" as ranges, or, with chunk,
-      # as dispatch slices of at most 8 tasks each. A dash when no task is picked.
-      function runs(kind, chunk,    k, s, e, c, ce, out) {
+      # The runs of tasks picked by kind: "T9-T16, T20" as ranges; with chunk 1, as
+      # dispatch slices of at most 8 tasks each, cut from the start of each run; with
+      # chunk 2, as the planner slices of the whole plan: ceil(len / 8) slices per run,
+      # sizes differing by at most one, the larger first. A dash when no task is picked.
+      function runs(kind, chunk,    k, s, e, c, ce, out, len, m, base, extra, i) {
         out = ""
         k = 1
         while (k <= n) {
@@ -317,7 +319,18 @@ if [ "$task_count" -gt 12 ]; then
           s = k
           while (k <= n && pick(k, kind)) k++
           e = k - 1
-          if (chunk) {
+          if (chunk == 2) {
+            len = e - s + 1
+            m = int((len + 7) / 8)
+            base = int(len / m)
+            extra = len % m
+            c = s
+            for (i = 1; i <= m; i++) {
+              ce = c + base - 1 + (i <= extra ? 1 : 0)
+              out = out (out == "" ? "" : ", ") "T" c "-T" ce
+              c = ce + 1
+            }
+          } else if (chunk) {
             for (c = s; c <= e; c += 8) {
               ce = c + 7
               if (ce > e) ce = e
@@ -368,7 +381,7 @@ if [ "$task_count" -gt 12 ]; then
         print "uslices", runs("none", 1)
         print "fail", runs("FAIL", 0)
         print "denied", runs("DENIED", 0)
-        print "allslices", runs("all", 1)
+        print "allslices", runs("all", 2)
         out = "lines"
         if (sl && !(sl in seen)) { seen[sl] = 1; out = out " " sl }
         if (gl && !(gl in seen)) { seen[gl] = 1; out = out " " gl }

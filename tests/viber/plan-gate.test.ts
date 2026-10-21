@@ -1141,7 +1141,17 @@ test("review set: a FAIL on one task slice is refused naming the task reviewer a
     assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(tasks T9-T16\\) returned 'VERDICT: FAIL'`));
     assert.match(reason ?? "", new RegExp(SET_SPEC));
     assert.match(reason ?? "", new RegExp(SET_GRAPH));
-    assert.match(reason ?? "", /one dispatch per slice: T1-T8, T9-T16, T17-T20/);
+    assert.match(reason ?? "", /one dispatch per slice: T1-T7, T8-T14, T15-T20/);
+  });
+});
+
+test("review set: the whole set to dispatch again is cut in the planner's balanced slices, 13 tasks -> T1-T7, T8-T13 (the gate text must agree with the planner skill)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 13);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ ...ALL_PASS, spec: "FAIL" })]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /one dispatch per slice: T1-T7, T8-T13/);
   });
 });
 
