@@ -56,7 +56,10 @@
 #   exit != 0:
 #     2 - unusable argv: no argument, more than one, a directory that does not
 #         exist, or one the safety gate refuses (outside docs/<runs>/, carrying
-#         a `..` segment, or holding no status.md)
+#         a `..` segment, or holding no status.md); every trailing slash is
+#         stripped first, and an argument whose run key then comes out empty or
+#         `.` ("/", "//", ".", "./") is refused as `error: refused <argument as
+#         typed> - no run key` with nothing moved
 #     3 - the destination already exists; nothing is touched
 #     4 - the run is unfinished: a task of plan.md is in neither `done:` nor
 #         `skipped:` of status.md; nothing is touched
@@ -106,8 +109,15 @@ fi
 # Windows path arrives backslashed, and a trailing "/" or a leading "./" is
 # how a path gets typed rather than how it differs.
 dir="${raw//\\//}"
-dir="${dir%/}"
+while [[ "$dir" == */ ]]; do dir="${dir%/}"; done
 [[ "$dir" == ./* ]] && dir="${dir#./}"
+
+# A path that names no run key - nothing left of it, or the working directory
+# itself - is refused as typed, before anything is resolved or moved.
+if [[ -z "$dir" || "${dir##*/}" == "." ]]; then
+  echo "error: refused $raw - no run key" >&2
+  exit 2
+fi
 
 # An absolute path inside the cwd, rewritten relative to it; any other path is
 # printed unchanged. Both sides are resolved physically, so a symlinked spelling

@@ -239,6 +239,47 @@ test("a leading './' and a trailing '/' are how a path is typed, so the run stil
   }
 });
 
+test("a run path typed with several trailing slashes archives the run, and only spec.md rides in the commit", async () => {
+  await withGitRepo(async (repo) => {
+    const runDir = seedRun(repo.dir, KEY);
+    fs.rmSync(path.join(repo.dir, runDir, "qa.md"));
+    fs.rmSync(path.join(repo.dir, runDir, "qa.e2e.md"));
+    await repo.git("add", "-A");
+    const seeded = await repo.git("commit", "-m", "docs(viber): decomposition");
+    assert.equal(seeded.status, 0, `seed commit failed: ${seeded.stderr}`);
+
+    const result = await run(repo.dir, [`${runDir}//`], repo.env);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(slash(result.stdout).trim(), `ARCHIVED: docs/specs/${KEY} (1 files)`);
+    const archived = (await repo.git("ls-tree", "-r", "--name-only", "HEAD", "docs/specs")).stdout.trim();
+    assert.equal(slash(archived), `docs/specs/${KEY}/spec.md`);
+  });
+});
+
+/** An argument naming no run key is refused with the C3 line before anything moves. */
+async function assertNoRunKey(arg: string): Promise<void> {
+  await withSeededRepo(async (repo, runDir) => {
+    const result = await run(repo.dir, [arg], repo.env);
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr.trim(), `error: refused ${arg} - no run key`);
+    assert.ok(fs.existsSync(path.join(repo.dir, runDir, "plan.md")), "the run directory must be untouched");
+    assert.equal(filesUnder(repo.dir, "docs/specs").length, 0);
+  });
+}
+
+test("a '.' argument has no run key, so it is refused with exit 2 and nothing is moved", async () => {
+  await assertNoRunKey(".");
+});
+
+test("a './' argument has no run key once its slash is stripped, so it is refused with exit 2 and nothing is moved", async () => {
+  await assertNoRunKey("./");
+});
+
+test("an argument of slashes alone has an empty run key, so it is refused with exit 2 and nothing is moved", async () => {
+  await assertNoRunKey("//");
+});
+
 test("a directory that does not exist, and one holding no status.md, are both exit 2", async () => {
   await withSeededRepo(async (repo) => {
     const missing = await run(repo.dir, ["docs/_specs/2026-01-01-00-00-00_nothing"], repo.env);
