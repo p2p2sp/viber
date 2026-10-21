@@ -8,7 +8,7 @@ Source of the `viber` Claude Code plugin, listed as the `p2p2` marketplace by `.
 - Always in English: every CLAUDE.md, script, skill, agent and reference.
 - Every plugin script MUST work on Windows (Git Bash) and MacOS.
 - Do not use `heredoc` - it is unreliable.
-- Do not use `red` color in agents.
+- Do not use `red` color in agents (only arbiter allowed).
 - Present state only: every CLAUDE.md, README, help page and `.claude/rules/` file says what holds now, never a change history (what changed, was renamed, replaced or used to hold): git keeps that.
 - Tokens are a design constraint: every token a skill, agent or reference makes a model read counts against the user's Claude Code usage limits (5-hour and weekly), and an agent holding too many instructions at once drifts. Prefer the design that makes a model read and re-read less.
 
