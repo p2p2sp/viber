@@ -149,7 +149,11 @@ those files names it itself, so no coder reads a file its task does not need.
 ![How viber works](skills/setup/assets/viber-flow-en.svg)
 
 The interview asks one question at a time, with three concrete options and a recommendation. A
-reviewer reads the resulting plan against your codebase before you approve it. Then the build runs
+reviewer reads the resulting plan against your codebase before you approve it. A plan past 12 tasks
+is read by three reviewers at once, one for the spec and its contracts, one for the dependency graph
+and one for the tasks, and plan mode ends only when all of them pass. A plan written in plain plan
+mode, with `planning.plain-plan-review` on, may name at most 8 repository files; past that, plan
+mode points you to `/viber:intent` for a planned build. Then the build runs
 task by task, reviewing and committing each one, and finishes with one final review and your fast
 tests plus the integration tests the change reaches. End-to-end tests stay with your CI and
 `/viber:e2e` unless you explicitly ask for them.

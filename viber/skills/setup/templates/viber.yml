@@ -26,6 +26,7 @@ planning:
   adr: true
   # A plan written in plain plan mode, without the planner, must pass a review
   # agent before plan mode can be left - the same gate the planner's plans get.
+  # Such a plan may name at most 8 repository files; past that, use /viber:intent.
   plain-plan-review: true
   # intent can offer a middle road for a small, well-scoped change to existing
   # code: a short design shown in chat, built only after your explicit yes, with

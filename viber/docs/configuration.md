@@ -21,7 +21,7 @@ reference. Back to the [viber guide](../README.md).
 | Switch | Default | When on |
 | --- | --- | --- |
 | `planning.adr` | on | A decision worth keeping becomes an architecture decision record in `docs/adr/`. |
-| `planning.plain-plan-review` | on | A plan written in plain plan mode, without the planner, must pass a review before plan mode can be left. |
+| `planning.plain-plan-review` | on | A plan written in plain plan mode, without the planner, must pass a review before plan mode can be left, and may name at most 8 repository files. |
 | `planning.fast-path` | on | A small, well-scoped change to existing code gets a short design in chat instead of a plan. |
 | `build.baseline-tests` | **off** | Takes `off`, `fast` or `full`. Runs your tests before the first task, so the build repairs only the failures it caused. |
 | `build.final-review` | on | One reviewer checks the whole build's diff after the last task, and a coder fixes what it finds. |

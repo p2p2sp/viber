@@ -792,12 +792,20 @@ do wklejenia do Claude.</p>
     <p lang="en">The <a href="#skill-planner">planner</a> takes the summary into Claude Code's
     <a href="#term-plan-mode">plan mode</a> and writes the plan: acceptance criteria, a file map, then the tasks.
     <a href="#agent-planner-review"><code>planner-review</code></a> checks it against your code, and plan mode
-    ends only after that <a href="#term-review">review</a> passes. Then you approve the plan or reject it.</p>
+    ends only after that <a href="#term-review">review</a> passes. A plan past 12 tasks is checked by
+    <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
+    <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
+    <a href="#agent-planner-task-review"><code>planner-task-review</code></a> at once, and plan mode ends only
+    when all of them pass. Then you approve the plan or reject it.</p>
     <p lang="pl"><a href="#skill-planner">Planista</a> przenosi podsumowanie do
     <a href="#term-plan-mode">trybu planowania</a> Claude Code i pisze plan: kryteria akceptacji, mapę plików,
     a potem zadania. <a href="#agent-planner-review"><code>planner-review</code></a> sprawdza go na twoim kodzie,
-    a tryb planowania kończy się dopiero wtedy, gdy ta <a href="#term-review">recenzja</a> przejdzie. Wtedy zatwierdzasz plan albo go
-    odrzucasz.</p>
+    a tryb planowania kończy się dopiero wtedy, gdy ta <a href="#term-review">recenzja</a> przejdzie. Plan
+    powyżej 12 zadań sprawdzają jednocześnie
+    <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
+    <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> i
+    <a href="#agent-planner-task-review"><code>planner-task-review</code></a>, a tryb planowania kończy się
+    dopiero wtedy, gdy przejdą wszyscy. Wtedy zatwierdzasz plan albo go odrzucasz.</p>
   </li>
   <li>
     <p class="say"><span lang="en">You ask Claude to build it</span><span lang="pl">Prosisz Claude o zbudowanie</span></p>
@@ -1016,13 +1024,19 @@ się krótkim projektem na czacie, a Claude buduje zmianę w twojej sesji, gdy p
     <span class="label"><span lang="en">viber does</span><span lang="pl">viber robi</span></span>
     <p lang="en">The <a href="#skill-intent">interview</a> asks what your words and the code leave open, one
     question at a time, and ends on a summary you confirm. <a href="#skill-planner"><code>planner</code></a>
-    writes the plan in plan mode and <a href="#agent-planner-review"><code>planner-review</code></a> checks it.
+    writes the plan in plan mode and <a href="#agent-planner-review"><code>planner-review</code></a> checks it
+    (a plan past 12 tasks goes to the <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
+    <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
+    <a href="#agent-planner-task-review"><code>planner-task-review</code></a> set instead).
     Once you approve it and ask Claude to build it, <a href="#skill-implementor"><code>implementor</code></a>
     builds and commits one task at a time.</p>
     <p lang="pl"><a href="#skill-intent">Wywiad</a> pyta o to, czego nie rozstrzygają twoje słowa i kod, po
     jednym pytaniu, i kończy się podsumowaniem, które potwierdzasz. <a href="#skill-planner"><code>planner</code></a>
     pisze plan w trybie planowania, a <a href="#agent-planner-review"><code>planner-review</code></a> go
-    sprawdza. Kiedy plan zatwierdzisz i poprosisz Claude o jego zbudowanie,
+    sprawdza (plan powyżej 12 zadań trafia zamiast tego do zestawu
+    <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
+    <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> i
+    <a href="#agent-planner-task-review"><code>planner-task-review</code></a>). Kiedy plan zatwierdzisz i poprosisz Claude o jego zbudowanie,
     <a href="#skill-implementor"><code>implementor</code></a> buduje go i commituje zadanie po zadaniu.</p>
   </li>
   <li>
@@ -1556,14 +1570,24 @@ udowadnia błąd.</p>
 <h3 class="sub" id="hw-gate"><span lang="en">The plan-mode gate</span><span lang="pl">Bramka trybu planowania</span><a class="self" href="#hw-gate">#</a></h3>
 <p lang="en">The <a href="#term-plan-gate">plan gate</a> is a hook that holds Claude inside plan mode until a
 review agent has passed the latest version of the plan. A plan the planner wrote goes to
-<a href="#agent-planner-review"><code>planner-review</code></a>. A plan written in plain plan mode goes to
+<a href="#agent-planner-review"><code>planner-review</code></a>; a planner plan past 12 tasks goes to
+<a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
+<a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
+<a href="#agent-planner-task-review"><code>planner-task-review</code></a> at once, and plan mode ends only when all
+of them pass. A plan written in plain plan mode goes to
 <a href="#agent-plain-plan-review"><code>plain-plan-review</code></a>, as long as
-<a href="#key-planning-plain-plan-review"><code>planning.plain-plan-review</code></a> is on.</p>
+<a href="#key-planning-plain-plan-review"><code>planning.plain-plan-review</code></a> is on, and may name at most
+8 repository files: past that, the gate points to <code>/viber:intent</code>.</p>
 <p lang="pl"><a href="#term-plan-gate">Bramka planu</a> to hook, który trzyma Claude w trybie planowania, dopóki
 agent recenzujący nie zaakceptuje najnowszej wersji planu. Plan napisany przez planistę trafia do
-<a href="#agent-planner-review"><code>planner-review</code></a>, a plan napisany w zwykłym trybie planowania do
+<a href="#agent-planner-review"><code>planner-review</code></a>; plan planisty powyżej 12 zadań trafia do
+<a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
+<a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> i
+<a href="#agent-planner-task-review"><code>planner-task-review</code></a> jednocześnie, a tryb planowania kończy się
+dopiero wtedy, gdy przejdą wszyscy. Plan napisany w zwykłym trybie planowania trafia do
 <a href="#agent-plain-plan-review"><code>plain-plan-review</code></a>, o ile włączony jest przełącznik
-<a href="#key-planning-plain-plan-review"><code>planning.plain-plan-review</code></a>.</p>
+<a href="#key-planning-plain-plan-review"><code>planning.plain-plan-review</code></a>, i może wskazywać najwyżej
+8 plików repozytorium: powyżej bramka odsyła do <code>/viber:intent</code>.</p>
 <p lang="en">Any change to the plan after the pass voids it, so the plan is reviewed again before plan mode can
 end. When the gate blocks, Claude gets the next step in words (run the review, fix its findings, or grant a
 permission the reviewer was refused), and the message says it comes from the gate and is no error.</p>
@@ -1779,11 +1803,15 @@ linie co w <code>rulings.md</code>.</p>
   <p lang="en">The <a href="#term-plan-gate">plan gate</a> holds it there until a review agent passes the latest
   version of the plan. Claude gets the next step along with the refusal and normally carries it out on its own:
   it runs the review, fixes the findings, or has the plan reviewed again after an edit. You step in only when
-  the reviewer was refused a tool call: allow that call when Claude asks.</p>
+  the reviewer was refused a tool call: allow that call when Claude asks. A plan past 12 tasks needs every
+  reviewer of its review set to pass, and a plain plan-mode plan that names more than 8 repository files is
+  refused with a pointer to <code>/viber:intent</code>.</p>
   <p lang="pl">Trzyma go tam <a href="#term-plan-gate">bramka planu</a>, dopóki agent recenzujący nie zaakceptuje
   najnowszej wersji planu. Razem z odmową Claude dostaje następny krok i zwykle wykonuje go sam: uruchamia
   recenzję, poprawia uwagi albo po zmianie zleca recenzję jeszcze raz. Ty wkraczasz tylko wtedy, gdy recenzentowi
-  odmówiono wywołania narzędzia: zezwól na nie, gdy Claude poprosi.</p>
+  odmówiono wywołania narzędzia: zezwól na nie, gdy Claude poprosi. Plan powyżej 12 zadań wymaga akceptacji
+  każdego recenzenta swojego zestawu, a plan ze zwykłego trybu planowania, który wskazuje więcej niż 8 plików
+  repozytorium, jest odrzucany ze wskazaniem na <code>/viber:intent</code>.</p>
 </details>
 <details id="ts-no-code">
   <summary><span lang="en">Why does Claude write a plan instead of changing the code?</span><span lang="pl">Dlaczego Claude pisze plan, zamiast zmienić kod?</span></summary>
@@ -2571,13 +2599,20 @@ z nich mówi, jak nim sterować.</p>
   <p lang="en">Turns a confirmed interview or a <a href="#skill-fixer"><code>fixer</code></a> diagnosis into a plan,
   inside Claude Code's plan mode: acceptance criteria, a file map, then tasks with their dependencies,
   contracts, verification and definition of done. The <a href="#agent-planner-review"><code>planner-review</code></a>
-  agent reviews the plan against your code, and plan mode can be left only after it passes. When the plan
+  agent reviews the plan against your code, and plan mode can be left only after it passes; a plan past 12 tasks
+  goes to the <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
+  <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
+  <a href="#agent-planner-task-review"><code>planner-task-review</code></a> reviewers at once, and all of them
+  must pass. When the plan
   grows past 30 tasks it asks whether to split through the interview or keep one plan, and it asks every
   decision its exploration finds that the interview left open.</p>
   <p lang="pl">Zamienia potwierdzony wywiad albo diagnozę z <a href="#skill-fixer"><code>fixer</code></a> w plan,
   w trybie planowania Claude Code: kryteria akceptacji, mapę plików, a potem zadania z zależnościami,
   kontraktami, weryfikacją i definicją ukończenia. Agent <a href="#agent-planner-review"><code>planner-review</code></a>
-  sprawdza plan na twoim kodzie, a wyjść z trybu planowania można dopiero po jego akceptacji. Gdy plan
+  sprawdza plan na twoim kodzie, a wyjść z trybu planowania można dopiero po jego akceptacji; plan powyżej
+  12 zadań trafia jednocześnie do recenzentów <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
+  <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> i
+  <a href="#agent-planner-task-review"><code>planner-task-review</code></a>, a przejść muszą wszyscy. Gdy plan
   przekroczy 30 zadań, pyta, czy podzielić zmianę przez wywiad, czy zostawić jeden plan, i pyta o każdą
   decyzję, którą znajdzie w swoim badaniu, a której wywiad nie rozstrzygnął.</p>
   <dl>
@@ -3422,9 +3457,11 @@ wartość.</p>
     <dt><code>planning.plain-plan-review</code> <span class="tag on"><span lang="en">on</span><span lang="pl">wł.</span></span></dt>
     <dd><span lang="en">A plan written in plain plan mode, without the planner, must pass
     <a href="#agent-plain-plan-review"><code>plain-plan-review</code></a> before plan mode can be left, the same
-    gate the planner's plans get.</span><span lang="pl">Plan napisany w zwykłym trybie planowania, bez planisty,
+    gate the planner's plans get. Such a plan may name at most 8 repository files; past that, plan mode points to
+    <code>/viber:intent</code> for a planned build.</span><span lang="pl">Plan napisany w zwykłym trybie planowania, bez planisty,
     musi przejść recenzję <a href="#agent-plain-plan-review"><code>plain-plan-review</code></a>, zanim będzie można
-    wyjść z trybu planowania; plany planisty przechodzą tę samą bramkę.</span></dd>
+    wyjść z trybu planowania; plany planisty przechodzą tę samą bramkę. Taki plan może wskazywać najwyżej
+    8 plików repozytorium; powyżej tryb planowania odsyła do <code>/viber:intent</code>, czyli do zaplanowanego buildu.</span></dd>
   </div>
   <div id="key-planning-fast-path">
     <dt><code>planning.fast-path</code> <span class="tag on"><span lang="en">on</span><span lang="pl">wł.</span></span></dt>
