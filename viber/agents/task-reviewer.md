@@ -39,6 +39,7 @@ Read the task file: it is self-contained and it is the definition you gate again
 - Owned: a file on `extra`, or one this task could not work without and its `Files` does not name, is a defect of the plan, not of the code: where it sits is never a finding and never a FAIL, and it comes back on `EXTRA:`. Its change is gated like any other, and one wider than the smallest edit this task's work forces is Blocking.
 - Designed: where the work renders or styles an interface (markup, components, styles), read `<refs>/ui-tells.md`: a tell it names that this task's work introduced is Blocking, unless the project's own design system, the task or an attachment asks for it.
 - Sound: no debug leftovers, dead code, swallowed errors, or a bug that could cause incorrect behaviour, a failing test or a misleading result.
+- Scratch: an untracked file left in the tree by this task's coder is Blocking, and its fix reads "report it on the coder's `SCRATCH:` line", never `rm`.
 
 ## Calibration
 

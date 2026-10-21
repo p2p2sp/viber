@@ -168,3 +168,40 @@ test("task-reviewer appends its own EXTRA paths to its extras file once", () => 
 test("task-reviewer names its extras file beside its report as the files it may write", () => {
   assert.ok(REVIEWER.includes("The only files you write are your report and your `extras` file"));
 });
+
+const DROP_CALL = '"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --drop "<plan>" "<path>" ["<path>"...]';
+
+function scratchBullet(text: string): string {
+  return lines(text).find((line) => line.startsWith("- Scratch return:")) ?? "";
+}
+
+test("task-coder keeps its scratch output under its out directory", () => {
+  const bullet = lines(CODER).find((line) => line.startsWith("- Scratch output")) ?? "";
+  assert.ok(bullet.includes("under your `out` directory"));
+});
+
+test("task-coder returns a scratch file that must sit in the tree on a SCRATCH line, never on FILES or EXTRA", () => {
+  const bullet = lines(CODER).find((line) => line.startsWith("- `SCRATCH:")) ?? "";
+  assert.ok(bullet.includes("on any verdict"));
+  assert.ok(bullet.includes("left outside `.temp/`"));
+  assert.ok(bullet.includes("never a path on `FILES:` or `EXTRA:`"));
+});
+
+test("implementor answers a SCRATCH return with one --drop call naming every path before any other dispatch or commit", () => {
+  const bullet = scratchBullet(SKILL);
+  assert.ok(bullet.includes("`SCRATCH:`, in any step"));
+  assert.ok(bullet.includes(`\`${DROP_CALL}\``));
+  assert.ok(bullet.includes("before any other dispatch or commit for that return"));
+});
+
+test("implementor turns each kept warning of the drop into a left uncommitted line of the final summary", () => {
+  const bullet = scratchBullet(SKILL);
+  assert.ok(bullet.includes("`warning: kept <path> - <reason>`"));
+  assert.ok(bullet.includes("`left uncommitted: <path> | <reason>`"));
+});
+
+test("task-reviewer names the SCRATCH line of the coder as the fix of a scratch leftover, never rm", () => {
+  const bullet = lines(REVIEWER).find((line) => line.startsWith("- Scratch:")) ?? "";
+  assert.ok(bullet.includes("`SCRATCH:` line"));
+  assert.ok(bullet.includes("never `rm`"));
+});
