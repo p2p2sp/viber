@@ -25,8 +25,9 @@
 #
 # Contract:
 #   argv   : none -> the block below. `--branching` -> the branching report,
-#            `--red-check` -> the red-check report (see their own stdout
-#            paragraphs) in place of the block. Anything else -> the block.
+#            `--red-check` -> the red-check report, `--questions` -> the
+#            questions-per-round report (see their own stdout paragraphs) in
+#            place of the block. Anything else -> the block.
 #   cwd    : any directory inside the host project - the repository root is
 #            resolved here. Outside a repository, the cwd is the base.
 #   env    : none.
@@ -110,20 +111,29 @@
 #            *_test.go *Test.java *Test.kt conftest.py testdata/ __mocks__/
 #            __fixtures__/ fixtures/ jest.config.* vitest.config.*`, links
 #            `node_modules`.
+#            planning.questions-per-round (default `5`) - how many decisions one
+#            round of the intent interview carries. A child of `planning:` read
+#            the same group-bound way by `--questions` alone; the value is cut at
+#            the first blank or `#`, case-sensitive, and valid when it matches
+#            `^([1-9]|10|all)$`. Empty, a comment alone, absent or any other
+#            value -> 5.
 #   file   : <repo root>/.claude/viber.local.yml (optional, the same layout and
 #            key grammar, personal and git-ignored; outside a repository
-#            .claude/viber.local.yml under the cwd). It overrides exactly four
+#            .claude/viber.local.yml under the cwd). It overrides exactly five
 #            keys: tiers.min and tiers.max (haiku, sonnet, opus or fable, any
 #            case), build.baseline-tests (off, fast, full, true -> full,
-#            false -> off) and github.issues (true or false). A valid local
-#            value replaces that one key; an empty or invalid one leaves the
-#            shared value. The min-above-max reset runs on the merged range.
+#            false -> off), github.issues (true or false) and
+#            planning.questions-per-round (1 to 10 or all, case-sensitive). A
+#            valid local value replaces that one key; an empty or invalid one
+#            leaves the shared value. The min-above-max reset runs on the
+#            merged range.
 #            Every other direct child of any group, and every column-0 key
 #            carrying a value, is ignored. A direct child is a key line at the
 #            indentation of the first key line inside its group; a deeper line
 #            is neither read nor named. The first assignment of a key wins, and
 #            a key is named once however often the file repeats it.
-#            `--branching` and `--red-check` never read this file.
+#            `--branching` and `--red-check` never read this file; `--questions`
+#            reads it for its one key.
 #   stdout : a header line, then one `<group>.<key>: <true|false>` line per
 #            switch (`build.baseline-tests: <off|fast|full>`), one `github.<key>: <pattern>` line per title,
 #            the two extension lines, one
@@ -205,6 +215,11 @@
 #              red-check.tests: <pattern> <pattern> ...
 #              red-check.links: <directory name> ...
 #            No file -> both defaults.
+#   stdout (--questions): exactly one line, `1` to `10` as written or `all`, `5`
+#            for any other value or none. A valid local value wins over the
+#            shared one. The no-argument block carries no line for the key; its
+#            `# local:` line names the key after tiers.max when a local value
+#            took, and under ignored when the local value was invalid.
 #   exit  : ALWAYS 0 (fail-open - a missing file or key never breaks a run, and
 #            a non-zero exit in a `!` preload would abort the whole skill load).
 #
@@ -317,6 +332,16 @@ END {
 }
 '
 
+# The shared planning.questions-per-round: the value cut at the first blank or
+# `#`, case-sensitive, 5 unless it is 1 to 10 or `all`.
+questions_prog='
+END {
+  v = raw["planning.questions-per-round"]
+  sub(/[[:space:]#].*$/, "", v)
+  print (v ~ /^([1-9]|10|all)$/ ? v : "5")
+}
+'
+
 # The build.extensions entries, one line each in listed order, each once at its
 # first entry: `<V|X> <P|S> <name>`, V for a valid name and X for any other, P
 # for an entry whose first `parallel` option reads `true` in any letter case and
@@ -367,14 +392,17 @@ END {
 '
 
 # The local overrides, one line each, in file order: `V <group.key> <value>` for
-# one of the four overridable keys holding a valid value (baseline-tests
+# one of the five overridable keys holding a valid value (baseline-tests
 # normalized to off, fast or full), `I <name>` for an ignored key. A group child
 # counts only at the indentation of the first key line inside its group.
 local_prog='
-function clean(v) {
+function cut(v) {
   sub(/^[[:space:]]+/, "", v)
   sub(/[[:space:]#].*$/, "", v)
-  return tolower(v)
+  return v
+}
+function clean(v) {
+  return tolower(cut(v))
 }
 /^[^[:space:]#]/ {
   grp = ""
@@ -403,7 +431,8 @@ grp != "" {
   sub(/[[:space:]]*:.*$/, "", key)
   val = rest
   sub(/^[^:]*:/, "", val)
-  val = clean(val)
+  exact = cut(val)
+  val = tolower(exact)
   id = grp "." key
   if (id in seen) next
   seen[id] = 1
@@ -414,6 +443,10 @@ grp != "" {
     if (val == "true") val = "full"
     if (val == "false") val = "off"
   } else if (id == "github.issues") ok = (val == "true" || val == "false")
+  else if (id == "planning.questions-per-round") {
+    ok = (exact ~ /^([1-9]|10|all)$/)
+    val = exact
+  }
   if (ok) print "V " id " " val
   else print "I " id
 }
@@ -589,6 +622,7 @@ loc_bt=""
 loc_gi=""
 loc_min=""
 loc_max=""
+loc_q=""
 loc_ignored=""
 overridden=""
 if [ -f "$local_cfg" ]; then
@@ -600,6 +634,7 @@ if [ -f "$local_cfg" ]; then
           github.issues) loc_gi="$val" ;;
           tiers.min) loc_min="$val" ;;
           tiers.max) loc_max="$val" ;;
+          planning.questions-per-round) loc_q="$val" ;;
         esac
         ;;
       I) loc_ignored="${loc_ignored:+$loc_ignored, }$id" ;;
@@ -609,6 +644,18 @@ if [ -f "$local_cfg" ]; then
   [ -z "$loc_gi" ] || overridden="${overridden:+$overridden, }github.issues"
   [ -z "$loc_min" ] || overridden="${overridden:+$overridden, }tiers.min"
   [ -z "$loc_max" ] || overridden="${overridden:+$overridden, }tiers.max"
+  [ -z "$loc_q" ] || overridden="${overridden:+$overridden, }planning.questions-per-round"
+fi
+
+if [ "${1:-}" = "--questions" ]; then
+  if [ -n "$loc_q" ]; then
+    printf '%s\n' "$loc_q"
+  else
+    report="$(awk "$map_prog$collect_prog$questions_prog" "$src" 2>/dev/null || true)"
+    [ -n "$report" ] || report=5
+    printf '%s\n' "$report"
+  fi
+  exit 0
 fi
 
 echo "# viber config (resolved)"

@@ -22,8 +22,9 @@
  * persisted knowledge" rests on it: a slash, a traversal or an absolute path
  * leaves the default standing.
  *
- * An optional `.claude/viber.local.yml` overrides four keys for one person only
- * (`tiers.min`, `tiers.max`, `build.baseline-tests`, `github.issues`); every
+ * An optional `.claude/viber.local.yml` overrides five keys for one person only
+ * (`tiers.min`, `tiers.max`, `build.baseline-tests`, `github.issues`,
+ * `planning.questions-per-round`); every
  * other key in it is ignored and named on one comment line of the block.
  *
  * `--branching` prints the branching report instead of the block: the mode, the
@@ -32,6 +33,8 @@
  * `--red-check` prints exactly two lines, the `build.red-check-tests` and
  * `build.red-check-links` lists joined by one space, each at its default when
  * empty, a comment alone or absent.
+ * `--questions` prints one line, `planning.questions-per-round` as 1 to 10 or
+ * `all`, 5 for any other value or none; a valid local value wins over it.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:
@@ -1457,5 +1460,156 @@ test("--red-check takes the first assignment, ignores a CRLF ending and never re
     writeLocal(dir, inGroup("build", "red-check-tests: mine/"));
 
     assert.deepEqual(await redCheck(dir), [`red-check.tests: ${RED_CHECK_TESTS}`, "red-check.links: deps"]);
+  });
+});
+
+// --- config.sh --questions: the decisions one round of the intent interview carries ---
+
+/** Everything `--questions` printed, the exit asserted 0 first: no input may break the preload. */
+async function questions(dir: string): Promise<string> {
+  const result = await runScript(SUT, ["--questions"], { cwd: dir, shell: "bash" });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  return result.stdout.replace(/\r/g, "").trimEnd();
+}
+
+/** The `planning:` group holding one `questions-per-round` line. */
+function asked(value: string): string {
+  return inGroup("planning", `questions-per-round: ${value}`);
+}
+
+test("--questions with no config file prints 5 and exits 0", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    assert.equal(await questions(dir), "5");
+  });
+});
+
+for (const [value, expected] of [
+  ["1", "1"],
+  ["7", "7"],
+  ["10", "10"],
+  ["all", "all"],
+  ["3   # a short round", "3"],
+  ["all\t# no cap", "all"],
+] as const) {
+  test(`--questions prints a shared value written as "${value}" as ${expected}`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      writeConfig(dir, asked(value));
+
+      assert.equal(await questions(dir), expected);
+    });
+  });
+}
+
+test("--questions drops the CR of a CRLF file from a shared value", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, "planning:\r\n  questions-per-round: 8\r\n");
+
+    assert.equal(await questions(dir), "8");
+  });
+});
+
+for (const [label, body] of [
+  ["ALL", asked("ALL")],
+  ["All", asked("All")],
+  ["0", asked("0")],
+  ["11", asked("11")],
+  ["05", asked("05")],
+  ["abc", asked("abc")],
+  ["an empty value", inGroup("planning", "questions-per-round:")],
+  ["a comment alone", asked("# three")],
+  ["the key absent from an existing file", inGroup("planning", "adr: true")],
+  ["a commented-out key", inGroup("planning", "# questions-per-round: 3")],
+  ["a column-0 key", "questions-per-round: 3\n"],
+  ["the key under another group", inGroup("build", "questions-per-round: 3")],
+  ["an invalid first assignment before a valid one", inGroup("planning", "questions-per-round: abc", "questions-per-round: 3")],
+] as const) {
+  test(`--questions prints 5 for ${label} (any value but 1 to 10 or lowercase all falls back)`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      writeConfig(dir, body);
+
+      assert.equal(await questions(dir), "5");
+    });
+  });
+}
+
+for (const [local, expected] of [
+  ["8", "8"],
+  ["all", "all"],
+] as const) {
+  test(`--questions lets a valid local value ${local} win over the shared 3`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      writeConfig(dir, asked("3"));
+      writeLocal(dir, asked(local));
+
+      assert.equal(await questions(dir), expected);
+    });
+  });
+}
+
+test("--questions takes a valid local value when the shared file gives none", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeLocal(dir, asked("2"));
+
+    assert.equal(await questions(dir), "2");
+  });
+});
+
+test("the no-argument block names planning.questions-per-round after tiers.max among the overridden keys", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeLocal(dir, asked("4") + inGroup("tiers", "max: fable") + inGroup("github", "issues: true"));
+
+    assert.equal(localLine((await run(dir)).stdout), "# local: github.issues, tiers.max, planning.questions-per-round | ignored: none");
+  });
+});
+
+for (const [label, local] of [
+  ["ALL", "ALL"],
+  ["0", "0"],
+  ["11", "11"],
+  ["abc", "abc"],
+  ["an empty value", ""],
+] as const) {
+  test(`--questions leaves the shared 3 for an invalid local value (${label})`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      writeConfig(dir, asked("3"));
+      writeLocal(dir, asked(local));
+
+      assert.equal(await questions(dir), "3");
+    });
+  });
+
+  test(`the no-argument block names planning.questions-per-round under ignored for an invalid local value (${label})`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      writeConfig(dir, asked("3"));
+      writeLocal(dir, asked(local));
+
+      assert.equal(localLine((await run(dir)).stdout), "# local: none | ignored: planning.questions-per-round");
+    });
+  });
+}
+
+test("the no-argument block of a config carrying the key keeps its lines and order, apart from the local comment line", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, asked("3"));
+    writeLocal(dir, asked("8"));
+
+    const stdout = (await run(dir)).stdout;
+    assert.deepEqual(stdout.trim().split("\n"), ["# viber config (resolved)", "# local: planning.questions-per-round | ignored: none", ...DEFAULT_BLOCK]);
+  });
+});
+
+test("--branching of a config carrying the key prints the mode alone", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, asked("3"));
+
+    assert.deepEqual(await report(dir), ["mode: off"]);
+  });
+});
+
+test("--red-check of a config carrying the key prints the two defaults", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, asked("3"));
+
+    assert.deepEqual(await redCheck(dir), RED_CHECK_DEFAULTS);
   });
 });
