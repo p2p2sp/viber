@@ -1,0 +1,5 @@
+- The hand-off text (summary file, plan mode exception) lives in parts/done.md, after the two fragment calls, so it loads only at the end; SKILL.md keeps the confirmation question and the skill-part.sh call.
+- allowed-tools lost Grep and Glob (facts come from Explore) and gained Write(./.temp/viber/intent/**) beside Edit and the skill-part.sh Bash pattern.
+- Word cap: SKILL.md + issues-input.false.md = 1025 words, cap 1128 (ceil(1025 * 1.1)). The branching-start fragment is not counted: the template default branching.mode is off. Recompute the cap if SKILL.md changes on purpose.
+- The branching-start fragments are still the old prose tables; another task rewrites them. SKILL.md still preloads branching-start at the top.
+- parts/done.md is untracked until committed: the portability sweep reads the git index, so it does not see it yet.

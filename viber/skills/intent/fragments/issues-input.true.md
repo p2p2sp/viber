@@ -1,4 +1,4 @@
-The only files you write are an issue body and an issue comment, with `Write`, under `.temp/viber/intent/` at the project root.
+The only files you write are an issue body, an issue comment and the summary file, with `Write`, under `.temp/viber/intent/` at the project root.
 
 Every script run is one literal Bash line spelled as in this skill: never prefixed with an interpreter word, never assigned to a variable, never preceded by `cd`, never chained with `;`.
 
