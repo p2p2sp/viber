@@ -2,7 +2,7 @@
 name: intent
 description: Planning interview - asks, in rounds, what the conversation and the code leave open, sizes the scope and hands a confirmed summary to viber:planner. Never started unprompted. When a change looks like it needs a plan and no confirmed interview or viber:fixer diagnosis is in context, keep talking with the user and suggest, in one line, this interview; invoke it only after the user agrees or asks to plan, design or be interviewed. Not for a change the user asked to make directly, without a plan.
 argument-hint: "[--prove] [what to plan, or an issue number/URL when github.issues is on]"
-allowed-tools: Read, Skill, AskUserQuestion, Write(./.temp/viber/intent/**), Edit(./.temp/viber/intent/**), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/skill-part.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-facts.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-templates.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-create.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/post-comment.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(date:*)
+allowed-tools: Read, Skill, AskUserQuestion, Write(./.temp/viber/intent/**), Edit(./.temp/viber/intent/**), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/skill-part.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-facts.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-templates.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-create.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/post-comment.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(date:*)
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -41,7 +41,7 @@ The conversation and the repository already hold answers: never ask what they se
 
 Ask in rounds, in prose, never through `AskUserQuestion`:
 
-- One message carries every decision whose prerequisites are settled. A decision depending on one still open waits for a later round.
+- One message carries every decision whose prerequisites are settled, prerequisites first, then the cover order, at most the cap (`all` lifts it). A decision depending on one still open, or beyond the cap, waits for a later round; when some wait, end on one line counting them. Cap: !`"${CLAUDE_PLUGIN_ROOT}/scripts/config.sh" --questions`
 - Number each decision, then its options by it (decision 2: `2.1`, `2.2`, `2.3`, a branch `2.1.1`). Give each decision three options, concrete, the recommendation first, labelled `[Recommended]:` and worded so a plain "yes" accepts it.
 - A decision needing a repository fact: dispatch `Agent` with `subagent_type: Explore`, no `model:`, a prompt naming the fact. Ask the decisions that do not need it now; only the questions that need it wait. Read no code yourself.
 - Challenge weak reasoning out loud: an answer contradicting the code or an earlier answer is said plainly and asked again.

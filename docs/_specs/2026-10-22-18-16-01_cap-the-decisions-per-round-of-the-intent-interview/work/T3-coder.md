@@ -1,0 +1,3 @@
+- The round bullet must stay a single line ending on the preload: the portability sweep reads a `!` preload only when the backtick closes the line.
+- Start text: 1027 words before, 1057 after (the limit, 30 more); the test pins the baseline as START_TEXT_WORDS_BEFORE_CAP_RULE = 1027 beside the unchanged cap of 1128.
+- The new word-growth test passed already in red (the budget guard); the other 6 new tests failed in red.log.

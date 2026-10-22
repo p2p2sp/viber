@@ -2,8 +2,9 @@
  * intent-prose.unit.test.ts - holds the shipped text of the `intent` skill to its round-based interview wiring.
  * Proves: the round rule and the Explore dispatch, the closed signal list with the attachment sentence, the absence
  * of the fast path and of any spec shape proposal, the `done` part carrying the end-of-interview fragments, the
- * summary file hand-off with its plan mode exception, one prover per question of a round, and the word cap of the
- * start text.
+ * summary file hand-off with its plan mode exception, one prover per question of a round, the cap on the decisions
+ * of a round (the `config.sh --questions` preload, its `allowed-tools` entry, `all`, the order, the remaining-count
+ * line, the resume reference) and the word cap of the start text.
  * The skill's markdown is the product, so the tests read it as text. The cap is the word count of `SKILL.md` plus
  * `issues-input.false.md` (the fragment the template defaults select) after the rewrite, times 1.1, rounded up; raise
  * it only on purpose.
@@ -17,6 +18,7 @@ import path from "node:path";
 const INTENT = path.resolve(import.meta.dirname, "../../viber/skills/intent");
 
 const START_TEXT_WORD_CAP = 1128;
+const START_TEXT_WORDS_BEFORE_CAP_RULE = 1027;
 
 function read(rel: string): string {
   return fs.readFileSync(path.join(INTENT, rel), "utf8");
@@ -40,6 +42,37 @@ test("SKILL.md asks every decision whose prerequisites are settled in one number
   assert.match(SKILL, /recommendation first/);
   assert.match(SKILL, /"yes"/);
   assert.match(SKILL, /later round/);
+});
+
+const ROUND_BULLET = SKILL.split(/\r?\n/).find((line) => line.startsWith("- One message carries")) ?? "";
+
+test("the round bullet closes on the inline preload of config.sh --questions", () => {
+  assert.match(ROUND_BULLET, /!`"\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/config\.sh" --questions`$/);
+});
+
+test("allowed-tools lists the config.sh Bash entry the preload runs", () => {
+  assert.match(HEAD, /allowed-tools:[^\n]*Bash\(\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/config\.sh:\*\)/);
+});
+
+test("the round bullet lets `all` lift the cap", () => {
+  assert.match(ROUND_BULLET, /`all` lifts it/);
+});
+
+test("the round bullet orders a capped round prerequisites first, then the cover order", () => {
+  assert.match(ROUND_BULLET, /prerequisites first, then the cover order/);
+});
+
+test("the round ends on one line counting the decisions that wait, written only when some wait", () => {
+  assert.match(ROUND_BULLET, /when some wait, end on one line counting them/);
+});
+
+test("resume.md asks its questions in the rounds of the skill's interview", () => {
+  assert.match(read("references/resume.md"), /in the rounds of the skill's `## The interview`/);
+});
+
+test("the start text grows by at most 30 words over its count before the cap rule", () => {
+  const count = words(SKILL) + words(read("fragments/issues-input.false.md"));
+  assert.ok(count <= START_TEXT_WORDS_BEFORE_CAP_RULE + 30, `${count} words, allowed ${START_TEXT_WORDS_BEFORE_CAP_RULE + 30}`);
 });
 
 test("SKILL.md gets repository facts from the built-in Explore agent with no model while only dependent questions wait", () => {
