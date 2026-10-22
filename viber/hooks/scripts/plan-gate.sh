@@ -423,7 +423,7 @@ if [ "$task_count" -gt 12 ]; then
       names="${names:+$names, }viber:planner-task-review (uncovered tasks ${uncovered})"
       todo="${todo:+$todo; }$d_task ${uslices}"
     fi
-    emit_deny "Next step: review the plan. ${plan_name} holds ${task_count} tasks, past 12, so a planner-review PASS alone does not open ExitPlanMode: every member of the review set must return 'VERDICT: PASS' after the last write of the plan, and these still miss a dispatch or a verdict: ${names}. Dispatch ${todo} - all in one message - wait for every 'VERDICT: PASS', then retry ExitPlanMode without writing the plan again: Minor findings stay unapplied, since any write after the PASS voids it. (This is ${gate}, not an error.)"
+    emit_deny "Next step: review the plan. ${plan_name} holds ${task_count} tasks, past 12, so a planner-review PASS alone does not open ExitPlanMode: every member of the review set must return 'VERDICT: PASS' after the last write of the plan, and these still miss a dispatch or a verdict: ${names}. Dispatch ${todo} - all in one message - wait for every 'VERDICT: PASS', then retry ExitPlanMode without writing the plan again: Minor findings stay unapplied, except one showing the plan changes a behaviour today's code has that the request never asked for - fix that one and dispatch again, since any write after the PASS voids it. (This is ${gate}, not an error.)"
   fi
 
   whole_set="${d_spec}; ${d_graph}; ${d_task} ${allslices}"
@@ -530,7 +530,7 @@ dispatch_line="$2"
 verdict_line="$3"
 
 if [ "$last_dispatch" = "0" ]; then
-  emit_deny "Next step: review the plan. ${writer} wrote ${plan_name} but the viber:${agent} agent has not run on this version - dispatch it with ${dispatch_with}, wait for 'VERDICT: PASS', then retry ExitPlanMode without writing the plan again: Minor findings stay unapplied, since any write after the PASS voids it. (This is ${gate}, not an error.)"
+  emit_deny "Next step: review the plan. ${writer} wrote ${plan_name} but the viber:${agent} agent has not run on this version - dispatch it with ${dispatch_with}, wait for 'VERDICT: PASS', then retry ExitPlanMode without writing the plan again: Minor findings stay unapplied, except one showing the plan changes a behaviour today's code has that the request never asked for - fix that one and dispatch again, since any write after the PASS voids it. (This is ${gate}, not an error.)"
 fi
 
 if [ "$verdict_line" = "0" ]; then

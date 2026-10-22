@@ -175,7 +175,8 @@ resumes the interview from the planner's own proposal. The planner also asks, on
 every decision its exploration of the code finds that the interview left open and that belongs to you,
 such as a behaviour, a scope or a product choice. Implementation choices stay with it. Before it writes
 tasks, its `impact-mapper` agent finds every reference to what the change modifies, moves or deletes, and
-the plan adds nothing the interview left unsettled.
+the plan adds nothing the interview left unsettled. A review finding showing the plan changes a behaviour
+your code has today, unasked, gets fixed even when it is only Minor.
 
 ### When it decides for you
 

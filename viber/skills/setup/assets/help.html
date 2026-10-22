@@ -2607,7 +2607,8 @@ z nich mówi, jak nim sterować.</p>
   grows past 30 tasks it asks whether to split through the interview or keep one plan, and it asks every
   decision its exploration finds that the interview left open. Before it writes tasks, the
   <a href="#agent-impact-mapper"><code>impact-mapper</code></a> agent finds every reference to what the change
-  modifies, moves or deletes, and the plan adds nothing the interview left unsettled.</p>
+  modifies, moves or deletes, and the plan adds nothing the interview left unsettled. A review finding showing
+  the plan changes a behaviour your code has today, unasked, gets fixed even when it is only Minor.</p>
   <p lang="pl">Zamienia potwierdzony wywiad albo diagnozę z <a href="#skill-fixer"><code>fixer</code></a> w plan,
   w trybie planowania Claude Code: kryteria akceptacji, mapę plików, a potem zadania z zależnościami,
   kontraktami, weryfikacją i definicją ukończenia. Agent <a href="#agent-planner-review"><code>planner-review</code></a>
@@ -2618,7 +2619,8 @@ z nich mówi, jak nim sterować.</p>
   przekroczy 30 zadań, pyta, czy podzielić zmianę przez wywiad, czy zostawić jeden plan, i pyta o każdą
   decyzję, którą znajdzie w swoim badaniu, a której wywiad nie rozstrzygnął. Zanim napisze zadania, agent
   <a href="#agent-impact-mapper"><code>impact-mapper</code></a> znajduje każde odwołanie do tego, co zmiana
-  zmienia, przenosi lub usuwa, a plan nie dodaje niczego, czego wywiad nie rozstrzygnął.</p>
+  zmienia, przenosi lub usuwa, a plan nie dodaje niczego, czego wywiad nie rozstrzygnął. Uwagę z przeglądu,
+  która pokazuje, że plan bez prośby zmienia dzisiejsze zachowanie kodu, planner poprawia nawet jako Minor.</p>
   <dl>
     <div>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
