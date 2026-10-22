@@ -1,6 +1,0 @@
-- plan-gate.sh lost the whole file-limit awk block; the outside path now only reads the switch and names `outside-plan-review`. Its deny text still asks for "the plan path and one sentence stating the user's goal".
-- The planner path's `input:` text (single review and review-set spec dispatch) now reads "the summary file path, the summary text or the bug diagnosis the plan answers", matching C4.
-- plan-hints.md is a single unbulleted line; the plan-writing rules (task list, parallel subagents, closing review, .temp sources) are gone with the old hint.
-- Left for the memory close / T7: viber/CLAUDE.md, hooks/CLAUDE.md, agents/CLAUDE.md, skills/CLAUDE.md and tests/viber/CLAUDE.md still say plain-plan-review and the 8-file limit; README.md lines 154-155 and the two help.html fast-path mentions also remain.
-- The viber-flow-en/pl.svg diagrams still label `plain-plan-review` and `planning.plain-plan-review` (not in T6 Files).
-- DoD.4/DoD.5 file shapes are pinned in plan-gate.test.ts (agent frontmatter, plugin.json, help anchors) since no other listed test owns them.

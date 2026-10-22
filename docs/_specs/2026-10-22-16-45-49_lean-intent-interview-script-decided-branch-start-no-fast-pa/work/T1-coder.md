@@ -1,6 +1,0 @@
-- The decision lines live in run-branch.sh (`branch_decide`, `decide_*`); `branch_start` stores its entry rows in `st_*` arrays and `branch_tail` its current/is-base/dirty in `tl_*` for it. Flags reach it as `st_*` shell variables set by plan-path.sh.
-- The existing full-stdout `--start` test now ends with `next: settled` / `settled: feature`: today's lines are unchanged, the decision follows them.
-- A flag value starting with `--` counts as a missing value (exit 2); `--settled` accepts any non-empty value.
-- A `--draft` recording a real branch but no `work:` key, with several entries, falls through rule 3 to rule 4 onward (the contract names no entry for it).
-- `--entry <key>` naming no entry falls through to rule 6; a suggested key with no entry row asks the entry question.
-- `option:` effect sentences and the `note:` texts are mine; the contract fixes only their shape, so T2-T5 fragments must show them as printed.

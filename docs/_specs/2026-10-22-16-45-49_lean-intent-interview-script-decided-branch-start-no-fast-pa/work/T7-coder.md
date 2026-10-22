@@ -1,6 +1,0 @@
-- Switch count stays "seven of the ten" (red-check counts as a switch): removing fast-path and renaming plain-plan-review left it unchanged, so docs/viber-functions.html keeps "10 switches".
-- The flow diagrams lost the third entry pill, plain plan block, plain-plan-review block, fast path block and plain build block; the right column above the baseline test-runner box is now empty. Gate text names `planning.outside-plan-review` instead.
-- The planner still asks its own decisions one `AskUserQuestion` at a time; docs say "one decision per question" there and "rounds" only for the interview.
-- The deferred `branching-start.*` fragments of intent and fixer hold no fast path or plain plan text; no DoD clause names them, so no new test.
-- Left for the memory close: CLAUDE.md nodes under viber/ still say plain-plan-review, the 8-file limit and the intent fast path.
-- viber/skills/setup/templates/viber.yml comment for `outside-plan-review` still says "in plain plan mode" and "at most 8 repository files" (not in T7 Files).
