@@ -34,6 +34,22 @@ Before writing a task, decide which files get created, modified or deleted and w
 - Read the codebase for everything `plan-rules.md`'s Reach and Owned rules force into the file map, not only what the change introduces.
 - A file you have to touch that has grown unwieldy may be split, as a task.
 
+Then map the reach of the change, on every round, a draft round included:
+
+- Skip it only when the change modifies, moves or deletes no existing file or symbol.
+- Otherwise dispatch `viber:impact-mapper` with the prompt ending on a `targets:` block: one repo-relative path per line for a whole file the change modifies, moves or deletes, or `<path> | <symbol>` for one symbol of it, a symbol only where its name, signature, type or observable behaviour changes for its callers.
+
+  ```
+  targets:
+  <repo-relative path>
+  <repo-relative path> | <symbol>
+  ```
+
+- Every `REF:` line it returns lands in a task's `Files`, through the file map, or under `### Out of scope` naming the behaviour that reference keeps.
+- `VERDICT: NONE` adds nothing.
+- `VERDICT: DENIED` gets one `AskUserQuestion` naming the refused call from its `REASON:` line: permission added and retry, or go on without the map.
+- A reply with no `VERDICT:` line is handled as `VERDICT: DENIED` with `REASON: no verdict returned`.
+
 Close the step on the threshold check, on a draft round as well, before any task is written: estimate from the file map how many tasks the plan needs. At more than 30 tasks, ask through one `AskUserQuestion`: split the change into parts, or keep one plan of that many tasks.
 
 - Split: invoke `viber:intent` through the `Skill` tool with the confirmed input verbatim followed by a `Split proposal:` block in this shape, and write no plan. Its parts come from your file map, a `viber:fixer` input puts the fix in part 1, `Open decisions:` lists each decision owed to the user that your exploration revealed, asked none of them, and it and its lines are left out when there are none.
@@ -48,6 +64,8 @@ Close the step on the threshold check, on a draft round as well, before any task
 - Keep: record the estimate as the accepted count and go on.
 
 After the threshold question, and only on a plan that goes on, ask each decision owed to the user that your exploration revealed: a behaviour, scope or product choice the input leaves open, which the user may want otherwise. An implementation choice (a file, a name, a library, a structure, an algorithm) is never asked: it stays with you. Each decision gets its own `AskUserQuestion` with 3 options, your recommendation first, one at a time, each only after the previous answer. Plan on every answer, and keep each as an `Answered:` line for step 3.
+
+Add no behaviour, rule or narrowing that neither the input nor an `Answered:` line states: such a gap is asked as above, or named under `### Out of scope`.
 
 ## 2. Write the plan
 
@@ -111,7 +129,7 @@ A reply with no `VERDICT:` line gets one more dispatch with the same input, that
 The verdict of a round of the review set is `VERDICT: DENIED` when any member returned it, else `VERDICT: FAIL` when any returned it, else `VERDICT: PASS`. The verdicts below read the single reviewer's or the round's.
 
 - `VERDICT: PASS` - go to step 4 without writing the plan again; its Minor findings stay unapplied.
-- `VERDICT: FAIL` - show the findings, every member's of a review set round, fix every Blocking finding, and a Minor one only where a Blocking fix already rewrites its text, re-run `plan-index.sh` after every fix unless the plan is a draft, then dispatch again. A finding that needs a decision only the user can make gets asked first through one `AskUserQuestion`, and the answer, kept as an `Answered:` line, starts a fresh round 1.
+- `VERDICT: FAIL` - show the findings, every member's of a review set round, fix every Blocking finding across its whole class in the plan, not only at the cited place, checking each fix against the input requirement it serves, and a Minor one only where a Blocking fix already rewrites its text, re-run `plan-index.sh` after every fix unless the plan is a draft, then dispatch again. A finding that needs a decision only the user can make gets asked first through one `AskUserQuestion`, and the answer, kept as an `Answered:` line, starts a fresh round 1.
 - `VERDICT: DENIED` - one `AskUserQuestion` naming the refused call from its `REASON:` line: permission added and retry, dispatching again in the same round (in a review set round only the members that returned `DENIED`, the others keeping their verdicts), or stop with the plan unreviewed and no hand-off.
 
 ```!
