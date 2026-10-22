@@ -1,0 +1,4 @@
+- The allowed and required fragments of a skill differ only where an answer exists in one mode alone (`no-branch` in allowed, `pr` never reaching fixer); they name no mode's options, since the report's `option:` lines carry them.
+- Settlement words kept for the unchanged `branching-handoff` fragments: `no-branch` = "no branch", `current` = "build on `current:`", `pr` = "pull request branch", "stay" = settling the `checking:` entry without moving.
+- The fixer fragments re-ask without `switch` after any failed switch once the reproduction test exists; the re-run after the issue save is the only switch that can happen then.
+- TDD none and no test names these fragments beyond the portability fragment-call sweep and `branching-stay-prose`; both green.
