@@ -140,8 +140,9 @@ those files names it itself, so no coder reads a file its task does not need.
 
 ![How viber works](skills/setup/assets/viber-flow-en.svg)
 
-The interview asks in rounds: every decision whose prerequisites are settled goes out in one
-message, each with three concrete options and a recommendation, and the confirmed summary is saved
+The interview asks in rounds: the decisions whose prerequisites are settled go out in one
+message, at most `planning.questions-per-round` of them (five by default), each with three concrete
+options and a recommendation, and the confirmed summary is saved
 as a file for the planner. The planner chooses the shape of the specification. A
 reviewer reads the resulting plan against your codebase before you approve it. A plan past 12 tasks
 is read by three reviewers at once, one for the spec and its contracts, one for the dependency graph

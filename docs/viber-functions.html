@@ -152,13 +152,14 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li><code>build.cleanup</code>: archives the run with its summary.</li>
         <li><code>build.extensions</code>: a map of your own agents that close a build.</li>
         <li><code>github.issues</code>: work with GitHub issues.</li>
+        <li><code>planning.questions-per-round</code>: how many decisions one interview round carries, <code>1</code> to <code>10</code> or <code>all</code>; a number, not a switch, default 5.</li>
         <li><code>tiers.min</code> / <code>tiers.max</code>: the build's model range (<code>haiku</code> &lt; <code>sonnet</code> &lt; <code>opus</code> &lt; <code>fable</code>).</li>
         <li><code>fable</code> runs only when the project names it.</li>
         <li>Planning always runs on the session's model, outside the <code>tiers</code> range.</li>
         <li><code>github.issue-title</code>: the issue title pattern (<code>{template-title}</code>, <code>{type}</code>, <code>{summary}</code>).</li>
         <li><code>github.pr-title</code>: the pull request title pattern (<code>{type}</code>, <code>{summary}</code>, <code>{issue-number}</code>, <code>{entry}</code>).</li>
         <li><code>directories.runs</code> / <code>directories.specifications</code>: the run and archive directory names under <code>docs/</code>.</li>
-        <li><code>.claude/viber.local.yml</code>: personal overrides of 4 keys, kept out of git.</li>
+        <li><code>.claude/viber.local.yml</code>: personal overrides of 5 keys, kept out of git.</li>
         <li>Empty or invalid local values are ignored.</li>
         <li>A session start warns when the project's <code>schema:</code> is older than the installed viber.</li>
       </ul>
@@ -298,7 +299,7 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
       <p><code>/viber:intent</code>: turns an idea into a confirmed understanding for the planner.</p>
       <ul class="f">
         <li>Never starts on its own; suggested in one line, the decision is yours.</li>
-        <li>Asks in rounds: one message carries every decision whose prerequisites are settled.</li>
+        <li>Asks in rounds: one message carries the decisions whose prerequisites are settled, at most <code>planning.questions-per-round</code> of them (5 by default).</li>
         <li>Never asks what the conversation or the code already says.</li>
         <li>Opens with a line naming what it takes as settled.</li>
         <li>When everything is settled: straight to the summary, zero questions.</li>

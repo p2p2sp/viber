@@ -76,12 +76,27 @@ older version is ignored.
   issue's number or link. `/viber:prototype` can post its conclusions to the issue it started from.
   `/viber:triage` can fetch from and publish to an issue, not only work on pasted text.
 
+## Questions per round
+
+`planning.questions-per-round` caps how many decisions one round of the `/viber:intent` interview
+carries. It is a number, not a switch.
+
+```yaml
+planning:
+  questions-per-round: 5
+```
+
+- It takes `1` to `10` or `all`; the default is `5`. `all` puts every ready decision in one round.
+- Decisions beyond the cap wait for the next round, in dependency order.
+- Anything else, an empty value included, reads as `5`.
+- A round keeps its format: numbered decisions, three options, the recommendation first.
+
 ## Personal overrides
 
 To change a few settings for yourself only, create `.claude/viber.local.yml` in the same layout.
 
-- It overrides four keys and nothing else: `tiers.min`, `tiers.max`, `build.baseline-tests` and
-  `github.issues`.
+- It overrides five keys and nothing else: `tiers.min`, `tiers.max`, `build.baseline-tests`,
+  `github.issues` and `planning.questions-per-round`.
 - An empty or invalid value is ignored.
 - The file stays out of git (`/viber:setup` adds it to `.gitignore`), and `/viber:setup` never
   creates or changes it.
