@@ -15,14 +15,14 @@ reference. Back to the [viber guide](../README.md).
 
 ## Switches
 
-`/viber:setup` turns eight of the eleven on and `build.qa`, `github.issues` and
-`build.baseline-tests` off.
+`/viber:setup` turns seven of the ten on and `build.qa`, `github.issues` and
+`build.baseline-tests` off. A `plain-plan-review` or `fast-path` line left in your file from an
+older version is ignored.
 
 | Switch | Default | When on |
 | --- | --- | --- |
 | `planning.adr` | on | A decision worth keeping becomes an architecture decision record in `docs/adr/`. |
-| `planning.plain-plan-review` | on | A plan written in plain plan mode, without the planner, must pass a review before plan mode can be left, and may name at most 8 repository files. |
-| `planning.fast-path` | on | A small, well-scoped change to existing code gets a short design in chat instead of a plan. |
+| `planning.outside-plan-review` | on | A plan written outside the planner, in plain plan mode, must pass a review before plan mode can be left, and may name at most 8 repository files. |
 | `build.baseline-tests` | **off** | Takes `off`, `fast` or `full`. Runs your tests before the first task, so the build repairs only the failures it caused. |
 | `build.final-review` | on | One reviewer checks the whole build's diff after the last task, and a coder fixes what it finds. |
 | `build.memory` | on | The build closes by updating your `CLAUDE.md` files below the root. |
@@ -35,9 +35,6 @@ reference. Back to the [viber guide](../README.md).
 
 ### Switch details
 
-- **`planning.fast-path`**: `/viber:intent` shows the design and builds it only after your
-  explicit yes, with no plan file and no run directory. A fix of code-audit findings or pull
-  request review threads never takes the fast path: it is always built through a plan.
 - **`build.baseline-tests`**: records what already fails before the first task. `fast` runs the
   unit and component tests, `full` every layer but end-to-end. `setup` rewrites an older `true` to
   `full` and `false` to `off`.

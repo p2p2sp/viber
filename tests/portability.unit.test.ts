@@ -386,8 +386,7 @@ function execBitViolations(
  *  value suffix must be one of its own key's list (DoD.3). */
 const SWITCH_VALUES: Record<string, string[]> = {
   "planning.adr": ["true", "false"],
-  "planning.plain-plan-review": ["true", "false"],
-  "planning.fast-path": ["true", "false"],
+  "planning.outside-plan-review": ["true", "false"],
   "build.baseline-tests": ["off", "fast", "full"],
   "build.final-review": ["true", "false"],
   "build.memory": ["true", "false"],

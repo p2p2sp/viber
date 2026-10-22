@@ -36,10 +36,12 @@
 #            key lines below it, the group ending at the next column-0 key (a
 #            blank line or a column-0 comment leaves it open). The first
 #            assignment of a child wins; a CR is never part of a value.
-#            planning.adr, planning.plain-plan-review, planning.fast-path,
+#            planning.adr, planning.outside-plan-review,
 #            build.baseline-tests, build.final-review, build.memory,
 #            build.rules, build.qa, build.cleanup, build.red-check,
-#            github.issues - switches.
+#            github.issues - switches. A line of a key no longer in this list
+#            (planning.plain-plan-review, planning.fast-path) is never read and
+#            never printed.
 #            One is `true` ONLY as a child of its own group, spelled exactly
 #            (case-sensitive), whose value is `true` in any letter case (ended
 #            by a space, a comment or the end of the line). A column-0 key of
@@ -131,8 +133,7 @@
 #            way the file does - in a fixed order:
 #              # viber config (resolved)
 #              planning.adr: true
-#              planning.plain-plan-review: true
-#              planning.fast-path: true
+#              planning.outside-plan-review: true
 #              build.baseline-tests: off
 #              build.final-review: true
 #              build.memory: true
@@ -285,7 +286,7 @@ function title(v, dflt,  q, end) {
   return v == "" ? dflt : v
 }
 END {
-  n = split("planning.adr planning.plain-plan-review planning.fast-path build.baseline-tests build.final-review build.memory build.rules build.qa build.cleanup build.red-check github.issues", ids, " ")
+  n = split("planning.adr planning.outside-plan-review build.baseline-tests build.final-review build.memory build.rules build.qa build.cleanup build.red-check github.issues", ids, " ")
   for (i = 1; i <= n; i++) {
     v = raw[ids[i]]
     sub(/[[:space:]#].*$/, "", v)

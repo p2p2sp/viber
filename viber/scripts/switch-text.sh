@@ -19,11 +19,10 @@
 #
 # Contract:
 #   argv   : <key> <skill dir> <name>.
-#            key  : planning.adr | planning.plain-plan-review |
-#                   planning.fast-path | build.baseline-tests |
-#                   build.final-review | build.memory | build.rules |
-#                   build.qa | build.cleanup | build.red-check |
-#                   github.issues
+#            key  : planning.adr | planning.outside-plan-review |
+#                   build.baseline-tests | build.final-review |
+#                   build.memory | build.rules | build.qa | build.cleanup |
+#                   build.red-check | github.issues
 #                   (value true | false, except build.baseline-tests: off |
 #                   fast | full) or
 #                   branching.mode (value off | allowed | required) - the
@@ -56,7 +55,7 @@ skill_dir="${2:-}"
 name="${3:-}"
 
 case "$key" in
-  planning.adr|planning.plain-plan-review|planning.fast-path) ;;
+  planning.adr|planning.outside-plan-review) ;;
   build.baseline-tests|build.final-review|build.memory|build.rules|build.qa|build.cleanup|build.red-check) ;;
   github.issues|branching.mode|build.extensions) ;;
   *) exit 0 ;;

@@ -91,7 +91,7 @@ for (const [label, config] of [
 
 for (const [key, group, child, name] of [
   ["build.final-review", "build", "final-review", "final-review"],
-  ["planning.fast-path", "planning", "fast-path", "fast-path"],
+  ["planning.outside-plan-review", "planning", "outside-plan-review", "outside-plan-review"],
   ["github.issues", "github", "issues", "issues-input"],
   ["build.red-check", "build", "red-check", "red-check"],
 ] as const) {
@@ -209,6 +209,19 @@ test("`build.extensions` whose selected fragment file is missing prints nothing 
     assert.deepEqual([result.status, result.stdout], [0, ""]);
   });
 });
+
+for (const removed of ["planning.plain-plan-review", "planning.fast-path"]) {
+  test(`the removed key ${removed} prints nothing even with its line set true and its fragment present (a removed switch is refused)`, async () => {
+    await withGitRepo(async (repo) => {
+      writeConfig(repo, "planning:\n  plain-plan-review: true\n  fast-path: true\n");
+      writeFragment(repo, "step.true.md", "on\n");
+
+      const result = await run(repo, [removed, skillDir(repo), "step"]);
+
+      assert.deepEqual([result.status, result.stdout], [0, ""]);
+    });
+  });
+}
 
 /** Every row stages the same config and fragments, and most rows name a file
  *  the fixture holds, so a row passes only because its argument is refused. */

@@ -16,7 +16,7 @@
 # The layout this file follows. /viber:setup raises it when it brings the file
 # up to a newer layout, and a session start tells you when it lags behind the
 # installed viber. Leave it as it is.
-schema: 4
+schema: 5
 
 # Switches read while a change is planned.
 planning:
@@ -24,14 +24,10 @@ planning:
   # strict admission test, and turns each record you accept into a task with no
   # dependencies writing docs/adr/.
   adr: true
-  # A plan written in plain plan mode, without the planner, must pass a review
+  # A plan written outside the planner, in plain plan mode, must pass a review
   # agent before plan mode can be left - the same gate the planner's plans get.
   # Such a plan may name at most 8 repository files; past that, use /viber:intent.
-  plain-plan-review: true
-  # intent can offer a middle road for a small, well-scoped change to existing
-  # code: a short design shown in chat, built only after your explicit yes, with
-  # no plan file and no run directory.
-  fast-path: true
+  outside-plan-review: true
 
 # Switches read by implementor while it builds a plan.
 build:

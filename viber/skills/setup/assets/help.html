@@ -1008,11 +1008,11 @@ potem. Rzadsze przypadki są zwinięte pod przykładem.</p>
 <h3 class="sub" id="guide-feature-title"><span lang="en">Add a feature</span><span lang="pl">Dodaj funkcję</span><a class="self" href="#guide-feature-title">#</a></h3>
 <p lang="en">For a change that needs a plan. A small change you want made right away needs none: ask Claude
 for it directly and say you want it without a plan. A small change to existing code you still want designed
-first takes the <a href="#key-planning-fast-path">fast path</a>: the same command ends on a short design in chat, and
+first takes the fast path: the same command ends on a short design in chat, and
 Claude builds it in your session once you say yes, with no plan file.</p>
 <p lang="pl">Dla zmiany, która potrzebuje planu. Mała zmiana, którą chcesz mieć od razu, planu nie wymaga:
 poproś o nią Claude wprost i powiedz, że ma ją zrobić bez planu. Mała zmiana istniejącego kodu, którą
-chcesz najpierw zaprojektować, idzie <a href="#key-planning-fast-path">szybką ścieżką</a>: to samo polecenie kończy
+chcesz najpierw zaprojektować, idzie szybką ścieżką: to samo polecenie kończy
 się krótkim projektem na czacie, a Claude buduje zmianę w twojej sesji, gdy powiesz „tak”, bez pliku planu.</p>
 <ol class="steps">
   <li>
@@ -1074,12 +1074,12 @@ się krótkim projektem na czacie, a Claude buduje zmianę w twojej sesji, gdy p
     <code>/viber:intent</code> wskazujący ten szkic prowadzi go dalej. Build odmawia zbudowania
     szkicu.</span></li>
     <li><span lang="en">For a small, well understood change Claude may suggest its own plan mode instead of
-    the interview. With <a href="#key-planning-plain-plan-review"><code>planning.plain-plan-review</code></a> on, that plan still
+    the interview. With <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> on, that plan still
     has to pass a review before plan mode ends.</span><span lang="pl">Przy małej, dobrze zrozumianej zmianie
     Claude może zaproponować zwykły tryb planowania zamiast wywiadu. Przy włączonym
-    <a href="#key-planning-plain-plan-review"><code>planning.plain-plan-review</code></a> taki plan też musi przejść recenzję,
+    <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> taki plan też musi przejść recenzję,
     zanim tryb planowania się skończy.</span></li>
-    <li><span lang="en">With <a href="#key-planning-fast-path"><code>planning.fast-path</code></a> on, the interview sends a change
+    <li><span lang="en">With <code>planning.fast-path</code> on, the interview sends a change
     to existing code of at most 2 tasks with code and 5 in total, with no new subsystem, restructuring or
     domain concept, down the fast path: a short design in chat, built in your session after your explicit
     yes, proven by <a href="#agent-test-runner"><code>test-runner</code></a>, with no plan file and no run
@@ -1087,7 +1087,7 @@ się krótkim projektem na czacie, a Claude buduje zmianę w twojej sesji, gdy p
     A build that outgrows those limits stops and suggests <code>/viber:intent</code>. A draft, a
     <code>roadmap.md</code> or a run on its own branch never takes it, and neither does a fix of code-audit findings
     or pull request review threads: that fix never takes the fast path.</span><span lang="pl">Przy włączonym
-    <a href="#key-planning-fast-path"><code>planning.fast-path</code></a> wywiad kieruje zmianę istniejącego kodu na co najwyżej
+    <code>planning.fast-path</code> wywiad kieruje zmianę istniejącego kodu na co najwyżej
     2 zadania z kodem i 5 w sumie, bez nowego podsystemu, przebudowy ani pojęcia domenowego, na szybką
     ścieżkę: krótki projekt na czacie, zbudowany w twojej sesji po twoim wyraźnym „tak”, sprawdzony przez
     <a href="#agent-test-runner"><code>test-runner</code></a>, bez pliku planu i bez katalogu przebiegu.
@@ -1576,7 +1576,7 @@ review agent has passed the latest version of the plan. A plan the planner wrote
 <a href="#agent-planner-task-review"><code>planner-task-review</code></a> at once, and plan mode ends only when all
 of them pass. A plan written in plain plan mode goes to
 <a href="#agent-plain-plan-review"><code>plain-plan-review</code></a>, as long as
-<a href="#key-planning-plain-plan-review"><code>planning.plain-plan-review</code></a> is on, and may name at most
+<a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> is on, and may name at most
 8 repository files: past that, the gate points to <code>/viber:intent</code>.</p>
 <p lang="pl"><a href="#term-plan-gate">Bramka planu</a> to hook, który trzyma Claude w trybie planowania, dopóki
 agent recenzujący nie zaakceptuje najnowszej wersji planu. Plan napisany przez planistę trafia do
@@ -1586,7 +1586,7 @@ agent recenzujący nie zaakceptuje najnowszej wersji planu. Plan napisany przez 
 <a href="#agent-planner-task-review"><code>planner-task-review</code></a> jednocześnie, a tryb planowania kończy się
 dopiero wtedy, gdy przejdą wszyscy. Plan napisany w zwykłym trybie planowania trafia do
 <a href="#agent-plain-plan-review"><code>plain-plan-review</code></a>, o ile włączony jest przełącznik
-<a href="#key-planning-plain-plan-review"><code>planning.plain-plan-review</code></a>, i może wskazywać najwyżej
+<a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a>, i może wskazywać najwyżej
 8 plików repozytorium: powyżej bramka odsyła do <code>/viber:intent</code>.</p>
 <p lang="en">Any change to the plan after the pass voids it, so the plan is reviewed again before plan mode can
 end. When the gate blocks, Claude gets the next step in words (run the review, fix its findings, or grant a
@@ -1826,12 +1826,12 @@ linie co w <code>rulings.md</code>.</p>
   <p lang="en">The planner starts only from a confirmed <code>/viber:intent</code> interview or a
   <code>/viber:fixer</code> diagnosis, so any other request gets that suggestion, however clear it is. Agree to
   the interview, or ask for Claude Code's own plan mode for a small change. A small change to existing code
-  needs no plan at all on the interview's <a href="#key-planning-fast-path">fast path</a>: a short design you approve
+  needs no plan at all on the interview's fast path: a short design you approve
   in chat.</p>
   <p lang="pl">Planista startuje wyłącznie od potwierdzonego wywiadu <code>/viber:intent</code> albo diagnozy
   <code>/viber:fixer</code>, więc każda inna prośba, nawet bardzo jasna, kończy się taką propozycją. Zgódź się
   na wywiad albo przy małej zmianie poproś o zwykły tryb planowania Claude Code. Mała zmiana istniejącego kodu
-  na <a href="#key-planning-fast-path">szybkiej ścieżce</a> wywiadu w ogóle nie potrzebuje planu: wystarczy krótki
+  na szybkiej ścieżce wywiadu w ogóle nie potrzebuje planu: wystarczy krótki
   projekt, który zatwierdzasz na czacie.</p>
 </details>
 <details id="ts-branch">
@@ -2540,12 +2540,12 @@ z nich mówi, jak nim sterować.</p>
   Gdy zmiana dotyczy ekranu,
   a makiety jeszcze nie ma, potwierdzenie proponuje też przejście do
   <a href="#skill-prototype"><code>/viber:prototype</code></a> przed planem.</p>
-  <p lang="en">A small change to existing code can take the <a href="#key-planning-fast-path">fast path</a>
+  <p lang="en">A small change to existing code can take the fast path
   instead: a short design in chat, built in your session only after your explicit yes and proven by
   <a href="#agent-test-runner"><code>test-runner</code></a>, with no plan file; you commit it with
   <code>/viber:commit</code>. A fix of code-audit findings or pull request review threads
   never takes the fast path. Otherwise it writes no code.</p>
-  <p lang="pl">Mała zmiana istniejącego kodu może zamiast tego pójść <a href="#key-planning-fast-path">szybką ścieżką</a>: krótki projekt na czacie,
+  <p lang="pl">Mała zmiana istniejącego kodu może zamiast tego pójść szybką ścieżką: krótki projekt na czacie,
   zbudowany w twojej sesji dopiero po twoim wyraźnym „tak” i sprawdzony przez
   <a href="#agent-test-runner"><code>test-runner</code></a>, bez pliku planu; commitujesz ją przez
   <code>/viber:commit</code>. Poprawka ustaleń audytu kodu lub wątków recenzji pull requesta
@@ -3273,9 +3273,9 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
   tasks of a plan past 12 tasks, one reviewer per slice, working in parallel.</span><span lang="pl">recenzuje jedną
   porcję, najwyżej 8 zadań, planu powyżej 12 zadań, po jednym recenzencie na porcję, równolegle.</span></li>
   <li id="agent-plain-plan-review"><code>plain-plan-review</code> <span lang="en">gives the same review to a plan
-  written in plain plan mode, when <a href="#key-planning-plain-plan-review"><code>planning.plain-plan-review</code></a> is
+  written in plain plan mode, when <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> is
   on.</span><span lang="pl">robi tę samą recenzję planu napisanego w zwykłym trybie planowania, gdy
-  <a href="#key-planning-plain-plan-review"><code>planning.plain-plan-review</code></a> jest włączony.</span></li>
+  <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> jest włączony.</span></li>
   <li id="agent-adr-screener"><code>adr-screener</code> <span lang="en">screens the decisions of a plan against a
   strict admission test and names the architecture decision records worth writing.</span><span lang="pl">sprawdza decyzje planu względem ścisłego testu przyjęcia i wskazuje rekordy
   decyzji architektonicznych warte zapisania.</span></li>
@@ -3300,11 +3300,11 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
   włączony.</span></li>
   <li id="agent-test-runner"><code>test-runner</code> <span lang="en">runs the project's build, its fast tests
   and the integration tests the change reaches once and returns a verdict, keeping the log out of the conversation. <a href="#skill-intent"><code>intent</code></a>'s
-  <a href="#key-planning-fast-path">fast path</a> calls it too, to prove a change built in your session. With
+  fast path calls it too, to prove a change built in your session. With
   <a href="#key-build-baseline-tests"><code>build.baseline-tests</code></a> set to <code>fast</code> or <code>full</code>, it also runs a baseline before the first task,
   recording what already fails, and the final run then fails only on new failures.</span><span lang="pl">uruchamia raz
   budowanie projektu, jego szybkie testy i testy integracyjne, których dotyka zmiana, i zwraca werdykt, trzymając log poza rozmową. Wywołuje go też
-  <a href="#key-planning-fast-path">szybka ścieżka</a> skilla <a href="#skill-intent"><code>intent</code></a>, żeby sprawdzić
+  szybka ścieżka skilla <a href="#skill-intent"><code>intent</code></a>, żeby sprawdzić
   zmianę zbudowaną w twojej sesji. Gdy <a href="#key-build-baseline-tests"><code>build.baseline-tests</code></a>
   ma wartość <code>fast</code> lub <code>full</code>, wykonuje też przebieg bazowy przed pierwszym zadaniem, zapisując, co już nie przechodzi, a końcowe
   uruchomienie kończy się porażką tylko przy nowych błędach.</span></li>
@@ -3395,7 +3395,7 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
 <h3 class="sub" id="ref-config-title"><span lang="en">Configuration</span><span lang="pl">Konfiguracja</span> <code>.claude/viber.yml</code><a class="self" href="#ref-config-title">#</a></h3>
 <dl>
   <div id="key-schema">
-    <dt><code>schema</code> <span class="tag">3</span></dt>
+    <dt><code>schema</code> <span class="tag">5</span></dt>
     <dd><span lang="en">The layout the file follows. <a href="#skill-setup"><code>/viber:setup</code></a> writes it and
     raises it whenever it brings the file up to a newer layout; a session start tells you when the number lags
     behind the installed viber. Leave it as it is.</span><span lang="pl">Układ, w jakim zapisany jest plik.
@@ -3405,7 +3405,7 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
   </div>
 </dl>
 <p lang="en">Every switch counts only inside its group: <code>planning:</code> holds the ones read while a change
-is planned, <code>build:</code> the ones a build reads, <code>github:</code> the GitHub ones. Eight of the eleven
+is planned, <code>build:</code> the ones a build reads, <code>github:</code> the GitHub ones. Seven of the ten
 start on; <code>build.qa</code>, <code>github.issues</code> and <code>build.baseline-tests</code> start off. To
 change any of them, edit <code>.claude/viber.yml</code>: every key has a comment there, and only
 <code>true</code> counts as on. Turn a switch off with <code>false</code> instead of deleting it. Only
@@ -3413,7 +3413,7 @@ change any of them, edit <code>.claude/viber.yml</code>: every key has a comment
 <code>build.extensions</code> is no switch: it holds a map of agent entries.</p>
 <p lang="pl">Każdy przełącznik liczy się tylko wewnątrz swojej grupy: <code>planning:</code> trzyma te czytane
 podczas planowania zmiany, <code>build:</code> te czytane przez build, <code>github:</code> te dotyczące GitHuba.
-Osiem z jedenastu jest domyślnie włączonych; <code>build.qa</code>, <code>github.issues</code>
+Siedem z dziesięciu jest domyślnie włączonych; <code>build.qa</code>, <code>github.issues</code>
 i <code>build.baseline-tests</code> startują wyłączone. Zmienisz to w
 <code>.claude/viber.yml</code>: każdy
 klucz ma tam komentarz, a za włączony liczy się tylko <code>true</code>. Przełącznik wyłączaj wartością
@@ -3462,26 +3462,15 @@ wartość.</p>
     przyjęcia, pyta cię o każdy znaleziony rekord (gdy nie znalazł żadnego, o nic), i każdy zaakceptowany przez ciebie rekord zamienia w zadanie bez
     zależności, które zapisuje go w <code>docs/adr/</code>.</span></dd>
   </div>
-  <div id="key-planning-plain-plan-review">
-    <dt><code>planning.plain-plan-review</code> <span class="tag on"><span lang="en">on</span><span lang="pl">wł.</span></span></dt>
-    <dd><span lang="en">A plan written in plain plan mode, without the planner, must pass
+  <div id="key-planning-outside-plan-review">
+    <dt><code>planning.outside-plan-review</code> <span class="tag on"><span lang="en">on</span><span lang="pl">wł.</span></span></dt>
+    <dd><span lang="en">A plan written outside the planner, in plain plan mode, must pass
     <a href="#agent-plain-plan-review"><code>plain-plan-review</code></a> before plan mode can be left, the same
     gate the planner's plans get. Such a plan may name at most 8 repository files; past that, plan mode points to
-    <code>/viber:intent</code> for a planned build.</span><span lang="pl">Plan napisany w zwykłym trybie planowania, bez planisty,
+    <code>/viber:intent</code> for a planned build.</span><span lang="pl">Plan napisany poza planistą, w zwykłym trybie planowania,
     musi przejść recenzję <a href="#agent-plain-plan-review"><code>plain-plan-review</code></a>, zanim będzie można
     wyjść z trybu planowania; plany planisty przechodzą tę samą bramkę. Taki plan może wskazywać najwyżej
     8 plików repozytorium; powyżej tryb planowania odsyła do <code>/viber:intent</code>, czyli do zaplanowanego buildu.</span></dd>
-  </div>
-  <div id="key-planning-fast-path">
-    <dt><code>planning.fast-path</code> <span class="tag on"><span lang="en">on</span><span lang="pl">wł.</span></span></dt>
-    <dd><span lang="en">For a small, well-scoped change to existing code, <a href="#skill-intent"><code>intent</code></a>
-    shows a short design in chat and builds the change only after your explicit yes, with no plan file and no run
-    directory. A fix of code-audit findings or pull request review threads never takes the fast path. Off, every
-    change goes through the plan.</span><span lang="pl">Przy małej, dobrze
-    określonej zmianie istniejącego kodu <a href="#skill-intent"><code>intent</code></a> pokazuje krótki projekt
-    na czacie i buduje zmianę dopiero po twoim wyraźnym „tak”, bez pliku planu i bez katalogu przebiegu. Poprawka
-    ustaleń audytu kodu lub wątków recenzji pull requesta nigdy nie idzie szybką ścieżką. Przy
-    wyłączonym przełączniku każda zmiana przechodzi przez plan.</span></dd>
   </div>
 </dl>
 

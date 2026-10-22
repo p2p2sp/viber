@@ -157,7 +157,7 @@ merge_config() {
       return rn tail
     }
     BEGIN {
-      n = split("adr planning plain-plan-review planning fast-path planning baseline-tests build final-review build memory build rules build qa build cleanup build red-check build issues github", m, " ")
+      n = split("adr planning baseline-tests build final-review build memory build rules build qa build cleanup build red-check build issues github", m, " ")
       for (i = 1; i < n; i += 2) legacy[m[i]] = m[i + 1]
       ext["planning"] = 1; ext["build"] = 1; ext["github"] = 1; ext["directories"] = 1
     }

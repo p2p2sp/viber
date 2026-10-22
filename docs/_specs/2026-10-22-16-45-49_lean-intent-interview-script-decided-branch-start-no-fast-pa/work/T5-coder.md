@@ -1,0 +1,5 @@
+- plan-gate.sh still greps `planning.plain-plan-review` from config.sh, which no longer prints it: until T6 switches it to `planning.outside-plan-review` the gate always allows a plain plan. Its tests are T6's.
+- bootstrap.sh no longer lists plain-plan-review and fast-path as legacy flat keys, so a column-0 line stays put; the SCHEMA_KEYS "5" entry in bootstrap.test.ts records the new key list.
+- The GROUPED fixture of bootstrap.test.ts is now schema 5; the old-key cases build their own schema-4 file from it.
+- help.html: two `<code>planning.fast-path</code>` mentions stay as plain text (unlinked), for T7 to rewrite with the rest of the fast path prose. The schema tag in `key-schema` moved from 3 to 5.
+- DoD.5 and the doc halves of DoD.6 have no test of their own (repo yml, configuration.md): checked by reading and by help.unit.test.ts for the anchors.

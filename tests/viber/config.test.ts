@@ -53,8 +53,7 @@ const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/config.sh");
  *  with no config file, and every unusable value, resolves to. */
 const OFF = {
   "planning.adr": "false",
-  "planning.plain-plan-review": "false",
-  "planning.fast-path": "false",
+  "planning.outside-plan-review": "false",
   "build.baseline-tests": "off",
   "build.final-review": "false",
   "build.memory": "false",
@@ -97,7 +96,7 @@ function config(stdout: string): Record<string, string> {
   return out;
 }
 
-/** The eleven switches alone, so a case about a switch need not restate the
+/** The ten switches alone, so a case about a switch need not restate the
  *  titles, directory names, tiers and branching mode. */
 function switches(stdout: string): Record<string, string | undefined> {
   const all = config(stdout);
@@ -137,8 +136,7 @@ test("no config file: the block is every switch off, both title defaults, no ext
     assert.deepEqual(result.stdout.trim().split("\n"), [
       "# viber config (resolved)",
       "planning.adr: false",
-      "planning.plain-plan-review: false",
-      "planning.fast-path: false",
+      "planning.outside-plan-review: false",
       "build.baseline-tests: off",
       "build.final-review: false",
       "build.memory: false",
@@ -173,25 +171,38 @@ test("the group keys are printed dotted, so no reader can take one for a switch"
 });
 
 for (const value of ["true", "TRUE", "True"]) {
-  test(`\`fast-path: ${value}\` inside \`planning:\` resolves to true, matched in any letter case`, async () => {
+  test(`\`outside-plan-review: ${value}\` inside \`planning:\` resolves to true, matched in any letter case`, async () => {
     await withTempDir("p2p2-viber-", async (dir) => {
-      writeConfig(dir, inGroup("planning", `fast-path: ${value}`));
+      writeConfig(dir, inGroup("planning", `outside-plan-review: ${value}`));
 
-      assert.deepEqual(switches((await run(dir)).stdout), { ...OFF, "planning.fast-path": "true" });
+      assert.deepEqual(switches((await run(dir)).stdout), { ...OFF, "planning.outside-plan-review": "true" });
     });
   });
 }
 
 for (const [label, body] of [
   ["the key absent", inGroup("planning", "adr: true")],
-  ["another value", inGroup("planning", "adr: true", "fast-path: enabled")],
-  ["the value false", inGroup("planning", "fast-path: false")],
+  ["another value", inGroup("planning", "adr: true", "outside-plan-review: enabled")],
+  ["the value false", inGroup("planning", "outside-plan-review: false")],
+  ["a column-0 key", "outside-plan-review: true\n"],
+  ["the key under another group", inGroup("build", "outside-plan-review: true")],
 ] as const) {
-  test(`a config with ${label} resolves \`planning.fast-path\` to false`, async () => {
+  test(`a config with ${label} resolves \`planning.outside-plan-review\` to false`, async () => {
     await withTempDir("p2p2-viber-", async (dir) => {
       writeConfig(dir, body);
 
-      assert.equal(switches((await run(dir)).stdout)["planning.fast-path"], "false");
+      assert.equal(switches((await run(dir)).stdout)["planning.outside-plan-review"], "false");
+    });
+  });
+}
+
+for (const removed of ["plain-plan-review", "fast-path"]) {
+  test(`a \`${removed}: true\` line inside \`planning:\` prints no \`planning.${removed}\` line (a removed key is ignored whatever the file holds)`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      writeConfig(dir, inGroup("planning", `${removed}: true`));
+
+      const result = await run(dir);
+      assert.deepEqual([printedLine(result.stdout, `planning.${removed}`), switches(result.stdout)], [undefined, OFF]);
     });
   });
 }
@@ -232,13 +243,13 @@ for (const [label, body] of [
   });
 }
 
-test("`build.baseline-tests` still sits between `planning.fast-path` and `build.final-review`", async () => {
+test("`build.baseline-tests` still sits between `planning.outside-plan-review` and `build.final-review`", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     writeConfig(dir, inGroup("build", "baseline-tests: fast"));
 
     const keys = (await run(dir)).stdout.trim().split("\n").slice(1).map((line) => line.slice(0, line.indexOf(":")));
     const at = keys.indexOf("build.baseline-tests");
-    assert.deepEqual(keys.slice(at - 1, at + 2), ["planning.fast-path", "build.baseline-tests", "build.final-review"]);
+    assert.deepEqual(keys.slice(at - 1, at + 2), ["planning.outside-plan-review", "build.baseline-tests", "build.final-review"]);
   });
 });
 
@@ -262,7 +273,7 @@ test("a grouped config turns its switches on, comments, blank lines and case not
         "  adr: true  # the decisions worth keeping",
         "",
         "# a column-0 comment inside the group",
-        "  plain-plan-review: true",
+        "  outside-plan-review: true",
         "build:",
         "  # the close",
         "  memory: TRUE",
@@ -280,7 +291,7 @@ test("a grouped config turns its switches on, comments, blank lines and case not
     assert.deepEqual(switches(result.stdout), {
       ...OFF,
       "planning.adr": "true",
-      "planning.plain-plan-review": "true",
+      "planning.outside-plan-review": "true",
       "build.memory": "true",
       "build.rules": "true",
       "build.qa": "true",
@@ -338,7 +349,7 @@ test("`MEMORY: true` inside `build:` resolves to off - the key itself is matched
   });
 });
 
-for (const key of ["adr", "plain-plan-review", "fast-path", "baseline-tests", "final-review", "memory", "rules", "qa", "cleanup", "red-check", "issues"]) {
+for (const key of ["adr", "outside-plan-review", "baseline-tests", "final-review", "memory", "rules", "qa", "cleanup", "red-check", "issues"]) {
   test(`a flat \`${key}: true\` at column 0 resolves off (a legacy key counts only once setup moves it into its group)`, async () => {
     await withTempDir("p2p2-viber-", async (dir) => {
       writeConfig(dir, `${key}: true\n`);
@@ -364,8 +375,7 @@ test("the shipped template resolves to its own defaults: every switch, both titl
     const result = await run(dir);
     assert.deepEqual(switches(result.stdout), {
       "planning.adr": "true",
-      "planning.plain-plan-review": "true",
-      "planning.fast-path": "true",
+      "planning.outside-plan-review": "true",
       "build.baseline-tests": "off",
       "build.final-review": "true",
       "build.memory": "true",
@@ -1167,8 +1177,7 @@ function localLine(stdout: string): string | undefined {
 
 const DEFAULT_BLOCK = [
   "planning.adr: false",
-  "planning.plain-plan-review: false",
-  "planning.fast-path: false",
+  "planning.outside-plan-review: false",
   "build.baseline-tests: off",
   "build.final-review: false",
   "build.memory: false",
@@ -1202,8 +1211,7 @@ test("a local file setting all four keys prints the local value on those four li
       "# viber config (resolved)",
       "# local: build.baseline-tests, github.issues, tiers.min, tiers.max | ignored: none",
       "planning.adr: true",
-      "planning.plain-plan-review: false",
-      "planning.fast-path: false",
+      "planning.outside-plan-review: false",
       "build.baseline-tests: fast",
       "build.final-review: false",
       "build.memory: true",
