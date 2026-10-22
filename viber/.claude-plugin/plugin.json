@@ -37,6 +37,7 @@
     "./agents/planner-task-review.md",
     "./agents/plain-plan-review.md",
     "./agents/adr-screener.md",
+    "./agents/impact-mapper.md",
     "./agents/task-coder.md",
     "./agents/task-reviewer.md",
     "./agents/test-runner.md",
