@@ -173,7 +173,9 @@ The planner checks the size too. When its plan grows past 30 tasks, it stops and
 interview whether to split the change into parts or keep one plan of that many tasks; a split
 resumes the interview from the planner's own proposal. The planner also asks, one question at a time,
 every decision its exploration of the code finds that the interview left open and that belongs to you,
-such as a behaviour, a scope or a product choice. Implementation choices stay with it.
+such as a behaviour, a scope or a product choice. Implementation choices stay with it. Before it writes
+tasks, its `impact-mapper` agent finds every reference to what the change modifies, moves or deletes, and
+the plan adds nothing the interview left unsettled.
 
 ### When it decides for you
 
