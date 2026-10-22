@@ -1,3 +1,0 @@
-- The key is a number, not a switch, so the "seven of the ten on" count sentences stay unchanged; configuration.md gets its own "Questions per round" section instead of a switch-table row.
-- The docs state "decisions beyond the cap wait for the next round" and "all puts every ready decision in one round"; the intent skill text (not in T4's Files) must say the same.
-- Root README.md and help.html were not in T4's Files (help.html done in T2); root README's "asks in short rounds" stays true.

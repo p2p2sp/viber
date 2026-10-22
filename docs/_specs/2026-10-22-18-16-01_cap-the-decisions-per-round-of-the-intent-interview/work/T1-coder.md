@@ -1,5 +1,0 @@
-- `--questions` is answered after the local file is read, so the no-argument block's awk still runs once before it (cheap, output discarded).
-- local_prog now keeps the value's case for planning.questions-per-round (`ALL` is invalid) while the four older keys stay lowercased.
-- DoD.6 guards (--branching, --red-check) pass without the change by nature; the block guard goes red through the `# local:` line.
-- The template (viber/skills/setup/templates/viber.yml) and its schema bump are not in T1's Files; not touched.
-- DoD.5 red on the repair pass (red-2.log) reverted only the local validation regex; the empty-value rows stay green there because an empty local value never reaches it.
