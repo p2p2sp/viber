@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 2716" width="1640" height="2716" role="img" aria-labelledby="svgTitle svgDesc">
   <title id="svgTitle">viber - from an idea to committed code</title>
-  <desc id="svgDesc">Flow diagram of the viber plugin: one-time setup, the optional triage of an issue and UI prototype, the three entries (an idea through the intent interview, a bug through the fixer diagnosis, a small change through plain plan mode), the fast path out of the intent interview under the planning.fast-path switch, where a small change to existing code gets a short design in chat and, after your explicit yes, is built in your session, proven by test-runner and left for you to commit, the planner writing the plan and the planner-review agent gating it, the approval gate you pass yourself, then three ways out: a draft specification continued by a later interview round, a plain plan Claude builds in your session, or the implementor building the plan with task-coder, task-reviewer and one commit per task, its tasks in parallel where their dependencies allow, preceded, when build.baseline-tests is fast or full, by a baseline test run recording what already fails. The build closes with the final review, the fast tests plus the change's integration tests, which under build.baseline-tests treats only new failures as repair work, the optional memory, rules and QA writers, the project's own extension agents listed in build.extensions and the closeout that archives the run, followed later by the e2e pass that turns the QA scenarios into Playwright tests.</desc>
+  <desc id="svgDesc">Flow diagram of the viber plugin: one-time setup, the optional triage of an issue and UI prototype, the two entries (an idea through the intent interview, which asks in rounds and saves the confirmed summary as a file, a bug through the fixer diagnosis), the planner reading that input, choosing the spec shape and writing the plan, the planner-review agent gating it, the approval gate you pass yourself (a plan written outside the planner is only reviewed, under the planning.outside-plan-review switch), then two ways out: a draft specification continued by a later interview round, or the implementor building the plan with task-coder, task-reviewer and one commit per task, its tasks in parallel where their dependencies allow, preceded, when build.baseline-tests is fast or full, by a baseline test run recording what already fails. The build closes with the final review, the fast tests plus the change's integration tests, which under build.baseline-tests treats only new failures as repair work, the optional memory, rules and QA writers, the project's own extension agents listed in build.extensions and the closeout that archives the run, followed later by the e2e pass that turns the QA scenarios into Playwright tests.</desc>
 
   <style>
     :root {
@@ -122,8 +122,6 @@
   <text x="270" y="366" class="title" text-anchor="middle" style="font-size:15px">New idea · feature · change to something existing</text>
   <rect x="540" y="336" width="460" height="48" rx="24" class="pill"/>
   <text x="770" y="366" class="title" text-anchor="middle" style="font-size:15px">Bug · regression · wrong behaviour</text>
-  <rect x="1120" y="336" width="460" height="48" rx="24" class="pill"/>
-  <text x="1350" y="366" class="title" text-anchor="middle" style="font-size:15px">Small, well-understood change</text>
 
   <!-- ============ ENTRY: IDEA ============ -->
   <path d="M315 384 L315 416" class="link l-i" marker-end="url(#ar-i)"/>
@@ -153,9 +151,9 @@
   <rect x="422" y="564" width="58" height="16" rx="8" class="badge"/>
   <text x="451" y="576" class="badge-t" text-anchor="middle">skill</text>
   <text x="64" y="584" class="mono-t">/viber:intent</text>
-  <text x="64" y="610" class="desc">One question at a time, with options and a recommendation.</text>
+  <text x="64" y="610" class="desc">Asks in rounds, every decision with options and a recommendation.</text>
   <text x="64" y="628" class="desc">Too big for one cycle? Split into ordered parts, every part discussed.</text>
-  <text x="64" y="646" class="desc">Ends in a summary you confirm, or a small change's design.</text>
+  <text x="64" y="646" class="desc">Ends in a summary you confirm, saved as a file for the planner.</text>
   <text x="64" y="672" class="desc-s"><tspan class="sw">github.issues</tspan> on: can start from a GitHub issue or open a new one</text>
 
   <!-- ============ ENTRY: BUG ============ -->
@@ -172,62 +170,10 @@
   <text x="564" y="646" class="desc">Never fixes it - the diagnosis goes to the planner.</text>
   <text x="564" y="672" class="desc-s"><tspan class="sw">github.issues</tspan> on: can start from a GitHub issue</text>
 
-  <!-- ============ ENTRY: PLAIN PLAN MODE ============ -->
-  <path d="M1350 384 L1350 550" class="link l-n" marker-end="url(#ar-n)"/>
-  <path d="M1350 384 L1350 550" class="flow l-n"/>
-
-  <rect x="1120" y="554" width="460" height="140" rx="10" class="node"/>
-  <rect x="1120" y="554" width="4" height="140" rx="2" fill="var(--muted)"/>
-  <rect x="1480" y="564" width="80" height="16" rx="8" class="badge"/>
-  <text x="1520" y="576" class="badge-t" text-anchor="middle">Claude Code</text>
-  <text x="1144" y="584" class="mono-t">plain plan mode</text>
-  <text x="1144" y="610" class="desc">Claude Code's own plan mode, no interview.</text>
-  <text x="1144" y="628" class="desc">Claude may suggest it instead of /viber:intent.</text>
-  <text x="1144" y="650" class="desc-s">viber hints: independent tasks in parallel subagents,</text>
-  <text x="1144" y="668" class="desc-s">and a subagent reviewing the result at the end</text>
-
-  <path d="M1350 694 L1350 726" class="link l-n" marker-end="url(#ar-n)"/>
-  <path d="M1350 694 L1350 726" class="flow l-n"/>
-
-  <rect x="1120" y="730" width="460" height="106" rx="10" class="node agent"/>
-  <rect x="1436" y="740" width="58" height="16" rx="8" class="badge-opt"/>
-  <text x="1465" y="752" class="badge-o" text-anchor="middle">optional</text>
-  <rect x="1502" y="740" width="58" height="16" rx="8" class="badge"/>
-  <text x="1531" y="752" class="badge-t" text-anchor="middle">agent</text>
-  <text x="1144" y="760" class="mono-t">plain-plan-review</text>
-  <text x="1144" y="784" class="desc">The same review, for a plan written without the planner.</text>
-  <text x="1144" y="804" class="desc-s">PASS or FAIL - a FAIL sends the plan back for another round</text>
-  <text x="1144" y="824" class="desc-s"><tspan class="sw">planning.plain-plan-review</tspan> off: this plan skips the review</text>
-
-  <path d="M1580 783 L1594 783 Q1612 783 1612 765 L1612 642 Q1612 624 1594 624 L1584 624" class="link l-n" marker-end="url(#ar-n)"/>
-  <path d="M1580 783 L1594 783 Q1612 783 1612 765 L1612 642 Q1612 624 1594 624 L1584 624" class="flow l-n"/>
-  <text x="1630" y="704" class="lbl" text-anchor="middle" transform="rotate(-90 1630 704)">FAIL → revise</text>
-
-  <path d="M1350 836 L1350 1104" class="link l-a" marker-end="url(#ar-a)"/>
-  <path d="M1350 836 L1350 1104" class="flow l-a"/>
-  <text x="1362" y="1094" class="lbl">PASS</text>
-
-  <!-- ============ FAST PATH ============ -->
-  <path d="M120 694 L120 772" class="link l-i" marker-end="url(#ar-i)"/>
-  <path d="M120 694 L120 772" class="flow l-i"/>
-  <text x="132" y="738" class="lbl"><tspan class="sw">planning.fast-path</tspan> on</text>
-
-  <rect x="40" y="776" width="176" height="200" rx="10" class="node"/>
-  <rect x="40" y="776" width="4" height="200" rx="2" fill="var(--idea)"/>
-  <text x="56" y="806" class="title">fast path</text>
-  <text x="56" y="830" class="desc-s">A short design in chat.</text>
-  <text x="56" y="848" class="desc-s">After your explicit yes,</text>
-  <text x="56" y="866" class="desc-s">Claude builds it in</text>
-  <text x="56" y="884" class="desc-s">this session.</text>
-  <text x="56" y="908" class="desc-s">test-runner proves it,</text>
-  <text x="56" y="926" class="desc-s">you run /viber:commit.</text>
-  <text x="56" y="950" class="desc-s">no plan file and</text>
-  <text x="56" y="966" class="desc-s">no run directory</text>
-
   <!-- ============ CONVERGE ON THE PLANNER ============ -->
   <path d="M270 694 L270 722 Q270 740 288 740 L520 740" class="link l-i"/>
   <path d="M270 694 L270 722 Q270 740 288 740 L520 740" class="flow l-i"/>
-  <text x="400" y="734" class="lbl" text-anchor="middle">the summary you confirmed</text>
+  <text x="400" y="734" class="lbl" text-anchor="middle">the summary file you confirmed</text>
 
   <path d="M770 694 L770 722 Q770 740 752 740 L520 740" class="link l-f"/>
   <path d="M770 694 L770 722 Q770 740 752 740 L520 740" class="flow l-f"/>
@@ -242,7 +188,7 @@
   <text x="761" y="798" class="badge-t" text-anchor="middle">skill</text>
   <text x="254" y="806" class="mono-t">planner</text>
   <text x="254" y="832" class="desc">Writes the plan in plan mode, against your actual codebase.</text>
-  <text x="254" y="850" class="desc">Every task names its files, its dependencies and how it is verified.</text>
+  <text x="254" y="850" class="desc">Picks the spec shape; every task names its files, dependencies and verification.</text>
   <text x="254" y="872" class="desc-s">asked to stop at a specification? it writes a draft instead</text>
   <text x="254" y="892" class="desc-s"><tspan class="sw">planning.adr</tspan> on: adr-screener screens decisions; a record is a task with no dependencies</text>
   <text x="254" y="910" class="desc-s"><tspan class="sw">branching</tspan> on: the plan names the git branch the run works on</text>
@@ -270,7 +216,7 @@
   <rect x="40" y="1108" width="1560" height="64" rx="32" class="ring-a"/>
   <rect x="44" y="1112" width="1552" height="56" rx="28" fill="var(--amber-bg)" stroke="var(--amber)" stroke-width="1.5"/>
   <text x="820" y="1136" class="title" text-anchor="middle" style="font-size:14.5px">GATE - you approve the plan</text>
-  <text x="820" y="1156" class="desc-s" text-anchor="middle">no code is written before this, except fixer's reproduction test and a fast-path design you approved · a plan that failed review cannot leave plan mode</text>
+  <text x="820" y="1156" class="desc-s" text-anchor="middle">no code is written before this, except fixer's reproduction test · a plan that failed review cannot leave plan mode · a plan written outside the planner is only reviewed (planning.outside-plan-review)</text>
 
   <!-- ============ DRAFT ============ -->
   <path d="M200 1172 L200 1206" class="link l-i" marker-end="url(#ar-i)"/>
@@ -289,19 +235,6 @@
   <path d="M40 1283 L28 1283 Q14 1283 14 1269 L14 654 Q14 640 28 640 L36 640" class="link l-i" marker-end="url(#ar-i)"/>
   <path d="M40 1283 L28 1283 Q14 1283 14 1269 L14 654 Q14 640 28 640 L36 640" class="flow l-i"/>
   <text x="30" y="960" class="lbl" text-anchor="middle" transform="rotate(-90 30 960)">next round</text>
-
-  <!-- ============ PLAIN BUILD ============ -->
-  <path d="M1350 1172 L1350 1206" class="link l-n" marker-end="url(#ar-n)"/>
-  <path d="M1350 1172 L1350 1206" class="flow l-n"/>
-  <text x="1362" y="1194" class="lbl">a plain plan</text>
-
-  <rect x="1120" y="1210" width="460" height="134" rx="10" class="node"/>
-  <rect x="1120" y="1210" width="4" height="134" rx="2" fill="var(--muted)"/>
-  <text x="1144" y="1240" class="title">Claude builds it in this session</text>
-  <text x="1144" y="1266" class="desc">No viber build: Claude implements the plan itself,</text>
-  <text x="1144" y="1284" class="desc">with the parallel subagents and the closing</text>
-  <text x="1144" y="1302" class="desc">review the plan asks for.</text>
-  <text x="1144" y="1326" class="desc-s">no run directory, no automatic commits: /viber:commit</text>
 
   <!-- ============ BUILD ============ -->
   <path d="M740 1172 L740 1206" class="link l-b" marker-end="url(#ar-b)"/>

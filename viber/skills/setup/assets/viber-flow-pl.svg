@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 2716" width="1640" height="2716" role="img" aria-labelledby="svgTitle svgDesc" lang="pl">
   <title id="svgTitle">viber - od pomysłu do zacommitowanego kodu</title>
-  <desc id="svgDesc">Diagram przepływu wtyczki viber: jednorazowy setup, opcjonalna ocena issue i makieta UI, trzy wejścia (pomysł przez wywiad intent, błąd przez diagnozę fixera, mała zmiana przez zwykły tryb planowania), szybka ścieżka z wywiadu intent przy przełączniku planning.fast-path, na której mała zmiana istniejącego kodu dostaje krótki projekt na czacie i po twoim wyraźnym „tak” jest budowana w twojej sesji, sprawdzana przez test-runner i zostawiana tobie do zacommitowania, planner piszący plan i agent planner-review, który go sprawdza, bramka, którą przechodzisz sam, a potem trzy wyjścia: szkic specyfikacji kontynuowany w kolejnej rundzie wywiadu, zwykły plan, który Claude buduje w twojej sesji, albo implementor budujący plan z task-coder, task-reviewer i jednym commitem na zadanie, z zadaniami równolegle tam, gdzie pozwalają zależności, poprzedzonymi, gdy build.baseline-tests ma wartość fast lub full, bazowym uruchomieniem testów, które zapisuje, co już nie przechodzi. Build kończy się końcowym przeglądem, szybkimi testami i testami integracyjnymi zmiany, które przy build.baseline-tests naprawiają tylko nowe błędy, opcjonalnymi writerami pamięci, reguł i QA, własnymi agentami rozszerzeń z build.extensions oraz closeoutem, który archiwizuje przebieg, a później przebiegiem e2e, który zamienia scenariusze QA w testy Playwright.</desc>
+  <desc id="svgDesc">Diagram przepływu wtyczki viber: jednorazowy setup, opcjonalna ocena issue i makieta UI, dwa wejścia (pomysł przez wywiad intent, który pyta w rundach i zapisuje potwierdzone podsumowanie do pliku, błąd przez diagnozę fixera), planner czytający te dane, wybierający kształt specyfikacji i piszący plan, agent planner-review, który go sprawdza, bramka, którą przechodzisz sam (plan napisany poza plannerem jest tylko recenzowany, przy przełączniku planning.outside-plan-review), a potem dwa wyjścia: szkic specyfikacji kontynuowany w kolejnej rundzie wywiadu albo implementor budujący plan z task-coder, task-reviewer i jednym commitem na zadanie, z zadaniami równolegle tam, gdzie pozwalają zależności, poprzedzonymi, gdy build.baseline-tests ma wartość fast lub full, bazowym uruchomieniem testów, które zapisuje, co już nie przechodzi. Build kończy się końcowym przeglądem, szybkimi testami i testami integracyjnymi zmiany, które przy build.baseline-tests naprawiają tylko nowe błędy, opcjonalnymi writerami pamięci, reguł i QA, własnymi agentami rozszerzeń z build.extensions oraz closeoutem, który archiwizuje przebieg, a później przebiegiem e2e, który zamienia scenariusze QA w testy Playwright.</desc>
 
   <style>
     :root {
@@ -122,8 +122,6 @@
   <text x="270" y="366" class="title" text-anchor="middle" style="font-size:15px">Nowy pomysł · funkcja · zmiana czegoś istniejącego</text>
   <rect x="540" y="336" width="460" height="48" rx="24" class="pill"/>
   <text x="770" y="366" class="title" text-anchor="middle" style="font-size:15px">Błąd · regresja · złe działanie</text>
-  <rect x="1120" y="336" width="460" height="48" rx="24" class="pill"/>
-  <text x="1350" y="366" class="title" text-anchor="middle" style="font-size:15px">Mała, dobrze zrozumiana zmiana</text>
 
   <!-- ============ ENTRY: IDEA ============ -->
   <path d="M315 384 L315 416" class="link l-i" marker-end="url(#ar-i)"/>
@@ -153,9 +151,9 @@
   <rect x="422" y="564" width="58" height="16" rx="8" class="badge"/>
   <text x="451" y="576" class="badge-t" text-anchor="middle">skill</text>
   <text x="64" y="584" class="mono-t">/viber:intent</text>
-  <text x="64" y="610" class="desc">Jedno pytanie naraz, z opcjami i rekomendacją.</text>
+  <text x="64" y="610" class="desc">Pyta w rundach, każda decyzja z opcjami i rekomendacją.</text>
   <text x="64" y="628" class="desc">Za duże na jeden cykl? Dzieli na części, omawia każdą z nich.</text>
-  <text x="64" y="646" class="desc">Kończy podsumowaniem albo projektem małej zmiany.</text>
+  <text x="64" y="646" class="desc">Kończy podsumowaniem w pliku dla planisty.</text>
   <text x="64" y="672" class="desc-s"><tspan class="sw">github.issues</tspan> wł.: zaczyna od issue na GitHubie lub zakłada nowe</text>
 
   <!-- ============ ENTRY: BUG ============ -->
@@ -172,62 +170,10 @@
   <text x="564" y="646" class="desc">Nigdy go nie naprawia - diagnoza trafia do planisty.</text>
   <text x="564" y="672" class="desc-s"><tspan class="sw">github.issues</tspan> włączony: może zacząć od issue na GitHubie</text>
 
-  <!-- ============ ENTRY: PLAIN PLAN MODE ============ -->
-  <path d="M1350 384 L1350 550" class="link l-n" marker-end="url(#ar-n)"/>
-  <path d="M1350 384 L1350 550" class="flow l-n"/>
-
-  <rect x="1120" y="554" width="460" height="140" rx="10" class="node"/>
-  <rect x="1120" y="554" width="4" height="140" rx="2" fill="var(--muted)"/>
-  <rect x="1480" y="564" width="80" height="16" rx="8" class="badge"/>
-  <text x="1520" y="576" class="badge-t" text-anchor="middle">Claude Code</text>
-  <text x="1144" y="584" class="mono-t">zwykły tryb planowania</text>
-  <text x="1144" y="610" class="desc">Własny tryb planowania Claude Code, bez wywiadu.</text>
-  <text x="1144" y="628" class="desc">Claude może go zaproponować zamiast /viber:intent.</text>
-  <text x="1144" y="650" class="desc-s">viber podpowiada: niezależne zadania w równoległych subagentach</text>
-  <text x="1144" y="668" class="desc-s">i subagent, który na końcu przegląda wynik</text>
-
-  <path d="M1350 694 L1350 726" class="link l-n" marker-end="url(#ar-n)"/>
-  <path d="M1350 694 L1350 726" class="flow l-n"/>
-
-  <rect x="1120" y="730" width="460" height="106" rx="10" class="node agent"/>
-  <rect x="1422" y="740" width="72" height="16" rx="8" class="badge-opt"/>
-  <text x="1458" y="752" class="badge-o" text-anchor="middle">opcjonalny</text>
-  <rect x="1502" y="740" width="58" height="16" rx="8" class="badge"/>
-  <text x="1531" y="752" class="badge-t" text-anchor="middle">agent</text>
-  <text x="1144" y="760" class="mono-t">plain-plan-review</text>
-  <text x="1144" y="784" class="desc">Ten sam przegląd dla planu napisanego bez planisty.</text>
-  <text x="1144" y="804" class="desc-s">PASS albo FAIL - FAIL odsyła plan na kolejną rundę</text>
-  <text x="1144" y="824" class="desc-s"><tspan class="sw">planning.plain-plan-review</tspan> wyłączony: ten plan pomija przegląd</text>
-
-  <path d="M1580 783 L1594 783 Q1612 783 1612 765 L1612 642 Q1612 624 1594 624 L1584 624" class="link l-n" marker-end="url(#ar-n)"/>
-  <path d="M1580 783 L1594 783 Q1612 783 1612 765 L1612 642 Q1612 624 1594 624 L1584 624" class="flow l-n"/>
-  <text x="1630" y="704" class="lbl" text-anchor="middle" transform="rotate(-90 1630 704)">FAIL → poprawka</text>
-
-  <path d="M1350 836 L1350 1104" class="link l-a" marker-end="url(#ar-a)"/>
-  <path d="M1350 836 L1350 1104" class="flow l-a"/>
-  <text x="1362" y="1094" class="lbl">PASS</text>
-
-  <!-- ============ FAST PATH ============ -->
-  <path d="M120 694 L120 772" class="link l-i" marker-end="url(#ar-i)"/>
-  <path d="M120 694 L120 772" class="flow l-i"/>
-  <text x="132" y="738" class="lbl"><tspan class="sw">planning.fast-path</tspan> wł.</text>
-
-  <rect x="40" y="776" width="176" height="200" rx="10" class="node"/>
-  <rect x="40" y="776" width="4" height="200" rx="2" fill="var(--idea)"/>
-  <text x="56" y="806" class="title">szybka ścieżka</text>
-  <text x="56" y="830" class="desc-s">Krótki projekt na czacie.</text>
-  <text x="56" y="848" class="desc-s">Po twoim wyraźnym „tak”</text>
-  <text x="56" y="866" class="desc-s">Claude buduje zmianę</text>
-  <text x="56" y="884" class="desc-s">w tej sesji.</text>
-  <text x="56" y="908" class="desc-s">test-runner ją sprawdza,</text>
-  <text x="56" y="926" class="desc-s">commit: /viber:commit.</text>
-  <text x="56" y="950" class="desc-s">bez pliku planu i</text>
-  <text x="56" y="966" class="desc-s">katalogu przebiegu</text>
-
   <!-- ============ CONVERGE ON THE PLANNER ============ -->
   <path d="M270 694 L270 722 Q270 740 288 740 L520 740" class="link l-i"/>
   <path d="M270 694 L270 722 Q270 740 288 740 L520 740" class="flow l-i"/>
-  <text x="400" y="734" class="lbl" text-anchor="middle">potwierdzone podsumowanie</text>
+  <text x="400" y="734" class="lbl" text-anchor="middle">plik z potwierdzonym podsumowaniem</text>
 
   <path d="M770 694 L770 722 Q770 740 752 740 L520 740" class="link l-f"/>
   <path d="M770 694 L770 722 Q770 740 752 740 L520 740" class="flow l-f"/>
@@ -242,7 +188,7 @@
   <text x="761" y="798" class="badge-t" text-anchor="middle">skill</text>
   <text x="254" y="806" class="mono-t">planner</text>
   <text x="254" y="832" class="desc">Pisze plan w trybie planowania, na podstawie twojego kodu.</text>
-  <text x="254" y="850" class="desc">Każde zadanie podaje swoje pliki, zależności i sposób weryfikacji.</text>
+  <text x="254" y="850" class="desc">Wybiera kształt specyfikacji; zadania podają pliki, zależności i weryfikację.</text>
   <text x="254" y="872" class="desc-s">poproszony o samą specyfikację? pisze zamiast planu szkic</text>
   <text x="254" y="892" class="desc-s"><tspan class="sw">planning.adr</tspan> włączony: adr-screener ocenia decyzje; rekord to zadanie bez zależności</text>
   <text x="254" y="910" class="desc-s"><tspan class="sw">branching</tspan> włączony: plan podaje gałąź git, na której pracuje przebieg</text>
@@ -270,7 +216,7 @@
   <rect x="40" y="1108" width="1560" height="64" rx="32" class="ring-a"/>
   <rect x="44" y="1112" width="1552" height="56" rx="28" fill="var(--amber-bg)" stroke="var(--amber)" stroke-width="1.5"/>
   <text x="820" y="1136" class="title" text-anchor="middle" style="font-size:14.5px">BRAMKA - zatwierdzasz plan</text>
-  <text x="820" y="1156" class="desc-s" text-anchor="middle">przed nią nie powstaje żaden kod poza testem reprodukcji fixera i zatwierdzonym projektem szybkiej ścieżki · plan, który nie przeszedł przeglądu, nie wyjdzie z trybu planowania</text>
+  <text x="820" y="1156" class="desc-s" text-anchor="middle">przed nią nie powstaje żaden kod poza testem reprodukcji fixera · plan, który nie przeszedł przeglądu, nie wyjdzie z trybu planowania · plan napisany poza plannerem jest tylko recenzowany (planning.outside-plan-review)</text>
 
   <!-- ============ DRAFT ============ -->
   <path d="M200 1172 L200 1206" class="link l-i" marker-end="url(#ar-i)"/>
@@ -289,19 +235,6 @@
   <path d="M40 1283 L28 1283 Q14 1283 14 1269 L14 654 Q14 640 28 640 L36 640" class="link l-i" marker-end="url(#ar-i)"/>
   <path d="M40 1283 L28 1283 Q14 1283 14 1269 L14 654 Q14 640 28 640 L36 640" class="flow l-i"/>
   <text x="30" y="960" class="lbl" text-anchor="middle" transform="rotate(-90 30 960)">kolejna runda</text>
-
-  <!-- ============ PLAIN BUILD ============ -->
-  <path d="M1350 1172 L1350 1206" class="link l-n" marker-end="url(#ar-n)"/>
-  <path d="M1350 1172 L1350 1206" class="flow l-n"/>
-  <text x="1362" y="1194" class="lbl">zwykły plan</text>
-
-  <rect x="1120" y="1210" width="460" height="134" rx="10" class="node"/>
-  <rect x="1120" y="1210" width="4" height="134" rx="2" fill="var(--muted)"/>
-  <text x="1144" y="1240" class="title">Claude buduje go w tej sesji</text>
-  <text x="1144" y="1266" class="desc">Bez buildu vibera: Claude sam realizuje plan,</text>
-  <text x="1144" y="1284" class="desc">z równoległymi subagentami i końcowym</text>
-  <text x="1144" y="1302" class="desc">przeglądem, o które prosi plan.</text>
-  <text x="1144" y="1326" class="desc-s">bez katalogu przebiegu i automatycznych commitów: /viber:commit</text>
 
   <!-- ============ BUILD ============ -->
   <path d="M740 1172 L740 1206" class="link l-b" marker-end="url(#ar-b)"/>

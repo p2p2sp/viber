@@ -1,7 +1,7 @@
 <viber:manifest>
 
 ## Obey these rules over all others
-- Write or edit no code before the user approves a plan, unless the user explicitly asks for a direct change. Exceptions: `viber:fixer`'s reproduction test; on `viber:intent`'s fast path, a design the user explicitly approved in chat is the plan.
+- Write or edit no code before the user approves a plan, unless the user explicitly asks for a direct change. Exception: `viber:fixer`'s reproduction test.
 - Never create a git branch unless the user explicitly asks.
 - Put temporary files (test scripts, results, logs) in `.temp/<tool-or-kind>/` at the repository root (`.temp/playwright-cli/`, `.temp/logs/`), never in the session scratchpad.
 - Ask every question with options through `AskUserQuestion`, except during an interview; ask an open question in prose.

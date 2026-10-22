@@ -13,7 +13,7 @@ until you approve a plan that a reviewer has already checked against your codeba
 ## Why viber
 
 ### It asks before it guesses
-One question at a time, with options and a recommendation. Add `--prove` and every recommendation is checked against your code before you see it.
+Questions come in short rounds, each decision with options and a recommendation. Add `--prove` and every recommendation is checked against your code before you see it.
 
 ### Every step is checked
 The plan is reviewed before you approve it, each task before its commit, and the whole build before it ends.
@@ -42,9 +42,9 @@ The [viber guide](viber/README.md) lists every command.
 
 ## How it works
 
-You describe what you want with `/viber:intent`. viber asks one question at a time, each with
-concrete options and a recommendation, and says so when an answer is weak. It turns your answers
-into a plan, and a reviewer checks that plan against your code before you see it. Approve it and
+You describe what you want with `/viber:intent`. viber asks in short rounds, every decision with
+concrete options and a recommendation, and says so when an answer is weak. It saves your confirmed
+answers as a summary file for the planner, which turns them into a plan, and a reviewer checks that plan against your code before you see it. Approve it and
 walk away: viber builds the plan task by task, commits each task and finishes on your own test
 suite. Then it writes down what it learned, so the next run starts from there.
 
@@ -75,8 +75,7 @@ in all your projects; drop it to install for the current repository only.
 ## Good to know
 
 - viber runs in Claude Code only.
-- A small change to existing code gets a
-  shorter path, a design in chat, and is still built only on your yes.
+- A plan written outside the planner is only reviewed, through `planning.outside-plan-review`.
 - Issue and pull request steps work with GitHub, through the `gh` CLI.
 - It changes fast, and a release can change how it behaves. Run `/viber:setup` again after an
   upgrade.

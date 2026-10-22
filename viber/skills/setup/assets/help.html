@@ -781,24 +781,24 @@ do wklejenia do Claude.</p>
     <p class="say" lang="en"><code>/viber:intent add CSV export to the reports page</code></p>
     <p class="say" lang="pl"><code>/viber:intent eksport CSV na stronie raportów</code></p>
     <p lang="en">The <a href="#skill-intent">interview</a> asks only what your words and the code leave open,
-    one question at a time, each with three options and its recommendation first. It ends on a summary
-    you confirm.</p>
+    in rounds, every decision with three options and its recommendation first. It ends on a summary
+    you confirm, which is saved as a file for the planner.</p>
     <p lang="pl"><a href="#skill-intent">Wywiad</a> pyta tylko o to, czego nie rozstrzygają twoje słowa
-    i kod, jedno pytanie naraz, każde z trzema opcjami i rekomendacją na pierwszym miejscu. Kończy się
-    podsumowaniem, które potwierdzasz.</p>
+    i kod, w rundach, każda decyzja z trzema opcjami i rekomendacją na pierwszym miejscu. Kończy się
+    podsumowaniem, które potwierdzasz i które trafia do pliku dla plannera.</p>
   </li>
   <li>
     <p class="say"><span lang="en">You approve the plan</span><span lang="pl">Zatwierdzasz plan</span></p>
-    <p lang="en">The <a href="#skill-planner">planner</a> takes the summary into Claude Code's
-    <a href="#term-plan-mode">plan mode</a> and writes the plan: acceptance criteria, a file map, then the tasks.
+    <p lang="en">The <a href="#skill-planner">planner</a> reads the summary file in Claude Code's
+    <a href="#term-plan-mode">plan mode</a>, chooses the shape of the specification and writes the plan: acceptance criteria, a file map, then the tasks.
     <a href="#agent-planner-review"><code>planner-review</code></a> checks it against your code, and plan mode
     ends only after that <a href="#term-review">review</a> passes. A plan past 12 tasks is checked by
     <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
     <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
     <a href="#agent-planner-task-review"><code>planner-task-review</code></a> at once, and plan mode ends only
     when all of them pass. Then you approve the plan or reject it.</p>
-    <p lang="pl"><a href="#skill-planner">Planista</a> przenosi podsumowanie do
-    <a href="#term-plan-mode">trybu planowania</a> Claude Code i pisze plan: kryteria akceptacji, mapę plików,
+    <p lang="pl"><a href="#skill-planner">Planista</a> czyta plik z podsumowaniem w
+    <a href="#term-plan-mode">trybie planowania</a> Claude Code, wybiera kształt specyfikacji i pisze plan: kryteria akceptacji, mapę plików,
     a potem zadania. <a href="#agent-planner-review"><code>planner-review</code></a> sprawdza go na twoim kodzie,
     a tryb planowania kończy się dopiero wtedy, gdy ta <a href="#term-review">recenzja</a> przejdzie. Plan
     powyżej 12 zadań sprawdzają jednocześnie
@@ -846,9 +846,9 @@ in place of the interview.</p>
 <p class="note" lang="pl">Błąd przechodzi tę samą drogę, tyle że zaczyna od
 <a href="#skill-fixer"><code>/viber:fixer</code></a> zamiast od wywiadu.</p>
 <p class="note" lang="en">This is one path. The <a href="#flow">map of the whole flow</a> shows the others: a
-mockup first, the fast path and Claude Code's own plan mode.</p>
+mockup first and a plan written outside the planner, which is only reviewed.</p>
 <p class="note" lang="pl">To jedna ścieżka. Pozostałe pokazuje <a href="#flow">mapa całego przepływu</a>:
-najpierw makieta, szybka ścieżka i zwykły tryb planowania Claude Code.</p>
+najpierw makieta i plan napisany poza plannerem, który jest tylko recenzowany.</p>
 </section>
 
 <section data-search id="flow">
@@ -1007,13 +1007,9 @@ potem. Rzadsze przypadki są zwinięte pod przykładem.</p>
 <section class="guide" data-search id="guide-feature">
 <h3 class="sub" id="guide-feature-title"><span lang="en">Add a feature</span><span lang="pl">Dodaj funkcję</span><a class="self" href="#guide-feature-title">#</a></h3>
 <p lang="en">For a change that needs a plan. A small change you want made right away needs none: ask Claude
-for it directly and say you want it without a plan. A small change to existing code you still want designed
-first takes the fast path: the same command ends on a short design in chat, and
-Claude builds it in your session once you say yes, with no plan file.</p>
+for it directly and say you want it without a plan.</p>
 <p lang="pl">Dla zmiany, która potrzebuje planu. Mała zmiana, którą chcesz mieć od razu, planu nie wymaga:
-poproś o nią Claude wprost i powiedz, że ma ją zrobić bez planu. Mała zmiana istniejącego kodu, którą
-chcesz najpierw zaprojektować, idzie szybką ścieżką: to samo polecenie kończy
-się krótkim projektem na czacie, a Claude buduje zmianę w twojej sesji, gdy powiesz „tak”, bez pliku planu.</p>
+poproś o nią Claude wprost i powiedz, że ma ją zrobić bez planu.</p>
 <ol class="steps">
   <li>
     <span class="label"><span lang="en">You type</span><span lang="pl">Wpisujesz</span></span>
@@ -1022,17 +1018,17 @@ się krótkim projektem na czacie, a Claude buduje zmianę w twojej sesji, gdy p
   </li>
   <li>
     <span class="label"><span lang="en">viber does</span><span lang="pl">viber robi</span></span>
-    <p lang="en">The <a href="#skill-intent">interview</a> asks what your words and the code leave open, one
-    question at a time, and ends on a summary you confirm. <a href="#skill-planner"><code>planner</code></a>
-    writes the plan in plan mode and <a href="#agent-planner-review"><code>planner-review</code></a> checks it
+    <p lang="en">The <a href="#skill-intent">interview</a> asks what your words and the code leave open, in
+    rounds, and ends on a summary you confirm, saved as a file. <a href="#skill-planner"><code>planner</code></a>
+    reads it, picks the specification shape and writes the plan in plan mode and <a href="#agent-planner-review"><code>planner-review</code></a> checks it
     (a plan past 12 tasks goes to the <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
     <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
     <a href="#agent-planner-task-review"><code>planner-task-review</code></a> set instead).
     Once you approve it and ask Claude to build it, <a href="#skill-implementor"><code>implementor</code></a>
     builds and commits one task at a time.</p>
     <p lang="pl"><a href="#skill-intent">Wywiad</a> pyta o to, czego nie rozstrzygają twoje słowa i kod, po
-    jednym pytaniu, i kończy się podsumowaniem, które potwierdzasz. <a href="#skill-planner"><code>planner</code></a>
-    pisze plan w trybie planowania, a <a href="#agent-planner-review"><code>planner-review</code></a> go
+    rundach, i kończy się podsumowaniem, które potwierdzasz i które trafia do pliku. <a href="#skill-planner"><code>planner</code></a>
+    czyta go, wybiera kształt specyfikacji i pisze plan w trybie planowania, a <a href="#agent-planner-review"><code>planner-review</code></a> go
     sprawdza (plan powyżej 12 zadań trafia zamiast tego do zestawu
     <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
     <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> i
@@ -1073,28 +1069,14 @@ się krótkim projektem na czacie, a Claude buduje zmianę w twojej sesji, gdy p
     <code>docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/plan.md</code>, skąd go commitujesz i rozsyłasz, a
     <code>/viber:intent</code> wskazujący ten szkic prowadzi go dalej. Build odmawia zbudowania
     szkicu.</span></li>
-    <li><span lang="en">For a small, well understood change Claude may suggest its own plan mode instead of
-    the interview. With <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> on, that plan still
-    has to pass a review before plan mode ends.</span><span lang="pl">Przy małej, dobrze zrozumianej zmianie
-    Claude może zaproponować zwykły tryb planowania zamiast wywiadu. Przy włączonym
-    <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> taki plan też musi przejść recenzję,
-    zanim tryb planowania się skończy.</span></li>
-    <li><span lang="en">With <code>planning.fast-path</code> on, the interview sends a change
-    to existing code of at most 2 tasks with code and 5 in total, with no new subsystem, restructuring or
-    domain concept, down the fast path: a short design in chat, built in your session after your explicit
-    yes, proven by <a href="#agent-test-runner"><code>test-runner</code></a>, with no plan file and no run
-    directory. A correction gets a revised design; ask for a full plan and the interview carries on as usual.
-    A build that outgrows those limits stops and suggests <code>/viber:intent</code>. A draft, a
-    <code>roadmap.md</code> or a run on its own branch never takes it, and neither does a fix of code-audit findings
-    or pull request review threads: that fix never takes the fast path.</span><span lang="pl">Przy włączonym
-    <code>planning.fast-path</code> wywiad kieruje zmianę istniejącego kodu na co najwyżej
-    2 zadania z kodem i 5 w sumie, bez nowego podsystemu, przebudowy ani pojęcia domenowego, na szybką
-    ścieżkę: krótki projekt na czacie, zbudowany w twojej sesji po twoim wyraźnym „tak”, sprawdzony przez
-    <a href="#agent-test-runner"><code>test-runner</code></a>, bez pliku planu i bez katalogu przebiegu.
-    Poprawka daje poprawiony projekt; poproś o pełny plan, a wywiad toczy się dalej jak zwykle. Build, który
-    przerośnie te limity, zatrzymuje się i proponuje <code>/viber:intent</code>. Nigdy nie idzie nią szkic,
-    <code>roadmap.md</code> ani przebieg na własnej gałęzi, a poprawka ustaleń audytu kodu lub wątków recenzji
-    pull requesta nigdy nie idzie szybką ścieżką.</span></li>
+    <li><span lang="en">A plan written in Claude Code's own plan mode, outside the planner, is not a viber path.
+    With <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> on, the plan gate
+    only has it reviewed by <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a> before plan mode
+    ends.</span><span lang="pl">Plan napisany we własnym trybie planowania Claude Code, poza plannerem, nie jest
+    ścieżką viber. Przy włączonym
+    <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> bramka planu tylko
+    zleca jego recenzję agentowi <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a>, zanim tryb
+    planowania się skończy.</span></li>
   </ul>
 </details>
 </section>
@@ -1825,14 +1807,10 @@ linie co w <code>rulings.md</code>.</p>
   <summary><span lang="en">Why does Claude suggest the interview when I ask for a plan?</span><span lang="pl">Dlaczego Claude proponuje wywiad, gdy proszę o plan?</span></summary>
   <p lang="en">The planner starts only from a confirmed <code>/viber:intent</code> interview or a
   <code>/viber:fixer</code> diagnosis, so any other request gets that suggestion, however clear it is. Agree to
-  the interview, or ask for Claude Code's own plan mode for a small change. A small change to existing code
-  needs no plan at all on the interview's fast path: a short design you approve
-  in chat.</p>
+  the interview, or ask for the change directly, without a plan.</p>
   <p lang="pl">Planista startuje wyłącznie od potwierdzonego wywiadu <code>/viber:intent</code> albo diagnozy
   <code>/viber:fixer</code>, więc każda inna prośba, nawet bardzo jasna, kończy się taką propozycją. Zgódź się
-  na wywiad albo przy małej zmianie poproś o zwykły tryb planowania Claude Code. Mała zmiana istniejącego kodu
-  na szybkiej ścieżce wywiadu w ogóle nie potrzebuje planu: wystarczy krótki
-  projekt, który zatwierdzasz na czacie.</p>
+  na wywiad albo poproś o zmianę wprost, bez planu.</p>
 </details>
 <details id="ts-branch">
   <summary><span lang="en">Why does the build stop at once, saying the run branch could not be set?</span><span lang="pl">Dlaczego build od razu się zatrzymuje z informacją, że nie da się ustawić gałęzi przebiegu?</span></summary>
@@ -2522,34 +2500,28 @@ z nich mówi, jak nim sterować.</p>
 
 <article class="card" id="skill-intent">
   <h4><code>/viber:intent</code></h4>
-  <p lang="en">The planning interview. It asks only what the conversation and the code leave open, one
-  question at a time, each with three options and its recommendation first. A large request is split into
-  subprojects first, and every part is interviewed. It closes on a summary you confirm, then hands it
-  to <a href="#skill-planner"><code>planner</code></a>. When a build of one part finishes, it names the next
+  <p lang="en">The planning interview. It asks only what the conversation and the code leave open, in
+  rounds: one message carries every decision whose prerequisites are settled, each with three options and its
+  recommendation first. A large request is split into
+  subprojects first, and every part is interviewed. It closes on a summary you confirm, saves it as a file
+  and hands that file to <a href="#skill-planner"><code>planner</code></a>, which chooses the spec shape. When a build of one part finishes, it names the next
   part: run the interview on it and it resumes from the decisions of the first. It can also resume from
   the split proposal of <a href="#skill-planner"><code>planner</code></a>, when the plan grew too large.
   When the change alters a
   screen and no mockup exists yet, the confirmation also offers to go to
   <a href="#skill-prototype"><code>/viber:prototype</code></a> before the plan.</p>
-  <p lang="pl">Wywiad planistyczny. Pyta tylko o to, czego nie rozstrzygają rozmowa i kod, jedno pytanie
-  naraz, każde z trzema opcjami i rekomendacją na pierwszym miejscu. Dużą prośbę najpierw dzieli na
-  podprojekty i omawia każdy z nich. Kończy się podsumowaniem, które potwierdzasz, a potem
-  przekazuje je do <a href="#skill-planner"><code>planner</code></a>. Gdy build jednej części się kończy,
+  <p lang="pl">Wywiad planistyczny. Pyta tylko o to, czego nie rozstrzygają rozmowa i kod, w rundach:
+  jedna wiadomość niesie każdą decyzję, której warunki wstępne są już rozstrzygnięte, każdą z trzema opcjami
+  i rekomendacją na pierwszym miejscu. Dużą prośbę najpierw dzieli na
+  podprojekty i omawia każdy z nich. Kończy się podsumowaniem, które potwierdzasz, zapisuje je do pliku
+  i przekazuje ten plik do <a href="#skill-planner"><code>planner</code></a>, który wybiera kształt specyfikacji. Gdy build jednej części się kończy,
   wskazuje następną: uruchom na niej wywiad, a wznowi go od decyzji pierwszej. Może też wznowić się od
   propozycji podziału z <a href="#skill-planner"><code>planner</code></a>, gdy plan urósł zbyt mocno.
   Gdy zmiana dotyczy ekranu,
   a makiety jeszcze nie ma, potwierdzenie proponuje też przejście do
   <a href="#skill-prototype"><code>/viber:prototype</code></a> przed planem.</p>
-  <p lang="en">A small change to existing code can take the fast path
-  instead: a short design in chat, built in your session only after your explicit yes and proven by
-  <a href="#agent-test-runner"><code>test-runner</code></a>, with no plan file; you commit it with
-  <code>/viber:commit</code>. A fix of code-audit findings or pull request review threads
-  never takes the fast path. Otherwise it writes no code.</p>
-  <p lang="pl">Mała zmiana istniejącego kodu może zamiast tego pójść szybką ścieżką: krótki projekt na czacie,
-  zbudowany w twojej sesji dopiero po twoim wyraźnym „tak” i sprawdzony przez
-  <a href="#agent-test-runner"><code>test-runner</code></a>, bez pliku planu; commitujesz ją przez
-  <code>/viber:commit</code>. Poprawka ustaleń audytu kodu lub wątków recenzji pull requesta
-  nigdy nie idzie szybką ścieżką. Poza tym nie pisze kodu.</p>
+  <p lang="en">It writes no code.</p>
+  <p lang="pl">Nie pisze kodu.</p>
   <dl>
     <div>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
@@ -2596,7 +2568,8 @@ z nich mówi, jak nim sterować.</p>
 
 <article class="card" id="skill-planner">
   <h4><code>planner</code> <span class="tag auto"><span lang="en">starts on its own</span><span lang="pl">startuje sam</span></span></h4>
-  <p lang="en">Turns a confirmed interview or a <a href="#skill-fixer"><code>fixer</code></a> diagnosis into a plan,
+  <p lang="en">Reads the interview's summary file, or takes a <a href="#skill-fixer"><code>fixer</code></a> diagnosis,
+  chooses the shape of the specification itself and turns the input into a plan,
   inside Claude Code's plan mode: acceptance criteria, a file map, then tasks with their dependencies,
   contracts, verification and definition of done. The <a href="#agent-planner-review"><code>planner-review</code></a>
   agent reviews the plan against your code, and plan mode can be left only after it passes; a plan past 12 tasks
@@ -2609,7 +2582,8 @@ z nich mówi, jak nim sterować.</p>
   <a href="#agent-impact-mapper"><code>impact-mapper</code></a> agent finds every reference to what the change
   modifies, moves or deletes, and the plan adds nothing the interview left unsettled. A review finding showing
   the plan changes a behaviour your code has today, unasked, gets fixed even when it is only Minor.</p>
-  <p lang="pl">Zamienia potwierdzony wywiad albo diagnozę z <a href="#skill-fixer"><code>fixer</code></a> w plan,
+  <p lang="pl">Czyta plik z podsumowaniem wywiadu albo przyjmuje diagnozę z <a href="#skill-fixer"><code>fixer</code></a>,
+  sam wybiera kształt specyfikacji i zamienia dane wejściowe w plan,
   w trybie planowania Claude Code: kryteria akceptacji, mapę plików, a potem zadania z zależnościami,
   kontraktami, weryfikacją i definicją ukończenia. Agent <a href="#agent-planner-review"><code>planner-review</code></a>
   sprawdza plan na twoim kodzie, a wyjść z trybu planowania można dopiero po jego akceptacji; plan powyżej
@@ -3299,13 +3273,10 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
   sprawdza poprawkę swoich uwag, gdy <a href="#key-build-final-review"><code>build.final-review</code></a> jest
   włączony.</span></li>
   <li id="agent-test-runner"><code>test-runner</code> <span lang="en">runs the project's build, its fast tests
-  and the integration tests the change reaches once and returns a verdict, keeping the log out of the conversation. <a href="#skill-intent"><code>intent</code></a>'s
-  fast path calls it too, to prove a change built in your session. With
+  and the integration tests the change reaches once and returns a verdict, keeping the log out of the conversation. With
   <a href="#key-build-baseline-tests"><code>build.baseline-tests</code></a> set to <code>fast</code> or <code>full</code>, it also runs a baseline before the first task,
   recording what already fails, and the final run then fails only on new failures.</span><span lang="pl">uruchamia raz
-  budowanie projektu, jego szybkie testy i testy integracyjne, których dotyka zmiana, i zwraca werdykt, trzymając log poza rozmową. Wywołuje go też
-  szybka ścieżka skilla <a href="#skill-intent"><code>intent</code></a>, żeby sprawdzić
-  zmianę zbudowaną w twojej sesji. Gdy <a href="#key-build-baseline-tests"><code>build.baseline-tests</code></a>
+  budowanie projektu, jego szybkie testy i testy integracyjne, których dotyka zmiana, i zwraca werdykt, trzymając log poza rozmową. Gdy <a href="#key-build-baseline-tests"><code>build.baseline-tests</code></a>
   ma wartość <code>fast</code> lub <code>full</code>, wykonuje też przebieg bazowy przed pierwszym zadaniem, zapisując, co już nie przechodzi, a końcowe
   uruchomienie kończy się porażką tylko przy nowych błędach.</span></li>
   <li id="agent-arbiter"><code>arbiter</code> <span lang="en">rules in your place where the build would otherwise

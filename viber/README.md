@@ -37,7 +37,7 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
 | Command | What it does |
 | --- | --- |
 | `/viber:talk` | Talks a topic through with you, checks the claims against trusted sources and ends on conclusions, never on code. |
-| `/viber:intent` | Interviews you about an idea, one question at a time, and hands the result to the planner. |
+| `/viber:intent` | Interviews you about an idea, in rounds, and hands the planner the confirmed summary as a file. |
 | `/viber:fixer` | Traces a bug to its root cause, proves it with a failing test and hands it to the planner. |
 | `/viber:triage` | Checks a reported issue against your code: can it be done, how, what it affects, how big. |
 | `/viber:prototype` | Turns a UI change into one HTML mockup in your project's own look, or three to choose from. |
@@ -116,14 +116,6 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
   loose prompt to steer the focus: `/viber:handoff notes/ focus on the migration`.
 - **"commit"**: name an issue (`#42`) and it becomes the `Refs:` footer.
 
-### Fast path
-
-With `planning.fast-path` on, a small change to existing code takes a shorter road through
-`/viber:intent`: a short design in chat instead of a plan. Once you say yes, it is built in your
-session and proven by the test suite, with no plan file and no run directory. You commit it
-yourself. Ask for a full plan and the interview continues as usual. A fix of code-audit findings
-or pull request review threads never takes the fast path: it is always built through a plan.
-
 ### Working from GitHub issues
 
 With `github.issues` on, point `/viber:intent`, `/viber:fixer` or `/viber:prototype` at an issue:
@@ -148,12 +140,13 @@ those files names it itself, so no coder reads a file its task does not need.
 
 ![How viber works](skills/setup/assets/viber-flow-en.svg)
 
-The interview asks one question at a time, with three concrete options and a recommendation. A
+The interview asks in rounds: every decision whose prerequisites are settled goes out in one
+message, each with three concrete options and a recommendation, and the confirmed summary is saved
+as a file for the planner. The planner chooses the shape of the specification. A
 reviewer reads the resulting plan against your codebase before you approve it. A plan past 12 tasks
 is read by three reviewers at once, one for the spec and its contracts, one for the dependency graph
-and one for the tasks, and plan mode ends only when all of them pass. A plan written in plain plan
-mode, with `planning.plain-plan-review` on, may name at most 8 repository files; past that, plan
-mode points you to `/viber:intent` for a planned build. Then the build runs
+and one for the tasks, and plan mode ends only when all of them pass. A plan written outside the
+planner is only reviewed, through `planning.outside-plan-review`, whatever number of files it names. Then the build runs
 task by task, reviewing and committing each one, and finishes with one final review and your fast
 tests plus the integration tests the change reaches. End-to-end tests stay with your CI and
 `/viber:e2e` unless you explicitly ask for them.
@@ -171,7 +164,7 @@ one parent issue, and a part that resumes is tied to its sub-issue.
 
 The planner checks the size too. When its plan grows past 30 tasks, it stops and asks through the
 interview whether to split the change into parts or keep one plan of that many tasks; a split
-resumes the interview from the planner's own proposal. The planner also asks, one question at a time,
+resumes the interview from the planner's own proposal. The planner also asks, one decision per question,
 every decision its exploration of the code finds that the interview left open and that belongs to you,
 such as a behaviour, a scope or a product choice. Implementation choices stay with it. Before it writes
 tasks, its `impact-mapper` agent finds every reference to what the change modifies, moves or deletes, and

@@ -143,8 +143,7 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>Switches in the <code>planning</code>, <code>build</code> and <code>github</code> groups; only <code>true</code> turns one on.</li>
         <li>Without the file, every switch is off.</li>
         <li><code>planning.adr</code>: architecture decision records in <code>docs/adr/</code>.</li>
-        <li><code>planning.plain-plan-review</code>: review of plans written without the planner.</li>
-        <li><code>planning.fast-path</code>: a fast path for small changes.</li>
+        <li><code>planning.outside-plan-review</code>: review of plans written outside the planner.</li>
         <li><code>build.baseline-tests</code>: <code>off</code>, <code>fast</code> or <code>full</code>.</li>
         <li><code>build.final-review</code>: a review of the whole build after the last task.</li>
         <li><code>build.memory</code>: updates <code>CLAUDE.md</code> at the close of a build.</li>
@@ -299,28 +298,28 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
       <p><code>/viber:intent</code>: turns an idea into a confirmed understanding for the planner.</p>
       <ul class="f">
         <li>Never starts on its own; suggested in one line, the decision is yours.</li>
-        <li>Alternative for simple changes: Claude Code's plain plan mode.</li>
+        <li>Asks in rounds: one message carries every decision whose prerequisites are settled.</li>
         <li>Never asks what the conversation or the code already says.</li>
         <li>Opens with a line naming what it takes as settled.</li>
         <li>When everything is settled: straight to the summary, zero questions.</li>
-        <li>One question per message, in prose.</li>
-        <li>Every question: 3 concrete options, the recommendation first.</li>
+        <li>A decision that depends on an open one waits for a later round; every round is in prose.</li>
+        <li>Every decision: 3 concrete options, the recommendation first.</li>
         <li>Numbered decisions and options (<code>2.1</code>, <code>2.1.1</code>) for a quick answer.</li>
-        <li>Questions in dependency order; each answer narrows the next.</li>
+        <li>Rounds follow dependency order; each answer narrows the next round.</li>
         <li>Challenges weak reasoning and contradictions with the code out loud.</li>
         <li>Plain language, no abbreviations or acronyms, in the user's language.</li>
         <li>Order: problem, done condition, boundaries, requirements, unknowns.</li>
         <li>Every unknown gets a way to resolve it.</li>
         <li>Skips what a competent implementer decides alone.</li>
-        <li>Sizes the scope before the first detail question.</li>
-        <li>Proposes the spec shape: <code>spec-full</code> or <code>spec-lite</code>.</li>
-        <li>Escalates to <code>spec-full</code> past the sixth question.</li>
+        <li>Sizes the scope before the first round.</li>
+        <li>Leaves the spec shape, <code>spec-full</code> or <code>spec-lite</code>, to the planner.</li>
+        <li>The planner picks <code>spec-full</code> for a new subsystem, several paths, named edge cases or new domain concepts.</li>
         <li>A summary under 15 lines, to confirm or correct.</li>
         <li>For a screen change with no mockup, offers "prototype first".</li>
         <li>Draft mode: the plan stops at the specification alone, on your request.</li>
         <li>Resuming a draft asks only about what the remarks changed.</li>
         <li><code>--prove</code>: the <code>prover</code> agent checks every question against the code and the web before you see it.</li>
-        <li>Hands off the summary verbatim, so it survives context compaction.</li>
+        <li>Hands off a summary file under <code>.temp/viber/intent/</code>, so it survives context compaction and the planner reads it first.</li>
         <li>Never proposes end-to-end tests; only on your explicit request.</li>
       </ul>
     </section>
@@ -342,24 +341,6 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>A finished build names the command for the next part.</li>
         <li>Resuming asks only what the builds since changed.</li>
         <li>The next part builds on the previous part's branch.</li>
-      </ul>
-    </section>
-
-    <section id="fastpath" data-title="Fast path">
-      <h2>Fast path <span class="count"></span></h2>
-      <p><code>planning.fast-path</code>: a small change with no plan file.</p>
-      <ul class="f">
-        <li>Only a change in existing code, with no new subsystem or domain concept.</li>
-        <li>Limit: 2 tasks with code, 5 in total.</li>
-        <li>A short design in chat: what changes, in which files, how it is proven.</li>
-        <li>Builds only after an explicit "build it".</li>
-        <li>No plan file and no run directory.</li>
-        <li>The change is made in the current session, then tested by <code>test-runner</code>.</li>
-        <li>Red tests: repair and run again.</li>
-        <li>Exceeding the limit: stops and points to the full interview.</li>
-        <li>Ends by suggesting <code>/viber:commit</code>, never commits.</li>
-        <li>A request for a full plan returns to the regular interview.</li>
-        <li>Unavailable on a run branch and when resuming a draft or a roadmap.</li>
       </ul>
     </section>
 
@@ -449,10 +430,9 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>Blocks leaving plan mode without a reviewer's PASS after the last plan write.</li>
         <li>Compares the file's modification time with the verdict's time: an edit after PASS voids it.</li>
         <li>Also catches edits made through <code>sed -i</code> or an editor.</li>
-        <li>A plan written without the planner needs a PASS from the <code>plain-plan-review</code> agent.</li>
+        <li>A plan written outside the planner needs a PASS from the <code>outside-plan-review</code> agent when <code>planning.outside-plan-review</code> is on, whatever number of files it names.</li>
         <li>Every deny message opens with "Next step:" and the ready command.</li>
-        <li>Injects hints into a plan in plain plan mode.</li>
-        <li>Hints: a task list, parallel subagents, a closing review with fixes.</li>
+        <li>Injects one hint into a plan written outside the planner: get the <code>outside-plan-review</code> PASS before leaving plan mode.</li>
         <li>Loads viber's rule manifest into the context at session start.</li>
         <li>The <code>viber loaded &lt;version&gt;</code> banner shown to the user.</li>
         <li>Warns about an outdated <code>schema:</code> and the need for <code>/viber:setup</code>.</li>

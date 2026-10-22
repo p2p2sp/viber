@@ -1,6 +1,6 @@
 ---
 name: test-runner
-description: Runs the project's build, its fast tests and the integration tests a change reaches once and returns a verdict, keeping the log out of the caller's context. Invoked only by the implementor skill and the intent skill's fast path, never directly.
+description: Runs the project's build, its fast tests and the integration tests a change reaches once and returns a verdict, keeping the log out of the caller's context. Invoked only by the implementor skill, never directly.
 tools: Read, Write, Grep, Glob, Bash
 model: sonnet
 effort: low
