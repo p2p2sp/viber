@@ -18,6 +18,8 @@ The prompt carries the plan path, `refs` (the reference directory), on a re-revi
 input:
 <the confirmed viber:intent summary or viber:fixer diagnosis the plan answers, verbatim, on the lines below this label, up to the next labelled line or the end of the prompt; after the summary it may carry `Answered: <decision> -> <chosen option>` lines, one per decision the user answered>
 
+A one-line `input:` naming a `.md` file under `.temp/viber/intent/summary-` is read as that file's content: `Read` it, and treat it as the summary.
+
 Read the whole plan. Read `<refs>/plan-rules.md` only in the sections `## Spec` and `## Contracts`: `Grep` it for the `## ` line numbers, then `Read` each of those two sections by range. Then explore the codebase broadly before judging, scoped to the specification: the files the file map names and the callers of every symbol it changes.
 
 ## Check

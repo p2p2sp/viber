@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Only for a confirmed viber:intent interview or a viber:fixer diagnosis already in context - never the entry point. Without one, suggest the viber:intent interview and let the user decide. Turns that input into a reviewed implementation plan - acceptance criteria, file map, then tasks carrying dependencies, contracts, verification and DoD.
+description: Only for a viber:intent summary file path or a confirmed intent summary as text, or a viber:fixer diagnosis already in context - never the entry point. Without one, suggest the viber:intent interview and let the user decide. Turns that input into a reviewed implementation plan - acceptance criteria, file map, then tasks carrying dependencies, contracts, verification and DoD.
 allowed-tools: Read, Write, Edit, Grep, Glob, Agent, Skill, EnterPlanMode, ExitPlanMode, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(date:*)
 user-invocable: false
 effort: high
@@ -12,11 +12,15 @@ effort: high
 
 # planner
 
-Input: an understood change already in context - a confirmed `viber:intent` interview, or a `viber:fixer` diagnosis. Anything else is unresolved input however clear it reads: suggest the `viber:intent` interview in one line and stop here, never entering plan mode. Never size the scope yourself: the threshold check below counts tasks against 30 and sizes nothing.
+Input: an understood change, as one of three: the path of an intent summary file (`.temp/viber/intent/summary-<stamp>.md`, your only argument), a confirmed `viber:intent` summary as text in context (the interview ran in plan mode), or a `viber:fixer` diagnosis. Anything else is unresolved input however clear it reads: suggest the `viber:intent` interview in one line and stop here, never entering plan mode. Never size the scope yourself: the threshold check below counts tasks against 30 and sizes nothing.
+
+A summary file path is read first, before anything else: its content is the input everywhere below.
 
 On valid input call `EnterPlanMode` first unless plan mode is already active.
 
-The input carries three decisions already taken: the spec shape, whether this plan stops at a draft, and, on a round continuing an earlier draft, that draft's run key. Never reopen them.
+The input carries two decisions already taken: whether this plan stops at a draft and, on a round continuing an earlier draft, that draft's run key. Never reopen them.
+
+The spec shape is yours to pick. A `viber:fixer` diagnosis is `spec-lite`. An intent summary is `spec-full` when it holds any of: a new application or subsystem, an accepted roadmap, behaviour with more than one path or named edge cases, new domain concepts; else `spec-lite`.
 
 Every bundled-script run below is one literal Bash line, every argument double-quoted, never prefixed with an interpreter word, never assigned to a variable, never preceded by `cd`, never chained with `;`, `&&` or `||`.
 
@@ -52,7 +56,7 @@ Then map the reach of the change, on every round, a draft round included:
 
 Close the step on the threshold check, on a draft round as well, before any task is written: estimate from the file map how many tasks the plan needs. At more than 30 tasks, ask through one `AskUserQuestion`: split the change into parts, or keep one plan of that many tasks.
 
-- Split: invoke `viber:intent` through the `Skill` tool with the confirmed input verbatim followed by a `Split proposal:` block in this shape, and write no plan. Its parts come from your file map, a `viber:fixer` input puts the fix in part 1, `Open decisions:` lists each decision owed to the user that your exploration revealed, asked none of them, and it and its lines are left out when there are none.
+- Split: invoke `viber:intent` through the `Skill` tool with the summary file path, or with the summary text or fixer diagnosis verbatim when there is no file, followed by a `Split proposal:` block in this shape, and write no plan. Its parts come from your file map, a `viber:fixer` input puts the fix in part 1, `Open decisions:` lists each decision owed to the user that your exploration revealed, asked none of them, and it and its lines are left out when there are none.
 
   ```
   Split proposal:
@@ -69,7 +73,7 @@ Add no behaviour, rule or narrowing that neither the input nor an `Answered:` li
 
 ## 2. Write the plan
 
-The specification half is `${CLAUDE_SKILL_DIR}/templates/spec-lite.md` or `${CLAUDE_SKILL_DIR}/templates/spec-full.md`, whichever shape the input names; the task half is `${CLAUDE_SKILL_DIR}/templates/tasks.md` under either. Fill the spec, append the task half under it, and write the result into the plan file plan mode names in its system message, the only file you may write while planning. Keep every section and every HTML marker of both templates, except one a template comment says to drop; add no section of your own.
+The specification half is `${CLAUDE_SKILL_DIR}/templates/spec-lite.md` or `${CLAUDE_SKILL_DIR}/templates/spec-full.md`, whichever shape you picked; the task half is `${CLAUDE_SKILL_DIR}/templates/tasks.md` under either. Fill the spec, append the task half under it, and write the result into the plan file plan mode names in its system message, the only file you may write while planning. Keep every section and every HTML marker of both templates, except one a template comment says to drop; add no section of your own.
 
 Fill the frontmatter per its placeholders: `source:` is the only way back to the file once approval clears this context; `issue:` comes only from the input's `Issue:` line and the `attachments:` entries only from its `Attachment:` lines, never from the scope, and a draft round carries both over (below). Each `Attachment:` line is one entry: a unique name that is the file's or directory's own name (letters, digits, `_`, `.` and `-`, opening on a letter or digit), changed only to avoid a repeat, then the line's path. A task needing one of those files names `attachments/<name>` in its `DoD`, `attachments/<name>/` for a directory; a task needing none names none.
 
@@ -106,11 +110,15 @@ Dispatch the `viber:planner-review` agent with the plan path, `refs: ${CLAUDE_PL
 
 ```
 input:
-<the confirmed viber:intent summary or viber:fixer diagnosis in context, verbatim>
+<absolute path of the intent summary file, alone on its line>   (an intent run outside plan mode)
+<the confirmed intent summary, verbatim>                         (an intent run inside plan mode)
+<the fixer diagnosis, verbatim>                                  (a fixer run)
 Answered: <decision> -> <chosen option>
 ```
 
-One `Answered:` line after the summary for every answer the user gave you, from step 1 and from a `VERDICT: FAIL` finding alike, none when there are none.
+Pass one of the three input forms, never the file path together with its content: a one-line input naming a `.md` file under `.temp/viber/intent/` is read as that file's content.
+
+One `Answered:` line after the input for every answer the user gave you, from step 1 and from a `VERDICT: FAIL` finding alike, none when there are none.
 
 A draft adds the line `scope: spec`. From round 2 on, also pass the previous findings verbatim and one line per fix you applied.
 

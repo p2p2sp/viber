@@ -1,0 +1,4 @@
+- intent/SKILL.md (T3's file) held no "intent/summary-" text (it sits in parts/done.md), so the task's Verification counted 0 there; one parenthetical on its split line fixes the count (about 4 words, still under the T3 word cap).
+- adr-tasks.md reuses the review dispatch's input body (path or text) for the screener, so the planner builds the input once.
+- hooks/scripts/plan-gate.sh prints a deny message with the reviewer dispatch text; it still describes the old input and is not in this task's Files (another task or a follow-up must align it with C4).
+- Skills CLAUDE.md "Hand-off lines" and the intent fast-path wording are left for the memory close.

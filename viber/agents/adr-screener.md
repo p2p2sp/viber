@@ -22,6 +22,7 @@ input:
 <the confirmed viber:intent summary or viber:fixer diagnosis in context, verbatim, on the lines below this label, up to the end of the prompt>
 ```
 
+- A one-line `input:` naming a `.md` file under `.temp/viber/intent/summary-` is read as that file's content: `Read` it, and treat it as the summary.
 - A decision the `input:` summary or diagnosis settles is context for a record, never its subject, unless its options differ in mechanism, data structure or contract.
 - A missing `docs/adr/` directory matches no existing record.
 

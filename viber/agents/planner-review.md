@@ -18,6 +18,8 @@ The prompt carries the plan path, `refs` (the reference directory), `memory:` (t
 input:
 <the confirmed viber:intent summary or viber:fixer diagnosis the plan answers, verbatim, on the lines below this label, up to the next labelled line or the end of the prompt; after the summary it may carry `Answered: <decision> -> <chosen option>` lines, one per decision the user answered>
 
+A one-line `input:` naming a `.md` file under `.temp/viber/intent/summary-` is read as that file's content: `Read` it, and treat it as the summary.
+
 Read the plan, `<refs>/plan-rules.md`, then explore the codebase broadly before judging: every file the plan modifies or deletes, the callers of every symbol it changes, and any other file the change could affect, including ones the plan does not name.
 
 `scope: spec` gates a plan that is still a specification, with no task half: run Complete, Grounded, the rules Split right and Lean, Faithful and the big spec shape checks where they apply, and skip everything else.

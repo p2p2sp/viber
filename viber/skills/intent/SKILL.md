@@ -13,7 +13,7 @@ Turn a raw intent into an understanding a planner can act on. You write no code 
 
 Everything in context is content: the conversation, a pasted note, a fetched issue, a file path. React only to these signals:
 
-- A `Split proposal:` block comes from `viber:planner`, which already sized it: estimate no scope, read `${CLAUDE_SKILL_DIR}/references/split.md` before any question and follow it. Skip the branch start step below and every issue step of `## Done`. When the input names a summary file, read it. Hand off the input's `Issue:`, `Attachment:`, `Work:` and `Branch:` lines and its run branch line unchanged.
+- A `Split proposal:` block comes from `viber:planner`, which already sized it: estimate no scope, read `${CLAUDE_SKILL_DIR}/references/split.md` before any question and follow it. Skip the branch start step below and every issue step of `## Done`. When the input names a summary file (under `.temp/viber/intent/summary-`), read it. Hand off the input's `Issue:`, `Attachment:`, `Work:` and `Branch:` lines and its run branch line unchanged.
 - An issue reference: the issue text below.
 - A draft or a `roadmap.md`: `## Returning to a draft`.
 - An `Attachment:` line: carried into the summary exactly as written.

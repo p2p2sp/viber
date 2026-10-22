@@ -10,8 +10,10 @@ Dispatch the `viber:adr-screener` agent with these lines, `input:` last:
 plan: <absolute path of the plan file>
 refs: <the plugin reference directory>
 input:
-<the confirmed viber:intent summary or viber:fixer diagnosis in context, verbatim>
+<the input block of the review dispatch, without its Answered: lines>
 ```
+
+The `input:` body is the one the review dispatch carries: the summary file path alone on its line, or the summary or diagnosis verbatim. A one-line input naming a `.md` file under `.temp/viber/intent/summary-` is read as that file's content.
 
 - A reply with no `VERDICT:` line is handled as `VERDICT: DENIED` with `REASON: no verdict returned`.
 - `VERDICT: DENIED` - one `AskUserQuestion` naming the refused call from its `REASON:` line: permission added and retry, or continue with no record task.
