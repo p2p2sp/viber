@@ -110,12 +110,22 @@ const SCHEMA_KEYS: Record<string, string[]> = {
     "tiers", "tiers-min", "tiers-max",
     "branching", "branching-mode", "branching-work",
   ],
+  "6": [
+    "schema",
+    "planning", "planning-adr", "planning-outside-plan-review", "planning-questions-per-round",
+    "build", "build-baseline-tests", "build-final-review", "build-memory", "build-rules", "build-qa", "build-cleanup",
+    "build-red-check", "build-extensions",
+    "github", "github-issues", "github-issue-title", "github-pr-title",
+    "directories", "directories-runs", "directories-specifications",
+    "tiers", "tiers-min", "tiers-max",
+    "branching", "branching-mode", "branching-work",
+  ],
 };
 
-/** A complete schema-5 config with no comments, the fixture most merge cases edit. */
+/** A complete schema-6 config with no comments, the fixture most merge cases edit. */
 const GROUPED = [
-  "schema: 5",
-  "planning:", "  adr: true", "  outside-plan-review: true",
+  "schema: 6",
+  "planning:", "  adr: true", "  outside-plan-review: true", "  questions-per-round: 5",
   "build:", "  baseline-tests: off", "  final-review: true", "  memory: true", "  rules: true", "  qa: false", "  cleanup: true", "  red-check: true",
   "  extensions:",
   "github:", "  issues: false", "  issue-title: '{template-title}{summary}'", "  pr-title: '{type}: {summary}'",
@@ -126,7 +136,7 @@ const GROUPED = [
 ].join("\n");
 
 /** GROUPED as schema 3 left it: no `red-check` switch, the layout a pre-red-check setup wrote. */
-const GROUPED_V3 = GROUPED.replace("schema: 5\n", "schema: 3\n").replace("  red-check: true\n", "");
+const GROUPED_V3 = GROUPED.replace("schema: 6\n","schema: 3\n").replace("  red-check: true\n", "");
 
 /** GROUPED as schema 2 left it: no extension key either, the layout a pre-extension setup wrote. */
 const GROUPED_V2 = GROUPED_V3.replace("schema: 3\n", "schema: 2\n").replace("  extensions:\n", "");
@@ -443,7 +453,7 @@ test("a flat config moves `adr: false` and `memory: false` into `planning:` and 
     const result = await run(dir, env);
 
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^viber\.yml: migrated to schema 5: adr, memory moved into their groups \(your own values kept\)$/m);
+    assert.match(result.stdout, /^viber\.yml: migrated to schema 6: adr, memory moved into their groups \(your own values kept\)$/m);
     const after = read(cfg);
     // A move that wrote the template default would silently re-enable what the user turned off.
     assert.equal(childValue(after, "planning", "adr"), "false");
@@ -452,7 +462,7 @@ test("a flat config moves `adr: false` and `memory: false` into `planning:` and 
   });
 });
 
-test("a flat config gains every group the template adds, each child the file did not set at its default, and `schema: 5`", async () => {
+test("a flat config gains every group the template adds, each child the file did not set at its default, and `schema: 6`", async () => {
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
@@ -463,7 +473,7 @@ test("a flat config gains every group the template adds, each child the file did
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.match(result.stdout, /^viber\.yml: merged from the template: planning, build, github, directories, tiers, branching \(your own values kept\)$/m);
     const after = read(cfg);
-    assert.match(after, /^schema: 5$/m);
+    assert.match(after, /^schema: 6$/m);
     assert.equal(childValue(after, "build", "rules"), "false");
     assert.equal(childValue(after, "build", "extensions"), "");
     assert.doesNotMatch(after, /extensions-parallel/);
@@ -565,7 +575,7 @@ test("a config missing `build:`'s `red-check` child gets it restored inside the 
   });
 });
 
-test("a schema-3 config gains `build.red-check` alone, reaches schema 5 and keeps the user's values", async () => {
+test("a schema-3 config gains `build.red-check` alone, reaches schema 6 and keeps the user's values", async () => {
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
@@ -576,7 +586,7 @@ test("a schema-3 config gains `build.red-check` alone, reaches schema 5 and keep
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.match(result.stdout, /^viber\.yml: merged from the template: build\.red-check \(your own values kept\)$/m);
     const after = read(cfg);
-    assert.match(after, /^schema: 5$/m);
+    assert.match(after, /^schema: 6$/m);
     assert.equal(childValue(after, "build", "red-check"), "true");
     assert.equal(childValue(after, "build", "cleanup"), "false");
   });
@@ -601,7 +611,7 @@ test("a schema-4 config carrying the removed `plain-plan-review` and `fast-path`
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
-    const old = GROUPED.replace("schema: 5\n", "schema: 4\n").replace("  outside-plan-review: true\n", "  plain-plan-review: false\n  fast-path: true\n");
+    const old = GROUPED.replace("schema: 6\n","schema: 4\n").replace("  outside-plan-review: true\n", "  plain-plan-review: false\n  fast-path: true\n");
     fs.writeFileSync(cfg, old);
 
     const result = await run(dir, env);
@@ -609,7 +619,7 @@ test("a schema-4 config carrying the removed `plain-plan-review` and `fast-path`
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.match(result.stdout, /^viber\.yml: merged from the template: planning\.outside-plan-review \(your own values kept\)$/m);
     const after = read(cfg);
-    assert.match(after, /^schema: 5$/m);
+    assert.match(after, /^schema: 6$/m);
     assert.equal(childValue(after, "planning", "outside-plan-review"), "true");
     assert.equal(childValue(after, "planning", "plain-plan-review"), "false");
     assert.equal(childValue(after, "planning", "fast-path"), "true");
@@ -648,12 +658,57 @@ test("a config missing `github:`'s `pr-title` child gets it restored at the temp
   });
 });
 
-test("the template ships `schema: 5`, `planning.outside-plan-review: true` and neither removed planning key", () => {
+test("the template ships `schema: 6`, `planning.outside-plan-review: true` and neither removed planning key", () => {
   const template = read(TEMPLATE_CONFIG);
 
-  assert.match(template, /^schema: 5$/m);
+  assert.match(template, /^schema: 6$/m);
   assert.equal(childValue(template, "planning", "outside-plan-review"), "true");
   assert.doesNotMatch(template, /^ *(plain-plan-review|fast-path) *:/m);
+});
+
+test("the template ships `planning.questions-per-round: 5` under a comment naming 1 to 10 and all", () => {
+  const template = read(TEMPLATE_CONFIG);
+  const above = /((?:^ *#.*\n)+) *questions-per-round:/m.exec(template)?.[1] ?? "";
+
+  assert.equal(childValue(template, "planning", "questions-per-round"), "5");
+  assert.match(above, /1 to 10[\s\S]*`all`/);
+});
+
+test("the template's opening comment and the `planning:` group comment cover a setting that is not a switch", () => {
+  const template = read(TEMPLATE_CONFIG);
+  const opening = template.split("\n\n")[0];
+  const aboveGroup = /((?:^#.*\n)+)planning:/m.exec(template)?.[1] ?? "";
+
+  assert.match(opening, /`planning\.questions-per-round`/);
+  assert.match(aboveGroup, /setting/);
+});
+
+test("the template's personal-overrides comment names `planning.questions-per-round` among five keys", () => {
+  const overrides = read(TEMPLATE_CONFIG).split("\n\n")[1].replace(/\n# ?/g, " ");
+
+  assert.match(overrides, /^# Five settings can be overridden[\s\S]*`?planning\.questions-per-round`?/);
+});
+
+test("a schema-5 config without `planning.questions-per-round` gains it inside `planning:` with its comment, reaches schema 6 and keeps the user's values", async () => {
+  await withGitRepo(async ({ dir, env }) => {
+    const cfg = configPath(dir);
+    fs.mkdirSync(path.dirname(cfg), { recursive: true });
+    fs.writeFileSync(
+      cfg,
+      GROUPED.replace("schema: 6\n", "schema: 5\n").replace("  questions-per-round: 5\n", "").replace("  adr: true\n", "  adr: false\n").replace("  qa: false\n", "  qa: true\n"),
+    );
+
+    const result = await run(dir, env);
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stdout, /^viber\.yml: merged from the template: planning\.questions-per-round \(your own values kept\)$/m);
+    const after = read(cfg);
+    assert.match(after, /^schema: 6$/m);
+    assert.equal(childValue(after, "planning", "questions-per-round"), "5");
+    assert.match(after, /^ {2}#.*\n {2}questions-per-round: 5\n/m);
+    assert.equal(childValue(after, "planning", "adr"), "false");
+    assert.equal(childValue(after, "build", "qa"), "true");
+  });
 });
 
 test("the template ships `build.baseline-tests: off`, `build.red-check: true` and an empty `build.extensions`, and no `extensions-parallel` line", () => {
@@ -677,7 +732,7 @@ test("the template's opening comment calls `build.extensions` no switch but a ma
   assert.match(opening, /`build\.extensions` is no switch but a map[\s#]+of agent entries/);
 });
 
-test("a schema-2 config gains `build.red-check` and `build.extensions` alone inside `build:`, reaches schema 5 and keeps the user's values", async () => {
+test("a schema-2 config gains `build.red-check` and `build.extensions` alone inside `build:`, reaches schema 6 and keeps the user's values", async () => {
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
@@ -689,7 +744,7 @@ test("a schema-2 config gains `build.red-check` and `build.extensions` alone ins
     assert.match(result.stdout, /^viber\.yml: merged from the template: build\.red-check, build\.extensions \(your own values kept\)$/m);
     assert.equal(childValue(read(cfg), "build", "red-check"), "true");
     const after = read(cfg);
-    assert.match(after, /^schema: 5$/m);
+    assert.match(after, /^schema: 6$/m);
     assert.equal(childValue(after, "build", "extensions"), "");
     assert.doesNotMatch(after, /extensions-parallel/);
     assert.equal(childValue(after, "build", "qa"), "true");
@@ -733,7 +788,7 @@ test("a schema-2 config keeps the extension entries it already carries, whatever
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
-    fs.writeFileSync(cfg, GROUPED.replace("schema: 5\n", "schema: 2\n").replace("  extensions:\n", `  extensions:\n${MAP}`));
+    fs.writeFileSync(cfg, GROUPED.replace("schema: 6\n","schema: 2\n").replace("  extensions:\n", `  extensions:\n${MAP}`));
 
     const result = await run(dir, env);
 
@@ -751,17 +806,17 @@ test("the template's comment above `baseline-tests` names off, fast and full, an
   assert.match(opening, /baseline-tests/);
 });
 
-test("a grouped config with no `schema:` line gains `schema: 5` and reports only the schema", async () => {
+test("a grouped config with no `schema:` line gains `schema: 6` and reports only the schema", async () => {
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
-    fs.writeFileSync(cfg, GROUPED.replace("schema: 5\n", ""));
+    fs.writeFileSync(cfg, GROUPED.replace("schema: 6\n",""));
 
     const result = await run(dir, env);
 
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^viber\.yml: schema set to 5$/m);
-    assert.match(read(cfg), /^schema: 5$/m);
+    assert.match(result.stdout, /^viber\.yml: schema set to 6$/m);
+    assert.match(read(cfg), /^schema: 6$/m);
   });
 });
 
@@ -769,7 +824,7 @@ test("a config at a lower schema has its one `schema:` line raised, never a seco
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
-    fs.writeFileSync(cfg, GROUPED.replace("schema: 5\n", "schema: 0\n"));
+    fs.writeFileSync(cfg, GROUPED.replace("schema: 6\n","schema: 0\n"));
 
     const result = await run(dir, env);
 
@@ -782,7 +837,7 @@ test("a grouped `baseline-tests: true` in a schema-1 file becomes `full`, is rep
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
-    fs.writeFileSync(cfg, GROUPED.replace("schema: 5\n", "schema: 1\n").replace("baseline-tests: off", "baseline-tests: true"));
+    fs.writeFileSync(cfg, GROUPED.replace("schema: 6\n","schema: 1\n").replace("baseline-tests: off", "baseline-tests: true"));
 
     const result = await run(dir, env);
 
@@ -796,7 +851,7 @@ test("a grouped `baseline-tests: false` in a schema-1 file becomes `off` and is 
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
-    fs.writeFileSync(cfg, GROUPED.replace("schema: 5\n", "schema: 1\n").replace("baseline-tests: off", "baseline-tests: false"));
+    fs.writeFileSync(cfg, GROUPED.replace("schema: 6\n","schema: 1\n").replace("baseline-tests: off", "baseline-tests: false"));
 
     const result = await run(dir, env);
 
@@ -810,7 +865,7 @@ test("a grouped `baseline-tests: True # mine` keeps its trailing comment when it
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
-    fs.writeFileSync(cfg, GROUPED.replace("schema: 5\n", "schema: 1\n").replace("baseline-tests: off", "baseline-tests: True # mine"));
+    fs.writeFileSync(cfg, GROUPED.replace("schema: 6\n","schema: 1\n").replace("baseline-tests: off", "baseline-tests: True # mine"));
 
     const result = await run(dir, env);
 
@@ -823,12 +878,12 @@ test("a column-0 `baseline-tests: true` moves into `build:` as `full`, reported 
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
-    fs.writeFileSync(cfg, "baseline-tests: true\n" + GROUPED.replace("schema: 5\n", "schema: 1\n").replace("  baseline-tests: off\n", ""));
+    fs.writeFileSync(cfg, "baseline-tests: true\n" + GROUPED.replace("schema: 6\n","schema: 1\n").replace("  baseline-tests: off\n", ""));
 
     const result = await run(dir, env);
 
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^viber\.yml: migrated to schema 5: baseline-tests moved into their groups \(your own values kept\)$/m);
+    assert.match(result.stdout, /^viber\.yml: migrated to schema 6: baseline-tests moved into their groups \(your own values kept\)$/m);
     assert.match(result.stdout, /^viber\.yml: build\.baseline-tests true -> full \(the switch takes off, fast or full\)$/m);
     const after = read(cfg);
     assert.equal(childValue(after, "build", "baseline-tests"), "full");
@@ -836,7 +891,7 @@ test("a column-0 `baseline-tests: true` moves into `build:` as `full`, reported 
   });
 });
 
-test("a schema-5 file whose `baseline-tests` is `off` is left byte-identical and unreported", async () => {
+test("a schema-6 file whose `baseline-tests` is `off` is left byte-identical and unreported", async () => {
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
@@ -850,7 +905,7 @@ test("a schema-5 file whose `baseline-tests` is `off` is left byte-identical and
   });
 });
 
-test("a schema-5 file whose `baseline-tests` is `fast` is left byte-identical and unreported", async () => {
+test("a schema-6 file whose `baseline-tests` is `fast` is left byte-identical and unreported", async () => {
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
@@ -865,7 +920,7 @@ test("a schema-5 file whose `baseline-tests` is `fast` is left byte-identical an
   });
 });
 
-test("a schema-5 file whose `baseline-tests` is `full` is left byte-identical and unreported", async () => {
+test("a schema-6 file whose `baseline-tests` is `full` is left byte-identical and unreported", async () => {
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
@@ -884,7 +939,7 @@ test("a config at a higher schema than the template keeps its number and is left
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
-    const before = GROUPED.replace("schema: 5\n", "schema: 6\n");
+    const before = GROUPED.replace("schema: 6\n","schema: 7\n");
     fs.writeFileSync(cfg, before);
 
     const result = await run(dir, env);
@@ -996,7 +1051,7 @@ test("a key written with blanks before its colon counts as declared, so the file
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
-    const before = "schema : 5\nplanning :\n  adr: true\n  outside-plan-review\t: false\nbuild\t:\n  baseline-tests\t: off\n  final-review\t: true\n  memory: true\n  rules: true\n  qa: true\n  cleanup: true\n  red-check: true\n  extensions\t:\n    a:\ngithub :\n  issues\t: true\n  issue-title : 'x'\n  pr-title\t: 'y'\ndirectories :\n  runs : builds\n  specifications\t: archive\ntiers:\n  min: haiku\n  max: opus\nbranching:\n  mode: off\n";
+    const before = "schema : 6\nplanning :\n  adr: true\n  outside-plan-review\t: false\n  questions-per-round : 5\nbuild\t:\n  baseline-tests\t: off\n  final-review\t: true\n  memory: true\n  rules: true\n  qa: true\n  cleanup: true\n  red-check: true\n  extensions\t:\n    a:\ngithub :\n  issues\t: true\n  issue-title : 'x'\n  pr-title\t: 'y'\ndirectories :\n  runs : builds\n  specifications\t: archive\ntiers:\n  min: haiku\n  max: opus\nbranching:\n  mode: off\n";
     fs.writeFileSync(cfg, before);
 
     const result = await run(dir, env);
@@ -1036,7 +1091,7 @@ test("a config already carrying every template key is byte-identical after a run
     fs.mkdirSync(path.dirname(cfg), { recursive: true });
     // The user's own wording and ordering, not the template's: the merge reads
     // which keys are declared, never how the file is written.
-    const before = "# my own header\nbuild:\n  cleanup: false\n  red-check: false\n  final-review: false\n  baseline-tests: fast\n  qa: true\n  rules: true\n  memory: true\n  extensions:\n    a:\n      parallel: true\n    b:\ngithub:\n  pr-title: '{type}/{summary}'\n  issues: false\n  issue-title: 'x'\nplanning:\n  outside-plan-review: false\n  adr: true\nschema: 5\n\ndirectories:\n  specifications: archive\n  runs: open\ntiers:\n  max: sonnet\n  min: sonnet\nbranching:\n  name: '{type}/{issue}-{slug}'\n  base: develop\n  mode: required\n";
+    const before = "# my own header\nbuild:\n  cleanup: false\n  red-check: false\n  final-review: false\n  baseline-tests: fast\n  qa: true\n  rules: true\n  memory: true\n  extensions:\n    a:\n      parallel: true\n    b:\ngithub:\n  pr-title: '{type}/{summary}'\n  issues: false\n  issue-title: 'x'\nplanning:\n  outside-plan-review: false\n  adr: true\n  questions-per-round: 3\nschema: 6\n\ndirectories:\n  specifications: archive\n  runs: open\ntiers:\n  max: sonnet\n  min: sonnet\nbranching:\n  name: '{type}/{issue}-{slug}'\n  base: develop\n  mode: required\n";
     fs.writeFileSync(cfg, before);
 
     const result = await run(dir, env);

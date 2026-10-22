@@ -177,6 +177,49 @@ function languagePairViolations(page: string): string[] {
   return violations;
 }
 
+/** The inner HTML of every `<p>` carrying `lang="<lang>"`. */
+function langParagraphs(text: string, lang: string): string[] {
+  return [...text.matchAll(new RegExp(`<p\\b[^>]*\\slang="${lang}"[^>]*>([\\s\\S]*?)</p>`, "g"))].map((m) => m[1]);
+}
+
+const OVERRIDES_PARAGRAPH: [string, RegExp, string][] = [
+  ["en", /It overrides/, "five keys"],
+  ["pl", /Nadpisuje/, "pięć kluczy"],
+];
+
+/** The local-overrides paragraph of each language names five keys, the
+ *  question cap among them. */
+function localOverridesViolations(page: string): string[] {
+  const violations: string[] = [];
+  for (const [lang, opener, count] of OVERRIDES_PARAGRAPH) {
+    const paragraph = langParagraphs(page, lang).find((p) => opener.test(p) && p.includes("viber.local.yml"));
+    if (paragraph === undefined) violations.push(`no lang="${lang}" paragraph on viber.local.yml`);
+    else if (!paragraph.includes(count)) violations.push(`the lang="${lang}" overrides paragraph does not say "${count}"`);
+    else if (!paragraph.includes("<code>planning.questions-per-round</code>")) {
+      violations.push(`the lang="${lang}" overrides paragraph does not name planning.questions-per-round`);
+    }
+  }
+  return violations;
+}
+
+const ROUND_CAP: [string, string][] = [
+  ["en", "at most"],
+  ["pl", "nie więcej niż"],
+];
+
+/** The intent card of each language says a round carries at most that many
+ *  decisions, linking the key's entry. */
+function intentRoundCapViolations(page: string): string[] {
+  const card = elementInner(page, "skill-intent") ?? "";
+  const violations: string[] = [];
+  for (const [lang, phrase] of ROUND_CAP) {
+    const paragraph = langParagraphs(card, lang).find((p) => p.includes('href="#key-planning-questions-per-round"'));
+    if (paragraph === undefined) violations.push(`the lang="${lang}" intent card never links key-planning-questions-per-round`);
+    else if (!paragraph.includes(phrase)) violations.push(`the lang="${lang}" intent card does not say "${phrase}"`);
+  }
+  return violations;
+}
+
 function brokenInternalLinks(page: string): string[] {
   return [...page.matchAll(/href="#([^"]*)"/g)]
     .filter((m) => !hasId(page, m[1]))
@@ -484,6 +527,43 @@ test("self-check: missingKeyEntries fires on a sample missing a key entry", () =
   assert.deepEqual(missingKeyEntries(page, ["adr", "tiers-min"]), ['no entry id="key-tiers-min"']);
 });
 
+const OVERRIDES_OK =
+  '<p lang="en">It overrides five keys, <code>planning.questions-per-round</code> among them, in viber.local.yml.</p>' +
+  '<p lang="pl">Nadpisuje pięć kluczy, w tym <code>planning.questions-per-round</code>, w viber.local.yml.</p>';
+
+test("self-check: localOverridesViolations stays quiet on a paragraph in each language naming five keys with the cap", () => {
+  assert.deepEqual(localOverridesViolations(html(OVERRIDES_OK)), []);
+});
+
+for (const [name, from, to] of [
+  ["an English paragraph still saying four keys", "five keys", "four keys"],
+  ["a Polish paragraph still saying four keys", "pięć kluczy", "cztery klucze"],
+  ["an English paragraph without the cap", "<code>planning.questions-per-round</code> among them", "<code>github.issues</code> among them"],
+  ["a Polish paragraph without the cap", "w tym <code>planning.questions-per-round</code>", "w tym <code>github.issues</code>"],
+] as const) {
+  test(`self-check: localOverridesViolations fires on ${name}`, () => {
+    assert.equal(localOverridesViolations(html(OVERRIDES_OK.replace(from, to))).length, 1);
+  });
+}
+
+const ROUND_OK =
+  '<article id="skill-intent"><p lang="en">A round carries <a href="#key-planning-questions-per-round">the cap</a>, at most that many decisions.</p>' +
+  '<p lang="pl">Runda niesie <a href="#key-planning-questions-per-round">limit</a>, nie więcej niż tyle decyzji.</p></article>';
+
+test("self-check: intentRoundCapViolations stays quiet on an intent card saying at most in each language", () => {
+  assert.deepEqual(intentRoundCapViolations(html(ROUND_OK)), []);
+});
+
+for (const [name, from, to] of [
+  ["an English card without the cap sentence", ", at most that many decisions", ""],
+  ["a Polish card without the cap sentence", ", nie więcej niż tyle decyzji", ""],
+  ["an English card that never links the key", 'href="#key-planning-questions-per-round">the cap', 'href="#skill-planner">the cap'],
+] as const) {
+  test(`self-check: intentRoundCapViolations fires on ${name}`, () => {
+    assert.equal(intentRoundCapViolations(html(ROUND_OK.replace(from, to))).length, 1);
+  });
+}
+
 for (const [name, body] of [
   ["two en in a row", '<span lang="en">a</span><span lang="en">b</span>'],
   ["a pl on another tag than its en", '<p lang="en">a</p><span lang="pl">b</span>'],
@@ -697,6 +777,8 @@ for (const [name, violations] of [
   ["labels exactly the user-invocable: false cards as self-starting", () => autoLabelViolations(PAGE, SKILLS)],
   ["has a line for every agent plugin.json lists", () => missingAgentLines(PAGE, agentNames(PLUGIN_JSON))],
   ["has an entry for every viber.yml key", () => missingKeyEntries(PAGE, KEY_PATHS)],
+  ["names five local overrides, the question cap among them, in both languages", () => localOverridesViolations(PAGE)],
+  ["says in both languages that an intent round carries at most the capped decisions", () => intentRoundCapViolations(PAGE)],
   ["pairs every English piece with a Polish one", () => languagePairViolations(PAGE)],
   ["links only to ids it holds", () => brokenInternalLinks(PAGE)],
   ["names only /viber: commands a skill carries", () => unknownCommands(PAGE, SKILLS.map((s) => s.name))],

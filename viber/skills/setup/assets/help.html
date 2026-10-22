@@ -2501,8 +2501,9 @@ z nich mówi, jak nim sterować.</p>
 <article class="card" id="skill-intent">
   <h4><code>/viber:intent</code></h4>
   <p lang="en">The planning interview. It asks only what the conversation and the code leave open, in
-  rounds: one message carries every decision whose prerequisites are settled, each with three options and its
-  recommendation first. A large request is split into
+  rounds: one message carries the decisions whose prerequisites are settled, at most
+  <a href="#key-planning-questions-per-round"><code>planning.questions-per-round</code></a> of them (five by
+  default), each with three options and its recommendation first. A large request is split into
   subprojects first, and every part is interviewed. It closes on a summary you confirm, saves it as a file
   and hands that file to <a href="#skill-planner"><code>planner</code></a>, which chooses the spec shape. When a build of one part finishes, it names the next
   part: run the interview on it and it resumes from the decisions of the first. It can also resume from
@@ -2511,8 +2512,9 @@ z nich mówi, jak nim sterować.</p>
   screen and no mockup exists yet, the confirmation also offers to go to
   <a href="#skill-prototype"><code>/viber:prototype</code></a> before the plan.</p>
   <p lang="pl">Wywiad planistyczny. Pyta tylko o to, czego nie rozstrzygają rozmowa i kod, w rundach:
-  jedna wiadomość niesie każdą decyzję, której warunki wstępne są już rozstrzygnięte, każdą z trzema opcjami
-  i rekomendacją na pierwszym miejscu. Dużą prośbę najpierw dzieli na
+  jedna wiadomość niesie decyzje, których warunki wstępne są już rozstrzygnięte, nie więcej niż
+  <a href="#key-planning-questions-per-round"><code>planning.questions-per-round</code></a> z nich (domyślnie
+  pięć), każdą z trzema opcjami i rekomendacją na pierwszym miejscu. Dużą prośbę najpierw dzieli na
   podprojekty i omawia każdy z nich. Kończy się podsumowaniem, które potwierdzasz, zapisuje je do pliku
   i przekazuje ten plik do <a href="#skill-planner"><code>planner</code></a>, który wybiera kształt specyfikacji. Gdy build jednej części się kończy,
   wskazuje następną: uruchom na niej wywiad, a wznowi go od decyzji pierwszej. Może też wznowić się od
@@ -3392,14 +3394,15 @@ klucz ma tam komentarz, a za włączony liczy się tylko <code>true</code>. Prze
 <code>fast</code> lub <code>full</code>, a <code>build.extensions</code> nie jest przełącznikiem: trzyma mapę
 wpisów agentów.</p>
 <p lang="en">To change a few settings for yourself only, create an optional
-<code>.claude/viber.local.yml</code> in the same layout. It overrides four keys, <code>tiers.min</code>,
-<code>tiers.max</code>, <code>build.baseline-tests</code> and <code>github.issues</code>, and nothing else; an
+<code>.claude/viber.local.yml</code> in the same layout. It overrides five keys, <code>tiers.min</code>,
+<code>tiers.max</code>, <code>build.baseline-tests</code>, <code>github.issues</code> and
+<code>planning.questions-per-round</code>, and nothing else; an
 empty or invalid value is ignored. It stays out of git: <code>/viber:setup</code> adds it to
 <code>.gitignore</code>, and never creates or changes it.</p>
 <p lang="pl">Aby zmienić kilka ustawień tylko dla siebie, utwórz opcjonalny plik
-<code>.claude/viber.local.yml</code> w tym samym układzie. Nadpisuje on cztery klucze,
-<code>tiers.min</code>, <code>tiers.max</code>, <code>build.baseline-tests</code> i <code>github.issues</code>,
-i nic więcej; pusta lub niepoprawna wartość jest ignorowana. Plik nie trafia do gita:
+<code>.claude/viber.local.yml</code> w tym samym układzie. Nadpisuje on pięć kluczy,
+<code>tiers.min</code>, <code>tiers.max</code>, <code>build.baseline-tests</code>, <code>github.issues</code> i
+<code>planning.questions-per-round</code>, i nic więcej; pusta lub niepoprawna wartość jest ignorowana. Plik nie trafia do gita:
 <code>/viber:setup</code> dopisuje go do <code>.gitignore</code> i nigdy go nie tworzy ani nie zmienia.</p>
 <p lang="en">Running <code>/viber:setup</code> again merges in every key the current version's template has and
 your file lacks. That is how a new switch reaches a project set up by an older version, and the same merge
@@ -3440,6 +3443,18 @@ wartość.</p>
     gate the planner's plans get. No limit applies to the number of files such a plan names.</span><span lang="pl">Plan napisany poza planistą
     musi przejść recenzję <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a>, zanim będzie można
     wyjść z trybu planowania; plany planisty przechodzą tę samą bramkę. Liczba plików wskazanych w takim planie nie jest ograniczona.</span></dd>
+  </div>
+  <div id="key-planning-questions-per-round">
+    <dt><code>planning.questions-per-round</code> <span class="tag">5</span></dt>
+    <dd><span lang="en">The most decisions one round of the <a href="#skill-intent"><code>/viber:intent</code></a>
+    interview carries: a number from 1 to 10, or <code>all</code> for no cap. A wide change then arrives in several
+    short rounds instead of one long one. It is the one planning key that is a number, not a switch, and
+    <code>.claude/viber.local.yml</code> can override it for you alone; an invalid value falls back to
+    5.</span><span lang="pl">Największa liczba decyzji, jaką niesie jedna runda wywiadu
+    <a href="#skill-intent"><code>/viber:intent</code></a>: liczba od 1 do 10 albo <code>all</code>, czyli bez
+    limitu. Szeroka zmiana przychodzi wtedy w kilku krótkich rundach zamiast jednej długiej. To jedyny klucz
+    grupy planning, który jest liczbą, a nie przełącznikiem, i możesz go nadpisać tylko dla siebie w
+    <code>.claude/viber.local.yml</code>; niepoprawna wartość wraca do 5.</span></dd>
   </div>
 </dl>
 

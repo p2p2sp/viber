@@ -1,0 +1,4 @@
+- Old-schema fixtures (GROUPED_V2/V3 and the schema-4 case) are derived from GROUPED, so they carry `questions-per-round` already; their "gains alone" report lines stay unchanged. Only the new schema-5 case drops the key.
+- red.log is bootstrap.test.ts only (17 failing); the help.unit.test.ts red (3 failing) is red-help.log beside it.
+- The key's help entry uses a plain `<span class="tag">5</span>` (no on/off tag): it is a number, not a switch, so the switch-count sentences stay as they are.
+- `docs/configuration.md` and the root `README.md` (AC7) are not in T2's Files; only help.html was done here.

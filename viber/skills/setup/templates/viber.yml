@@ -1,6 +1,7 @@
 # viber switches. Every switch is `true` or `false`, except `build.baseline-tests`
 # below, and only `true` counts as on. `build.extensions` is no switch but a map
-# of agent entries. A switch counts only inside its group.
+# of agent entries, and `planning.questions-per-round` no switch but a number.
+# A switch counts only inside its group.
 # Turn one off with `false`: a key you delete or comment out is restored
 # at its default here the next time `/viber:setup` runs, which is how a new
 # version's switches reach this file. The exception is a child of `tiers:` or
@@ -8,17 +9,18 @@
 # child of one already present, so deleting a child there is not restored - it
 # resolves to its default in config.sh instead.
 
-# Four settings can be overridden for you alone in an optional
-# .claude/viber.local.yml: tiers.min, tiers.max, build.baseline-tests and
-# github.issues. It uses the same layout as this file, stays out of git (setup
-# adds it to .gitignore) and is never created or changed by /viber:setup.
+# Five settings can be overridden for you alone in an optional
+# .claude/viber.local.yml: tiers.min, tiers.max, build.baseline-tests,
+# github.issues and planning.questions-per-round. It uses the same layout as
+# this file, stays out of git (setup adds it to .gitignore) and is never
+# created or changed by /viber:setup.
 
 # The layout this file follows. /viber:setup raises it when it brings the file
 # up to a newer layout, and a session start tells you when it lags behind the
 # installed viber. Leave it as it is.
-schema: 5
+schema: 6
 
-# Switches read while a change is planned.
+# Switches and settings read while a change is planned.
 planning:
   # planner has the adr-screener agent test the plan's decisions against a
   # strict admission test, and turns each record you accept into a task with no
@@ -27,6 +29,10 @@ planning:
   # A plan written outside the planner must pass a review agent before plan
   # mode can be left - the same gate the planner's plans get.
   outside-plan-review: true
+  # The most decisions one round of the /viber:intent interview carries: 1 to 10
+  # or `all` for no cap. A wide change then arrives in several short rounds
+  # instead of one long one.
+  questions-per-round: 5
 
 # Switches read by implementor while it builds a plan.
 build:
