@@ -2922,6 +2922,8 @@ for (const mode of ["allowed", "required"] as const) {
           "current: main",
           "current-is-base: yes",
           "dirty: no",
+          "next: settled",
+          "settled: feature",
           "",
         ].join("\n"),
       );
@@ -3101,6 +3103,403 @@ for (const arg of ["not-a-url", "https://github.com/acme/app/pull/12", "https://
   test(`start report exits 2 on ${arg}, which is not an issue URL, and prints nothing (DoD.8)`, async () => {
     await withBranchRepo(SINGLE, async (repo) => {
       const result = await startIn(repo, arg);
+      assert.equal(result.status, 2);
+      assert.equal(result.stdout, "");
+    });
+  });
+}
+
+// --- --start: the decision report after today's lines (C1) ---
+
+/** plan-path.sh --start with the given flags and operands. */
+function startWith(repo: GitRepo, args: string[], stubDirs?: string[]) {
+  return runIn(repo, ["--start", ...args], stubDirs);
+}
+
+/** The lines of a --start report from its first next: line on. */
+function decisionOf(stdout: string): string[] {
+  const lines = slash(stdout).trim().split("\n");
+  return lines.slice(lines.findIndex((line) => line.startsWith("next: ")));
+}
+
+/** The lines of a --start report before its first next: line, today's report. */
+function todayOf(stdout: string): string[] {
+  const lines = slash(stdout).trim().split("\n");
+  return lines.slice(0, lines.findIndex((line) => line.startsWith("next: ")));
+}
+
+/** The answer and branch fields of every option: line, in the order printed. */
+function answersOf(stdout: string): string[] {
+  return linesOf(stdout, "option: ").map((line) => line.slice("option: ".length).split(" | ").slice(0, 2).join(" | "));
+}
+
+/** The decision lines that are neither options nor notes. */
+function verdictOf(stdout: string): string[] {
+  return decisionOf(stdout).filter((line) => !line.startsWith("option: ") && !line.startsWith("note: "));
+}
+
+/** Two entries cut from main and both usable without an issue, no mapping choosing. */
+function twoEntries(mode: string): string[] {
+  return [`mode: ${mode}`, "work:", ...workEntry("feature", "main", "feature/{slug}", "main"), ...workEntry("chore", "main", "chore/{slug}", "main")];
+}
+
+/** HEAD on a new branch one commit ahead of main: not at any base. */
+async function workAhead(repo: GitRepo): Promise<void> {
+  await repo.git("checkout", "-q", "-b", "work");
+  await commitOnHead(repo);
+}
+
+/** main one commit behind its remote-tracking branch, HEAD left where it was. */
+async function mainBehindRemote(repo: GitRepo): Promise<void> {
+  await repo.git("checkout", "-q", "-b", "tmp-ahead");
+  await commitOnHead(repo);
+  const ahead = await commitOf(repo);
+  await repo.git("checkout", "-q", "main");
+  await repo.git("branch", "-D", "tmp-ahead");
+  await repo.git("update-ref", "refs/remotes/origin/main", ahead);
+  await repo.git("config", "remote.origin.url", "./nowhere");
+  await repo.git("config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*");
+  await repo.git("config", "branch.main.remote", "origin");
+  await repo.git("config", "branch.main.merge", "refs/heads/main");
+}
+
+/** A config.sh error beside a valid entry, for the error: rules. */
+const ERROR_AND_FEATURE = ["mode: allowed", "work:", ...workEntry("old", "main", "{type}/{issue}-{slug}", "main"), ...workEntry("feature", "main", "feature/{slug}", "main")];
+
+test("start decision: the flags change none of today's lines: --fixer and --roadmap print the report as a plain --start does (DoD.1)", async () => {
+  await withBranchRepo(SINGLE, async (repo) => {
+    const result = await startWith(repo, ["--fixer", "--roadmap"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(todayOf(result.stdout), [
+      "mode: required",
+      "issue-type: none",
+      "suggested: feature",
+      "entry: feature | base: main | target: main | name: {type}/{slug} | usable: yes | base-exists: yes | at-base: yes | behind: unknown",
+      "current: main",
+      "current-is-base: yes",
+      "dirty: no",
+    ]);
+  });
+});
+
+test("start decision: branching off with every flag prints only mode: off (DoD.1)", async () => {
+  await withBranchRepo(["mode: off", ...ON_MAIN], async (repo) => {
+    const result = await startWith(repo, ["--fixer", "--pr", "--roadmap", "--entry", "feature", "--settled", "nothing"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(slash(result.stdout), "mode: off\n");
+  });
+});
+
+test("start decision: an error: line settles nothing: the report ends on next: errors (DoD.2, rule 1)", async () => {
+  await withBranchRepo(ERROR_AND_FEATURE, async (repo) => {
+    const result = await startIn(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(decisionOf(result.stdout), ["next: errors"]);
+  });
+});
+
+test("start decision: a draft recording branch: none under allowed settles no-branch (DoD.2, rule 3)", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    await withSource(["work: feature", "branch: none"], async (src) => {
+      const result = await startWith(repo, ["--draft", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: no-branch"]);
+    });
+  });
+});
+
+test("start decision: a draft recording branch: none under required goes on to the entry rules (DoD.2, rule 3)", async () => {
+  await withBranchRepo(SINGLE, async (repo) => {
+    await withSource(["work: feature", "branch: none"], async (src) => {
+      const result = await startWith(repo, ["--draft", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: feature"]);
+    });
+  });
+});
+
+test("start decision: a draft recording the branch HEAD is on settles its work: entry without a base check (DoD.2, rule 3)", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    await workAhead(repo);
+    await repo.git("checkout", "-q", "-b", "feature/login");
+    await withSource(["work: feature", "branch: feature/login"], async (src) => {
+      const result = await startWith(repo, ["--draft", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: feature"]);
+    });
+  });
+});
+
+test("start decision: a draft recording another branch than HEAD's asks switch to it, stay or abort, naming its entry (DoD.2, rule 3)", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    await withSource(["work: feature", "branch: feature/login"], async (src) => {
+      const result = await startWith(repo, ["--draft", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(verdictOf(result.stdout), ["next: ask-base", "checking: feature"]);
+      assert.deepEqual(answersOf(result.stdout), ["switch | feature/login", "stay | -", "abort | -"]);
+    });
+  });
+});
+
+test("start decision: --pr under allowed settles no-branch (DoD.2, rule 4)", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    const result = await startWith(repo, ["--pr"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: no-branch"]);
+  });
+});
+
+test("start decision: --pr under required on a branch that is no entry base settles pr (DoD.2, rule 4)", async () => {
+  await withBranchRepo(SINGLE, async (repo) => {
+    await repo.git("checkout", "-q", "-b", "work");
+    const result = await startWith(repo, ["--pr"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: pr"]);
+  });
+});
+
+test("start decision: --pr under required on an entry base goes on to the entry rules (DoD.2, rule 4)", async () => {
+  await withBranchRepo(SINGLE, async (repo) => {
+    const result = await startWith(repo, ["--pr"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: feature"]);
+  });
+});
+
+test("start decision: a suggested entry is taken without a question and base-checked: HEAD on its base settles it (DoD.2, rule 6)", async () => {
+  await withBranchRepo(GITFLOW, async (repo) => {
+    await withGh("Bug-Report", 0, async (stubDir) => {
+      const result = await startWith(repo, [ISSUE_URL], [stubDir]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: hotfix"]);
+    });
+  });
+});
+
+test("start decision: --entry names the entry to base-check, whatever is suggested (DoD.2, rule 5)", async () => {
+  await withBranchRepo(twoEntries("allowed"), async (repo) => {
+    const result = await startWith(repo, ["--entry", "chore"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: chore"]);
+  });
+});
+
+test("start decision: ask-entry under allowed offers every usable entry plus no-branch (DoD.3)", async () => {
+  await withBranchRepo(twoEntries("allowed"), async (repo) => {
+    const result = await startIn(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(verdictOf(result.stdout), ["next: ask-entry"]);
+    assert.deepEqual(answersOf(result.stdout), ["feature | feature/{slug}", "chore | chore/{slug}", "no-branch | -"]);
+  });
+});
+
+test("start decision: ask-entry under required offers every usable entry plus abort (DoD.3)", async () => {
+  await withBranchRepo(twoEntries("required"), async (repo) => {
+    const result = await startIn(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(verdictOf(result.stdout), ["next: ask-entry"]);
+    assert.deepEqual(answersOf(result.stdout), ["feature | feature/{slug}", "chore | chore/{slug}", "abort | -"]);
+  });
+});
+
+test("start decision: a run with no usable entry prints next: none and a note, offering nothing (DoD.3)", async () => {
+  await withBranchRepo(GITFLOW, async (repo) => {
+    const result = await startIn(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(verdictOf(result.stdout), ["next: none"]);
+    assert.deepEqual(answersOf(result.stdout), []);
+    assert.equal(linesOf(result.stdout, "note: ").length, 1);
+  });
+});
+
+test("start decision: --roadmap off the base with HEAD at no base settles current (DoD.4, rule 7)", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    await workAhead(repo);
+    const result = await startWith(repo, ["--roadmap"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: current"]);
+  });
+});
+
+test("start decision: off the base without --roadmap the base check asks switch, stay, current or abort, naming its entry (DoD.4, DoD.5)", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    await workAhead(repo);
+    const result = await startIn(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(verdictOf(result.stdout), ["next: ask-base", "checking: feature"]);
+    assert.deepEqual(answersOf(result.stdout), ["switch | main", "stay | -", "current | -", "abort | -"]);
+  });
+});
+
+test("start decision: --fixer leaves stay out of the base check (DoD.4)", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    await workAhead(repo);
+    const result = await startWith(repo, ["--fixer"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(answersOf(result.stdout), ["switch | main", "current | -", "abort | -"]);
+  });
+});
+
+test("start decision: a base missing locally leaves switch out and says so in a note (DoD.4)", async () => {
+  await withBranchRepo(["mode: allowed", "work:", ...workEntry("feature", "develop", "feature/{slug}", "develop")], async (repo) => {
+    const result = await startIn(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(answersOf(result.stdout), ["stay | -", "current | -", "abort | -"]);
+    assert.match(linesOf(result.stdout, "note: ").join("\n"), /develop/);
+  });
+});
+
+test("start decision: under required on an entry base current is left out of the base check (DoD.4)", async () => {
+  await withBranchRepo(["mode: required", ...TWO_BASES], async (repo) => {
+    await branchAhead(repo, "develop");
+    const result = await startWith(repo, ["--entry", "feature"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(answersOf(result.stdout), ["switch | develop", "stay | -", "abort | -"]);
+  });
+});
+
+test("start decision: under required on a detached HEAD current is left out of the base check (DoD.4)", async () => {
+  await withBranchRepo(SINGLE, async (repo) => {
+    await repo.git("checkout", "-q", "--detach");
+    await commitOnHead(repo);
+    const result = await startIn(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(answersOf(result.stdout), ["switch | main", "stay | -", "abort | -"]);
+  });
+});
+
+test("start decision: --fixer under required with only abort left prints next: abort and a note saying why (DoD.4)", async () => {
+  await withBranchRepo(["mode: required", ...TWO_BASES], async (repo) => {
+    const result = await startWith(repo, ["--fixer", "--entry", "feature"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(verdictOf(result.stdout), ["next: abort"]);
+    assert.equal(linesOf(result.stdout, "note: ").length, 1);
+  });
+});
+
+test("start decision: a base behind its remote is named in a note on the base check (DoD.4)", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    await mainBehindRemote(repo);
+    await workAhead(repo);
+    const result = await startIn(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(linesOf(result.stdout, "note: ").join("\n"), /behind/);
+  });
+});
+
+test("start decision: uncommitted changes are named in a note on the base check (DoD.4)", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    await workAhead(repo);
+    fs.writeFileSync(path.join(repo.dir, "untracked.txt"), "x\n");
+    const result = await startIn(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(linesOf(result.stdout, "note: ").join("\n"), /uncommitted/);
+  });
+});
+
+test("start decision: a pull request's settlement is kept on the re-run whatever a draft would settle (DoD.5, rule 2)", async () => {
+  await withBranchRepo(SINGLE, async (repo) => {
+    await withSource(["work: feature", "branch: feature/login"], async (src) => {
+      const result = await startWith(repo, ["--settled", "pr", "--draft", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: kept", "settled: pr"]);
+    });
+  });
+});
+
+test("start decision: --settled no-branch with --pr is kept (DoD.5, rule 2)", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    const result = await startWith(repo, ["--settled", "no-branch", "--pr"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(decisionOf(result.stdout), ["next: kept", "settled: no-branch"]);
+  });
+});
+
+test("start decision: --settled no-branch without --pr is replaced by a suggested entry (DoD.5, rule 2)", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    const result = await startWith(repo, ["--settled", "no-branch"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: feature"]);
+  });
+});
+
+test("start decision: --settled with another suggested entry replaces the settlement by that entry's base check (DoD.5, rule 2)", async () => {
+  await withBranchRepo(GITFLOW, async (repo) => {
+    await withGh("Bug-Report", 0, async (stubDir) => {
+      const result = await startWith(repo, ["--settled", "feature", ISSUE_URL], [stubDir]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: hotfix"]);
+    });
+  });
+});
+
+test("start decision: --settled with the suggested entry itself keeps it without a base check (DoD.5, rule 2)", async () => {
+  await withBranchRepo(GITFLOW, async (repo) => {
+    await withGh("Feature Request", 0, async (stubDir) => {
+      const result = await startWith(repo, ["--settled", "feature", ISSUE_URL], [stubDir]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: kept", "settled: feature"]);
+    });
+  });
+});
+
+test("start decision: --settled with nothing suggested keeps the settlement and asks nothing (DoD.5, rule 2)", async () => {
+  await withBranchRepo(twoEntries("allowed"), async (repo) => {
+    const result = await startWith(repo, ["--settled", "chore"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(decisionOf(result.stdout), ["next: kept", "settled: chore"]);
+  });
+});
+
+test("start decision: --roadmap still settles current in the base check that replaces a settlement (DoD.5, rule 2)", async () => {
+  await withBranchRepo(GITFLOW, async (repo) => {
+    await workAhead(repo);
+    await withGh("Bug-Report", 0, async (stubDir) => {
+      const result = await startWith(repo, ["--settled", "feature", "--roadmap", ISSUE_URL], [stubDir]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: current"]);
+    });
+  });
+});
+
+test("start decision: --settled nothing with an error: line asks the entry question, the error still printed above (DoD.5, rule 1)", async () => {
+  await withBranchRepo(ERROR_AND_FEATURE, async (repo) => {
+    const result = await startWith(repo, ["--settled", "nothing"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(linesOf(result.stdout, "error: "), ["error: work entry old: {issue} is now {issue-number}"]);
+    assert.deepEqual(verdictOf(result.stdout), ["next: ask-entry"]);
+    assert.deepEqual(answersOf(result.stdout), ["feature | feature/{slug}", "no-branch | -"]);
+  });
+});
+
+test("start decision: --settled naming a settlement with an error: line ends on next: errors beside that settlement (DoD.5, rule 1)", async () => {
+  await withBranchRepo(ERROR_AND_FEATURE, async (repo) => {
+    const result = await startWith(repo, ["--settled", "feature"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(decisionOf(result.stdout), ["next: errors", "settled: feature"]);
+  });
+});
+
+test("start decision: --settled nothing without an error: line goes through the entry rules (DoD.5, rule 2)", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    const result = await startWith(repo, ["--settled", "nothing"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: feature"]);
+  });
+});
+
+for (const [what, args] of [
+  ["an unknown flag", ["--bogus"]],
+  ["--draft with no value", ["--draft"]],
+  ["--entry with no value", ["--entry"]],
+  ["--settled with no value", ["--settled"]],
+  ["--draft followed by a flag", ["--draft", "--pr"]],
+  ["a --draft path that does not exist", ["--draft", "no-such-draft.md"]],
+  ["a --draft path that is a directory", ["--draft", "."]],
+] as const) {
+  test(`start report exits 2 on ${what} and prints nothing (DoD.6)`, async () => {
+    await withBranchRepo(SINGLE, async (repo) => {
+      const result = await startWith(repo, [...args]);
       assert.equal(result.status, 2);
       assert.equal(result.stdout, "");
     });

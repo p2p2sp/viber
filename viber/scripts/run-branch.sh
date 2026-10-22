@@ -11,11 +11,14 @@
 # Contract:
 #   argv   : none - sourced. Every function takes its own arguments.
 #   cwd    : the repository root, as plan-path.sh's own contract pins it.
-#   env    : none.
+#   env    : none. branch_decide takes its flags from the st_fixer, st_pr,
+#            st_roadmap, st_draft, st_entry and st_settled shell variables
+#            plan-path.sh sets before branch_start.
 #   file   : the sibling config.sh --branching lines (mode and work entries
 #            for the landing, all of them for branch_report); the plan's
 #            frontmatter "branch:", "work:" and "issue:" keys and its task
-#            blocks' "Repro:" lines.
+#            blocks' "Repro:" lines; branch_decide reads the --draft file's
+#            "branch:" and "work:" keys.
 #   gh     : only through the sibling issue-facts.sh, for the issue type of
 #            branch_report and branch_start, and only when a mapping exists and
 #            there is an issue: its TYPE= line, empty on any failure.
@@ -26,7 +29,8 @@
 #            result is the br_* variables; the plan_* and branch_expand helpers print one
 #            value for a caller to capture. branch_report prints the C3
 #            report of plan-path.sh --branch and branch_start the C1 report of
-#            plan-path.sh --start, whose header shows both; branch_checkout
+#            plan-path.sh --start, the decision lines of branch_decide
+#            included, whose header shows both; branch_checkout
 #            prints the one "branch:" line of plan-path.sh --checkout.
 #   return : branch_land and branch_checkout 0, or 6 with the reason on stderr
 #            and HEAD, index and tree untouched (branch_land and
@@ -441,11 +445,11 @@ branch_tail() {
     [[ -z "$cur" || "${rest%% | *}" != "$cur" ]] || is_base=yes
   done
   printf 'current-is-base: %s\n' "$is_base"
-  if [[ -n "$(git status --porcelain 2>/dev/null || true)" ]]; then
-    printf 'dirty: yes\n'
-  else
-    printf 'dirty: no\n'
-  fi
+  tl_cur="${cur:-detached}"
+  tl_is_base="$is_base"
+  tl_dirty=no
+  if [[ -n "$(git status --porcelain 2>/dev/null || true)" ]]; then tl_dirty=yes; fi
+  printf 'dirty: %s\n' "$tl_dirty"
   for e in ${rp_errors[@]+"${rp_errors[@]}"}; do printf 'error: %s\n' "$e"; done
 }
 
@@ -455,15 +459,23 @@ branch_tail() {
 # from the URL when one is given. Each entry is checked against HEAD too:
 # usable (its name needs no {issue-number} or a URL was given), base-exists,
 # at-base (HEAD is the commit of the local base) and behind. Read-only like
-# branch_report.
+# branch_report. Under allowed and required it ends with branch_decide's lines.
 branch_start() {
-  local issue="" suggested only="" usable=0 e key rest base name shown target use exists at head_c entry_lines=""
+  local issue="" suggested only="" usable=0 e key rest base name shown target use exists at behind head_c entry_lines=""
   [[ -z "$1" ]] || issue="${1##*/issues/}"
   branch_situation "$issue" "$1"
   if [[ "$rp_mode" == off ]]; then
     printf 'mode: off\n'
     return 0
   fi
+  st_keys=()
+  st_bases=()
+  st_targets=()
+  st_names=()
+  st_usable=()
+  st_exists=()
+  st_at=()
+  st_behind=()
   suggested="$rp_suggested"
   head_c="$(git rev-parse -q --verify 'HEAD^{commit}' 2>/dev/null || true)"
   for e in ${rp_entries[@]+"${rp_entries[@]}"}; do
@@ -488,12 +500,195 @@ branch_start() {
       exists=yes
       [[ -z "$head_c" || "$head_c" != "$(git rev-parse -q --verify "refs/heads/$base^{commit}" 2>/dev/null || true)" ]] || at=yes
     fi
-    entry_lines+="entry: $key | base: $base | target: $target | name: $shown | usable: $use | base-exists: $exists | at-base: $at | behind: $(base_behind "$base")"$'\n'
+    behind="$(base_behind "$base")"
+    st_keys+=("$key")
+    st_bases+=("$base")
+    st_targets+=("$target")
+    st_names+=("$shown")
+    st_usable+=("$use")
+    st_exists+=("$exists")
+    st_at+=("$at")
+    st_behind+=("$behind")
+    entry_lines+="entry: $key | base: $base | target: $target | name: $shown | usable: $use | base-exists: $exists | at-base: $at | behind: $behind"$'\n'
   done
   [[ "$suggested" != none || "$usable" -ne 1 ]] || suggested="$only"
+  st_suggested="$suggested"
   printf 'mode: %s\n' "$rp_mode"
   printf 'issue-type: %s\n' "${rp_type:-none}"
   printf 'suggested: %s\n' "$suggested"
   printf '%s' "$entry_lines"
   branch_tail
+  branch_decide
+}
+
+# What the --start decision report adds after today's lines (C1 of
+# plan-path.sh): one verdict of rules 1 to 7, read from the st_* entry arrays,
+# st_suggested, rp_errors and the tl_* tail values branch_start and branch_tail
+# set, and from the flags plan-path.sh sets: st_fixer, st_pr and st_roadmap
+# (1 or 0), st_draft, st_entry and st_settled (empty for not given).
+branch_decide() {
+  local settled="${st_settled:-}" draft="${st_draft:-}" dbranch dwork
+  # rule 1: a configuration or issue type error settles nothing
+  if [[ ${#rp_errors[@]} -gt 0 ]]; then
+    if [[ "$settled" == nothing ]]; then
+      decide_ask_entry
+    else
+      printf 'next: errors\n'
+      [[ -z "$settled" ]] || printf 'settled: %s\n' "$settled"
+    fi
+    return 0
+  fi
+  # rule 2: the re-run after an issue save keeps or replaces the settlement
+  if [[ -n "$settled" ]]; then
+    if [[ "$settled" == pr || ( "$settled" == no-branch && "${st_pr:-0}" == 1 ) ]]; then
+      decide_kept "$settled"
+    elif [[ "$settled" == nothing ]]; then
+      decide_suggested
+    elif [[ "$st_suggested" != none && "$st_suggested" != "$settled" ]]; then
+      decide_base "$st_suggested"
+    else
+      decide_kept "$settled"
+    fi
+    return 0
+  fi
+  # rule 3: a draft recording a branch decides its own entry
+  if [[ -n "$draft" ]]; then
+    dbranch="$(plan_field "$draft" branch)"
+    dwork="$(plan_field "$draft" work)"
+    if [[ -z "$dwork" && ${#st_keys[@]} -eq 1 ]]; then dwork="${st_keys[0]}"; fi
+    if [[ "$dbranch" == none && "$rp_mode" == allowed ]]; then
+      decide_settled no-branch
+      return 0
+    elif [[ -n "$dbranch" && "$dbranch" != none && -n "$dwork" ]]; then
+      if [[ "$tl_cur" == "$dbranch" ]]; then
+        decide_settled "$dwork"
+      else
+        printf 'next: ask-base\n'
+        printf 'option: switch | %s | HEAD moves to the recorded branch %s now.\n' "$dbranch" "$dbranch"
+        printf 'option: stay | - | nothing moves; the run goes on from %s.\n' "$tl_cur"
+        printf 'option: abort | - | stop here and run nothing else.\n'
+        printf 'checking: %s\n' "$dwork"
+      fi
+      return 0
+    fi
+  fi
+  # rule 4: a pull request's own branch
+  if [[ "${st_pr:-0}" == 1 ]]; then
+    if [[ "$rp_mode" == allowed ]]; then
+      decide_settled no-branch
+      return 0
+    elif [[ "$tl_is_base" == no && "$tl_cur" != detached ]]; then
+      decide_settled pr
+      return 0
+    fi
+  fi
+  # rule 5: the entry named on argv
+  if [[ -n "${st_entry:-}" ]]; then
+    decide_find "$st_entry"
+    if [[ $d_i -ge 0 ]]; then
+      decide_base "$st_entry"
+      return 0
+    fi
+  fi
+  # rule 6
+  decide_suggested
+}
+
+# Index of entry key $1 among the st_* arrays in d_i, -1 when there is none.
+decide_find() {
+  local i
+  d_i=-1
+  for ((i = 0; i < ${#st_keys[@]}; i++)); do
+    if [[ "${st_keys[$i]}" == "$1" ]]; then d_i=$i; return 0; fi
+  done
+}
+
+decide_settled() {
+  printf 'next: settled\n'
+  printf 'settled: %s\n' "$1"
+}
+
+decide_kept() {
+  printf 'next: kept\n'
+  printf 'settled: %s\n' "$1"
+}
+
+# Rule 6: the suggested entry goes to the base check, else the entry question.
+decide_suggested() {
+  if [[ "$st_suggested" != none ]]; then decide_base "$st_suggested"; else decide_ask_entry; fi
+}
+
+# The entry question: every usable entry, then no-branch (allowed) or abort
+# (required); with no usable entry nothing is asked.
+decide_ask_entry() {
+  local i n=0
+  for ((i = 0; i < ${#st_keys[@]}; i++)); do
+    if [[ "${st_usable[$i]}" == yes ]]; then n=$((n + 1)); fi
+  done
+  if [[ $n -eq 0 ]]; then
+    printf 'next: none\n'
+    printf 'note: no work entry is usable yet, so none is asked; the planner settles the entry once the run carries an issue.\n'
+    return 0
+  fi
+  printf 'next: ask-entry\n'
+  for ((i = 0; i < ${#st_keys[@]}; i++)); do
+    [[ "${st_usable[$i]}" == yes ]] || continue
+    printf 'option: %s | %s | the run branch is cut from %s when the plan lands and pull requests target %s.\n' \
+      "${st_keys[$i]}" "${st_names[$i]}" "${st_bases[$i]}" "${st_targets[$i]}"
+  done
+  if [[ "$rp_mode" == allowed ]]; then
+    printf 'option: no-branch | - | no run branch is made; commits land on %s.\n' "$tl_cur"
+  else
+    printf 'option: abort | - | stop here and run nothing else.\n'
+  fi
+}
+
+# Rule 7: the base check of entry $1.
+decide_base() {
+  local i base opts="" count=0
+  decide_find "$1"
+  i=$d_i
+  if [[ $i -lt 0 ]]; then
+    decide_ask_entry
+    return 0
+  fi
+  base="${st_bases[$i]}"
+  if [[ "${st_at[$i]}" == yes ]]; then
+    decide_settled "$1"
+    return 0
+  fi
+  if [[ "${st_roadmap:-0}" == 1 && "$tl_is_base" == no && "$tl_cur" != detached ]]; then
+    decide_settled current
+    return 0
+  fi
+  if [[ "${st_exists[$i]}" == yes ]]; then
+    opts+="option: switch | $base | HEAD moves to $base now and the run branch is cut from it when the plan lands."$'\n'
+    count=$((count + 1))
+  fi
+  if [[ "${st_fixer:-0}" != 1 ]]; then
+    opts+="option: stay | - | nothing moves; the run branch keeps the entry's own name, cut from $base when the plan lands."$'\n'
+    count=$((count + 1))
+  fi
+  if ! [[ "$rp_mode" == required && ( "$tl_is_base" == yes || "$tl_cur" == detached ) ]]; then
+    opts+="option: current | - | no run branch is made; commits land on $tl_cur."$'\n'
+    count=$((count + 1))
+  fi
+  if [[ $count -eq 0 && "$rp_mode" == required && "${st_fixer:-0}" == 1 ]]; then
+    printf 'next: abort\n'
+    printf 'note: branching is required, a fix never commits onto an entry base or a detached HEAD, and the base %s cannot be switched to, so only abort is left.\n' "$base"
+    return 0
+  fi
+  printf 'next: ask-base\n'
+  printf '%s' "$opts"
+  printf 'option: abort | - | stop here and run nothing else.\n'
+  printf 'checking: %s\n' "$1"
+  if [[ "${st_behind[$i]}" =~ ^[0-9]+$ && "${st_behind[$i]}" -gt 0 ]]; then
+    printf 'note: the base %s is %s commits behind its remote.\n' "$base" "${st_behind[$i]}"
+  fi
+  if [[ "$tl_dirty" == yes ]]; then
+    printf 'note: uncommitted changes block a switch to another commit.\n'
+  fi
+  if [[ "${st_exists[$i]}" != yes ]]; then
+    printf 'note: the base %s does not exist locally, so there is no switch.\n' "$base"
+  fi
 }

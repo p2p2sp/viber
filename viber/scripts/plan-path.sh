@@ -22,11 +22,14 @@
 #   plan-path.sh --branch <plan>           read-only report on the run branch
 #                                          situation for <plan> (C3); nothing
 #                                          moves, nothing is written
-#   plan-path.sh --start [<issue URL>]     read-only start report (C1) needing no
+#   plan-path.sh --start [--fixer] [--draft <plan>] [--pr] [--roadmap]
+#                        [--entry <key>] [--settled <key>] [<issue URL>]
+#                                          read-only start report (C1) needing no
 #                                          plan: the same situation as --branch
 #                                          from the issue URL alone, ending in
-#                                          /issues/<n>; nothing moves, nothing
-#                                          is written
+#                                          /issues/<n>, then the branch decision
+#                                          (see stdout below); nothing moves,
+#                                          nothing is written
 #   plan-path.sh --checkout <branch>       put HEAD on an existing local branch
 #                                          (C2); never creates one, never fetches
 #
@@ -90,14 +93,15 @@
 #
 # Contract:
 #   argv   : --land and the source plan, optionally --into and a run key, or
-#            --branch and a plan, or --start and optionally an issue URL, or
+#            --branch and a plan, or --start with its flags and optionally an issue URL, or
 #            --checkout and a branch name, or nothing.
 #   file   : <src>'s frontmatter "into:" key, read only when argv carries no
 #            --into, validated and refused exactly as --into. On a first
 #            landing, and on --branch, <src>'s frontmatter "branch:", "work:"
 #            and "issue:" keys and its task blocks' "Repro:" lines, for the
 #            run branch. On every form printing "branch:", the resolved
-#            plan's "work:" key, for the "target:" line. On every --land, the
+#            plan's "work:" key, for the "target:" line. On --start, the --draft
+#            file's frontmatter "branch:" and "work:" keys. On every --land, the
 #            source's frontmatter "attachments:" map, checked before the run
 #            branch step (exit 7, see below): "attachments:" alone on its line,
 #            then one "<name>: <source path>" entry per line, indented, the map
@@ -179,6 +183,40 @@
 #   that base branch's commit, whatever HEAD's own branch name; the issue is
 #   the URL's, its type read like --branch does. "suggested:" and the
 #   "error:" lines follow --branch's rules.
+#   The decision, mode allowed or required, after those lines (flags: --fixer
+#   for a bug fix, --draft a draft plan to resume, --pr a pull request's own
+#   branch, --roadmap the next part of a roadmap, --entry the entry to base-check,
+#   --settled <entry key>|no-branch|current|pr|nothing the re-run after an issue
+#   save, "nothing" being no settlement reached before it):
+#     next: settled | kept | ask-entry | ask-base | errors | none | abort
+#     settled: <entry key> | no-branch | current | pr   (next: settled or kept;
+#                                       next: errors when --settled names one)
+#     option: <answer> | <branch or -> | <effect on the run branch>   (ask-entry,
+#                                       ask-base; one per answer)
+#     checking: <entry key>             (ask-base: the entry whose base is checked)
+#     note: <one sentence>              (zero or more)
+#   Answers on ask-entry: <entry key> | no-branch | abort; on ask-base: switch |
+#   stay | current | abort. The first rule that applies decides:
+#     1. any error: line -> next: errors; --settled nothing asks the entry
+#        question instead (rule 6 options, suggested: ignored).
+#     2. --settled (checked before --draft and --pr): pr, or no-branch with --pr
+#        -> kept; nothing -> rule 6; a suggested: other than none and the settled
+#        key -> rule 7 for it; otherwise kept.
+#     3. --draft recording branch: -> its work: key is the entry. none under
+#        allowed -> settled no-branch, under required -> rule 4; HEAD on the
+#        recorded branch -> settled; else ask-base with switch, stay, abort.
+#     4. --pr: allowed -> settled no-branch; required off an entry base and off a
+#        detached HEAD -> settled pr; otherwise go on.
+#     5. --entry <key> -> rule 7 for that entry.
+#     6. suggested: other than none -> rule 7; otherwise ask-entry with every
+#        usable: yes entry plus no-branch (allowed) or abort (required); none
+#        usable -> next: none and a note.
+#     7. base check of one entry: at-base: yes -> settled; --roadmap off an entry
+#        base and off a detached HEAD -> settled current; otherwise ask-base with
+#        switch (left out on base-exists: no), stay (left out with --fixer),
+#        current (left out under required on an entry base or a detached HEAD)
+#        and abort, notes for behind: above 0, dirty: yes and a missing base;
+#        --fixer under required with abort alone left -> next: abort and a note.
 #   stdout, --branch <plan> or --start, mode off or outside a git repository:
 #     mode: off
 #   stdout, --checkout <branch>, whatever the branching mode (never read):
@@ -197,7 +235,8 @@
 #         or a traversal, or names no
 #         directory under docs/<runs>/, or --branch on a plan that is not a
 #         file, or --start on an argument that is not an issue URL ending in
-#         /issues/<n>
+#         /issues/<n>, on an unknown flag, on --draft, --entry or --settled
+#         with no value, or on a --draft path that is not a readable file
 #     3 - no argument and docs/_specs/ holds no plan
 #     4 - --into on a target whose plan carries a task half, or that carries
 #         a decomposition or recorded progress, while the source differs from
@@ -643,11 +682,51 @@ fi
 
 # --- --start: the read-only start report, no plan needed ---
 if [[ "$mode" == "--start" ]]; then
-  if [[ $# -gt 2 ]] || { [[ $# -eq 2 ]] && [[ ! "$2" =~ ^https?://[^[:space:]]+/issues/[0-9]+$ ]]; }; then
-    echo "error: usage: plan-path.sh --start [<issue URL ending in /issues/<n>>]" >&2
+  shift
+  start_url=""
+  st_fixer=0
+  st_pr=0
+  st_roadmap=0
+  st_draft=""
+  st_entry=""
+  st_settled=""
+  start_usage="error: usage: plan-path.sh --start [--fixer] [--draft <plan>] [--pr] [--roadmap] [--entry <key>] [--settled <key>] [<issue URL ending in /issues/<n>>]"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --fixer) st_fixer=1 ;;
+      --pr) st_pr=1 ;;
+      --roadmap) st_roadmap=1 ;;
+      --draft|--entry|--settled)
+        if [[ $# -lt 2 || -z "$2" || "$2" == --* ]]; then
+          echo "$start_usage" >&2
+          exit 2
+        fi
+        case "$1" in
+          --draft) st_draft="$2" ;;
+          --entry) st_entry="$2" ;;
+          *) st_settled="$2" ;;
+        esac
+        shift
+        ;;
+      -*)
+        echo "$start_usage" >&2
+        exit 2
+        ;;
+      *)
+        if [[ -n "$start_url" || ! "$1" =~ ^https?://[^[:space:]]+/issues/[0-9]+$ ]]; then
+          echo "$start_usage" >&2
+          exit 2
+        fi
+        start_url="$1"
+        ;;
+    esac
+    shift
+  done
+  if [[ -n "$st_draft" ]] && { [[ ! -f "$st_draft" ]] || [[ ! -r "$st_draft" ]]; }; then
+    echo "error: draft file not found: $st_draft" >&2
     exit 2
   fi
-  branch_start "${2:-}"
+  branch_start "$start_url"
   exit 0
 fi
 
