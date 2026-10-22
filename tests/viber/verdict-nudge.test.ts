@@ -159,6 +159,6 @@ test("DoD.9: the hooks.json description names the SubagentStop hook, says every 
   const description = JSON.parse(fs.readFileSync(HOOKS_JSON, "utf8")).description as string;
   assert.match(description, /SubagentStop/);
   assert.match(description, /[Ee]very hook fails open|hooks fail open/);
-  assert.match(description, /planning\.plain-plan-review/);
+  assert.match(description, /planning\.outside-plan-review/);
   assert.match(description, /schema note/);
 });

@@ -10,11 +10,10 @@
 #     dispatch is the only way it runs), AND the plan file opens with the
 #     planner's frontmatter `source:` line (an unreadable plan keeps the
 #     planner's reviewer) -> the planner-review agent, always;
-#   - anything else -> a plain plan-mode plan, gated by the plain-plan-review agent
-#     only when config.sh resolves `planning.plain-plan-review: true` for the session's cwd,
-#     and refused outright, before any review check, when the plan file names more
-#     than 8 distinct repository files (the file limit, described at its code below).
-# Anything else - no plan write, planning.plain-plan-review off, a plan-mode exit in a session
+#   - anything else -> a plan written outside the planner, gated by the
+#     outside-plan-review agent only when config.sh resolves
+#     `planning.outside-plan-review: true` for the session's cwd, whatever files it names.
+# Anything else - no plan write, planning.outside-plan-review off, a plan-mode exit in a session
 # that already built a plan - passes untouched. The episode starts after the
 # last recorded non-plan permission mode, so a plan approved earlier in the
 # session cannot re-arm the gate.
@@ -49,23 +48,21 @@
 #   argv   : none - every input arrives on stdin.
 #   cwd    : irrelevant; the payload's own "cwd" key is the session directory.
 #            It resolves a RELATIVE plan "file_path" the transcript records,
-#            and is where ../../scripts/config.sh runs to read planning.plain-plan-review.
-#            No "cwd" key -> planning.plain-plan-review is off.
+#            and is where ../../scripts/config.sh runs to read planning.outside-plan-review.
+#            No "cwd" key -> planning.outside-plan-review is off.
 #   env    : none read.
 #   reads  : the transcript file named by the payload's "transcript_path", the
-#            config.sh output for the session's cwd (plain plan only), and,
+#            config.sh output for the session's cwd (outside plan only), and,
 #            once the plan write line resolves a path, the plan file itself:
-#            its frontmatter (planner ownership), its tokens and the files they
-#            name under the repository root (the file limit, plain plan only;
-#            the root is `git rev-parse --show-toplevel` in the session cwd,
-#            else the cwd), then existence and mtime (the tamper guard below).
+#            its frontmatter (planner ownership), the task blocks of a planner
+#            plan, then existence and mtime (the tamper guard below).
 #   stdin  : PreToolUse JSON with at least { "transcript_path": "<abs path>" }
 #   stdout : {"hookSpecificOutput":{"hookEventName":"PreToolUse",
 #             "permissionDecision":"allow"|"deny","permissionDecisionReason":"..."}}
 #   exit 0 : always. Every parse miss or unreadable file falls back to allow -
 #            a broken gate must not trap the user in plan mode - except the plan
 #            file under a planner signal: a miss there keeps planner-review
-#            rather than loosening the gate to the plain path. JSON is read with
+#            rather than loosening the gate to the outside path. JSON is read with
 #            grep/sed/awk; jq is not assumed. A malformed or empty result from
 #            any read (including a broken awk on PATH) fails open the same way.
 set -u
@@ -150,10 +147,10 @@ plan_name="${plan_path##*[\\/]}"
 # inside the episode. A user prompt or a plan-mode record reached first ends the
 # pending entry: a refused planner followed by a new request stays out.
 #
-# The Skill signal alone is not ownership: a refused planner followed by a plain
+# The Skill signal alone is not ownership: a refused planner followed by an outside
 # plan in the same episode would otherwise hand that plan to planner-review. The
 # planner writes a `source:` key into the frontmatter of every plan, draft
-# included, and a plain plan-mode plan never carries one, so the plan file itself
+# included, and a plan written outside it never carries one, so the plan file itself
 # must open with that frontmatter. A plan path that resolves to nothing, or a
 # file that cannot be read, keeps planner-review: a read miss never loosens the gate.
 planner_raw="$(
@@ -189,94 +186,21 @@ fi
 if [ "$planner_owns" = "1" ]; then
   agent="planner-review"
   writer="The planner skill"
-  dispatch_with="the plan path, \`refs:\` (the reference directory), \`memory:\` (the planner's resolved config value) and \`input:\` (the confirmed interview summary or bug diagnosis the plan answers, verbatim), as planner-review.md expects its input"
+  dispatch_with="the plan path, \`refs:\` (the reference directory), \`memory:\` (the planner's resolved config value) and \`input:\` (the summary file path, the summary text or the bug diagnosis the plan answers), as planner-review.md expects its input"
   gate="the planner's review gate"
 else
-  # A plain plan-mode plan is gated only when the host turned planning.plain-plan-review on.
-  # config.sh stays the one parser of viber.yml; it resolves the repository from
-  # its cwd, so it runs in the session's own cwd, and a payload without one
-  # leaves the switch off.
+  # A plan written outside the planner is gated only when the host turned
+  # planning.outside-plan-review on. config.sh stays the one parser of viber.yml; it
+  # resolves the repository from its cwd, so it runs in the session's own cwd, and a
+  # payload without one leaves the switch off.
   [ -n "$project_cwd" ] && [ -d "$project_cwd" ] || emit_allow
   config_sh="$(dirname "$0")/../../scripts/config.sh"
-  plan_review=$(cd "$project_cwd" 2>/dev/null && bash "$config_sh" 2>/dev/null | grep -E '^planning\.plain-plan-review: ')
-  [ "$plan_review" = "planning.plain-plan-review: true" ] || emit_allow
-  agent="plain-plan-review"
+  plan_review=$(cd "$project_cwd" 2>/dev/null && bash "$config_sh" 2>/dev/null | grep -E '^planning\.outside-plan-review: ')
+  [ "$plan_review" = "planning.outside-plan-review: true" ] || emit_allow
+  agent="outside-plan-review"
   writer="Plan mode"
   dispatch_with="the plan path and one sentence stating the user's goal"
-  gate="the plan review gate (planning.plain-plan-review in .claude/viber.yml)"
-
-  # The file limit: a plain plan naming more than 8 distinct repository files is
-  # refused before the review check, a plain-plan-review PASS included. The tokens
-  # of the plan file (whitespace and "](" split) are normalized by the awk below:
-  # surrounding punctuation and a :<n> or :<n>-<m> suffix stripped, backslashes read
-  # as "/", a URL skipped, a path under the repository root (drive form or Git Bash
-  # form, drive letter case-insensitive) folded to its relative form, any other
-  # absolute or "~" path skipped, one leading "./" stripped, a ".temp/" path skipped.
-  # The awk prints "S <token>" for a token holding "/" and ending in an extension of
-  # 1 to 10 letters or digits, "T <token>" for any other: that one counts only when
-  # it names an existing file under the root. An unreadable plan counts nothing.
-  if [ -n "$plan_path" ] && [ -f "$plan_path" ] && [ -r "$plan_path" ]; then
-    file_root="$(git -C "$project_cwd" rev-parse --show-toplevel 2>/dev/null)" || file_root=""
-    [ -n "$file_root" ] || file_root="$project_cwd"
-    file_root="${file_root//\\//}"
-    file_count=0
-    while IFS= read -r file_tok; do
-      case "$file_tok" in
-        "S "*) file_count=$((file_count + 1)) ;;
-        "T "*) [ -f "$file_root/${file_tok#T }" ] && file_count=$((file_count + 1)) ;;
-      esac
-    done < <(
-      ROOT="$file_root" awk '
-        function canon(p) {
-          if (p ~ /^[A-Za-z]:(\/|$)/) return "/" tolower(substr(p, 1, 1)) substr(p, 3)
-          if (p ~ /^\/[A-Za-z](\/|$)/) return "/" tolower(substr(p, 2, 1)) substr(p, 3)
-          return p
-        }
-        BEGIN {
-          q = sprintf("%c", 39)
-          lead = "^[`\"" q "[({<]+"
-          trail = "[]`\"" q ")}>.,;:]+$"
-          root = ENVIRON["ROOT"]
-          gsub(/\\/, "/", root)
-          sub(/\/+$/, "", root)
-          rlen = length(root)
-          croot = canon(root)
-        }
-        {
-          gsub(/\r/, " ")
-          gsub(/\]\(/, " ")
-          for (i = 1; i <= NF; i++) {
-            t = $i
-            gsub(/\\/, "/", t)
-            if (index(t, "://") > 0) continue
-            do {
-              b = t
-              sub(lead, "", t)
-              sub(trail, "", t)
-              sub(/:[0-9]+(-[0-9]+)?$/, "", t)
-            } while (t != b)
-            if (t == "") continue
-            ct = canon(t)
-            if (rlen > 0 && (ct == croot || index(ct, croot "/") == 1)) {
-              t = substr(t, rlen + 2)
-            } else if (t ~ /^[\/~]/ || t ~ /^[A-Za-z]:\//) {
-              continue
-            }
-            sub(/^\.\//, "", t)
-            if (t == "" || index(t, ".temp/") == 1) continue
-            if (t in seen) continue
-            seen[t] = 1
-            shaped = 0
-            if (index(t, "/") > 0 && match(t, /\.[A-Za-z0-9]+$/) && RLENGTH >= 2 && RLENGTH <= 11) shaped = 1
-            print (shaped ? "S " : "T ") t
-          }
-        }
-      ' "$plan_path" 2>/dev/null
-    )
-    if [ "$file_count" -gt 8 ]; then
-      emit_deny "Next step: narrow the plan or switch to the planner. ${plan_name} names ${file_count} repository files, past the 8 a plain plan-mode plan may name - narrow it to at most 8, or leave plan mode and run /viber:intent for a planned build. (This is ${gate}, not an error.)"
-    fi
-  fi
+  gate="the plan review gate (planning.outside-plan-review in .claude/viber.yml)"
 fi
 
 # The review set: a planner plan past 12 task blocks (the plan file lines that are
@@ -403,7 +327,7 @@ if [ "$task_count" -gt 12 ]; then
   allslices="$(set_val allslices)"
   decided="$(set_val lines)"
 
-  d_spec="viber:planner-spec-review with the plan path, \`refs:\` (the reference directory) and \`input:\` (the confirmed interview summary or bug diagnosis the plan answers, verbatim)"
+  d_spec="viber:planner-spec-review with the plan path, \`refs:\` (the reference directory) and \`input:\` (the summary file path, the summary text or the bug diagnosis the plan answers)"
   d_graph="viber:planner-graph-review with the plan path, \`refs:\` and \`memory:\` (the planner's resolved config value)"
   d_task="viber:planner-task-review with the plan path, \`refs:\`, \`memory:\` (the planner's resolved config value) and a \`tasks: T<a>-T<b>\` line, one dispatch per slice:"
   gate="the planner's review set gate"

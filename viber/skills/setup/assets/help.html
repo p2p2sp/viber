@@ -1574,20 +1574,20 @@ review agent has passed the latest version of the plan. A plan the planner wrote
 <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
 <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
 <a href="#agent-planner-task-review"><code>planner-task-review</code></a> at once, and plan mode ends only when all
-of them pass. A plan written in plain plan mode goes to
-<a href="#agent-plain-plan-review"><code>plain-plan-review</code></a>, as long as
-<a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> is on, and may name at most
-8 repository files: past that, the gate points to <code>/viber:intent</code>.</p>
+of them pass. A plan written outside the planner goes to
+<a href="#agent-outside-plan-review"><code>outside-plan-review</code></a>, as long as
+<a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> is on, whatever number of
+files it names.</p>
 <p lang="pl"><a href="#term-plan-gate">Bramka planu</a> to hook, który trzyma Claude w trybie planowania, dopóki
 agent recenzujący nie zaakceptuje najnowszej wersji planu. Plan napisany przez planistę trafia do
 <a href="#agent-planner-review"><code>planner-review</code></a>; plan planisty powyżej 12 zadań trafia do
 <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
 <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> i
 <a href="#agent-planner-task-review"><code>planner-task-review</code></a> jednocześnie, a tryb planowania kończy się
-dopiero wtedy, gdy przejdą wszyscy. Plan napisany w zwykłym trybie planowania trafia do
-<a href="#agent-plain-plan-review"><code>plain-plan-review</code></a>, o ile włączony jest przełącznik
-<a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a>, i może wskazywać najwyżej
-8 plików repozytorium: powyżej bramka odsyła do <code>/viber:intent</code>.</p>
+dopiero wtedy, gdy przejdą wszyscy. Plan napisany poza planistą trafia do
+<a href="#agent-outside-plan-review"><code>outside-plan-review</code></a>, o ile włączony jest przełącznik
+<a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a>, niezależnie od liczby
+wskazanych plików.</p>
 <p lang="en">Any change to the plan after the pass voids it, so the plan is reviewed again before plan mode can
 end. When the gate blocks, Claude gets the next step in words (run the review, fix its findings, or grant a
 permission the reviewer was refused), and the message says it comes from the gate and is no error.</p>
@@ -1804,14 +1804,14 @@ linie co w <code>rulings.md</code>.</p>
   version of the plan. Claude gets the next step along with the refusal and normally carries it out on its own:
   it runs the review, fixes the findings, or has the plan reviewed again after an edit. You step in only when
   the reviewer was refused a tool call: allow that call when Claude asks. A plan past 12 tasks needs every
-  reviewer of its review set to pass, and a plain plan-mode plan that names more than 8 repository files is
-  refused with a pointer to <code>/viber:intent</code>.</p>
+  reviewer of its review set to pass, and a plan written outside the planner needs a pass of
+  <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a>, whatever number of files it names.</p>
   <p lang="pl">Trzyma go tam <a href="#term-plan-gate">bramka planu</a>, dopóki agent recenzujący nie zaakceptuje
   najnowszej wersji planu. Razem z odmową Claude dostaje następny krok i zwykle wykonuje go sam: uruchamia
   recenzję, poprawia uwagi albo po zmianie zleca recenzję jeszcze raz. Ty wkraczasz tylko wtedy, gdy recenzentowi
   odmówiono wywołania narzędzia: zezwól na nie, gdy Claude poprosi. Plan powyżej 12 zadań wymaga akceptacji
-  każdego recenzenta swojego zestawu, a plan ze zwykłego trybu planowania, który wskazuje więcej niż 8 plików
-  repozytorium, jest odrzucany ze wskazaniem na <code>/viber:intent</code>.</p>
+  każdego recenzenta swojego zestawu, a plan napisany poza planistą wymaga akceptacji
+  <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a>, niezależnie od liczby wskazanych plików.</p>
 </details>
 <details id="ts-no-code">
   <summary><span lang="en">Why does Claude write a plan instead of changing the code?</span><span lang="pl">Dlaczego Claude pisze plan, zamiast zmienić kod?</span></summary>
@@ -3272,9 +3272,9 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
   <li id="agent-planner-task-review"><code>planner-task-review</code> <span lang="en">reviews one slice of at most 8
   tasks of a plan past 12 tasks, one reviewer per slice, working in parallel.</span><span lang="pl">recenzuje jedną
   porcję, najwyżej 8 zadań, planu powyżej 12 zadań, po jednym recenzencie na porcję, równolegle.</span></li>
-  <li id="agent-plain-plan-review"><code>plain-plan-review</code> <span lang="en">gives the same review to a plan
-  written in plain plan mode, when <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> is
-  on.</span><span lang="pl">robi tę samą recenzję planu napisanego w zwykłym trybie planowania, gdy
+  <li id="agent-outside-plan-review"><code>outside-plan-review</code> <span lang="en">reviews a plan written outside the
+  planner, with no file limit, when <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> is
+  on.</span><span lang="pl">recenzuje plan napisany poza planistą, bez limitu plików, gdy
   <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> jest włączony.</span></li>
   <li id="agent-adr-screener"><code>adr-screener</code> <span lang="en">screens the decisions of a plan against a
   strict admission test and names the architecture decision records worth writing.</span><span lang="pl">sprawdza decyzje planu względem ścisłego testu przyjęcia i wskazuje rekordy
@@ -3464,13 +3464,11 @@ wartość.</p>
   </div>
   <div id="key-planning-outside-plan-review">
     <dt><code>planning.outside-plan-review</code> <span class="tag on"><span lang="en">on</span><span lang="pl">wł.</span></span></dt>
-    <dd><span lang="en">A plan written outside the planner, in plain plan mode, must pass
-    <a href="#agent-plain-plan-review"><code>plain-plan-review</code></a> before plan mode can be left, the same
-    gate the planner's plans get. Such a plan may name at most 8 repository files; past that, plan mode points to
-    <code>/viber:intent</code> for a planned build.</span><span lang="pl">Plan napisany poza planistą, w zwykłym trybie planowania,
-    musi przejść recenzję <a href="#agent-plain-plan-review"><code>plain-plan-review</code></a>, zanim będzie można
-    wyjść z trybu planowania; plany planisty przechodzą tę samą bramkę. Taki plan może wskazywać najwyżej
-    8 plików repozytorium; powyżej tryb planowania odsyła do <code>/viber:intent</code>, czyli do zaplanowanego buildu.</span></dd>
+    <dd><span lang="en">A plan written outside the planner must pass
+    <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a> before plan mode can be left, the same
+    gate the planner's plans get. No limit applies to the number of files such a plan names.</span><span lang="pl">Plan napisany poza planistą
+    musi przejść recenzję <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a>, zanim będzie można
+    wyjść z trybu planowania; plany planisty przechodzą tę samą bramkę. Liczba plików wskazanych w takim planie nie jest ograniczona.</span></dd>
   </div>
 </dl>
 

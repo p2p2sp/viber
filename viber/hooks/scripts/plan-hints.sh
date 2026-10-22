@@ -1,26 +1,22 @@
 #!/usr/bin/env bash
 #
-# plan-hints.sh - viber / UserPromptSubmit hook: plan-writing hints for plain plan mode.
+# plan-hints.sh - viber / UserPromptSubmit hook: the review hint for a plan written outside the planner.
 #
-# Injects plan-writing rules into the model's context on every prompt sent
-# in plain plan mode: three the plan carries for the implementing agent (a
-# TaskCreate task list, independent tasks in parallel subagents, a closing
-# subagent review of the finished implementation) and one for the plan's
-# author (a fresh plain-plan-review after every plan write). The
-# rules' text lives in hooks/content/plan-hints.md, injected verbatim, so a
-# wording change never touches this script. A plan
-# the viber chain drives needs neither - its implementor already runs
-# task-reviewer and parallel coders - so a planner, intent or fixer Skill
+# Injects one rule into the model's context on every prompt sent in plan
+# mode: a fresh outside-plan-review after every plan write, its PASS before
+# ExitPlanMode. The rule's text lives in hooks/content/plan-hints.md, injected
+# verbatim, so a wording change never touches this script. A plan the viber
+# chain drives has its own reviewers, so a planner, intent or fixer Skill
 # tool_use in the current plan-mode episode (or one whose own EnterPlanMode
 # opened it), or a typed /viber:intent or /viber:fixer command in it, silences
 # the hint. intent and fixer only hand off to the planner,
 # so plan-gate.sh does not count them: its planner-review choice needs the
 # planner itself.
 #
-# Why a hook: the rules only matter while a plain plan is written, so carrying
-# them in the session manifest spent context in every session for nothing. The
-# hint is soft; plain-plan-review (plan-gate.sh, planning.plain-plan-review: true) is
-# what enforces the closing review task.
+# Why a hook: the rule only matters while an outside plan is written, so carrying
+# it in the session manifest spent context in every session for nothing. The
+# hint is soft; outside-plan-review (plan-gate.sh, planning.outside-plan-review: true)
+# is what enforces the review.
 #
 # The episode window and the Skill grep are copied from plan-gate.sh, the grep
 # widened to intent and fixer plus their typed commands: keep both in step, a
@@ -44,7 +40,7 @@
 #            text; an empty, missing or unreadable file -> nothing printed.
 #   stdin  : UserPromptSubmit JSON; "permission_mode" decides. Absent, empty,
 #            or any value but "plan" -> nothing printed. Empty stdin -> the same.
-#   stdout : nothing, or in plain plan mode
+#   stdout : nothing, or in plan mode
 #            {"hookSpecificOutput":{"hookEventName":"UserPromptSubmit",
 #             "additionalContext":"<plan-hints.md, trailing newlines cut>"}}
 #   exit 0 : always (fail-open: a broken hint must never block a prompt).

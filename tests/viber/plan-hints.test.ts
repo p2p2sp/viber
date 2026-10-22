@@ -1,12 +1,10 @@
 /*
  * plan-hints.test.ts - proves viber/hooks/scripts/plan-hints.sh, the
- * UserPromptSubmit hook that hands plain plan mode its plan-writing rules.
+ * UserPromptSubmit hook that hands plan mode its one review rule.
  *
  * What it must do: on a prompt whose payload carries `"permission_mode":"plan"`,
- * print one UserPromptSubmit additionalContext naming every rule (a TaskCreate
- * task list, parallel subagents for independent tasks, a closing subagent review
- * task, a plain-plan-review after every plan write, the absolute path of every
- * `.temp/` file the plan rests on) - unless a
+ * print one UserPromptSubmit additionalContext holding the rule (an
+ * outside-plan-review after every plan write, its PASS before ExitPlanMode) - unless a
  * planner, intent or fixer Skill tool_use, or a typed /viber:intent or
  * /viber:fixer command, sits in the current plan-mode episode, where the viber
  * chain already covers them. Any other mode, a payload
@@ -103,11 +101,8 @@ function assertHint(stdout: string): void {
   assert.ok(out, `expected hookSpecificOutput, got: ${stdout}`);
   assert.equal(out.hookEventName, "UserPromptSubmit");
   const ctx = out.additionalContext ?? "";
-  assert.match(ctx, /subagent reviews the finished implementation against the plan/);
-  assert.match(ctx, /independent tasks in parallel subagents/);
-  assert.match(ctx, /TaskCreate/);
-  assert.match(ctx, /plain-plan-review agent after every write to the plan file/);
-  assert.match(ctx, /absolute path of every `\.temp\/` file the plan rests on/);
+  assert.match(ctx, /dispatch the outside-plan-review agent after every write to the plan file and get its PASS on that version before ExitPlanMode/);
+  assert.match(ctx, /planning\.outside-plan-review/);
 }
 
 // --- cases ------------------------------------------------------------
@@ -119,20 +114,12 @@ test("plan mode with no planner in the transcript -> additionalContext carries e
   });
 });
 
-test("the hint carries exactly the five rules, with no line telling the model to skip them under a viber skill (the hook itself stays silent there)", async () => {
+test("the hint is the one review rule alone: one line, no plan-content rule, no file limit, no line telling the model to skip it under a viber skill (the hook itself stays silent there)", async () => {
   await withTempDir("p2p2-plan-hints-", async (dir) => {
     const f = writeTranscript(dir, [permissionMode("plan")]);
     const ctx = JSON.parse(await runPayload({ permission_mode: "plan", transcript_path: f })).hookSpecificOutput.additionalContext as string;
-    assert.equal(ctx.split("\n").filter((l) => l.startsWith("- ")).length, 5, `expected five rule lines, got: ${ctx}`);
-    assert.doesNotMatch(ctx, /viber|skip/i);
-  });
-});
-
-test("file limit: the Plan review rule states the 8 repository files a plan may name and that the gate refuses a plan past it", async () => {
-  await withTempDir("p2p2-plan-hints-", async (dir) => {
-    const f = writeTranscript(dir, [permissionMode("plan")]);
-    const ctx = JSON.parse(await runPayload({ permission_mode: "plan", transcript_path: f })).hookSpecificOutput.additionalContext as string;
-    assert.match(ctx, /Plan review:.*names at most 8 repository files: the gate refuses a plan naming more/);
+    assert.equal(ctx.split("\n").length, 1, `expected one line, got: ${ctx}`);
+    assert.doesNotMatch(ctx, /TaskCreate|parallel subagents|closing|\.temp|repository files|plain|skip|viber/i);
   });
 });
 

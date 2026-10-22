@@ -10,8 +10,8 @@
  * plan write, returned `VERDICT: PASS`, and whose plan file has not been touched
  * since (mtime vs. the verdict's transcript timestamp). A plain plan-mode plan
  * (a plan write with no planner skill) is gated the same way by
- * `viber:plain-plan-review`, but only when the session cwd's `.claude/viber.yml`
- * turns `plain-plan-review` on. Everything else - plain-plan-review off, an episode that
+ * `viber:outside-plan-review`, but only when the session cwd's `.claude/viber.yml`
+ * turns `outside-plan-review` on. Everything else - outside-plan-review off, an episode that
  * already built a plan, an unreadable transcript - passes untouched: a broken
  * gate must never trap the user in plan mode, so every case here also asserts
  * exit 0 and parseable JSON.
@@ -34,9 +34,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
-import { withGitRepo, withTempDir } from "../harness/tmp.ts";
+import { withTempDir } from "../harness/tmp.ts";
 import { withStub } from "../harness/stub.ts";
-import { slash } from "../harness/paths.ts";
 
 const SUT = path.resolve(import.meta.dirname, "../../viber/hooks/scripts/plan-gate.sh");
 
@@ -187,7 +186,7 @@ test("a transcript that is not JSONL at all -> allow, no crash", async () => {
 
 // --- arming: both signals, inside the episode -------------------------
 
-test("plain plan mode with no planner skill and no session cwd -> allow (plain-plan-review cannot be read, so it is off)", async () => {
+test("plain plan mode with no planner skill and no session cwd -> allow (outside-plan-review cannot be read, so it is off)", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const f = writeTranscript(dir, "t.jsonl", [planWrite()]);
     assert.equal((await runCase(f)).decision, "allow");
@@ -221,12 +220,13 @@ test("the planner refusal names refs: and memory:, as planner-review.md expects 
   });
 });
 
-test("the planner refusal also names input:, as planner-review.md expects the confirmed interview summary or bug diagnosis", async () => {
+test("the planner refusal also names input: as the summary file path, the summary text or the bug diagnosis", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite()]);
     const { decision, reason } = await runCase(f);
     assert.equal(decision, "deny");
-    assert.match(reason ?? "", /input:/);
+    assert.match(reason ?? "", /`input:` \(the summary file path, the summary text or the bug diagnosis the plan answers\)/);
+    assert.doesNotMatch(reason ?? "", /confirmed interview summary/);
   });
 });
 
@@ -755,13 +755,13 @@ test("the last of several plan writes is the one that must be reviewed", async (
   });
 });
 
-// --- plain plan mode: plain-plan-review, behind the plain-plan-review switch --
+// --- plain plan mode: outside-plan-review, behind the outside-plan-review switch --
 
-const PLAIN = "viber:plain-plan-review";
+const PLAIN = "viber:outside-plan-review";
 
 /** The switch as `.claude/viber.yml` groups it: a child of `planning:`. */
-const GROUPED_ON = "planning:\n  plain-plan-review: true\n";
-const GROUPED_OFF = "planning:\n  plain-plan-review: false\n";
+const GROUPED_ON = "planning:\n  outside-plan-review: true\n";
+const GROUPED_OFF = "planning:\n  outside-plan-review: false\n";
 
 /** A session cwd whose .claude/viber.yml carries the given body. */
 function sessionWithConfig(dir: string, body: string): string {
@@ -771,32 +771,32 @@ function sessionWithConfig(dir: string, body: string): string {
   return cwd;
 }
 
-test("plain plan with plain-plan-review on and no review dispatch -> deny naming plain-plan-review and what to pass it", async () => {
+test("plain plan with outside-plan-review on and no review dispatch -> deny naming outside-plan-review and what to pass it", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const cwd = sessionWithConfig(dir, GROUPED_ON);
     const f = writeTranscript(dir, "t.jsonl", [planWrite()]);
     const { decision, reason } = await runCase(f, cwd);
     assert.equal(decision, "deny");
-    assert.match(reason ?? "", /plain-plan-review agent has not run on this version/);
+    assert.match(reason ?? "", /outside-plan-review agent has not run on this version/);
     assert.match(reason ?? "", /one sentence stating the user's goal/);
-    assert.match(reason ?? "", /planning\.plain-plan-review in \.claude\/viber\.yml/);
+    assert.match(reason ?? "", /planning\.outside-plan-review in \.claude\/viber\.yml/);
   });
 });
 
-test("the hooks.json description names the grouped key planning.plain-plan-review (the user-facing statement of what arms the gate)", () => {
+test("the hooks.json description names the grouped key planning.outside-plan-review (the user-facing statement of what arms the gate)", () => {
   const manifest = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/hooks/hooks.json"), "utf8"));
-  assert.match(manifest.description, /planning\.plain-plan-review/);
+  assert.match(manifest.description, /planning\.outside-plan-review/);
 });
 
-test("a flat plain-plan-review: true alone leaves the plain gate unarmed -> allow (only the planning: group arms it)", async () => {
+test("a flat outside-plan-review: true alone leaves the plain gate unarmed -> allow (only the planning: group arms it)", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, "plain-plan-review: true\n");
+    const cwd = sessionWithConfig(dir, "outside-plan-review: true\n");
     const f = writeTranscript(dir, "t.jsonl", [planWrite()]);
     assert.equal((await runCase(f, cwd)).decision, "allow");
   });
 });
 
-test("plain plan with plain-plan-review off, absent, or no config file at all -> allow (the switch is the only arming signal)", async () => {
+test("plain plan with outside-plan-review off, absent, or no config file at all -> allow (the switch is the only arming signal)", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const f = writeTranscript(dir, "t.jsonl", [planWrite()]);
     assert.equal((await runCase(f, sessionWithConfig(path.join(dir, "a"), GROUPED_OFF))).decision, "allow");
@@ -807,7 +807,7 @@ test("plain plan with plain-plan-review off, absent, or no config file at all ->
   });
 });
 
-test("plain plan with plain-plan-review on: plain-plan-review PASS -> allow, FAIL -> deny", async () => {
+test("plain plan with outside-plan-review on: outside-plan-review PASS -> allow, FAIL -> deny", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const cwd = sessionWithConfig(dir, GROUPED_ON);
     const pass = writeTranscript(dir, "pass.jsonl", [planWrite(), dispatch(undefined, PLAIN), PASS]);
@@ -815,14 +815,14 @@ test("plain plan with plain-plan-review on: plain-plan-review PASS -> allow, FAI
     const fail = writeTranscript(dir, "fail.jsonl", [planWrite(), dispatch(undefined, PLAIN), FAIL]);
     const { decision, reason } = await runCase(fail, cwd);
     assert.equal(decision, "deny");
-    assert.match(reason ?? "", /plain-plan-review agent returned 'VERDICT: FAIL'/);
+    assert.match(reason ?? "", /outside-plan-review agent returned 'VERDICT: FAIL'/);
   });
 });
 
-test("the unprefixed subagent spelling 'plain-plan-review' is recognized -> allow", async () => {
+test("the unprefixed subagent spelling 'outside-plan-review' is recognized -> allow", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const f = writeTranscript(dir, "t.jsonl", [planWrite(), dispatch(undefined, "plain-plan-review"), PASS]);
+    const f = writeTranscript(dir, "t.jsonl", [planWrite(), dispatch(undefined, "outside-plan-review"), PASS]);
     assert.equal((await runCase(f, cwd)).decision, "allow");
   });
 });
@@ -833,11 +833,11 @@ test("a planner-review PASS does not satisfy the plain gate -> deny (each path a
     const f = writeTranscript(dir, "t.jsonl", [planWrite(), dispatch(), PASS]);
     const { decision, reason } = await runCase(f, cwd);
     assert.equal(decision, "deny");
-    assert.match(reason ?? "", /plain-plan-review agent has not run on this version/);
+    assert.match(reason ?? "", /outside-plan-review agent has not run on this version/);
   });
 });
 
-test("a plain-plan-review PASS does not satisfy the planner gate -> deny, whatever plain-plan-review says", async () => {
+test("a outside-plan-review PASS does not satisfy the planner gate -> deny, whatever outside-plan-review says", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(), dispatch(undefined, PLAIN), PASS]);
     for (const [i, body] of [GROUPED_ON, GROUPED_OFF].entries()) {
@@ -848,7 +848,7 @@ test("a plain-plan-review PASS does not satisfy the planner gate -> deny, whatev
   });
 });
 
-test("plain plan modified after its plain-plan-review PASS -> deny (the mtime guard covers the plain path too)", async () => {
+test("plain plan modified after its outside-plan-review PASS -> deny (the mtime guard covers the plain path too)", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const cwd = sessionWithConfig(dir, GROUPED_ON);
     const plan = realPlan(dir);
@@ -856,13 +856,13 @@ test("plain plan modified after its plain-plan-review PASS -> deny (the mtime gu
     const f = writeTranscript(dir, "t.jsonl", [planWrite(plan), dispatch(undefined, PLAIN), verdict("PASS", { timestamp: stale })]);
     const { decision, reason } = await runCase(f, cwd);
     assert.equal(decision, "deny");
-    assert.match(reason ?? "", /was modified after its 'VERDICT: PASS' - dispatch the viber:plain-plan-review agent/);
+    assert.match(reason ?? "", /was modified after its 'VERDICT: PASS' - dispatch the viber:outside-plan-review agent/);
   });
 });
 
 // --- planner ownership across a mid-turn permission-mode record ----------
 
-test("a mid-turn record before the planner EnterPlanMode with plain-plan-review on -> planner-review still owns the plan, a plain-plan-review PASS never satisfies it", async () => {
+test("a mid-turn record before the planner EnterPlanMode with outside-plan-review on -> planner-review still owns the plan, a outside-plan-review PASS never satisfies it", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const cwd = sessionWithConfig(dir, GROUPED_ON);
     const head = [skillUse(), permissionMode("acceptEdits"), enterPlanMode(), planWrite()];
@@ -893,7 +893,7 @@ test("a planner from an earlier, approved episode does not own a later plain pla
     ]);
     const { decision, reason } = await runCase(f, cwd);
     assert.equal(decision, "deny");
-    assert.match(reason ?? "", /plain-plan-review agent has not run on this version/);
+    assert.match(reason ?? "", /outside-plan-review agent has not run on this version/);
   });
 });
 
@@ -910,7 +910,7 @@ test("a planner that stopped before EnterPlanMode, then a new user prompt enters
     ]);
     const { decision, reason } = await runCase(f, cwd);
     assert.equal(decision, "deny");
-    assert.match(reason ?? "", /plain-plan-review agent has not run on this version/);
+    assert.match(reason ?? "", /outside-plan-review agent has not run on this version/);
   });
 });
 
@@ -922,7 +922,7 @@ function refusedPlannerThenPlan(plan: string): string[] {
   return [permissionMode("plan"), skillUse(), userPrompt("write a plain plan"), planWrite(plan)];
 }
 
-test("a refused planner followed by a plain plan (no frontmatter) -> the plain path: a plain-plan-review PASS allows whatever the switch says", async () => {
+test("a refused planner followed by a plain plan (no frontmatter) -> the plain path: a outside-plan-review PASS allows whatever the switch says", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const plan = realPlan(dir, undefined, "# Plan\n");
     const f = writeTranscript(dir, "t.jsonl", [...refusedPlannerThenPlan(plan), dispatch(undefined, PLAIN), PASS]);
@@ -932,11 +932,11 @@ test("a refused planner followed by a plain plan (no frontmatter) -> the plain p
     const unreviewed = writeTranscript(dir, "u.jsonl", refusedPlannerThenPlan(plan));
     const { decision, reason } = await runCase(unreviewed, sessionWithConfig(path.join(dir, "on"), GROUPED_ON));
     assert.equal(decision, "deny");
-    assert.match(reason ?? "", /viber:plain-plan-review agent has not run on this version/);
+    assert.match(reason ?? "", /viber:outside-plan-review agent has not run on this version/);
   });
 });
 
-test("a plan opening with the planner frontmatter (LF or CRLF) stays with planner-review: a plain-plan-review PASS -> deny, a planner-review PASS -> allow", async () => {
+test("a plan opening with the planner frontmatter (LF or CRLF) stays with planner-review: a outside-plan-review PASS -> deny, a planner-review PASS -> allow", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const lf = realPlan(dir, ".claude/plans/lf/plan.md");
     const crlf = realPlan(dir, ".claude/plans/crlf/plan.md", "---\r\nsource: x.md\r\n---\r\n# Plan\r\n");
@@ -962,7 +962,7 @@ test("a source: line outside a leading frontmatter block does not make the plan 
       const f = writeTranscript(dir, `t${i}.jsonl`, refusedPlannerThenPlan(plan));
       const { decision, reason } = await runCase(f, cwd);
       assert.equal(decision, "deny");
-      assert.match(reason ?? "", /viber:plain-plan-review agent has not run on this version/);
+      assert.match(reason ?? "", /viber:outside-plan-review agent has not run on this version/);
     }
   });
 });
@@ -1075,6 +1075,16 @@ test("review set: past 12 tasks a planner-review PASS alone is refused with the 
     assert.match(reason ?? "", new RegExp(SET_SPEC));
     assert.match(reason ?? "", new RegExp(SET_GRAPH));
     assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(uncovered tasks T1-T20\\)`));
+  });
+});
+
+test("review set: the spec reviewer dispatch text describes input: as the summary file path, the summary text or the bug diagnosis", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan)]);
+    const { reason } = await runCase(f);
+    assert.match(reason ?? "", /`input:` \(the summary file path, the summary text or the bug diagnosis the plan answers\)/);
+    assert.doesNotMatch(reason ?? "", /confirmed interview summary/);
   });
 });
 
@@ -1312,196 +1322,65 @@ test("review set: the hooks.json description states the set rule", () => {
   assert.match(manifest.description, /planner-task-review/);
 });
 
-// --- plain plan file limit: at most 8 repository files ------------------------
+// --- outside plan: no file limit -----------------------------------------------
 
-/** Distinct path-shaped tokens `<prefix>1.ts` .. `<prefix>n.ts`. */
-function limitFiles(n: number, prefix = "src/f"): string[] {
-  return Array.from({ length: n }, (_, i) => `${prefix}${i + 1}.ts`);
+/** An outside plan naming `n` distinct repository files, written under `dir`. */
+function outsidePlanNaming(dir: string, n: number): string {
+  const files = Array.from({ length: n }, (_, i) => `src/f${i + 1}.ts`);
+  return realPlan(dir, undefined, `# Plan\n\n${files.join("\n")}\n`);
 }
 
-/** The Git Bash spelling of a drive path: `C:/x` -> `/c/x` (unchanged on POSIX). */
-function gitBashForm(p: string): string {
-  return slash(p).replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`);
-}
-
-/** The drive letter lower-cased: `C:/x` -> `c:/x` (unchanged on POSIX). */
-function lowerDrive(p: string): string {
-  return slash(p).replace(/^[A-Za-z]:/, (m) => m.toLowerCase());
-}
-
-/** A plain plan naming `tokens`, written under `dir`, run through the gate in session `cwd`. */
-async function limitRun(dir: string, cwd: string, tokens: string[], extra: string[] = []): Promise<Decision> {
-  const plan = realPlan(dir, undefined, `# Plan\n\n${tokens.join("\n")}\n`);
-  const f = writeTranscript(dir, "t.jsonl", [planWrite(plan), ...extra]);
-  return await runCase(f, cwd);
-}
-
-/** The plain reviewer dispatched and passed on the plan version. */
-const REVIEWED = [dispatch(undefined, PLAIN), PASS];
-
-test("file limit: a plain plan naming 9 distinct repository files is refused with the narrow-or-planner next step, a plain-plan-review PASS on that version included", async () => {
+test("no file limit: an outside plan naming 9 repository files is allowed on its outside-plan-review PASS (the gate counts no files)", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const { decision, reason } = await limitRun(dir, cwd, limitFiles(9), REVIEWED);
-    assert.equal(decision, "deny");
-    assert.equal(
-      reason,
-      "Next step: narrow the plan or switch to the planner. plan.md names 9 repository files, past the 8 a plain plan-mode plan may name - narrow it to at most 8, or leave plan mode and run /viber:intent for a planned build. (This is the plan review gate (planning.plain-plan-review in .claude/viber.yml), not an error.)",
-    );
-  });
-});
-
-test("file limit: a plain plan naming exactly 8 repository files with a plain-plan-review PASS -> allow", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    assert.equal((await limitRun(dir, cwd, limitFiles(8), REVIEWED)).decision, "allow");
-  });
-});
-
-test("file limit: a plain plan naming exactly 8 repository files and no review yet -> the review next step, not the limit", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const { decision, reason } = await limitRun(dir, cwd, limitFiles(8));
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /plain-plan-review agent has not run on this version/);
-  });
-});
-
-test("file limit: a markdown link [x](src/a.ts) yields its path -> 9 linked files are refused", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const linked = limitFiles(9).map((f) => `[file](${f})`);
-    const { decision, reason } = await limitRun(dir, cwd, linked, REVIEWED);
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /names 9 repository files/);
-  });
-});
-
-test("file limit: an absolute path under the repository root, native or lower-case drive form, folds to its relative form and counts -> 9 files are refused", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const tokens = [...limitFiles(7), `${slash(cwd)}/src/f8.ts`, `${lowerDrive(cwd)}/src/f9.ts`];
-    const { decision, reason } = await limitRun(dir, cwd, tokens, REVIEWED);
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /names 9 repository files/);
-  });
-});
-
-test("file limit: the Git Bash form (/c/...) of a path under the repository root folds to its relative form and counts -> 9 files are refused", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const tokens = [...limitFiles(8), `${gitBashForm(cwd)}/src/f9.ts`];
-    const { decision, reason } = await limitRun(dir, cwd, tokens, REVIEWED);
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /names 9 repository files/);
-  });
-});
-
-test("file limit: an absolute path and its relative twin count once -> 8 files named both ways are allowed", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const tokens = [...limitFiles(8), `${slash(cwd)}/src/f1.ts`, `${gitBashForm(cwd)}/src/f2.ts`];
-    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
-  });
-});
-
-test("file limit: a :<line> or :<line>-<line> suffix and surrounding punctuation are stripped -> 8 files cited with them are allowed", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const tokens = [...limitFiles(8), "src/f1.ts:12", "src/f2.ts:3-5", "(`src/f3.ts`).", '"src/f4.ts",', "<src/f5.ts>;", "src/f6.ts:9,"];
-    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
-  });
-});
-
-test("file limit: a path named many times counts once -> allow", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const tokens = Array.from({ length: 20 }, () => "src/a.ts");
-    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
-  });
-});
-
-test("file limit: a leading ./ is stripped once -> 8 files with a ./ twin of the first are allowed", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const tokens = [...limitFiles(8), "./src/f1.ts"];
-    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
-  });
-});
-
-test("file limit: a URL is not a repository file -> 8 files plus a URL are allowed", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const tokens = [...limitFiles(8), "https://example.com/docs/page.html", "[docs](https://example.com/guide.md)"];
-    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
-  });
-});
-
-test("file limit: a token that is neither an existing file nor path-shaped is skipped -> 8 files plus such words are allowed", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const tokens = [...limitFiles(8), "word", "missing.ts", "src/noextension", "e.g.", "and/or"];
-    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
-  });
-});
-
-test("file limit: an existing file with no slash counts -> 8 path-shaped files plus an existing README.md are refused", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    fs.writeFileSync(path.join(cwd, "README.md"), "# readme\n");
-    const { decision, reason } = await limitRun(dir, cwd, [...limitFiles(8), "README.md"], REVIEWED);
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /names 9 repository files/);
-  });
-});
-
-test("file limit: an absolute or ~ path outside the repository root is skipped -> 8 files plus such paths are allowed", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const tokens = [...limitFiles(8), "/etc/other/x.conf", "~/notes/y.ts", "Z:/elsewhere/z.ts", "/z/elsewhere/w.ts"];
-    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
-  });
-});
-
-test("file limit: a path under .temp/ is skipped, relative or absolute -> 8 files plus such paths are allowed", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const tokens = [...limitFiles(8), ".temp/viber/notes.md", "./.temp/findings.md", `${slash(cwd)}/.temp/mockup.html`];
-    assert.equal((await limitRun(dir, cwd, tokens, REVIEWED)).decision, "allow");
-  });
-});
-
-test("file limit: the repository root is the git top level of a session in a subdirectory -> an absolute path under the top level counts", async () => {
-  await withGitRepo(async (repo) => {
-    fs.mkdirSync(path.join(repo.dir, ".claude"));
-    fs.writeFileSync(path.join(repo.dir, ".claude", "viber.yml"), GROUPED_ON);
-    const cwd = path.join(repo.dir, "sub");
-    fs.mkdirSync(cwd);
-    const tokens = [...limitFiles(8), `${slash(repo.dir)}/src/f9.ts`];
-    const { decision, reason } = await limitRun(repo.dir, cwd, tokens, REVIEWED);
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /names 9 repository files/);
-  });
-});
-
-test("file limit: with planning.plain-plan-review off nothing is counted -> 12 files are allowed", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_OFF);
-    assert.equal((await limitRun(dir, cwd, limitFiles(12))).decision, "allow");
-  });
-});
-
-test("file limit: on the planner path nothing is counted -> a planner plan naming 12 files passes on its planner-review PASS", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const plan = realPlan(dir, undefined, `---\nsource: x\n---\n${limitFiles(12).join("\n")}\n`);
-    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), dispatch(), PASS]);
+    const plan = outsidePlanNaming(dir, 9);
+    const f = writeTranscript(dir, "t.jsonl", [planWrite(plan), dispatch(undefined, PLAIN), PASS]);
     assert.equal((await runCase(f, cwd)).decision, "allow");
   });
 });
 
-test("file limit: the hooks.json description states the 8 repository files limit", () => {
+test("no file limit: an outside plan naming 12 repository files and no review yet -> the review next step, never a file count", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const f = writeTranscript(dir, "t.jsonl", [planWrite(outsidePlanNaming(dir, 12))]);
+    const { decision, reason } = await runCase(f, cwd);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /outside-plan-review agent has not run on this version/);
+    assert.doesNotMatch(reason ?? "", /repository files/);
+  });
+});
+
+const VIBER_DIR = path.resolve(import.meta.dirname, "../../viber");
+
+test("the outside-plan-review agent replaces plain-plan-review under the same frontmatter fields, and plugin.json registers it", () => {
+  const agent = fs.readFileSync(path.join(VIBER_DIR, "agents/outside-plan-review.md"), "utf8");
+  const front = agent.split("---")[1];
+  assert.deepEqual(
+    front.split("\n").filter((l) => l.includes(":")).map((l) => l.slice(0, l.indexOf(":"))),
+    ["name", "description", "tools", "model", "effort", "color"],
+  );
+  assert.match(front, /^name: outside-plan-review$/m);
+  assert.equal(fs.existsSync(path.join(VIBER_DIR, "agents/plain-plan-review.md")), false);
+  const agents: string[] = JSON.parse(fs.readFileSync(path.join(VIBER_DIR, ".claude-plugin/plugin.json"), "utf8")).agents;
+  assert.ok(agents.includes("./agents/outside-plan-review.md"));
+  assert.ok(!agents.includes("./agents/plain-plan-review.md"));
+});
+
+test("the outside-plan-review agent holds no Reviewed check and no closing-review clause in its calibration", () => {
+  const agent = fs.readFileSync(path.join(VIBER_DIR, "agents/outside-plan-review.md"), "utf8");
+  assert.doesNotMatch(agent, /Reviewed/);
+  assert.doesNotMatch(agent, /closing implementation review/);
+});
+
+test("the help page links the outside-plan-review agent line and keeps no anchor to agent-plain-plan-review", () => {
+  const page = fs.readFileSync(path.join(VIBER_DIR, "skills/setup/assets/help.html"), "utf8");
+  assert.match(page, /id="agent-outside-plan-review"/);
+  assert.doesNotMatch(page, /agent-plain-plan-review/);
+});
+
+test("the hooks.json description names outside-plan-review and states no file limit", () => {
   const manifest = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/hooks/hooks.json"), "utf8"));
-  assert.match(manifest.description, /more than 8 distinct repository files/);
-  assert.match(manifest.description, /\/viber:intent/);
+  assert.match(manifest.description, /viber:outside-plan-review/);
+  assert.match(manifest.description, /no file limit/);
+  assert.doesNotMatch(manifest.description, /plain-plan-review|distinct repository files/);
 });

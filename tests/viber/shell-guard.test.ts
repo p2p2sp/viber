@@ -356,11 +356,11 @@ test("DoD.15: hooks.json holds a PreToolUse Bash entry running shell-guard.sh th
   assert.ok(entries.some((x) => x.command === 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/kill-guard.sh"'));
 });
 
-test("DoD.15: the hooks.json description names shell-guard.sh, says every hook fails open and still names planning.plain-plan-review and the schema note", () => {
+test("DoD.15: the hooks.json description names shell-guard.sh, says every hook fails open and still names planning.outside-plan-review and the schema note", () => {
   const description: string = JSON.parse(fs.readFileSync(HOOKS_JSON, "utf8")).description;
   assert.match(description, /shell-guard\.sh/);
   assert.match(description, /Every hook fails open/);
-  assert.match(description, /planning\.plain-plan-review/);
+  assert.match(description, /planning\.outside-plan-review/);
   assert.match(description, /schema note/);
 });
 
