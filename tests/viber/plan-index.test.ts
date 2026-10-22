@@ -84,6 +84,8 @@ interface TaskFields {
   verification?: string;
   /** Semicolon-separated clauses; the decomposition numbers them one per line. */
   dod?: string;
+  /** The whole Delivers value; the default names no contract block. */
+  delivers?: string;
 }
 
 /** The `## Contracts` appendix every default task names through `Uses: C1`. It
@@ -232,7 +234,7 @@ function planBody(
       ...(t.uses === null ? [] : [`- Uses: ${t.uses ?? "C1"}`]),
       `- Depends-on: ${t.deps ?? "none"}`,
       `- Files: ${t.files ?? "src/a.ts"}`,
-      "- Delivers: the thing",
+      `- Delivers: ${t.delivers ?? "the thing"}`,
       `- Verification: ${t.verification ?? "npm test -> green"}`,
       `- DoD: ${t.dod ?? "it works"}`,
       "<!-- /TASK -->",
@@ -3046,6 +3048,103 @@ test("--split with a committed extras file of a task not done prints the orphan 
       result.stdout.endsWith("verify: T4 | npm test\ndirty: T2 | src/todo.ts\norphan: lib/x.ts\n"),
       `stdout: ${result.stdout}`,
     );
+  });
+});
+
+// --- a done clause naming a contract block missing from its Uses -------------
+
+/** Two blocks, both declared in no file: C1 is what the gapped task uses, C2 is
+ *  what the second task uses. */
+const TWO_CONTRACTS = [...CONTRACT, "", "### C2 - Logout endpoint", "", "File: none", "", "POST /logout -> 204"];
+
+/** T1 uses `t1` and C2 sits in T2's Uses, so every block is used and the only
+ *  thing the plan can be refused for is what T1's DoD or Delivers names. */
+function usesGapPlan(t1: TaskFields): string {
+  return planBody(
+    [
+      { id: "T1", files: "src/a.ts", ...t1 },
+      { id: "T2", uses: "C2", files: "src/b.ts" },
+    ],
+    1,
+    TWO_CONTRACTS,
+  );
+}
+
+test("a DoD naming C2 outside backticks while Uses names only C1 exits 4, C2 missing from its Uses, with the error line for the DoD field", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, usesGapPlan({ uses: "C1", dod: "the handler follows C2" }));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "error: task T1: DoD names C2, missing from its Uses - add it to Uses\n");
+  });
+});
+
+test("a Delivers naming C2 outside backticks while Uses names only C1 exits 4, C2 missing from its Uses, with the error line for the Delivers field", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, usesGapPlan({ uses: "C1", delivers: "a handler that implements C2" }));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "error: task T1: Delivers names C2, missing from its Uses - add it to Uses\n");
+  });
+});
+
+test("the same task with C2 added to its Uses, no longer missing from its Uses, exits 0 (the block named in a done clause is carried into its task file)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, usesGapPlan({ uses: "C1, C2", dod: "the handler follows C2", delivers: "a handler that implements C2" }));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("C2 named only inside a backtick span of a done clause is not missing from its Uses and exits 0 (a quoted mention proves nothing)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, usesGapPlan({ uses: "C1", dod: "the fixture quotes `C2` as literal data", delivers: "a handler that quotes `C2`" }));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("a token with no block in the appendix, such as C9, is never missing from its Uses and exits 0 when named in a done clause", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, usesGapPlan({ uses: "C1", dod: "the handler follows C9", delivers: "a handler that implements C9" }));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("a word merely containing the block id, such as C21 or C2x, is not missing from its Uses and exits 0 (only a whole token names a block)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, usesGapPlan({ uses: "C1", dod: "the handler follows C21 and C2x" }));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("the plan with the gap missing from its Uses validates and decomposes under --split with exit 0 - a frozen plan resumed after the rule lands must still decompose", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, usesGapPlan({ uses: "C1", dod: "the handler follows C2" }));
+
+    const result = await run(dir, {}, [PLAN_REL, "--split"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(taskFiles(dir), ["T1.md", "T2.md"]);
+  });
+});
+
+test("the plan with a block missing from its Uses still validates on a plain call with status.md beside it (a landed run plan)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, usesGapPlan({ uses: "C1", dod: "the handler follows C2" }));
+    seedStatus(dir, { done: "none" });
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
   });
 });
 

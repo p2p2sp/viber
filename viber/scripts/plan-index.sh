@@ -229,7 +229,12 @@
 #       task, the entry and the one reaching it), or a "DoD:" line naming
 #       another task of the plan as a whole token outside a backtick span
 #       (its own id never matches - prove each clause inside the task itself,
-#       naming a file or symbol instead), or a task holding more "Files:"
+#       naming a file or symbol instead), or a "DoD:" or "Delivers:" line naming
+#       a contract block of the appendix as a whole token outside a backtick
+#       span while the task "Uses:" does not name it (a token with no block in
+#       the appendix names nothing; stderr, one line per block:
+#       "error: task <id>: <DoD|Delivers> names <block id>, missing from its
+#       Uses - add it to Uses"), or a task holding more "Files:"
 #       entries or "DoD:" clauses than its TDD value allows - 12 and 6 on
 #       "required", 25 and 10 on "none" (it bundles several behaviours -
 #       split it), or a read-after: a "Verification:" or "DoD:" line naming,
@@ -238,7 +243,7 @@
 #       file a lower-numbered task lists in its "Files:" while no dependency
 #       path, direct or transitive, joins the two (the reader would run beside
 #       the writer; the error names the reader, the path and the writer). The
-#       last six cases and the
+#       last seven cases and the
 #       parenthetical one above are exempted under --split
 #       and under --extra, and on a plain call whose plan has status.md beside
 #       it (a landed run plan): a plan that landed before the rule is frozen,
@@ -823,6 +828,19 @@ END {
         if (!(unums[k] in con)) fail("task " id[i] ": Uses " unums[k] ", no such contract block")
         else { usedcon[unums[k]] = 1; usesset[i, unums[k]] = 1 }
     }
+
+    # Uses is what carries a contract block into the task file: a block named in
+    # DoD or Delivers (a whole token outside backtick spans) but absent from Uses
+    # is a shape the coder is held to without ever receiving it. A token with no
+    # block in the appendix names nothing. Skipped under --split, like the other
+    # checks added after plans were frozen.
+    if (mode != "--split")
+      for (c = 1; c <= ncon; c++) {
+        if ((i, corder[c]) in usesset) continue
+        cpat = "[^A-Za-z0-9_-]" corder[c] "[^A-Za-z0-9_-]"
+        if ((" " stripticks(dod[i]) " ") ~ cpat) fail("task " id[i] ": DoD names " corder[c] ", missing from its Uses - add it to Uses")
+        if ((" " stripticks(deliv[i]) " ") ~ cpat) fail("task " id[i] ": Delivers names " corder[c] ", missing from its Uses - add it to Uses")
+      }
 
     # a dependency may only point at an earlier existing task, which makes the graph acyclic by construction
     d = deps[i]
