@@ -22,7 +22,7 @@ older version is ignored.
 | Switch | Default | When on |
 | --- | --- | --- |
 | `planning.adr` | on | A decision worth keeping becomes an architecture decision record in `docs/adr/`. |
-| `planning.outside-plan-review` | on | A plan written outside the planner, in plain plan mode, must pass a review before plan mode can be left, and may name at most 8 repository files. |
+| `planning.outside-plan-review` | on | A plan written outside the planner must pass a review before plan mode can be left. |
 | `build.baseline-tests` | **off** | Takes `off`, `fast` or `full`. Runs your tests before the first task, so the build repairs only the failures it caused. |
 | `build.final-review` | on | One reviewer checks the whole build's diff after the last task, and a coder fixes what it finds. |
 | `build.memory` | on | The build closes by updating your `CLAUDE.md` files below the root. |

@@ -24,9 +24,8 @@ planning:
   # strict admission test, and turns each record you accept into a task with no
   # dependencies writing docs/adr/.
   adr: true
-  # A plan written outside the planner, in plain plan mode, must pass a review
-  # agent before plan mode can be left - the same gate the planner's plans get.
-  # Such a plan may name at most 8 repository files; past that, use /viber:intent.
+  # A plan written outside the planner must pass a review agent before plan
+  # mode can be left - the same gate the planner's plans get.
   outside-plan-review: true
 
 # Switches read by implementor while it builds a plan.
