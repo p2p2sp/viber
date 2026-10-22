@@ -21,7 +21,7 @@ Read the plan from its `## Tasks` heading to the end, the `## Contracts` appendi
 
 Gate every `(review)` rule of the `## Graph` section, each clause of it, and report a breach under the rule's name. The `(script)` rules are already validated. Then:
 
-- Wired: for each task, list every file, route or symbol its `Verification`, `Delivers` or a done clause reads and the task that creates or changes it, confirming the reading task's `Depends-on` reaches that producing task directly or transitively; then for every `Depends-on` edge, name what the dependent actually takes from its target - a file, route or symbol it reads, or a file both list - and treat an edge whose dependent consumes nothing from its target as Blocking.
+- Wired: for each task, list every file, route or symbol its `Verification`, `Delivers` or a done clause reads and the task that creates or changes it, confirming the reading task's `Depends-on` reaches that producing task directly or transitively; then for every `Depends-on` edge, name what the dependent actually takes from its target - a file, route or symbol it reads, or a file both list - and treat an edge whose dependent consumes nothing from its target as Minor.
 - Decomposed: tasks are independently verifiable and their boundaries are real ones.
 - Memory-owned: with `memory: true`, a fix you propose never adds any `CLAUDE.md` file to a task's `Files`, not even to correct a stale line in one: the build's close alone updates the nodes, and the root is the user's file.
 
