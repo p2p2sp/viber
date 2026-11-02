@@ -110,6 +110,7 @@ Then clamp both tiers into the config block's `tiers.min` to `tiers.max` range (
 
 - A task dispatches only once every id in its `deps` is done.
 - A task whose `excl` column says `yes` is held back while any task without `excl` is ready to dispatch or anything else is in flight; several ready `excl` tasks go out one after another as their turn comes, and each still runs alone until committed - nothing else in flight when it goes out, nothing new out until it is committed. Never infer or override it.
+- At most 10 tasks in flight at once, a task counting from its coder dispatch until it is committed, skipped or held: parallel coders running tests saturate the CPU. A ready task past the cap waits for the next slot.
 
 Coder dispatch: `viber:task-coder` (Agent tool, `model` = the task's tier), carrying these labelled lines, plus any line a fragment of this step adds, and nothing else, the last three omitted when empty:
 
@@ -169,7 +170,7 @@ Commit outside a task: every `commit-task.sh` commit but a task's own commit and
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" build.red-check "${CLAUDE_SKILL_DIR}" red-check
 ```
 
-Start with every task whose `deps` are done, in one message. On every return, answer with ONE message carrying every dispatch now legal plus at most one commit. Never wait for a batch to drain; when a constraint forces a choice, start whatever unblocks the most tasks.
+Start with every task whose `deps` are done, up to the cap, in one message. On every return, answer with ONE message carrying every dispatch now legal, the cap included, plus at most one commit. Never wait for a batch to drain; when a constraint forces a choice, start whatever unblocks the most tasks.
 
 - Coder `VERDICT: FAIL` carrying `WAIT:` -> hold the task; once every task in flight at that return has returned, dispatch its coder fresh at the same tier, counting as no attempt and asking nothing. Nothing else in flight at that return, or the task already waited once on a path it names -> act on it as an ordinary `FAIL` below.
 - Coder failure on attempt 1 to 4 -> the next attempt, asking nothing. From attempt 2 on, a `DECIDE:` line -> first the arbiter: `case: decide`, `options:` those options only, `task: <dir>/tasks/<id>.md`, `report: <dir>/work/<id>-coder.md`, `reason:` the returned `REASON:` (the short `DOD:` line when none came); record its ruling with subject `<id>`, then its decision: `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --decide "<plan>" "<id>" --from "<dir>/work/ruling-<id>.md"`, or the `--first-of` call above when its `RULING` names no listed option, then the next attempt with its `decision:` lines, the new one among them, the attempt count not starting over. No `DECIDE:` line -> no arbiter.
