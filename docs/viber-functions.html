@@ -317,9 +317,6 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>The planner picks <code>spec-full</code> for a new subsystem, several paths, named edge cases or new domain concepts.</li>
         <li>A summary under 15 lines, to confirm or correct.</li>
         <li>For a screen change with no mockup, offers "prototype first".</li>
-        <li>Draft mode: the plan stops at the specification alone, on your request.</li>
-        <li>Resuming a draft asks only about what the remarks changed.</li>
-        <li><code>--prove</code>: the <code>prover</code> agent checks every question against the code and the web before you see it.</li>
         <li>Hands off a summary file under <code>.temp/viber/intent/</code>, so it survives context compaction and the planner reads it first.</li>
         <li>Never proposes end-to-end tests; only on your explicit request.</li>
       </ul>
@@ -457,7 +454,6 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>Starts from the approved plan, with no text copied by hand.</li>
         <li>Copies the plan into a dated run directory under <code>docs/_specs/</code>.</li>
         <li>Detects other open runs and asks which one to build.</li>
-        <li>Refuses to build a draft with no tasks.</li>
         <li>Validates, splits and commits the plan.</li>
         <li>Every coder gets only its own task file.</li>
         <li>Reads no file and writes no code itself: it only delegates.</li>
@@ -622,7 +618,6 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>Uncommitted changes block the switch.</li>
         <li><code>required</code> never commits onto a base.</li>
         <li>Settled again after a new issue is saved.</li>
-        <li>Resuming a draft offers a switch back to its branch.</li>
         <li>Ready examples: trunk-based, GitHub Flow, GitLab Flow, Release Flow, GitFlow.</li>
         <li>Readable configuration error messages.</li>
         <li>An invalid entry is dropped, the rest still works.</li>

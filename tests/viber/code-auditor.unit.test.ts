@@ -47,6 +47,10 @@ const FORBIDDEN: string[] = [
   join("viber:", "detective"),
   join("agents/", "profiler.md"),
   join("agents/", "detective.md"),
+  join("viber:", "prover"),
+  join("agents/", "prover.md"),
+  join("intent/references/", "prove.md"),
+  join("--", "prove"),
 ];
 
 const BINARY_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2"];

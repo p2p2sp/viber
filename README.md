@@ -13,7 +13,7 @@ until you approve a plan that a reviewer has already checked against your codeba
 ## Why viber
 
 ### It asks before it guesses
-Questions come in short rounds, each decision with options and a recommendation. Add `--prove` and every recommendation is checked against your code before you see it.
+Questions come in short rounds, each decision with options and a recommendation.
 
 ### Every step is checked
 The plan is reviewed before you approve it, each task before its commit, and the whole build before it ends.

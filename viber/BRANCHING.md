@@ -45,8 +45,6 @@ before they read any code:
   - Switching leaves the run branch to be cut from the base when the plan lands.
 - Under `required`, building on the current branch is never offered on a detached HEAD or on any
   entry's base; `/viber:intent` still offers "stay" there, as the run gets its own branch.
-- `/viber:intent` continuing a draft asks no entry question and offers a switch to the draft's
-  recorded branch when HEAD is elsewhere.
 - `/viber:intent` continuing a `roadmap.md` on a branch that is no entry's base builds on it
   without asking: the next part builds on the previous part's branch.
 - `/viber:intent` started by `/viber:pr-feedback` makes no run branch and asks nothing: the fixes

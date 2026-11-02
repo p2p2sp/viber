@@ -1805,12 +1805,11 @@ test("a fenced example opening ## Tasks above the real heading leaves spec.md it
 
 test("a plan frontmatter issue: line makes spec.md open with its own three-line frontmatter, then the specification as today", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
-    // source and into ride the plan for the run's own plumbing; issue is the
+    // source rides the plan for the run's own plumbing; issue is the
     // one key the archive keeps, so it alone survives into spec.md
     const body = [
       "---",
       "source: /home/u/.claude/plans/add-login.md",
-      "into: draft-1",
       "issue: https://github.com/acme/widgets/issues/42",
       "---",
       "",
@@ -1822,7 +1821,7 @@ test("a plan frontmatter issue: line makes spec.md open with its own three-line 
 
     const spec = readRun(dir, "spec.md");
     assert.match(spec, /^---\nissue: https:\/\/github\.com\/acme\/widgets\/issues\/42\n---\n\n# Add login\n/);
-    assert.doesNotMatch(spec, /source:|into:|draft-1/);
+    assert.doesNotMatch(spec, /source:/);
     // no doubled blank line where the frontmatter meets the specification
     assert.doesNotMatch(spec, /\n\n\n/);
   });

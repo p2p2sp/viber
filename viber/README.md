@@ -80,9 +80,8 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
   the `researcher` agent checks every claim that carries weight, the vendor's documentation and the
   standard's own text first, each coming back confirmed, refuted, disputed or unverified with links.
   The conclusions are yours to act on; `/viber:handoff` keeps them for a later session.
-- **`/viber:intent`**: add `--prove` to have every question's recommendation and alternatives
-  checked against the code, and the web where needed, before you see it. If you ask for a plan
-  without an interview, viber suggests the interview first, and you decide.
+- **`/viber:intent`**: if you ask for a plan without an interview, viber suggests the interview
+  first, and you decide.
 - **`/viber:triage`**: takes an issue number, a link or pasted text. It names the next step and can
   post its report on the issue.
 - **`/viber:prototype`**: takes an issue reference or a plain description, and asks first whether

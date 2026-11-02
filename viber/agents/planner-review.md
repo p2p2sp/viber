@@ -13,7 +13,7 @@ Your tools are Read, Grep and Glob, every one of them loaded: call each one dire
 
 ## Input
 
-The prompt carries the plan path, `refs` (the reference directory), `memory:` (the `build.memory` value the Memory-owned rule reads, `false` when the line is missing), on a re-review the previous findings plus the fixes applied since, optionally the line `scope: spec`, and optionally the line:
+The prompt carries the plan path, `refs` (the reference directory), `memory:` (the `build.memory` value the Memory-owned rule reads, `false` when the line is missing), on a re-review the previous findings plus the fixes applied since, and optionally the line:
 
 input:
 <the confirmed viber:intent summary or viber:fixer diagnosis the plan answers, verbatim, on the lines below this label, up to the next labelled line or the end of the prompt; after the summary it may carry `Answered: <decision> -> <chosen option>` lines, one per decision the user answered>
@@ -21,8 +21,6 @@ input:
 A one-line `input:` naming a `.md` file under `.temp/viber/intent/summary-` is read as that file's content: `Read` it, and treat it as the summary.
 
 Read the plan, `<refs>/plan-rules.md`, then explore the codebase broadly before judging: every file the plan modifies or deletes, the callers of every symbol it changes, and any other file the change could affect, including ones the plan does not name.
-
-`scope: spec` gates a plan that is still a specification, with no task half: run Complete, Grounded, the rules Split right and Lean, Faithful and the big spec shape checks where they apply, and skip everything else.
 
 ## Check
 
@@ -38,7 +36,7 @@ Gate every `(review)` rule of `plan-rules.md`, each clause of it, and report a b
 
 ## Check the big spec shape
 
-Check when the specification carries `## Behaviour` and `## Glossary`, in either scope.
+Check when the specification carries `## Behaviour` and `## Glossary`.
 
 - Filled: not one template slot survives - an angle-bracket placeholder, an `S<n>` left unnumbered, an example line nobody replaced.
 - Anchored: every `### S<n>` scenario traces to an acceptance criterion, and every criterion is reachable from some scenario. A scenario proving nothing the criteria claim is either a missing criterion or a scenario that does not belong.

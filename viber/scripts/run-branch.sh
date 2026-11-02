@@ -12,13 +12,12 @@
 #   argv   : none - sourced. Every function takes its own arguments.
 #   cwd    : the repository root, as plan-path.sh's own contract pins it.
 #   env    : none. branch_decide takes its flags from the st_fixer, st_pr,
-#            st_roadmap, st_draft, st_entry and st_settled shell variables
+#            st_roadmap, st_entry and st_settled shell variables
 #            plan-path.sh sets before branch_start.
 #   file   : the sibling config.sh --branching lines (mode and work entries
 #            for the landing, all of them for branch_report); the plan's
 #            frontmatter "branch:", "work:" and "issue:" keys and its task
-#            blocks' "Repro:" lines; branch_decide reads the --draft file's
-#            "branch:" and "work:" keys.
+#            blocks' "Repro:" lines.
 #   gh     : only through the sibling issue-facts.sh, for the issue type of
 #            branch_report and branch_start, and only when a mapping exists and
 #            there is an issue: its TYPE= line, empty on any failure.
@@ -32,7 +31,7 @@
 #            plan-path.sh --start, the decision lines of branch_decide
 #            included, whose header shows both; branch_checkout
 #            prints the one "branch:" line of plan-path.sh --checkout.
-#   return : branch_land and branch_checkout 0, or 6 with the reason on stderr
+#   return : branch_land and branch_checkout 0, or 5 with the reason on stderr
 #            and HEAD, index and tree untouched (branch_land and
 #            branch_checkout share branch_name_ok and branch_move_ok for the
 #            name and dirty-tree checks). branch_report and branch_start always 0 -
@@ -91,7 +90,7 @@ $0 ~ "^" key ":" { sub(/^[^:]*:[[:space:]]*/, ""); sub(/[[:space:]].*$/, ""); pr
 
 # The work entry of plan $1: its "work:" key, or the single entry when it
 # names none. Sets br_entry, br_base, br_pattern and br_target; unresolved,
-# br_entry is empty and br_why holds the exit 6 reason.
+# br_entry is empty and br_why holds the exit 5 reason.
 branch_entry() {
   local want i n=${#br_keys[@]}
   br_entry=""
@@ -207,12 +206,12 @@ branch_expand() {
     | sed -E -e 's#[-_.]+/#/#g' -e 's#/[-_.]+#/#g' -e 's#^[-_.]+##' -e 's#[-_.]+$##' -e 's#/+#/#g' -e 's#-+#-#g' -e 's#^/+##' -e 's#/+$##'
 }
 
-# Refuses a branch creation while config.sh reports an error: return 6 with
+# Refuses a branch creation while config.sh reports an error: return 5 with
 # the first one on stderr, 0 on a configuration it accepts.
 branch_config_ok() {
   [[ -n "$br_err" ]] || return 0
   echo "error: $br_err" >&2
-  return 6
+  return 5
 }
 
 # True when $1 is a usable branch name. check-ref-format --branch expands
@@ -222,7 +221,7 @@ branch_name_ok() {
   [[ "$1" != -* && "$(git check-ref-format --branch "$1" 2>/dev/null || true)" == "$1" ]]
 }
 
-# Refuses moving HEAD onto branch $1 (ref $2) with return 6 and the reason on
+# Refuses moving HEAD onto branch $1 (ref $2) with return 5 and the reason on
 # stderr: a checkout carries uncommitted work along only while HEAD keeps its
 # commit, and moving it elsewhere on a dirty tree could lose or tangle that
 # work. 0 otherwise.
@@ -232,36 +231,36 @@ branch_move_ok() {
   to_c="$(git rev-parse -q --verify "$2^{commit}" 2>/dev/null || true)"
   if [[ "$head_c" != "$to_c" && -n "$(git status --porcelain 2>/dev/null || true)" ]]; then
     echo "error: uncommitted changes and $1 is at another commit - commit or stash them first" >&2
-    return 6
+    return 5
   fi
 }
 
 # Puts HEAD on the existing local branch $1 and prints "branch: <name>
 # (switched | kept)" (the --checkout form). Any mode, config never read. Never
-# creates a branch, never fetches. Return 6 with the reason on stderr and HEAD,
+# creates a branch, never fetches. Return 5 with the reason on stderr and HEAD,
 # index and tree untouched.
 branch_checkout() {
   local cur action=switched
   if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "error: not a git repository" >&2
-    return 6
+    return 5
   fi
   if ! branch_name_ok "$1"; then
     echo "error: invalid branch name: $1" >&2
-    return 6
+    return 5
   fi
   if ! git show-ref --verify --quiet "refs/heads/$1"; then
     echo "error: branch $1 does not exist locally - nothing is fetched, create it first" >&2
-    return 6
+    return 5
   fi
   cur="$(git symbolic-ref --short -q HEAD 2>/dev/null || true)"
   if [[ "$cur" == "$1" ]]; then
     action=kept
   else
-    branch_move_ok "$1" "refs/heads/$1" || return 6
+    branch_move_ok "$1" "refs/heads/$1" || return 5
     if ! git checkout -q "$1" -- >/dev/null; then
       echo "error: could not put HEAD on the branch $1" >&2
-      return 6
+      return 5
     fi
   fi
   printf 'branch: %s (%s)\n' "$1" "$action"
@@ -282,54 +281,54 @@ branch_land() {
     [[ "$br_mode" == required ]] || return 0
     if [[ -z "$br_cur" ]]; then
       echo "error: HEAD is detached, branching is required and the plan records no branch" >&2
-      return 6
+      return 5
     fi
     if [[ -z "$br_entry" ]]; then
       # no entry, so no base to tell: HEAD on any entry base, or no entry at
       # all, would need a branch this plan cannot name
       if [[ ${#br_keys[@]} -eq 0 ]] || branch_is_base "$br_cur"; then
-        branch_config_ok || return 6
+        branch_config_ok || return 5
         echo "error: $br_why" >&2
-        return 6
+        return 5
       fi
       return 0
     fi
     branch_is_base "$br_cur" || return 0
-    branch_config_ok || return 6
+    branch_config_ok || return 5
     if [[ "$br_pattern" == *'{issue-number}'* && -z "$(plan_issue "$1")" ]]; then
       echo "error: work entry $br_entry needs an issue for {issue-number}" >&2
-      return 6
+      return 5
     fi
     target="$(branch_expand "$1" "$2" "$br_pattern")"
     if [[ -z "$target" ]]; then
       echo "error: the run branch name pattern expanded to an empty name" >&2
-      return 6
+      return 5
     fi
   fi
   if [[ "$br_mode" == required ]] && branch_is_base "$target"; then
     echo "error: branching is required and the run branch is a work entry base: $target" >&2
-    return 6
+    return 5
   fi
   if ! branch_name_ok "$target"; then
     echo "error: invalid run branch name: $target" >&2
-    return 6
+    return 5
   fi
   [[ "$target" != "$br_cur" ]] || return 0
   local action=switched from="refs/heads/$target"
   if ! git show-ref --verify --quiet "$from"; then
     action=created
-    branch_config_ok || return 6
+    branch_config_ok || return 5
     if [[ -z "$br_entry" ]]; then
       echo "error: $br_why" >&2
-      return 6
+      return 5
     fi
     from="refs/heads/$br_base"
     if ! git show-ref --verify --quiet "$from"; then
       echo "error: base branch $br_base does not exist locally - nothing is fetched, create it first" >&2
-      return 6
+      return 5
     fi
   fi
-  branch_move_ok "$target" "$from" || return 6
+  branch_move_ok "$target" "$from" || return 5
   if [[ "$action" == switched ]]; then
     git checkout -q "$target" -- >/dev/null || action=""
   else
@@ -337,7 +336,7 @@ branch_land() {
   fi
   if [[ -z "$action" ]]; then
     echo "error: could not put HEAD on the run branch $target" >&2
-    return 6
+    return 5
   fi
   br_line="$target ($action)"
 }
@@ -522,12 +521,12 @@ branch_start() {
 }
 
 # What the --start decision report adds after today's lines (C1 of
-# plan-path.sh): one verdict of rules 1 to 7, read from the st_* entry arrays,
+# plan-path.sh): one verdict of rules 1 to 6, read from the st_* entry arrays,
 # st_suggested, rp_errors and the tl_* tail values branch_start and branch_tail
 # set, and from the flags plan-path.sh sets: st_fixer, st_pr and st_roadmap
-# (1 or 0), st_draft, st_entry and st_settled (empty for not given).
+# (1 or 0), st_entry and st_settled (empty for not given).
 branch_decide() {
-  local settled="${st_settled:-}" draft="${st_draft:-}" dbranch dwork
+  local settled="${st_settled:-}"
   # rule 1: a configuration or issue type error settles nothing
   if [[ ${#rp_errors[@]} -gt 0 ]]; then
     if [[ "$settled" == nothing ]]; then
@@ -551,28 +550,7 @@ branch_decide() {
     fi
     return 0
   fi
-  # rule 3: a draft recording a branch decides its own entry
-  if [[ -n "$draft" ]]; then
-    dbranch="$(plan_field "$draft" branch)"
-    dwork="$(plan_field "$draft" work)"
-    if [[ -z "$dwork" && ${#st_keys[@]} -eq 1 ]]; then dwork="${st_keys[0]}"; fi
-    if [[ "$dbranch" == none && "$rp_mode" == allowed ]]; then
-      decide_settled no-branch
-      return 0
-    elif [[ -n "$dbranch" && "$dbranch" != none && -n "$dwork" ]]; then
-      if [[ "$tl_cur" == "$dbranch" ]]; then
-        decide_settled "$dwork"
-      else
-        printf 'next: ask-base\n'
-        printf 'option: switch | %s | HEAD moves to the recorded branch %s now.\n' "$dbranch" "$dbranch"
-        printf 'option: stay | - | nothing moves; the run goes on from %s.\n' "$tl_cur"
-        printf 'option: abort | - | stop here and run nothing else.\n'
-        printf 'checking: %s\n' "$dwork"
-      fi
-      return 0
-    fi
-  fi
-  # rule 4: a pull request's own branch
+  # rule 3: a pull request's own branch
   if [[ "${st_pr:-0}" == 1 ]]; then
     if [[ "$rp_mode" == allowed ]]; then
       decide_settled no-branch
@@ -582,7 +560,7 @@ branch_decide() {
       return 0
     fi
   fi
-  # rule 5: the entry named on argv
+  # rule 4: the entry named on argv
   if [[ -n "${st_entry:-}" ]]; then
     decide_find "$st_entry"
     if [[ $d_i -ge 0 ]]; then
@@ -590,7 +568,7 @@ branch_decide() {
       return 0
     fi
   fi
-  # rule 6
+  # rule 5
   decide_suggested
 }
 
@@ -613,7 +591,7 @@ decide_kept() {
   printf 'settled: %s\n' "$1"
 }
 
-# Rule 6: the suggested entry goes to the base check, else the entry question.
+# Rule 5: the suggested entry goes to the base check, else the entry question.
 decide_suggested() {
   if [[ "$st_suggested" != none ]]; then decide_base "$st_suggested"; else decide_ask_entry; fi
 }
@@ -643,7 +621,7 @@ decide_ask_entry() {
   fi
 }
 
-# Rule 7: the base check of entry $1.
+# Rule 6: the base check of entry $1.
 decide_base() {
   local i base opts="" count=0
   decide_find "$1"

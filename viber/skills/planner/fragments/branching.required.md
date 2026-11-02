@@ -1,4 +1,4 @@
-A draft round carries its `work:` and `branch:` over, asking nothing. Otherwise, once `plan-index.sh` has passed, immediately for a draft:
+Once `plan-index.sh` has passed:
 
 - `Work: none` in the input (a pull request's review fixes) writes `branch: none` and no `work:` key, asking nothing; run the report below only to take `current:` for the run branch line, an `error:` line leaving that line out.
 - Any other `Work: <entry key>` line in the input asks nothing and writes that key into `work:`. The `branch:` key takes the `Branch:` line's name when the input carries one, without a report. Else run `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh" --branch "<plan-path>"` and take that entry's `new:` value; an `error:` line ends this step: show it, record nothing. An entry whose `new:` reads `-`, or that no `entry:` line names, falls back to the question below.

@@ -1048,7 +1048,7 @@ poproś o nią Claude wprost i powiedz, że ma ją zrobić bez planu.</p>
   </li>
 </ol>
 <details>
-  <summary><span lang="en">Large requests, drafts and small plans</span><span lang="pl">Duże prośby, szkice i małe plany</span></summary>
+  <summary><span lang="en">Large requests and small plans</span><span lang="pl">Duże prośby i małe plany</span></summary>
   <ul class="rare">
     <li><span lang="en">A request too large for one plan (over about 30 tasks) gets a proposed split into ordered parts first, a
     mechanical cut, never a release of its own, and every part holds at least about 8 tasks. Every part is interviewed up front and each gets its own cycle; the later parts' decisions are kept
@@ -1056,19 +1056,6 @@ poproś o nią Claude wprost i powiedz, że ma ją zrobić bez planu.</p>
     zbyt duża na jeden plan (ponad około 30 zadań) najpierw dostaje propozycję podziału na uporządkowane części, czysto mechanicznego, nigdy osobnego wydania, a każda część ma co najmniej około 8 zadań. Wywiad obejmuje
     każdą z nich, a każda przechodzi własny cykl; decyzje późniejszych części zostają w
     <code>roadmap.md</code>, a zakończony build wskazuje następną część. Przy włączonych zgłoszeniach GitHub każda część dostaje własne zgłoszenie podrzędne pod jednym zgłoszeniem nadrzędnym, a wznawiana część jest związana ze swoim zgłoszeniem podrzędnym. Rozmiar sprawdza też planner: gdy jego plan przekroczy 30 zadań, pyta, czy podzielić zmianę przez wywiad, czy zostawić jeden plan, i pyta o każdą decyzję, którą znajdzie w swoim badaniu, a której wywiad nie rozstrzygnął.</span></li>
-    <li><span lang="en"><code>/viber:intent --prove let admins deactivate a user account</code> has
-    <a href="#agent-prover"><code>prover</code></a> check the claims of every question against the code before
-    you see it.</span><span lang="pl"><code>/viber:intent --prove pozwól administratorom dezaktywować konto
-    użytkownika</code> zleca agentowi <a href="#agent-prover"><code>prover</code></a> sprawdzenie w kodzie
-    twierdzeń każdego pytania, zanim je zobaczysz.</span></li>
-    <li><span lang="en">Others must read the <a href="#term-spec">specification</a> before any task is planned: ask during the
-    interview to stop at a specification. The <a href="#term-draft">draft</a> lands in <code>docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/plan.md</code>
-    for you to commit and circulate, and <code>/viber:intent</code> pointed at that draft continues it. A build
-    refuses a draft.</span><span lang="pl">Inni muszą przeczytać <a href="#term-spec">specyfikację</a>, zanim powstaną zadania: poproś
-    w trakcie wywiadu o zatrzymanie się na specyfikacji. <a href="#term-draft">Szkic</a> trafia do
-    <code>docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/plan.md</code>, skąd go commitujesz i rozsyłasz, a
-    <code>/viber:intent</code> wskazujący ten szkic prowadzi go dalej. Build odmawia zbudowania
-    szkicu.</span></li>
     <li><span lang="en">A plan written in Claude Code's own plan mode, outside the planner, is not a viber path.
     With <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> on, the plan gate
     only has it reviewed by <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a> before plan mode
@@ -1292,7 +1279,7 @@ wznowić w nowej sesji albo na innym komputerze.</p>
   </li>
 </ol>
 <details>
-  <summary><span lang="en">Several open runs, drafts and stalled tasks</span><span lang="pl">Kilka otwartych przebiegów, szkice i zadania, które utknęły</span></summary>
+  <summary><span lang="en">Several open runs and stalled tasks</span><span lang="pl">Kilka otwartych przebiegów i zadania, które utknęły</span></summary>
   <ul class="rare">
     <li><span lang="en">When another run also has unsettled tasks, it asks which one to resume. To choose it
     yourself, name the plan: <q>build docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/plan.md</q>.</span><span lang="pl">Gdy
@@ -1301,9 +1288,6 @@ wznowić w nowej sesji albo na innym komputerze.</p>
     <li><span lang="en">Changed files that no task claims get one question: commit them in a commit of
     their own, or leave them uncommitted.</span><span lang="pl">Zmienione pliki, do których nie przyznaje się żadne zadanie,
     dostają jedno pytanie: zacommitować je we własnym commicie czy zostawić niezacommitowane.</span></li>
-    <li><span lang="en">A draft is refused. <code>/viber:intent</code> pointed at the draft continues
-    it.</span><span lang="pl">Szkicu build nie zbuduje. <code>/viber:intent</code> wskazujący szkic prowadzi go
-    dalej.</span></li>
     <li><span lang="en">A task that keeps failing gets 5 attempts, then a repair pass before the final review;
     only when that fails too does the arbiter rule to accept or skip it and write the ruling to
     <code>rulings.md</code>. A stalled task never ends on a question: only a
@@ -1769,17 +1753,6 @@ linie co w <code>rulings.md</code>.</p>
 <section data-search id="troubleshooting">
 <h2 id="troubleshooting-title"><span lang="en">Troubleshooting</span><span lang="pl">Gdy viber zawodzi</span><a class="self" href="#troubleshooting-title">#</a></h2>
 <div class="faq">
-<details id="ts-draft">
-  <summary><span lang="en">Why does the build stop on my plan without building anything?</span><span lang="pl">Dlaczego build zatrzymuje się na moim planie i nic nie buduje?</span></summary>
-  <p lang="en">The plan is a <a href="#term-draft">draft</a>: it has no tasks yet, so there is nothing to build. The
-  build prints its path and stops. To continue it, point <code>/viber:intent</code> at that draft, for example
-  <code>/viber:intent docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/plan.md</code>. Once a round adds the tasks, the build
-  takes it.</p>
-  <p lang="pl">Plan jest <a href="#term-draft">szkicem</a>: nie ma jeszcze zadań, więc nie ma czego budować. Build
-  podaje jego ścieżkę i kończy pracę. Żeby go kontynuować, wskaż ten szkic w <code>/viber:intent</code>, na
-  przykład <code>/viber:intent docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/plan.md</code>. Gdy kolejna runda dopisze
-  zadania, build go przyjmie.</p>
-</details>
 <details id="ts-plan-mode">
   <summary><span lang="en">Why can't Claude leave plan mode?</span><span lang="pl">Dlaczego Claude nie może wyjść z trybu planowania?</span></summary>
   <p lang="en">The <a href="#term-plan-gate">plan gate</a> holds it there until a review agent passes the latest
@@ -2048,12 +2021,6 @@ każdą ustawioną przez ciebie wartość.</p>
     <dd><span lang="en">The numbered clauses of a task that say when it is finished. The reviewer checks the task
     against each one.</span><span lang="pl">Ponumerowane punkty zadania, które mówią, kiedy jest skończone.
     Recenzent sprawdza zadanie względem każdego z nich.</span></dd>
-  </div>
-  <div id="term-draft">
-    <dt><span lang="en">draft</span><span lang="pl">szkic</span></dt>
-    <dd><span lang="en">A plan stopped at its specification, with no tasks yet, so others can read it first. A
-    build refuses it.</span><span lang="pl">Plan zatrzymany na specyfikacji, jeszcze bez zadań, żeby inni mogli go
-    najpierw przeczytać. Build go nie zbuduje.</span></dd>
   </div>
   <div id="term-node">
     <dt><span lang="en">node</span><span lang="pl">węzeł</span></dt>
@@ -2528,18 +2495,14 @@ z nich mówi, jak nim sterować.</p>
     <div>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
       <dd><span lang="en">Type the command, or agree when Claude suggests it: Claude never starts the
-      interview unasked. To continue a plan that stopped at a draft, point the command at that draft.</span><span lang="pl">Wpisz
-      polecenie albo zgódź się, gdy Claude je zaproponuje: Claude nigdy nie zaczyna wywiadu bez pytania.
-      Plan zatrzymany na szkicu kontynuujesz, wskazując ten szkic w poleceniu.</span></dd>
+      interview unasked.</span><span lang="pl">Wpisz
+      polecenie albo zgódź się, gdy Claude je zaproponuje: Claude nigdy nie zaczyna wywiadu bez pytania.</span></dd>
     </div>
     <div>
       <dt><span lang="en">Arguments</span><span lang="pl">Argumenty</span></dt>
-      <dd><span lang="en">What to plan, or an issue number or link. <code>--prove</code> has the
-      <a href="#agent-prover"><code>prover</code></a> agent check every claim of a question against the code
-      before you see it: <code>/viber:intent --prove add CSV export to the reports page</code>.</span><span lang="pl">Co
-      zaplanować albo numer lub link do issue. <code>--prove</code> zleca agentowi
-      <a href="#agent-prover"><code>prover</code></a> sprawdzenie każdego twierdzenia pytania w kodzie, zanim
-      je zobaczysz: <code>/viber:intent --prove eksport CSV na stronie raportów</code>.</span></dd>
+      <dd><span lang="en">What to plan, or an issue number or link:
+      <code>/viber:intent add CSV export to the reports page</code>.</span><span lang="pl">Co
+      zaplanować albo numer lub link do issue: <code>/viber:intent eksport CSV na stronie raportów</code>.</span></dd>
     </div>
     <div>
       <dt><span lang="en">Switches</span><span lang="pl">Przełączniki</span></dt>
@@ -2548,15 +2511,14 @@ z nich mówi, jak nim sterować.</p>
       summary as a new one, built from your project's issue templates; <code>/viber:intent #42</code> resumes it
       later. <a href="#key-branching-mode"><code>branching.mode</code></a> set to allowed or required: before
       reading any code it settles which work entry the run uses and checks that you are on that entry's base,
-      offering a switch to it; a continued draft is checked against its recorded branch. It announces the run
+      offering a switch to it. It announces the run
       branch in one line (entry, branch, base, pull request target), and settles it again when the interview
       saves a new issue.</span><span lang="pl"><a href="#key-github-issues"><code>github.issues</code></a> włączony: czyta issue, od którego
       startuje, i może opublikować tam potwierdzone podsumowanie jako komentarz. Wywiad, który nie zaczął się od
       issue, może zapisać podsumowanie jako nowe issue, zbudowane z szablonów issue twojego projektu;
       <code>/viber:intent #42</code> wznowi je później. <a href="#key-branching-mode"><code>branching.mode</code></a>
       ustawiony na allowed albo required: zanim przeczyta jakikolwiek kod, ustala, którego wpisu work używa
-      przebieg, i sprawdza, czy jesteś na bazie tego wpisu, proponując przełączenie się na nią; kontynuowany
-      szkic jest sprawdzany względem zapisanej w nim gałęzi. Ogłasza gałąź przebiegu w jednym wierszu (wpis,
+      przebieg, i sprawdza, czy jesteś na bazie tego wpisu, proponując przełączenie się na nią. Ogłasza gałąź przebiegu w jednym wierszu (wpis,
       gałąź, baza, cel pull requesta) i ustala ją ponownie, gdy wywiad zapisze nowe issue.</span></dd>
     </div>
     <div>
@@ -2601,11 +2563,9 @@ z nich mówi, jak nim sterować.</p>
     <div>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
       <dd><span lang="en">It starts when the interview or the diagnosis hands off; asked for a plan with neither,
-      it suggests the interview. You steer it by answering its questions (a split past 30 tasks, a decision the interview left open) and by approving or rejecting the plan when plan mode ends. Ask during
-      the interview to stop at a specification, and it writes a draft for you to circulate.</span><span lang="pl">Startuje,
+      it suggests the interview. You steer it by answering its questions (a split past 30 tasks, a decision the interview left open) and by approving or rejecting the plan when plan mode ends.</span><span lang="pl">Startuje,
       gdy wywiad albo diagnoza przekaże mu pracę; poproszony o plan bez żadnego z nich proponuje wywiad.
-      Sterujesz nim, odpowiadając na jego pytania (podział po przekroczeniu 30 zadań, decyzja pominięta w wywiadzie) oraz akceptując albo odrzucając plan na wyjściu z trybu planowania. Jeśli w wywiadzie
-      poprosisz o zatrzymanie się na specyfikacji, zapisze szkic do przekazania innym.</span></dd>
+      Sterujesz nim, odpowiadając na jego pytania (podział po przekroczeniu 30 zadań, decyzja pominięta w wywiadzie) oraz akceptując albo odrzucając plan na wyjściu z trybu planowania.</span></dd>
     </div>
     <div>
       <dt><span lang="en">Arguments</span><span lang="pl">Argumenty</span></dt>
@@ -2633,10 +2593,8 @@ z nich mówi, jak nim sterować.</p>
     </div>
     <div>
       <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
-      <dd><span lang="en">The plan file plan mode gives it. A draft is copied to
-      <code>docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/plan.md</code> and left for you to commit.</span><span lang="pl">Plik
-      planu wskazany przez tryb planowania. Szkic jest kopiowany do
-      <code>docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/plan.md</code> i czeka, aż go zacommitujesz.</span></dd>
+      <dd><span lang="en">The plan file plan mode gives it.</span><span lang="pl">Plik
+      planu wskazany przez tryb planowania.</span></dd>
     </div>
   </dl>
 </article>
@@ -2664,13 +2622,13 @@ z nich mówi, jak nim sterować.</p>
     <div>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
       <dd><span lang="en">After you approve a plan, ask Claude to build it. To resume a build that stopped, ask
-      Claude to continue the build: it reopens the run most recently worked on. It refuses a draft. When a task
+      Claude to continue the build: it reopens the run most recently worked on. When a task
       stalls, it gets a repair pass after its 5 attempts, the <a href="#agent-arbiter"><code>arbiter</code></a> rules only after it, and the
       build asks you only about a refused tool call, another open run, files no task claims or a task commit that
       committed nothing, and, once it finishes on its run branch with no roadmap part left, whether to open the
       pull request through <a href="#skill-pr-create"><code>/viber:pr-create</code></a>.</span><span lang="pl">Po
       zatwierdzeniu planu poproś Claude o jego zbudowanie. Przerwany build wznowisz, prosząc Claude
-      o kontynuację buildu: otworzy przebieg, nad którym pracowano ostatnio. Szkicu nie zbuduje. Gdy zadanie
+      o kontynuację buildu: otworzy przebieg, nad którym pracowano ostatnio. Gdy zadanie
       utknie, po jego 5 próbach dostaje naprawę zadania, a dopiero po niej rozstrzyga <a href="#agent-arbiter"><code>arbiter</code></a>, a build pyta cię
       tylko o odmowę wywołania narzędzia, inny otwarty przebieg, pliki, do których nie przyznaje się żadne zadanie,
       albo commit zadania, który niczego nie zacommitował, a po zakończeniu na gałęzi przebiegu bez kolejnej
@@ -3219,11 +3177,6 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
   A/B/C switcher.</span><span lang="pl">pisze, poprawia albo zawęża makietę dla
   <a href="#skill-prototype"><code>/viber:prototype</code></a>: jedną propozycję albo trzy warianty z przełącznikiem
   A/B/C.</span></li>
-  <li id="agent-prover"><code>prover</code> <span lang="en">checks every claim of a drafted interview question
-  against the code and, for facts outside it, the web, when <a href="#skill-intent"><code>/viber:intent</code></a>
-  runs with <code>--prove</code>.</span><span lang="pl">sprawdza każde twierdzenie przygotowanego pytania
-  wywiadu w kodzie, a fakty spoza niego w sieci, gdy <a href="#skill-intent"><code>/viber:intent</code></a>
-  działa z <code>--prove</code>.</span></li>
   <li id="agent-researcher"><code>researcher</code> <span lang="en">checks the claims of a
   <a href="#skill-talk"><code>/viber:talk</code></a> conversation against trusted sources on the web, and against
   the code for claims about it, and returns a verdict per claim with its sources.</span><span lang="pl">sprawdza

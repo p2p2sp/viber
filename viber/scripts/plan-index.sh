@@ -1225,7 +1225,7 @@ END {
   # after it. No closing marker means no frontmatter: the whole head is kept
   # rather than swallowed. issue: is the one frontmatter key that outlives the
   # run - the archive keeps it - so it alone rides into spec.md as its own
-  # three-line frontmatter; source and into never leave plan.md.
+  # three-line frontmatter; every other key stays in plan.md.
   sfrom = 1
   issueval = ""
   if (trim(line[1]) == "---") {

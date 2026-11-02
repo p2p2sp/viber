@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 2716" width="1640" height="2716" role="img" aria-labelledby="svgTitle svgDesc" lang="pl">
   <title id="svgTitle">viber - od pomysłu do zacommitowanego kodu</title>
-  <desc id="svgDesc">Diagram przepływu wtyczki viber: jednorazowy setup, opcjonalna ocena issue i makieta UI, dwa wejścia (pomysł przez wywiad intent, który pyta w rundach i zapisuje potwierdzone podsumowanie do pliku, błąd przez diagnozę fixera), planner czytający te dane, wybierający kształt specyfikacji i piszący plan, agent planner-review, który go sprawdza, bramka, którą przechodzisz sam (plan napisany poza plannerem jest tylko recenzowany, przy przełączniku planning.outside-plan-review), a potem dwa wyjścia: szkic specyfikacji kontynuowany w kolejnej rundzie wywiadu albo implementor budujący plan z task-coder, task-reviewer i jednym commitem na zadanie, z zadaniami równolegle tam, gdzie pozwalają zależności, poprzedzonymi, gdy build.baseline-tests ma wartość fast lub full, bazowym uruchomieniem testów, które zapisuje, co już nie przechodzi. Build kończy się końcowym przeglądem, szybkimi testami i testami integracyjnymi zmiany, które przy build.baseline-tests naprawiają tylko nowe błędy, opcjonalnymi writerami pamięci, reguł i QA, własnymi agentami rozszerzeń z build.extensions oraz closeoutem, który archiwizuje przebieg, a później przebiegiem e2e, który zamienia scenariusze QA w testy Playwright.</desc>
+  <desc id="svgDesc">Diagram przepływu wtyczki viber: jednorazowy setup, opcjonalna ocena issue i makieta UI, dwa wejścia (pomysł przez wywiad intent, który pyta w rundach i zapisuje potwierdzone podsumowanie do pliku, błąd przez diagnozę fixera), planner czytający te dane, wybierający kształt specyfikacji i piszący plan, agent planner-review, który go sprawdza, bramka, którą przechodzisz sam (plan napisany poza plannerem jest tylko recenzowany, przy przełączniku planning.outside-plan-review), a potem implementor budujący plan z task-coder, task-reviewer i jednym commitem na zadanie, z zadaniami równolegle tam, gdzie pozwalają zależności, poprzedzonymi, gdy build.baseline-tests ma wartość fast lub full, bazowym uruchomieniem testów, które zapisuje, co już nie przechodzi. Build kończy się końcowym przeglądem, szybkimi testami i testami integracyjnymi zmiany, które przy build.baseline-tests naprawiają tylko nowe błędy, opcjonalnymi writerami pamięci, reguł i QA, własnymi agentami rozszerzeń z build.extensions oraz closeoutem, który archiwizuje przebieg, a później przebiegiem e2e, który zamienia scenariusze QA w testy Playwright.</desc>
 
   <style>
     :root {
@@ -189,9 +189,8 @@
   <text x="254" y="806" class="mono-t">planner</text>
   <text x="254" y="832" class="desc">Pisze plan w trybie planowania, na podstawie twojego kodu.</text>
   <text x="254" y="850" class="desc">Wybiera kształt specyfikacji; zadania podają pliki, zależności i weryfikację.</text>
-  <text x="254" y="872" class="desc-s">poproszony o samą specyfikację? pisze zamiast planu szkic</text>
-  <text x="254" y="892" class="desc-s"><tspan class="sw">planning.adr</tspan> włączony: adr-screener ocenia decyzje; rekord to zadanie bez zależności</text>
-  <text x="254" y="910" class="desc-s"><tspan class="sw">branching</tspan> włączony: plan podaje gałąź git, na której pracuje przebieg</text>
+  <text x="254" y="872" class="desc-s"><tspan class="sw">planning.adr</tspan> włączony: adr-screener ocenia decyzje; rekord to zadanie bez zależności</text>
+  <text x="254" y="892" class="desc-s"><tspan class="sw">branching</tspan> włączony: plan podaje gałąź git, na której pracuje przebieg</text>
   <text x="254" y="932" class="mono">jeden plan · numerowane zadania · kryteria akceptacji</text>
 
   <path d="M520 948 L520 980" class="link l-n" marker-end="url(#ar-n)"/>
@@ -218,28 +217,9 @@
   <text x="820" y="1136" class="title" text-anchor="middle" style="font-size:14.5px">BRAMKA - zatwierdzasz plan</text>
   <text x="820" y="1156" class="desc-s" text-anchor="middle">przed nią nie powstaje żaden kod poza testem reprodukcji fixera · plan, który nie przeszedł przeglądu, nie wyjdzie z trybu planowania · plan napisany poza plannerem jest tylko recenzowany (planning.outside-plan-review)</text>
 
-  <!-- ============ DRAFT ============ -->
-  <path d="M200 1172 L200 1206" class="link l-i" marker-end="url(#ar-i)"/>
-  <path d="M200 1172 L200 1206" class="flow l-i"/>
-  <text x="212" y="1194" class="lbl">szkic, sama specyfikacja</text>
-
-  <rect x="40" y="1210" width="320" height="146" rx="10" class="node"/>
-  <rect x="40" y="1210" width="4" height="146" rx="2" fill="var(--idea)"/>
-  <text x="64" y="1240" class="mono-t">szkic</text>
-  <text x="64" y="1264" class="desc-s">Tylko specyfikacja, zapisana w</text>
-  <text x="64" y="1283" class="mono">docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/plan.md</text>
-  <text x="64" y="1302" class="desc-s">do zacommitowania i rozesłania.</text>
-  <text x="64" y="1322" class="desc-s">/viber:intent wskazany na niego</text>
-  <text x="64" y="1340" class="desc-s">prowadzi kolejną rundę. Build odrzuca szkic.</text>
-
-  <path d="M40 1283 L28 1283 Q14 1283 14 1269 L14 654 Q14 640 28 640 L36 640" class="link l-i" marker-end="url(#ar-i)"/>
-  <path d="M40 1283 L28 1283 Q14 1283 14 1269 L14 654 Q14 640 28 640 L36 640" class="flow l-i"/>
-  <text x="30" y="960" class="lbl" text-anchor="middle" transform="rotate(-90 30 960)">kolejna runda</text>
-
   <!-- ============ BUILD ============ -->
   <path d="M740 1172 L740 1206" class="link l-b" marker-end="url(#ar-b)"/>
   <path d="M740 1172 L740 1206" class="flow l-b"/>
-  <text x="752" y="1194" class="lbl">plan z zadaniami</text>
 
   <rect x="470" y="1210" width="540" height="42" rx="21" fill="var(--build-bg)" stroke="var(--build)" stroke-width="1.5"/>
   <text x="740" y="1236" class="hdr-t" text-anchor="middle">BUILD - zatwierdzony plan podzielony na zadania</text>

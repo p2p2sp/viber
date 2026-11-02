@@ -149,8 +149,8 @@ plan_name="${plan_path##*[\\/]}"
 #
 # The Skill signal alone is not ownership: a refused planner followed by an outside
 # plan in the same episode would otherwise hand that plan to planner-review. The
-# planner writes a `source:` key into the frontmatter of every plan, draft
-# included, and a plan written outside it never carries one, so the plan file itself
+# planner writes a `source:` key into the frontmatter of every plan, and a plan
+# written outside it never carries one, so the plan file itself
 # must open with that frontmatter. A plan path that resolves to nothing, or a
 # file that cannot be read, keeps planner-review: a read miss never loosens the gate.
 planner_raw="$(

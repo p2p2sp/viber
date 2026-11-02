@@ -52,7 +52,6 @@
     "./agents/e2e-writer.md",
     "./agents/closeout.md",
     "./agents/prototype-writer.md",
-    "./agents/prover.md",
     "./agents/researcher.md",
     "./agents/mapper.md",
     "./agents/scout.md",

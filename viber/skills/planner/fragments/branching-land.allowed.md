@@ -1,1 +1,0 @@
-When the plan carries a `branch:` key, the script puts HEAD on the run branch before copying and prints a `branch:` line (`<name> (created | switched | kept)`, or `detached (kept)`): show it beside the landed path. Exit 6 - the run branch could not be set -> report the stderr reason and stop: nothing landed, and no hand-off names `viber:implementor`.

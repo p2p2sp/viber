@@ -2,7 +2,7 @@
  * intent-prose.unit.test.ts - holds the shipped text of the `intent` skill to its round-based interview wiring.
  * Proves: the round rule and the Explore dispatch, the closed signal list with the attachment sentence, the absence
  * of the fast path and of any spec shape proposal, the `done` part carrying the end-of-interview fragments, the
- * summary file hand-off with its plan mode exception, one prover per question of a round, the cap on the decisions
+ * summary file hand-off with its plan mode exception, the cap on the decisions
  * of a round (the `config.sh --questions` preload, its `allowed-tools` entry, `all`, the order, the remaining-count
  * line, the resume reference) and the word cap of the start text.
  * The skill's markdown is the product, so the tests read it as text. The cap is the word count of `SKILL.md` plus
@@ -81,18 +81,17 @@ test("SKILL.md gets repository facts from the built-in Explore agent with no mod
   assert.match(SKILL, /only the questions that need it wait/);
 });
 
-for (const heading of ["## Returning to a draft", "## The interview", "## Done"]) {
+for (const heading of ["## Returning to a roadmap", "## The interview", "## Done"]) {
   test(`SKILL.md keeps the heading ${heading} that the references point at`, () => {
     assert.ok(SKILL.split(/\r?\n/).includes(heading));
   });
 }
 
-test("SKILL.md names the closed signal list of five signals", () => {
+test("SKILL.md names the closed signal list of four signals", () => {
   assert.match(SKILL, /`Split proposal:`/);
   assert.match(SKILL, /issue reference/);
   assert.match(SKILL, /`roadmap\.md`/);
   assert.match(SKILL, /`Attachment:`/);
-  assert.match(SKILL, /`--prove`/);
 });
 
 test("SKILL.md turns each .temp/ path the arguments name into an Attachment: line and a path elsewhere into none", () => {
@@ -167,7 +166,7 @@ test("inside plan mode the hand-off writes no file and restates the confirmed su
 });
 
 test("the summary file carries the summary fields and each signal line that applies", () => {
-  const tokens = ["problem", "acceptance criteria", "out of scope", "binding constraints", "way to resolve", "`Issue:", "`Attachment:", "`Work:", "`Branch:", "`Roadmap:", "stop at a specification", "draft run key"];
+  const tokens = ["problem", "acceptance criteria", "out of scope", "binding constraints", "way to resolve", "`Issue:", "`Attachment:", "`Work:", "`Branch:", "`Roadmap:"];
   assert.deepEqual(tokens.filter((token) => !DONE.includes(token)), []);
 });
 
@@ -179,12 +178,6 @@ test("issues-input.false.md forbids only issue bodies and comments", () => {
 
 test("issues-input.true.md names the summary file among the files written", () => {
   assert.match(read("fragments/issues-input.true.md"), /an issue body, an issue comment and the summary file/);
-});
-
-test("prove.md dispatches one prover per question of a round in one message", () => {
-  const text = read("references/prove.md");
-  assert.match(text, /one `Agent` per question of the round/);
-  assert.match(text, /in one message/);
 });
 
 test("the start text (SKILL.md plus issues-input.false.md) stays within its word cap", () => {

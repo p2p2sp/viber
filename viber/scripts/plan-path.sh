@@ -14,15 +14,12 @@
 #
 # Usage:
 #   plan-path.sh --land <src>              land <src> as this run's plan
-#   plan-path.sh --land <src> --into <key> land <src> into that existing draft;
-#                                          without --into, a frontmatter
-#                                          "into: <key>" line in <src> does the same
-#   plan-path.sh                           no argument: the plan most recently
+#   plan-path.sh                          no argument: the plan most recently
 #                                          worked on
 #   plan-path.sh --branch <plan>           read-only report on the run branch
 #                                          situation for <plan> (C3); nothing
 #                                          moves, nothing is written
-#   plan-path.sh --start [--fixer] [--draft <plan>] [--pr] [--roadmap]
+#   plan-path.sh --start [--fixer] [--pr] [--roadmap]
 #                        [--entry <key>] [--settled <key>] [<issue URL>]
 #                                          read-only start report (C1) needing no
 #                                          plan: the same situation as --branch
@@ -49,26 +46,10 @@
 # frontmatter is not a comment and survives whole but for its "source:" line,
 # which the copy rewrites to its own absolute path.
 #
-# --into names ONE directory under docs/<runs>/ - no slash, no "." and no ".." -
-# and that directory has to be a DRAFT - a run whose plan carries not one task
-# block and that holds no decomposition or progress, so nothing was ever built
-# from it - OR a run whose plan.md already holds the source's own plan, a round
-# already turned into a run, decomposed or not. Over a draft the round lands
-# in place, keeping the key and the stamp, which is what lets a draft go
-# through several rounds of remarks and still be one run. Landing the SAME
-# round a second time, before or after it was decomposed or committed from,
-# copies nothing and answers "state: existing" rather than refusing it - the
-# whole point of --land's idempotence surviving a context cleared between
-# rounds, and what lets a build resume through the plan's source: line. A
-# source that actually differs from what a target with a task half, a
-# decomposition or recorded progress already holds, and any source over a draft
-# carrying a decomposition or progress, is refused (exit 4) rather than
-# overwritten.
-#
 # The run branch. Under a branching.mode other than off (config.sh --branching,
 # read by the sourced run-branch.sh; outside a git repository it acts as off), a
-# FIRST landing - a plan-mode source, or a draft round through --into - validates
-# argv and the --into target first, then puts HEAD on the run branch, and only
+# FIRST landing - a plan-mode source - validates argv first, then puts HEAD on
+# the run branch, and only
 # then looks up runs by slug and copies: a run already open on that branch is
 # found there rather than minted again beside it. The plan's entry is the
 # branching.work entry its frontmatter "work:" key names, or the single entry
@@ -85,44 +66,33 @@
 # Under required a recorded branch equal to any entry base is refused, the
 # plan's own entry or another. A switch
 # that moves HEAD to another commit is refused on a dirty tree (untracked files
-# count); one keeping the commit carries the uncommitted work along. A matching
-# round landed again through --into takes the same branch step before answering
-# "existing", so a build resumed from the base branch lands back on the run
-# branch. The no-argument form and a source
+# count); one keeping the commit carries the uncommitted work along. The
+# no-argument form and a source
 # that is itself a landed run plan never switch. Nothing is ever fetched.
 #
 # Contract:
-#   argv   : --land and the source plan, optionally --into and a run key, or
+#   argv   : --land and the source plan, or
 #            --branch and a plan, or --start with its flags and optionally an issue URL, or
 #            --checkout and a branch name, or nothing.
-#   file   : <src>'s frontmatter "into:" key, read only when argv carries no
-#            --into, validated and refused exactly as --into. On a first
-#            landing, and on --branch, <src>'s frontmatter "branch:", "work:"
-#            and "issue:" keys and its task blocks' "Repro:" lines, for the
-#            run branch. On every form printing "branch:", the resolved
-#            plan's "work:" key, for the "target:" line. On --start, the --draft
-#            file's frontmatter "branch:" and "work:" keys. On every --land, the
+#   file   : On a first landing, and on --branch, <src>'s frontmatter "branch:",
+#            "work:" and "issue:" keys and its task blocks' "Repro:" lines, for
+#            the run branch. On every form printing "branch:", the resolved
+#            plan's "work:" key, for the "target:" line. On every --land, the
 #            source's frontmatter "attachments:" map, checked before the run
-#            branch step (exit 7, see below): "attachments:" alone on its line,
+#            branch step (exit 6, see below): "attachments:" alone on its line,
 #            then one "<name>: <source path>" entry per line, indented, the map
 #            ending at the first line not indented. A name is one path
 #            component (^[A-Za-z0-9][A-Za-z0-9_.-]*$), an extension optional,
 #            a blank or whitespace-only line inside the map skipped, in the
 #            source and in the landed copy alike, and unique; the path (C:/, C:\ or POSIX form) is non-empty. On
-#            every copy (a new run, an --into draft round, never an "existing"
-#            answer), each source of the copy's map, a file or a directory
-#            (copied recursively), is copied to <run>/attachments/<name>
-#            in a set built beside the run, which then replaces the directory
-#            a former round left (a copy with no map leaves none); an entry
-#            whose source is missing or fails to copy keeps the former
-#            attachments/<name> when there is one. The map keeps its source
-#            values. A source missing, a copy that failed or a former
-#            directory that could not be removed is one "warning:" line on
-#            stderr, the plan landed and exit and stdout unchanged. A
+#            every copy (a new run, never an "existing" answer), each source of
+#            the copy's map, a file or a directory (copied recursively), is
+#            copied to <run>/attachments/<name>. The map keeps its source
+#            values. A source missing or a copy that failed is one "warning:"
+#            line on stderr, the plan landed and exit and stdout unchanged. A
 #            "prototype:" key is not read.
-#   git    : HEAD moves only in the branch step of a first landing, or of a
-#            matching round landed again through --into, or by --checkout,
-#            through one checkout; every failure before or inside that step
+#   git    : HEAD moves only in the branch step of a first landing, or by
+#            --checkout, through one checkout; every failure before or inside that step
 #            leaves HEAD, the index and the tree as they were. --branch and
 #            --start never move HEAD, the index or the tree - they only read.
 #   gh     : --branch and --start alone, through issue-facts.sh, for the issue
@@ -134,7 +104,7 @@
 #   stdout :
 #     path: docs/_specs/2026-09-19-17-30-00_add-login/plan.md
 #     key: 2026-09-19-17-30-00_add-login
-#     state: new | existing | draft
+#     state: new | existing
 #     branch: feature/add-login (created | switched | kept)
 #     target: main
 #     open: docs/_specs/2026-09-18-09-12-44_add-search/plan.md | 2/6
@@ -184,7 +154,7 @@
 #   the URL's, its type read like --branch does. "suggested:" and the
 #   "error:" lines follow --branch's rules.
 #   The decision, mode allowed or required, after those lines (flags: --fixer
-#   for a bug fix, --draft a draft plan to resume, --pr a pull request's own
+#   for a bug fix, --pr a pull request's own
 #   branch, --roadmap the next part of a roadmap, --entry the entry to base-check,
 #   --settled <entry key>|no-branch|current|pr|nothing the re-run after an issue
 #   save, "nothing" being no settlement reached before it):
@@ -198,20 +168,17 @@
 #   Answers on ask-entry: <entry key> | no-branch | abort; on ask-base: switch |
 #   stay | current | abort. The first rule that applies decides:
 #     1. any error: line -> next: errors; --settled nothing asks the entry
-#        question instead (rule 6 options, suggested: ignored).
-#     2. --settled (checked before --draft and --pr): pr, or no-branch with --pr
-#        -> kept; nothing -> rule 6; a suggested: other than none and the settled
-#        key -> rule 7 for it; otherwise kept.
-#     3. --draft recording branch: -> its work: key is the entry. none under
-#        allowed -> settled no-branch, under required -> rule 4; HEAD on the
-#        recorded branch -> settled; else ask-base with switch, stay, abort.
-#     4. --pr: allowed -> settled no-branch; required off an entry base and off a
+#        question instead (rule 5 options, suggested: ignored).
+#     2. --settled (checked before --pr): pr, or no-branch with --pr
+#        -> kept; nothing -> rule 5; a suggested: other than none and the settled
+#        key -> rule 6 for it; otherwise kept.
+#     3. --pr: allowed -> settled no-branch; required off an entry base and off a
 #        detached HEAD -> settled pr; otherwise go on.
-#     5. --entry <key> -> rule 7 for that entry.
-#     6. suggested: other than none -> rule 7; otherwise ask-entry with every
+#     4. --entry <key> -> rule 6 for that entry.
+#     5. suggested: other than none -> rule 6; otherwise ask-entry with every
 #        usable: yes entry plus no-branch (allowed) or abort (required); none
 #        usable -> next: none and a note.
-#     7. base check of one entry: at-base: yes -> settled; --roadmap off an entry
+#     6. base check of one entry: at-base: yes -> settled; --roadmap off an entry
 #        base and off a detached HEAD -> settled current; otherwise ask-base with
 #        switch (left out on base-exists: no), stay (left out with --fixer),
 #        current (left out under required on an entry base or a detached HEAD)
@@ -223,29 +190,21 @@
 #     branch: <branch> (switched | kept)
 #   "kept" is HEAD already on <branch>. A switch to another commit is refused
 #   on a dirty tree (untracked files count); one keeping the commit carries
-#   the uncommitted work along. Exit 6 with the reason on stderr and HEAD,
+#   the uncommitted work along. Exit 5 with the reason on stderr and HEAD,
 #   index and tree unchanged: an invalid name (@{-1} included), no local
 #   branch of that name (nothing is created or fetched), a dirty tree and a
 #   branch at another commit, or no git repository.
 #   exit != 0:
 #     2 - unusable argv: an unknown first argument, --checkout without exactly
-#         one branch name, --land without a source, a
-#         source that is not a file, a title and file name that both
-#         normalize to nothing, an --into key that is empty, carries a slash
-#         or a traversal, or names no
-#         directory under docs/<runs>/, or --branch on a plan that is not a
+#         one branch name, --land without a source or with anything after
+#         it, a source that is not a file, a title and file name that both
+#         normalize to nothing, or --branch on a plan that is not a
 #         file, or --start on an argument that is not an issue URL ending in
-#         /issues/<n>, on an unknown flag, on --draft, --entry or --settled
-#         with no value, or on a --draft path that is not a readable file
+#         /issues/<n>, on an unknown flag, or on --entry or --settled
+#         with no value
 #     3 - no argument and docs/_specs/ holds no plan
-#     4 - --into on a target whose plan carries a task half, or that carries
-#         a decomposition or recorded progress, while the source differs from
-#         its plan, or on a draft carrying either; nothing was
-#         written. The same source landing over that task half again,
-#         unchanged apart from its own source: line, is exit 0 with "state:
-#         existing" instead - see "existing" below
-#     5 - the copy failed; nothing was landed
-#     6 - the run branch could not be set: a switch to another commit on a
+#     4 - the copy failed; nothing was landed
+#     5 - the run branch could not be set: a switch to another commit on a
 #         dirty tree, a base missing locally, an invalid branch name, any entry
 #         base as target under required ("branching is required and the run
 #         branch is a work entry base: <branch>"), a detached HEAD under required with no
@@ -258,7 +217,7 @@
 #         reason); stderr names the reason; nothing landed, HEAD, index and
 #         tree unchanged. A recorded branch that exists is kept or switched to
 #         whatever those errors are.
-#     7 - the source's attachments: map is unusable: "error: unusable
+#     6 - the source's attachments: map is unusable: "error: unusable
 #         attachments: <reason>" on stderr, <reason> one of "duplicate name
 #         <name>" (a name equal to an earlier one, case ignored, the later
 #         spelling shown), "invalid name <name>", "entry without a path: <name>" or
@@ -283,21 +242,7 @@
 #              open run is NEVER overwritten: a source edited
 #              after the build started does not reach it, because the landed run
 #              is the state. A <src> that already IS a landed plan answers the
-#              same way, which makes --land idempotent. A draft of that slug
-#              answers only a <src> that is itself a draft; a <src> carrying
-#              tasks lands as "new" beside it, the draft left untouched. The
-#              same idempotence holds for --into: landing the round that
-#              already sits at a target's task half again, unchanged apart
-#              from its own source: line, answers "existing" too, whether or
-#              not that round has itself been landed before, and whether or
-#              not the target is already decomposed or carrying progress
-#              (see exit 4).
-# "draft"    - "state: draft", the run's plan carrying not one task block, so
-#              there is nothing to build yet: a specification still being
-#              discussed and rounds away from a task list. It replaces both
-#              answers above, because what a caller does with a draft is the same
-#              whether it was just landed or found in place. A draft is also never
-#              an "open:" line - it holds no task to resume.
+#              same way, which makes --land idempotent.
 #
 set -euo pipefail
 shopt -s nullglob
@@ -456,7 +401,7 @@ infm && /^source:/ { print "source: " ENVIRON["abs"]; next }
 }
 
 # Reads the frontmatter "attachments:" map of $1 into att_names / att_paths
-# (att_n entries, in file order). Returns 7, the reason on stderr, when the map
+# (att_n entries, in file order). Returns 6, the reason on stderr, when the map
 # is unusable; nothing is written. A file without the key yields no entries.
 # No apostrophe anywhere in the awk program: it sits inside single quotes.
 read_attachments() {
@@ -503,7 +448,7 @@ inmap { inmap = 0 }
 ' "$1" 2>/dev/null)
   if [[ -n "$reason" ]]; then
     echo "error: unusable attachments: $reason" >&2
-    return 7
+    return 6
   fi
   return 0
 }
@@ -512,27 +457,16 @@ inmap { inmap = 0 }
 # attachments/<name>, a directory copied whole, so the run keeps every file
 # its plan is built from once .temp/ is cleared. The map keeps its source values: nothing rewrites them to
 # the run path. A C:/ or C:\ value goes through cygpath -u where cygpath
-# exists; without it the value is used as written. The new set is built beside
-# the run (attachments.new.<pid>), an entry whose source is missing or fails to
-# copy carrying over the former attachments/<name> when there is one, and only
-# then replaces the directory a former round left, so a run never names a file
-# its plan dropped and never loses a copy whose source is gone; a copy with no
-# map leaves none. Fail-open: a missing source, a failed copy or a failed
-# removal is one warning on stderr, never an exit, since the plan is landed
-# either way.
+# exists; without it the value is used as written. A copy with no map leaves
+# no attachments/ directory. Fail-open: a missing source or a failed copy is
+# one warning on stderr, never an exit, since the plan is landed either way.
 land_attachments() {
-  local run dir new i src_file
-  run="${1%/*}"
-  dir="$run/attachments"
-  new="$run/attachments.new.$$"
-  rm -rf -- "$new" 2>/dev/null || true
+  local dir i src_file
+  dir="${1%/*}/attachments"
   if ! read_attachments "$1" 2>/dev/null || [[ "$att_n" -eq 0 ]]; then
-    if [[ -e "$dir" ]] && ! rm -rf -- "$dir" 2>/dev/null; then
-      echo "warning: could not remove $dir" >&2
-    fi
     return 0
   fi
-  mkdir -p -- "$new" 2>/dev/null || true
+  mkdir -p -- "$dir" 2>/dev/null || true
   for ((i = 0; i < att_n; i++)); do
     src_file="${att_paths[i]}"
     if command -v cygpath >/dev/null 2>&1; then
@@ -540,60 +474,13 @@ land_attachments() {
     fi
     if [[ ! -f "$src_file" && ! -d "$src_file" ]]; then
       echo "warning: attachment not found, not landed: ${att_paths[i]}" >&2
-    elif ! cp -R -- "$src_file" "$new/${att_names[i]}" 2>/dev/null; then
+    elif ! cp -R -- "$src_file" "$dir/${att_names[i]}" 2>/dev/null; then
       echo "warning: could not copy attachment ${att_names[i]}" >&2
-      rm -rf -- "$new/${att_names[i]}" 2>/dev/null || true
-    fi
-    if [[ ! -e "$new/${att_names[i]}" && -e "$dir/${att_names[i]}" ]]; then
-      cp -R -- "$dir/${att_names[i]}" "$new/${att_names[i]}" 2>/dev/null || true
+      rm -rf -- "$dir/${att_names[i]}" 2>/dev/null || true
     fi
   done
-  if [[ -e "$dir" ]] && ! rm -rf -- "$dir" 2>/dev/null; then
-    echo "warning: could not remove $dir" >&2
-    rm -rf -- "$new" 2>/dev/null || true
-    return 0
-  fi
-  if ! mv -- "$new" "$dir" 2>/dev/null; then
-    rm -rf -- "$new" 2>/dev/null || true
-    return 0
-  fi
   rmdir -- "$dir" 2>/dev/null || true
   return 0
-}
-
-# True when landing <src> at <dest> would change nothing: <dest> already
-# carries this exact plan, save for its own frontmatter "source:" line, which
-# always differs on principle since it names wherever the file already sits.
-# Compared after the same guidance strip a real landing applies, so a round
-# whose only edit was prose a stripped copy already absorbed still matches.
-# What this makes possible: re-landing an unchanged "into:" round a second
-# time, before or after its decomposition, answers as the run it already is
-# instead of being refused for carrying a task half of its own.
-plan_matches() {
-  base="$2.matches.$$"
-  norm="$base.src"
-  a="$base.a"
-  b="$base.b"
-  if ! cp -- "$1" "$norm" 2>/dev/null; then
-    rm -f "$norm" "$a" "$b"
-    return 1
-  fi
-  strip_guidance "$norm"
-  grep -v '^source:' "$norm" > "$a" 2>/dev/null || true
-  grep -v '^source:' "$2" > "$b" 2>/dev/null || true
-  same=1
-  if cmp -s -- "$a" "$b"; then same=0; fi
-  rm -f "$norm" "$a" "$b"
-  return "$same"
-}
-
-# Does that plan carry at least one task block? A plan without one is a draft:
-# the head alone, still being discussed. Per contract C3 the marker counts only
-# when it stands alone on its line, so a sentence mentioning it in prose opens
-# no task. "<!-- /TASK -->" cannot match here - the slash sits where the pattern
-# wants "TASK".
-has_tasks() {
-  grep -Eq '^[[:space:]]*<!--[[:space:]]*TASK[[:space:]]*-->[[:space:]]*$' "$1" 2>/dev/null
 }
 
 # The plan's own title, or its file name when it carries no H1.
@@ -631,11 +518,9 @@ slug_of() {
 
 emit() {
   d="${1%/*}"
-  state="$2"
-  has_tasks "$1" || state="draft"
   printf 'path: %s\n' "$1"
   printf 'key: %s\n' "${d##*/}"
-  printf 'state: %s\n' "$state"
+  printf 'state: %s\n' "$2"
   if [[ -n "$br_line" ]]; then
     printf 'branch: %s\n' "$br_line"
     # the pull request target of the plan's work entry, when one resolves;
@@ -687,22 +572,20 @@ if [[ "$mode" == "--start" ]]; then
   st_fixer=0
   st_pr=0
   st_roadmap=0
-  st_draft=""
   st_entry=""
   st_settled=""
-  start_usage="error: usage: plan-path.sh --start [--fixer] [--draft <plan>] [--pr] [--roadmap] [--entry <key>] [--settled <key>] [<issue URL ending in /issues/<n>>]"
+  start_usage="error: usage: plan-path.sh --start [--fixer] [--pr] [--roadmap] [--entry <key>] [--settled <key>] [<issue URL ending in /issues/<n>>]"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --fixer) st_fixer=1 ;;
       --pr) st_pr=1 ;;
       --roadmap) st_roadmap=1 ;;
-      --draft|--entry|--settled)
+      --entry|--settled)
         if [[ $# -lt 2 || -z "$2" || "$2" == --* ]]; then
           echo "$start_usage" >&2
           exit 2
         fi
         case "$1" in
-          --draft) st_draft="$2" ;;
           --entry) st_entry="$2" ;;
           *) st_settled="$2" ;;
         esac
@@ -722,10 +605,6 @@ if [[ "$mode" == "--start" ]]; then
     esac
     shift
   done
-  if [[ -n "$st_draft" ]] && { [[ ! -f "$st_draft" ]] || [[ ! -r "$st_draft" ]]; }; then
-    echo "error: draft file not found: $st_draft" >&2
-    exit 2
-  fi
   branch_start "$start_url"
   exit 0
 fi
@@ -746,85 +625,13 @@ if [[ "$mode" != "--land" ]]; then
 fi
 
 src="${2:-}"
-if [[ -z "$src" ]]; then
+if [[ -z "$src" || $# -gt 2 ]]; then
   echo "error: usage: plan-path.sh --land <src>" >&2
   exit 2
 fi
 if [[ ! -f "$src" ]]; then
   echo "error: plan file not found: $src" >&2
   exit 2
-fi
-
-# --- --into: the next round of a draft, into the directory it already has ---
-# Named on argv, or by the source's own frontmatter "into:" key when argv
-# carries none - the one form that survives a context cleared on approval.
-into_set=0
-if [[ $# -gt 2 ]]; then
-  if [[ "${3:-}" != "--into" || $# -gt 4 ]]; then
-    echo "error: usage: plan-path.sh --land <src> [--into <key>]" >&2
-    exit 2
-  fi
-  into="${4:-}"
-  into_set=1
-else
-  into="$(awk '
-NR == 1 { if ($0 !~ /^---[[:space:]]*\r?$/) exit; next }
-/^---[[:space:]]*\r?$/ { exit }
-/^into:/ { sub(/^into:[[:space:]]*/, ""); sub(/[[:space:]]+$/, ""); print; exit }
-' "$src")"
-  if [[ -n "$into" ]]; then into_set=1; fi
-fi
-if [[ "$into_set" == 1 ]]; then
-  case "$into" in
-    ''|.|..|*[!A-Za-z0-9._-]*)
-      echo "error: --into takes one directory name under $specs_dir, got: $into" >&2
-      exit 2
-      ;;
-  esac
-  dest="$specs_dir/$into/plan.md"
-  if [[ ! -d "$specs_dir/$into" ]]; then
-    echo "error: no run directory to land into: $specs_dir/$into" >&2
-    exit 2
-  fi
-  read_attachments "$src" || exit $?
-  # the run's own plan landed again: nothing to copy, and cp would refuse the
-  # file onto itself. Checked first, since a landed plan keeps its "into:" line
-  # and a later build lands it once more. The plan-mode source of that round,
-  # landed again, is matched further down.
-  src_dir="$(cd -- "$(dirname -- "$src")" 2>/dev/null && pwd -P || true)"
-  dest_dir="$(cd -- "$specs_dir/$into" 2>/dev/null && pwd -P || true)"
-  if [[ "$(basename -- "$src")" == "plan.md" && -n "$src_dir" && "$src_dir" == "$dest_dir" ]]; then
-    emit "$dest" existing
-    exit 0
-  fi
-  # A target carrying a task half, a decomposition or recorded progress is the
-  # state; a source that differs from the plan it holds would drop work the
-  # tree cannot give back, so it is refused. The round already sitting at a
-  # target with a task half, unchanged apart from its own source: line, answers
-  # "existing" instead, decomposed or not: nothing is copied, so nothing is
-  # lost - which is what lets a build resume through the plan's source: line.
-  # It still takes the branch step, so a resume from the base branch lands back
-  # on the run branch. A draft carrying a decomposition or progress has no task
-  # half to match and is refused whatever the source.
-  if [[ -e "$specs_dir/$into/status.md" || -d "$specs_dir/$into/tasks" ]] || { [[ -f "$dest" ]] && has_tasks "$dest"; }; then
-    if [[ -f "$dest" ]] && has_tasks "$dest" && plan_matches "$src" "$dest"; then
-      branch_land "$src" "$(slug_of "$src")" || exit $?
-      emit "$dest" existing
-      exit 0
-    fi
-    echo "error: $specs_dir/$into is not a draft - it carries tasks, a decomposition or progress" >&2
-    exit 4
-  fi
-  branch_land "$src" "$(slug_of "$src")" || exit $?
-  if ! cp -- "$src" "$dest"; then
-    echo "error: could not land the plan at $dest" >&2
-    exit 5
-  fi
-  strip_guidance "$dest"
-  set_source "$dest"
-  land_attachments "$dest"
-  emit "$dest" new
-  exit 0
 fi
 
 read_attachments "$src" || exit $?
@@ -852,22 +659,14 @@ fi
 branch_land "$src" "$slug" || exit $?
 
 # --- a run already open for that slug: its progress is the state, leave it ---
-# Only a run with something left to do answers: a draft, or a task neither
-# committed nor skipped. A finished run left in place (cleanup off) is history,
-# so a new plan under the same title gets its own directory. A draft answers
-# only a source that is itself a draft: a plan carrying its tasks lands as a new
-# run beside it, since landing into a draft takes an explicit into:.
-src_has_tasks=0
-if has_tasks "$src"; then src_has_tasks=1; fi
+# Only a run with a task neither committed nor skipped answers. A finished run
+# left in place (cleanup off) is history, so a new plan under the same title
+# gets its own directory.
 found="$(
   for f in "$specs_dir"/*_"$slug"/plan.md; do
     [[ -f "$f" ]] || continue
-    if ! has_tasks "$f"; then
-      [[ "$src_has_tasks" == 0 ]] || continue
-    else
-      read -r pdone psettled ptotal <<<"$(progress_of "$f")"
-      [[ "$psettled" -lt "$ptotal" ]] || continue
-    fi
+    read -r pdone psettled ptotal <<<"$(progress_of "$f")"
+    [[ "$psettled" -lt "$ptotal" ]] || continue
     printf '%s\n' "$f"
   done | newest
 )"
@@ -880,7 +679,7 @@ dest="$specs_dir/$(date +%Y-%m-%d-%H-%M-%S)_$slug/plan.md"
 if ! mkdir -p -- "${dest%/*}" || ! cp -- "$src" "$dest"; then
   rmdir -- "${dest%/*}" 2>/dev/null || true
   echo "error: could not land the plan at $dest" >&2
-  exit 5
+  exit 4
 fi
 strip_guidance "$dest"
 set_source "$dest"

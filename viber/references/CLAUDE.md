@@ -6,7 +6,7 @@ The ten markdown files viber skills and agents read by path while they work: the
 
 - A skill reads a file as `${CLAUDE_PLUGIN_ROOT}/references/<file>`; an agent reads it as `<refs>/<file>`, `refs:` being the `${CLAUDE_PLUGIN_ROOT}/references` line its dispatching skill passes.
 - Readers per file:
-  - `plan-rules.md`: `planner` (every round, a draft included) and `planner-review`, whole; of the review set, `planner-spec-review` reads `## Spec` and `## Contracts`, `planner-graph-review` `## Graph`, `planner-task-review` `## Task`.
+  - `plan-rules.md`: `planner` and `planner-review`, whole; of the review set, `planner-spec-review` reads `## Spec` and `## Contracts`, `planner-graph-review` `## Graph`, `planner-task-review` `## Task`.
   - `integration-tests.md`: `planner`, `planner-review` and `planner-task-review` when the plan carries an integration test; `task-coder` and `task-reviewer` on a task writing or running one or building the shared harness.
   - `test-strategy.md`: `task-coder` before its first test, `task-reviewer` when the work touched tests or a fixture, `fixer` before writing its reproduction test.
   - `tdd.md`: `task-coder` on a `TDD: required` task, before its first line of production code.

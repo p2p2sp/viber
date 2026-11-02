@@ -22,9 +22,9 @@
  *
  * The caller is trusted to take this output as it stands - the skill never
  * re-verifies it - which makes the printed block and the exit codes (2:
- * unusable argv, 3: nothing to resume, 4: an --into target that is not a
- * draft, 5: the copy failed, 6: the run branch could not be set, 7: the
- * plan's attachments map is unusable) the whole interface. The files the map
+ * unusable argv, 3: nothing to resume, 4: the copy failed, 5: the run branch
+ * could not be set, 6: the plan's attachments map is unusable) the whole
+ * interface. The files the map
  * names land under the run's attachments/ directory.
  *
  * Under a `branching:` mode other than off, a first landing puts HEAD on the
@@ -150,8 +150,7 @@ function runDirs(root: string): string[] {
   return fs.existsSync(specs) ? fs.readdirSync(specs).sort() : [];
 }
 
-/** A plan the way one lands for a build: a head, then the task half. A plan
- *  carrying no TASK block at all is a draft, which is its own state. */
+/** A plan the way one lands for a build: a head, then the task half. */
 const PLAN_BODY = [
   "# Add Login",
   "",
@@ -168,8 +167,8 @@ const PLAN_BODY = [
   "",
 ].join("\n");
 
-/** The same plan with its task half left off: the shape of a landed draft. */
-const DRAFT_BODY = ["# Add Login", "", "## Goal", "", "Let people sign in.", ""].join("\n");
+/** The same plan with its task half left off: a run with no task to resume. */
+const HEAD_BODY =["# Add Login", "", "## Goal", "", "Let people sign in.", ""].join("\n");
 
 // --- no argument: resume the run in progress ---
 
@@ -481,42 +480,26 @@ test("a finished run of the same slug is not resumed: the plan lands as new besi
   });
 });
 
-test("a plan carrying tasks lands as a new run beside a draft of the same slug, the draft untouched", async () => {
+test("a plan carrying tasks lands as a new run beside a plan of the same slug with no task block, that plan untouched (it holds nothing to resume)", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
-    const draftKey = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, draftKey, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    const draftPath = path.join(dir, "docs", "_specs", draftKey, "plan.md");
-    const draftBefore = fs.readFileSync(draftPath, "utf-8");
+    const headKey = "2026-09-19-17-30-00_add-login";
+    landPlan(dir, headKey, "2026-09-19T17:30:00Z", HEAD_BODY);
+    const headPath = path.join(dir, "docs", "_specs", headKey, "plan.md");
+    const headBefore = fs.readFileSync(headPath, "utf-8");
 
     const src = sourcePlan(dir, "outside/add-login.md", PLAN_BODY);
     const result = await run(dir, ["--land", src]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     const out = parse(result.stdout);
     assert.equal(out.state, "new");
-    assert.notEqual(out.key, draftKey);
+    assert.notEqual(out.key, headKey);
     assert.match(out.key, /_add-login$/);
     assert.equal(runDirs(dir).length, 2);
-    assert.equal(fs.readFileSync(draftPath, "utf-8"), draftBefore);
+    assert.equal(fs.readFileSync(headPath, "utf-8"), headBefore);
 
-    // landing the same source again finds the new run, not the draft
+    // landing the same source again finds the new run, not the task-less plan
     const again = parse((await run(dir, ["--land", src])).stdout);
     assert.deepEqual(again, { ...out, state: "existing" });
-  });
-});
-
-test("a draft landed beside a draft of the same slug still answers as that draft rather than minting a second run", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    landPlan(dir, "2026-09-19-17-30-00_add-login", "2026-09-19T17:30:00Z", DRAFT_BODY);
-
-    const src = sourcePlan(dir, "outside/add-login.md", DRAFT_BODY);
-    const result = await run(dir, ["--land", src]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(parse(result.stdout), {
-      path: "docs/_specs/2026-09-19-17-30-00_add-login/plan.md",
-      key: "2026-09-19-17-30-00_add-login",
-      state: "draft",
-    });
-    assert.deepEqual(runDirs(dir), ["2026-09-19-17-30-00_add-login"]);
   });
 });
 
@@ -593,6 +576,21 @@ test("--land with a source that is not a file: exit 2, the path echoed back", as
   });
 });
 
+test("--land with anything after the source: exit 2, nothing on stdout and nothing landed", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const src = sourcePlan(dir, "outside/add-login.md", PLAN_BODY);
+
+    for (const extra of [["--onto", "2026-09-19-17-30-00_add-login"], [""], ["more.md"]]) {
+      const args = ["--land", src, ...extra];
+      const result = await run(dir, args);
+      assert.equal(result.status, 2, `${args.join(" ")} -> stdout: ${result.stdout}`);
+      assert.equal(result.stdout, "", args.join(" "));
+      assert.match(result.stderr, /usage: plan-path\.sh --land <src>/, args.join(" "));
+    }
+    assert.deepEqual(runDirs(dir), []);
+  });
+});
+
 test("a bare first argument is a usage error, not a slug (the slug form is gone, and guessing one would land the wrong plan)", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     for (const argument of ["add-login", "--split", "-land"]) {
@@ -605,13 +603,13 @@ test("a bare first argument is a usage error, not a slug (the slug form is gone,
   });
 });
 
-test("a copy the filesystem refuses: exit 5, nothing on stdout and no half-made run directory left behind", async () => {
+test("a copy the filesystem refuses: exit 4, nothing on stdout and no half-made run directory left behind", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     const src = sourcePlan(dir, "outside/add-login.md", PLAN_BODY);
 
     await withStub("cp", "exit 1", async (stubDir) => {
       const result = await run(dir, ["--land", src], [stubDir]);
-      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
+      assert.equal(result.status, 4, `stdout: ${result.stdout}`);
       assert.equal(result.stdout, "");
       assert.match(result.stderr, /could not land the plan/);
       assert.deepEqual(runDirs(dir), [], "a failed copy must not leave an empty run directory");
@@ -949,52 +947,9 @@ test("no argument: a frozen plan.md does not age its run out - the status file b
   });
 });
 
-// --- the draft state, and the round that lands into it ---------------------
-
-/** A run's plan file, as a native path. */
-function planIn(root: string, key: string): string {
-  return path.join(root, "docs", "_specs", key, "plan.md");
-}
-
-test("a plan carrying no TASK block is a draft, in every path the script answers on", async () => {
+test("a plan carrying no TASK block is not an open run: there is no task in it to resume", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
-    landPlan(dir, "2026-09-19-17-30-00_add-login", "2026-09-19T17:30:00Z", DRAFT_BODY);
-
-    // resolved with no argument, where a plan with tasks reads "existing"
-    assert.equal(parse((await run(dir)).stdout).state, "draft");
-
-    // and on the landing that creates it, where one reads "new"
-    const src = sourcePlan(dir, "outside/other.md", DRAFT_BODY.replace("# Add Login", "# Other Thing"));
-    const landed = await run(dir, ["--land", src]);
-    assert.equal(landed.status, 0, `stderr: ${landed.stderr}`);
-    assert.equal(parse(landed.stdout).state, "draft");
-  });
-});
-
-test("a plan mentioning the TASK marker in prose is still a draft (C3: the marker must stand alone on its line)", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const prose = [
-      "# Add Login",
-      "",
-      "## Goal",
-      "",
-      "Each block opens with a `<!-- TASK -->` comment and closes with `<!-- /TASK -->`.",
-      "",
-    ].join("\n");
-    landPlan(dir, "2026-09-19-17-30-00_add-login", "2026-09-19T17:30:00Z", prose);
-
-    assert.equal(parse((await run(dir)).stdout).state, "draft");
-
-    const src = sourcePlan(dir, "outside/other.md", prose.replace("# Add Login", "# Other Thing"));
-    const landed = await run(dir, ["--land", src]);
-    assert.equal(landed.status, 0, `stderr: ${landed.stderr}`);
-    assert.equal(parse(landed.stdout).state, "draft");
-  });
-});
-
-test("a draft is not an open run: there is no task in it to resume, and the user points at it by name", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    landPlan(dir, "2026-09-01-09-00-00_still-talking", "2026-09-01T09:00:00Z", DRAFT_BODY);
+    landPlan(dir, "2026-09-01-09-00-00_still-talking", "2026-09-01T09:00:00Z", HEAD_BODY);
     landPlan(dir, "2026-09-02-09-00-00_current", "2026-09-02T09:00:00Z", planWithTasks("Current", ["T1"]));
 
     const result = await run(dir);
@@ -1004,245 +959,16 @@ test("a draft is not an open run: there is no task in it to resume, and the user
   });
 });
 
-test("--into lands the next round into the named draft, keeping its directory and dropping the guidance", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-
-    const round2 = [
-      "# Add Login",
-      "",
-      "<!-- 2-4 sentences: what gets built and why -->",
-      "",
-      "## Goal",
-      "",
-      "Let people sign in, and stay signed in.",
-      "",
-    ].join("\n");
-    const src = sourcePlan(dir, "outside/round-2.md", round2);
-
-    const result = await run(dir, ["--land", src, "--into", key]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(parse(result.stdout), { path: `docs/_specs/${key}/plan.md`, key, state: "draft" });
-
-    // the round replaced the draft in place: one directory, the same stamp
-    assert.deepEqual(runDirs(dir), [key]);
-    const landed = fs.readFileSync(planIn(dir, key), "utf-8");
-    assert.match(landed, /stay signed in/);
-    assert.doesNotMatch(landed, /2-4 sentences/);
-    // the plans directory is the user's and is never written to
-    assert.equal(fs.readFileSync(src, "utf-8"), round2);
-  });
-});
-
-test("--into landing a plan that carries its task half turns the draft into a run the build can take", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-
-    const src = sourcePlan(dir, "outside/full.md", PLAN_BODY);
-    const result = await run(dir, ["--land", src, "--into", key]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(parse(result.stdout), { path: `docs/_specs/${key}/plan.md`, key, state: "new" });
-    assert.equal(fs.readFileSync(planIn(dir, key), "utf-8"), PLAN_BODY);
-  });
-});
-
-test("--into refuses a target that is not a draft: exit 4, nothing on stdout and the plan left alone", async () => {
-  const cases: Array<[string, (root: string, key: string) => void | Promise<void>]> = [
-    ["a plan carrying a task block", (root, key) => fs.writeFileSync(planIn(root, key), PLAN_BODY)],
-    [
-      "a decomposition",
-      (root, key) => fs.mkdirSync(path.join(root, "docs", "_specs", key, "tasks"), { recursive: true }),
-    ],
-    ["a status file", (root, key) => landStatus(root, key, { progress: "0/1", done: "none" })],
-  ];
-  for (const [what, start] of cases) {
-    await withTempDir("p2p2-viber-", async (dir) => {
-      const key = "2026-09-19-17-30-00_add-login";
-      landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-      await start(dir, key);
-      const before = fs.readFileSync(planIn(dir, key), "utf-8");
-
-      const src = sourcePlan(dir, "outside/round-2.md", DRAFT_BODY);
-      const result = await run(dir, ["--land", src, "--into", key]);
-      assert.equal(result.status, 4, `${what} -> stdout: ${result.stdout}`);
-      assert.equal(result.stdout, "", what);
-      assert.match(result.stderr, /not a draft/, what);
-      assert.equal(fs.readFileSync(planIn(dir, key), "utf-8"), before, what);
-    });
-  }
-});
-
-test("--into takes one existing directory name and nothing else: exit 2, nothing on stdout and nothing written", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    const before = fs.readFileSync(planIn(dir, key), "utf-8");
-    const src = sourcePlan(dir, "outside/round-2.md", DRAFT_BODY);
-
-    const keys = ["", "2026-01-01-00-00-00_never-landed", ".", "..", "a/b", `../${key}`];
-    for (const bad of keys) {
-      const result = await run(dir, ["--land", src, "--into", bad]);
-      assert.equal(result.status, 2, `"${bad}" -> stdout: ${result.stdout}`);
-      assert.equal(result.stdout, "", `"${bad}"`);
-      assert.equal(fs.readFileSync(planIn(dir, key), "utf-8"), before, `"${bad}"`);
-    }
-
-    // the flag itself has one spelling, and it never stands without --land
-    for (const args of [["--land", src, "--onto", key], ["--land", src, "--into"], ["--into", key]]) {
-      const result = await run(dir, args);
-      assert.equal(result.status, 2, `${args.join(" ")} -> stdout: ${result.stdout}`);
-      assert.equal(result.stdout, "", args.join(" "));
-    }
-
-    assert.deepEqual(runDirs(dir), [key]);
-  });
-});
-
-/** A round continuing a draft, the way the planner writes it: the draft's key
- *  in the frontmatter, so no argument has to survive a cleared context. */
-function roundInto(key: string, body: string): string {
-  return ["---", "source: /elsewhere/plans/round.md", `into: ${key}`, "---", "", body].join("\n");
-}
-
-test("a frontmatter into: key lands the round into that draft as --into would, and the copy's source: points at it", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    const src = sourcePlan(dir, "outside/round-2.md", roundInto(key, DRAFT_BODY.replace("sign in.", "sign in, and stay.")));
-
-    const result = await run(dir, ["--land", src]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(parse(result.stdout), { path: `docs/_specs/${key}/plan.md`, key, state: "draft" });
-    assert.deepEqual(runDirs(dir), [key]);
-
-    const landed = fs.readFileSync(planIn(dir, key), "utf-8");
-    assert.match(landed, /and stay/);
-    assert.ok(sameFile(sourceLine(landed), planIn(dir, key)), sourceLine(landed));
-
-    // the landed plan, carrying its task half and its into: line, lands again
-    // as the run it already is rather than tripping the not-a-draft refusal
-    fs.writeFileSync(planIn(dir, key), roundInto(key, PLAN_BODY));
-    const again = await run(dir, ["--land", planIn(dir, key)]);
-    assert.equal(again.status, 0, `stderr: ${again.stderr}`);
-    assert.deepEqual(parse(again.stdout), { path: `docs/_specs/${key}/plan.md`, key, state: "existing" });
-  });
-});
-
-test("a frontmatter into: key on a target that is not a draft: exit 4, nothing on stdout and the plan left alone", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", PLAN_BODY);
-    const src = sourcePlan(dir, "outside/round-2.md", roundInto(key, DRAFT_BODY));
-
-    const result = await run(dir, ["--land", src]);
-    assert.equal(result.status, 4, `stdout: ${result.stdout}`);
-    assert.equal(result.stdout, "");
-    assert.match(result.stderr, /not a draft/);
-    assert.equal(fs.readFileSync(planIn(dir, key), "utf-8"), PLAN_BODY);
-    assert.deepEqual(runDirs(dir), [key]);
-  });
-});
-
-test("landing the same into: source twice reports the second round as existing and leaves the target untouched", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    // a round that turns the draft into a run, landed through its own
-    // frontmatter "into:" key rather than the run's own landed copy
-    const src = sourcePlan(dir, "outside/round-2.md", roundInto(key, PLAN_BODY));
-
-    const first = await run(dir, ["--land", src]);
-    assert.equal(first.status, 0, `stderr: ${first.stderr}`);
-    assert.deepEqual(parse(first.stdout), { path: `docs/_specs/${key}/plan.md`, key, state: "new" });
-    const landedAfterFirst = fs.readFileSync(planIn(dir, key), "utf-8");
-
-    // the exact same outside file, landed again: the target already holds
-    // this plan (identical apart from its own source: line), so nothing is
-    // copied a second time and nothing is lost from having started building
-    const second = await run(dir, ["--land", src]);
-    assert.equal(second.status, 0, `stderr: ${second.stderr}`);
-    assert.deepEqual(parse(second.stdout), { path: `docs/_specs/${key}/plan.md`, key, state: "existing" });
-    assert.equal(fs.readFileSync(planIn(dir, key), "utf-8"), landedAfterFirst);
-    assert.equal(fs.readFileSync(src, "utf-8"), roundInto(key, PLAN_BODY));
-    assert.deepEqual(runDirs(dir), [key]);
-  });
-});
-
-test("a round landed through into: and then decomposed lands again as existing, the run left untouched (a build resumed through the plan's source: line must not stop on exit 4)", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    const src = sourcePlan(dir, "outside/round-2.md", roundInto(key, PLAN_BODY));
-
-    const first = await run(dir, ["--land", src]);
-    assert.equal(first.status, 0, `stderr: ${first.stderr}`);
-    assert.deepEqual(parse(first.stdout), { path: `docs/_specs/${key}/plan.md`, key, state: "new" });
-    const landedAfterFirst = fs.readFileSync(planIn(dir, key), "utf-8");
-
-    fs.mkdirSync(path.join(dir, "docs", "_specs", key, "tasks"), { recursive: true });
-    landStatus(dir, key, { progress: "0/1", done: "none" });
-
-    const second = await run(dir, ["--land", src]);
-    assert.equal(second.status, 0, `stderr: ${second.stderr}`);
-    assert.deepEqual(parse(second.stdout), { path: `docs/_specs/${key}/plan.md`, key, state: "existing" });
-    assert.equal(fs.readFileSync(planIn(dir, key), "utf-8"), landedAfterFirst);
-    assert.deepEqual(runDirs(dir), [key]);
-  });
-});
-
-test("a different round landed through into: over a decomposed run is still refused with exit 4 and the run left untouched", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    const src = sourcePlan(dir, "outside/round-2.md", roundInto(key, PLAN_BODY));
-
-    const first = await run(dir, ["--land", src]);
-    assert.equal(first.status, 0, `stderr: ${first.stderr}`);
-    const landedAfterFirst = fs.readFileSync(planIn(dir, key), "utf-8");
-
-    fs.mkdirSync(path.join(dir, "docs", "_specs", key, "tasks"), { recursive: true });
-    landStatus(dir, key, { progress: "0/1", done: "none" });
-
-    const changed = sourcePlan(dir, "outside/round-3.md", roundInto(key, PLAN_BODY.replace("sign in.", "sign in, and stay.")));
-    const second = await run(dir, ["--land", changed]);
-    assert.equal(second.status, 4, `stdout: ${second.stdout}`);
-    assert.equal(second.stdout, "");
-    assert.match(second.stderr, /not a draft/);
-    assert.equal(fs.readFileSync(planIn(dir, key), "utf-8"), landedAfterFirst);
-    assert.deepEqual(runDirs(dir), [key]);
-  });
-});
-
-test("a changed source onto a decomposed draft still exits 4, even though the draft used to match it", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    fs.mkdirSync(path.join(dir, "docs", "_specs", key, "tasks"), { recursive: true });
-    const before = fs.readFileSync(planIn(dir, key), "utf-8");
-
-    const src = sourcePlan(dir, "outside/round-2.md", DRAFT_BODY.replace("sign in.", "sign in, and stay."));
-    const result = await run(dir, ["--land", src, "--into", key]);
-    assert.equal(result.status, 4, `stdout: ${result.stdout}`);
-    assert.equal(result.stdout, "");
-    assert.match(result.stderr, /not a draft/);
-    assert.equal(fs.readFileSync(planIn(dir, key), "utf-8"), before);
-    assert.deepEqual(runDirs(dir), [key]);
-  });
-});
-
 // --- the plan's attachments ride into the run as attachments/<name> ---
 
-/** A plan whose frontmatter carries the given lines after `source:`, and the
- *  draft it lands into when `into` is given. */
-function withFrontmatter(lines: string[], body: string, into?: string): string {
-  return ["---", "source: /elsewhere/plans/round.md", ...(into ? [`into: ${into}`] : []), ...lines, "---", "", body].join("\n");
+/** A plan whose frontmatter carries the given lines after `source:`. */
+function withFrontmatter(lines: string[], body: string): string {
+  return ["---", "source: /elsewhere/plans/round.md", ...lines, "---", "", body].join("\n");
 }
 
 /** A plan whose frontmatter lists `name: path` attachments, indented under `attachments:`. */
-function withAttachments(entries: string[], body: string, into?: string): string {
-  return withFrontmatter(["attachments:", ...entries.map((entry) => `  ${entry}`)], body, into);
+function withAttachments(entries: string[], body: string): string {
+  return withFrontmatter(["attachments:", ...entries.map((entry) => `  ${entry}`)], body);
 }
 
 /** A file under the host's `.temp/`, where the skills write the files a plan is built from. */
@@ -1294,12 +1020,12 @@ test("a whitespace-only line between two attachment entries lands both files, ex
   });
 });
 
-test("a name repeated after a whitespace-only line still exits 7 with duplicate name (the line does not reset the map)", async () => {
+test("a name repeated after a whitespace-only line still exits 6 with duplicate name (the line does not reset the map)", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     const src = sourcePlan(dir, "outside/add-login.md", withAttachments(["a.html: /x/one", "", "b.html: /x/two", "b.html: /x/three"], PLAN_BODY));
 
     const result = await run(dir, ["--land", src]);
-    assert.equal(result.status, 7, `stdout: ${result.stdout}`);
+    assert.equal(result.status, 6, `stdout: ${result.stdout}`);
     assert.equal(result.stdout, "");
     assert.equal(result.stderr.trim(), "error: unusable attachments: duplicate name b.html");
   });
@@ -1382,12 +1108,12 @@ for (const [what, frontmatter, reason] of [
   ["an entry with no colon", ["attachments:", "  a.png"], "entry without a path: a.png"],
   ["an attachments: line carrying a value", ["attachments: a.png"], "attachments: carries a value"],
 ] as const) {
-  test(`${what} in the attachments map exits 7 naming the entry, with empty stdout and no run directory created`, async () => {
+  test(`${what} in the attachments map exits 6 naming the entry, with empty stdout and no run directory created`, async () => {
     await withTempDir("p2p2-viber-", async (dir) => {
       const src = sourcePlan(dir, "outside/add-login.md", withFrontmatter([...frontmatter], PLAN_BODY));
 
       const result = await run(dir, ["--land", src]);
-      assert.equal(result.status, 7, `stdout: ${result.stdout}`);
+      assert.equal(result.status, 6, `stdout: ${result.stdout}`);
       assert.equal(result.stdout, "");
       assert.equal(result.stderr.trim(), `error: unusable attachments: ${reason}`);
       assert.equal(fs.existsSync(path.join(dir, "docs")), false);
@@ -1410,117 +1136,20 @@ test("an attachment source that is missing warns once on stderr and still lands 
   });
 });
 
-test("an --into draft round replaces the former round's attachments with its own", async () => {
+test("landing the same source again answers existing and copies nothing (a source edited since does not reach the run)", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    const landed = path.join(dir, "docs", "_specs", key, "attachments");
-
-    const old = posixForm(attachment(dir, "old.html", "<p>round 1</p>\n"));
-    const round1 = sourcePlan(dir, "outside/round-1.md", withAttachments([`old.html: ${old}`], DRAFT_BODY, key));
-    const one = await run(dir, ["--land", round1]);
-    assert.equal(one.status, 0, `stderr: ${one.stderr}`);
-
-    const fresh = posixForm(attachment(dir, "fresh.html", "<p>round 2</p>\n"));
-    const round2 = sourcePlan(dir, "outside/round-2.md", withAttachments([`fresh.html: ${fresh}`], PLAN_BODY, key));
-    const two = await run(dir, ["--land", round2]);
-    assert.equal(two.status, 0, `stderr: ${two.stderr}`);
-    assert.equal(parse(two.stdout).state, "new");
-    assert.deepEqual(fs.readdirSync(landed), ["fresh.html"]);
-    assert.equal(fs.readFileSync(path.join(landed, "fresh.html"), "utf-8"), "<p>round 2</p>\n");
-  });
-});
-
-test("an --into draft round whose attachment source is gone keeps the former attachments/<name> and warns once", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    const landed = path.join(dir, "docs", "_specs", key, "attachments");
-
-    const page = posixForm(attachment(dir, "login.html", "<p>round 1</p>\n"));
-    const round1 = sourcePlan(dir, "outside/round-1.md", withAttachments([`login.html: ${page}`], DRAFT_BODY, key));
-    const one = await run(dir, ["--land", round1]);
-    assert.equal(one.status, 0, `stderr: ${one.stderr}`);
-    fs.rmSync(path.join(dir, ".temp"), { recursive: true, force: true });
-
-    const round2 = sourcePlan(dir, "outside/round-2.md", withAttachments([`login.html: ${page}`], PLAN_BODY, key));
-    const two = await run(dir, ["--land", round2]);
-    assert.equal(two.status, 0, `stderr: ${two.stderr}`);
-    assert.equal(parse(two.stdout).state, "new");
-    assert.equal(two.stderr.trim(), `warning: attachment not found, not landed: ${page}`);
-    assert.equal(fs.readFileSync(path.join(landed, "login.html"), "utf-8"), "<p>round 1</p>\n");
-  });
-});
-
-test("an --into draft round whose map drops an entry removes that entry's former copy while a kept entry with a gone source survives", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    const landed = path.join(dir, "docs", "_specs", key, "attachments");
-
-    const keep = posixForm(attachment(dir, "keep.html", "<p>keep</p>\n"));
-    const drop = posixForm(attachment(dir, "drop.html", "<p>drop</p>\n"));
-    const round1 = sourcePlan(dir, "outside/round-1.md", withAttachments([`keep.html: ${keep}`, `drop.html: ${drop}`], DRAFT_BODY, key));
-    const one = await run(dir, ["--land", round1]);
-    assert.equal(one.status, 0, `stderr: ${one.stderr}`);
-    fs.rmSync(path.join(dir, ".temp"), { recursive: true, force: true });
-
-    const round2 = sourcePlan(dir, "outside/round-2.md", withAttachments([`keep.html: ${keep}`], PLAN_BODY, key));
-    const two = await run(dir, ["--land", round2]);
-    assert.equal(two.status, 0, `stderr: ${two.stderr}`);
-    assert.deepEqual(fs.readdirSync(landed), ["keep.html"]);
-  });
-});
-
-test("an attachment source that is missing with no former copy lands nothing and warns once", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    const gone = posixForm(path.join(dir, ".temp", "viber", "attach", "gone.html"));
-    const round = sourcePlan(dir, "outside/round-2.md", withAttachments([`mockup.html: ${gone}`], PLAN_BODY, key));
-
-    const result = await run(dir, ["--land", round]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stderr.trim(), `warning: attachment not found, not landed: ${gone}`);
-    assert.equal(fs.existsSync(path.join(dir, "docs", "_specs", key, "attachments")), false);
-  });
-});
-
-test("an --into draft round with no attachments: key removes the attachments directory a former round landed", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    const landed = path.join(dir, "docs", "_specs", key, "attachments");
-
-    const old = posixForm(attachment(dir, "old.html", "<p>round 1</p>\n"));
-    const round1 = sourcePlan(dir, "outside/round-1.md", withAttachments([`old.html: ${old}`], DRAFT_BODY, key));
-    const one = await run(dir, ["--land", round1]);
-    assert.equal(one.status, 0, `stderr: ${one.stderr}`);
-    assert.ok(fs.existsSync(landed));
-
-    const round2 = sourcePlan(dir, "outside/round-2.md", withFrontmatter([], PLAN_BODY, key));
-    const two = await run(dir, ["--land", round2]);
-    assert.equal(two.status, 0, `stderr: ${two.stderr}`);
-    assert.equal(two.stderr, "");
-    assert.equal(parse(two.stdout).state, "new");
-    assert.equal(fs.existsSync(landed), false);
-  });
-});
-
-test("landing the same --into round again answers existing and copies nothing (a source edited since does not reach the run)", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    const file = attachment(dir, "login.html", "<p>round 2</p>\n");
-    const round = sourcePlan(dir, "outside/round-2.md", withAttachments([`mockup.html: ${posixForm(file)}`], PLAN_BODY, key));
-    const first = await run(dir, ["--land", round]);
+    const file = attachment(dir, "login.html", "<p>accepted</p>\n");
+    const src = sourcePlan(dir, "outside/add-login.md", withAttachments([`mockup.html: ${posixForm(file)}`], PLAN_BODY));
+    const first = await run(dir, ["--land", src]);
     assert.equal(first.status, 0, `stderr: ${first.stderr}`);
+    const landed = parse(first.stdout);
+    assert.equal(landed.state, "new");
 
     fs.writeFileSync(file, "<p>edited later</p>\n");
-    const again = await run(dir, ["--land", round]);
+    const again = await run(dir, ["--land", src]);
     assert.equal(again.status, 0, `stderr: ${again.stderr}`);
-    assert.equal(parse(again.stdout).state, "existing");
-    assert.equal(fs.readFileSync(path.join(dir, "docs", "_specs", key, "attachments", "mockup.html"), "utf-8"), "<p>round 2</p>\n");
+    assert.deepEqual(parse(again.stdout), { ...landed, state: "existing" });
+    assert.equal(fs.readFileSync(path.join(dir, "docs", "_specs", landed.key, "attachments", "mockup.html"), "utf-8"), "<p>accepted</p>\n");
   });
 });
 
@@ -1735,11 +1364,11 @@ function targetLines(stdout: string): string[] {
     .filter((line) => line.startsWith("target: "));
 }
 
-test("an unusable attachments map exits 7 before the run branch step: HEAD stays on main and the branch is not created", async () => {
+test("an unusable attachments map exits 6 before the run branch step: HEAD stays on main and the branch is not created", async () => {
   await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
     await withSource(["branch: feature/login", "attachments:", "  a.png: /x/one", "  a.png: /x/two"], async (src) => {
       const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 7, `stdout: ${result.stdout}`);
+      assert.equal(result.status, 6, `stdout: ${result.stdout}`);
       assert.equal(result.stdout, "");
       assert.equal(await headOf(repo), "main");
       assert.equal((await repo.git("branch", "--list", "feature/login")).stdout.trim(), "");
@@ -1881,11 +1510,11 @@ for (const [name, expected] of [
   });
 }
 
-test("an entry name pattern that expands to nothing at all makes the landing refuse the run branch, exit 6, HEAD unchanged and a reason naming the empty name", async () => {
+test("an entry name pattern that expands to nothing at all makes the landing refuse the run branch, exit 5, HEAD unchanged and a reason naming the empty name", async () => {
   await withBranchRepo(["mode: required", "work:", ...workEntry("dash", "main", "-/_", "main")], async (repo) => {
     await withSource([], async (src) => {
       const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
       assert.equal(result.stdout, "");
       assert.match(result.stderr, /empty/);
       assert.equal(await headOf(repo), "main");
@@ -1894,12 +1523,12 @@ test("an entry name pattern that expands to nothing at all makes the landing ref
   });
 });
 
-test("required and a plan naming the base: exit 6, nothing on stdout, nothing landed and HEAD where it was", async () => {
+test("required and a plan naming the base: exit 5, nothing on stdout, nothing landed and HEAD where it was", async () => {
   await withBranchRepo(["mode: required", ...ON_MAIN], async (repo) => {
     await repo.git("checkout", "-q", "-b", "work");
     await withSource(["branch: main"], async (src) => {
       const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
       assert.equal(result.stdout, "");
       assert.match(result.stderr, /base/);
       assert.equal(await headOf(repo), "work");
@@ -1908,12 +1537,12 @@ test("required and a plan naming the base: exit 6, nothing on stdout, nothing la
   });
 });
 
-test("required, a detached HEAD and a plan recording no branch: exit 6, since a detached HEAD is no branch to stay on", async () => {
+test("required, a detached HEAD and a plan recording no branch: exit 5, since a detached HEAD is no branch to stay on", async () => {
   await withBranchRepo(["mode: required", ...ON_MAIN], async (repo) => {
     await repo.git("checkout", "-q", "--detach");
     await withSource([], async (src) => {
       const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
       assert.match(result.stderr, /detached/);
       assert.equal(await headOf(repo), "HEAD");
       assert.deepEqual(runDirs(repo.dir), []);
@@ -1933,14 +1562,14 @@ test("allowed, a detached HEAD and a plan recording no branch: reported as detac
   });
 });
 
-test("a switch to a branch at another commit on a dirty tree: exit 6, no run directory, HEAD and the tree unchanged", async () => {
+test("a switch to a branch at another commit on a dirty tree: exit 5, no run directory, HEAD and the tree unchanged", async () => {
   await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
     await branchAhead(repo, "feature/login");
     fs.writeFileSync(path.join(repo.dir, "README.md"), "changed\n");
     const tree = await treeOf(repo);
     await withSource(["branch: feature/login"], async (src) => {
       const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
       assert.equal(result.stdout, "");
       assert.match(result.stderr, /uncommitted/);
       assert.equal(await headOf(repo), "main");
@@ -1950,25 +1579,25 @@ test("a switch to a branch at another commit on a dirty tree: exit 6, no run dir
   });
 });
 
-test("creating the run branch from a base at another commit on a dirty tree: exit 6 and HEAD stays on its branch", async () => {
+test("creating the run branch from a base at another commit on a dirty tree: exit 5 and HEAD stays on its branch", async () => {
   await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
     await branchAhead(repo, "work");
     await repo.git("checkout", "-q", "work");
     fs.writeFileSync(path.join(repo.dir, "README.md"), "changed\n");
     await withSource(["branch: feature/login"], async (src) => {
       const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
       assert.equal(await headOf(repo), "work");
       assert.deepEqual(runDirs(repo.dir), []);
     });
   });
 });
 
-test("an entry base missing locally: exit 6 naming the base, nothing landed and HEAD where it was", async () => {
+test("an entry base missing locally: exit 5 naming the base, nothing landed and HEAD where it was", async () => {
   await withBranchRepo(["mode: allowed", "work:", ...workEntry("feature", "develop", "feature/{slug}", "develop")], async (repo) => {
     await withSource(["branch: feature/login"], async (src) => {
       const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
       assert.match(result.stderr, /base branch develop does not exist locally/);
       assert.equal(await headOf(repo), "main");
       assert.deepEqual(runDirs(repo.dir), []);
@@ -1976,11 +1605,11 @@ test("an entry base missing locally: exit 6 naming the base, nothing landed and 
   });
 });
 
-test("a plan naming an invalid branch name: exit 6 naming it, nothing landed and HEAD where it was", async () => {
+test("a plan naming an invalid branch name: exit 5 naming it, nothing landed and HEAD where it was", async () => {
   await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
     await withSource(["branch: bad..name"], async (src) => {
       const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
       assert.match(result.stderr, /invalid run branch name: bad\.\.name/);
       assert.equal(await headOf(repo), "main");
       assert.deepEqual(runDirs(repo.dir), []);
@@ -1994,7 +1623,7 @@ test("a plan naming the previous-branch shorthand is an invalid name, never a sw
     await repo.git("checkout", "-q", "main");
     await withSource(["branch: @{-1}"], async (src) => {
       const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
       assert.match(result.stderr, /invalid run branch name/);
       assert.equal(await headOf(repo), "main");
     });
@@ -2062,28 +1691,10 @@ test("the approved plan re-landed from the base answers existing from the run br
   });
 });
 
-test("a draft round landed through into: runs the branch step before the copy, carrying the uncommitted draft to the new branch", async () => {
-  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(repo.dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    await withSource(
-      ["branch: feature/login", `into: ${key}`],
-      async (src) => {
-        const result = await runIn(repo, ["--land", src]);
-        assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-        assert.equal(branchLine(result.stdout), "branch: feature/login (created)");
-        assert.equal(await headOf(repo), "feature/login");
-        assert.deepEqual(runDirs(repo.dir), [key]);
-      },
-      DRAFT_BODY,
-    );
-  });
-});
-
-test("a landing refused with exit 2 for its --into key leaves HEAD where it was and creates no branch", async () => {
+test("a landing refused with exit 2 for an argument after its source leaves HEAD where it was and creates no branch", async () => {
   await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
     await withSource(["branch: feature/login"], async (src) => {
-      const result = await runIn(repo, ["--land", src, "--into", "2026-01-01-00-00-00_never-landed"]);
+      const result = await runIn(repo, ["--land", src, "2026-01-01-00-00-00_never-landed"]);
       assert.equal(result.status, 2, `stdout: ${result.stdout}`);
       assert.equal(await headOf(repo), "main");
       assert.equal((await repo.git("show-ref", "--verify", "--quiet", "refs/heads/feature/login")).status, 1);
@@ -2098,60 +1709,6 @@ test("a landing refused with exit 2 for a slug that normalizes to nothing leaves
       const result = await runIn(repo, ["--land", src]);
       assert.equal(result.status, 2, `stdout: ${result.stdout}`);
       assert.equal(await headOf(repo), "main");
-    });
-  });
-});
-
-test("a landing refused with exit 4 for a target that is not a draft leaves HEAD where it was and creates no branch", async () => {
-  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(repo.dir, key, "2026-09-19T17:30:00Z", PLAN_BODY);
-    await withSource(["branch: feature/login", `into: ${key}`], async (src) => {
-      const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 4, `stdout: ${result.stdout}`);
-      assert.equal(await headOf(repo), "main");
-      assert.equal((await repo.git("show-ref", "--verify", "--quiet", "refs/heads/feature/login")).status, 1);
-    });
-  });
-});
-
-test("a decomposed round re-landed through into: from the base branch switches back to the run branch", async () => {
-  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(repo.dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    await withSource(["branch: feature/login", `into: ${key}`], async (src) => {
-      const first = await runIn(repo, ["--land", src]);
-      assert.equal(first.status, 0, `stderr: ${first.stderr}`);
-      assert.equal(branchLine(first.stdout), "branch: feature/login (created)");
-
-      fs.mkdirSync(path.join(repo.dir, "docs", "_specs", key, "tasks"), { recursive: true });
-      landStatus(repo.dir, key, { progress: "0/1", done: "none" });
-      // the same commit, so the untracked run directory follows HEAD back
-      await repo.git("checkout", "-q", "main");
-
-      const again = await runIn(repo, ["--land", src]);
-      assert.equal(again.status, 0, `stderr: ${again.stderr}`);
-      assert.equal(parse(again.stdout).state, "existing");
-      assert.equal(branchLine(again.stdout), "branch: feature/login (switched)");
-      assert.equal(await headOf(repo), "feature/login");
-    });
-  });
-});
-
-test("a matching into: round re-landed before any split switches back to the run branch too", async () => {
-  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
-    const key = "2026-09-19-17-30-00_add-login";
-    landPlan(repo.dir, key, "2026-09-19T17:30:00Z", DRAFT_BODY);
-    await withSource(["branch: feature/login", `into: ${key}`], async (src) => {
-      const first = await runIn(repo, ["--land", src]);
-      assert.equal(first.status, 0, `stderr: ${first.stderr}`);
-      await repo.git("checkout", "-q", "main");
-
-      const again = await runIn(repo, ["--land", src]);
-      assert.equal(again.status, 0, `stderr: ${again.stderr}`);
-      assert.equal(parse(again.stdout).state, "existing");
-      assert.equal(branchLine(again.stdout), "branch: feature/login (switched)");
-      assert.equal(await headOf(repo), "feature/login");
     });
   });
 });
@@ -2208,12 +1765,12 @@ for (const [mode, frontmatter] of [
   ["allowed", ["branch: feature/login"]],
   ["required", []],
 ] as const) {
-  test(`${mode}, several entries and a plan recording no work: key: a branch to create exits 6 naming the ambiguity, nothing landed and HEAD where it was (DoD.2)`, async () => {
+  test(`${mode}, several entries and a plan recording no work: key: a branch to create exits 5 naming the ambiguity, nothing landed and HEAD where it was (DoD.2)`, async () => {
     await withBranchRepo([`mode: ${mode}`, ...TWO_BASES], async (repo) => {
       await repo.git("branch", "develop");
       await withSource([...frontmatter], async (src) => {
         const result = await runIn(repo, ["--land", src]);
-        assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+        assert.equal(result.status, 5, `stdout: ${result.stdout}`);
         assert.equal(result.stdout, "");
         assert.match(result.stderr, /the plan records no branching\.work entry and several exist/);
         assert.equal(await headOf(repo), "main");
@@ -2235,11 +1792,11 @@ test("several entries and a plan recording no work: key but a branch that exists
   });
 });
 
-test("required and an entry named from {issue-number} while the plan has no issue: exit 6 naming the entry, nothing landed and HEAD where it was (DoD.3)", async () => {
+test("required and an entry named from {issue-number} while the plan has no issue: exit 5 naming the entry, nothing landed and HEAD where it was (DoD.3)", async () => {
   await withBranchRepo(["mode: required", "work:", ...workEntry("hotfix", "main", "hotfix/issue.{issue-number}", "main")], async (repo) => {
     await withSource([], async (src) => {
       const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
       assert.equal(result.stdout, "");
       assert.match(result.stderr, /work entry hotfix needs an issue for \{issue-number\}/);
       assert.equal(await headOf(repo), "main");
@@ -2266,20 +1823,20 @@ test("required and an entry based on develop: a plan naming develop as its branc
     await repo.git("checkout", "-q", "-b", "work");
     await withSource(["branch: develop"], async (src) => {
       const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
       assert.match(result.stderr, /branching is required and the run branch is a work entry base: develop/);
       assert.equal(await headOf(repo), "work");
     });
   });
 });
 
-test("entry base under required: a plan recording another entry's base as its branch exits 6 with the base message and lands nothing (DoD.1)", async () => {
+test("entry base under required: a plan recording another entry's base as its branch exits 5 with the base message and lands nothing (DoD.1)", async () => {
   await withBranchRepo(["mode: required", ...TWO_BASES], async (repo) => {
     await branchAhead(repo, "develop");
     await repo.git("checkout", "-q", "-b", "work");
     await withSource(["work: hotfix", "branch: develop"], async (src) => {
       const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
       assert.equal(result.stdout, "");
       assert.match(result.stderr, /branching is required and the run branch is a work entry base: develop/);
       assert.equal(await headOf(repo), "work");
@@ -2475,7 +2032,7 @@ for (const [what, branching, frontmatter, first] of [
   ["a dropped entry beside a valid one and a recorded branch that does not exist", ["mode: allowed", ...ONE_BROKEN], ["work: feature", "branch: feature/login"], BROKEN_ERROR],
   ["a dropped entry beside a valid one, required and no branch recorded on the base", ["mode: required", ...ONE_BROKEN], ["work: feature"], BROKEN_ERROR],
 ] as const) {
-  test(`${what}: creating the run branch exits 6 naming the first configuration error, HEAD, index and tree unchanged (T6 DoD.3, DoD.4)`, async () => {
+  test(`${what}: creating the run branch exits 5 naming the first configuration error, HEAD, index and tree unchanged (T6 DoD.3, DoD.4)`, async () => {
     await withBranchRepo([...branching], async (repo) => {
       await dirtyTree(repo);
       const head = await commitOf(repo);
@@ -2484,7 +2041,7 @@ for (const [what, branching, frontmatter, first] of [
       const branches = (await repo.git("branch", "--list")).stdout;
       await withSource([...frontmatter], async (src) => {
         const result = await runIn(repo, ["--land", src]);
-        assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+        assert.equal(result.status, 5, `stdout: ${result.stdout}`);
         assert.equal(result.stdout, "");
         assert.equal(result.stderr.trim(), `error: ${first}`);
         assert.equal(await headOf(repo), "main");
@@ -3198,50 +2755,7 @@ test("start decision: an error: line settles nothing: the report ends on next: e
   });
 });
 
-test("start decision: a draft recording branch: none under allowed settles no-branch (DoD.2, rule 3)", async () => {
-  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
-    await withSource(["work: feature", "branch: none"], async (src) => {
-      const result = await startWith(repo, ["--draft", src]);
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: no-branch"]);
-    });
-  });
-});
-
-test("start decision: a draft recording branch: none under required goes on to the entry rules (DoD.2, rule 3)", async () => {
-  await withBranchRepo(SINGLE, async (repo) => {
-    await withSource(["work: feature", "branch: none"], async (src) => {
-      const result = await startWith(repo, ["--draft", src]);
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: feature"]);
-    });
-  });
-});
-
-test("start decision: a draft recording the branch HEAD is on settles its work: entry without a base check (DoD.2, rule 3)", async () => {
-  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
-    await workAhead(repo);
-    await repo.git("checkout", "-q", "-b", "feature/login");
-    await withSource(["work: feature", "branch: feature/login"], async (src) => {
-      const result = await startWith(repo, ["--draft", src]);
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: feature"]);
-    });
-  });
-});
-
-test("start decision: a draft recording another branch than HEAD's asks switch to it, stay or abort, naming its entry (DoD.2, rule 3)", async () => {
-  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
-    await withSource(["work: feature", "branch: feature/login"], async (src) => {
-      const result = await startWith(repo, ["--draft", src]);
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(verdictOf(result.stdout), ["next: ask-base", "checking: feature"]);
-      assert.deepEqual(answersOf(result.stdout), ["switch | feature/login", "stay | -", "abort | -"]);
-    });
-  });
-});
-
-test("start decision: --pr under allowed settles no-branch (DoD.2, rule 4)", async () => {
+test("start decision: --pr under allowed settles no-branch (DoD.2, rule 3)", async () => {
   await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
     const result = await startWith(repo, ["--pr"]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
@@ -3249,7 +2763,7 @@ test("start decision: --pr under allowed settles no-branch (DoD.2, rule 4)", asy
   });
 });
 
-test("start decision: --pr under required on a branch that is no entry base settles pr (DoD.2, rule 4)", async () => {
+test("start decision: --pr under required on a branch that is no entry base settles pr (DoD.2, rule 3)", async () => {
   await withBranchRepo(SINGLE, async (repo) => {
     await repo.git("checkout", "-q", "-b", "work");
     const result = await startWith(repo, ["--pr"]);
@@ -3258,7 +2772,7 @@ test("start decision: --pr under required on a branch that is no entry base sett
   });
 });
 
-test("start decision: --pr under required on an entry base goes on to the entry rules (DoD.2, rule 4)", async () => {
+test("start decision: --pr under required on an entry base goes on to the entry rules (DoD.2, rule 3)", async () => {
   await withBranchRepo(SINGLE, async (repo) => {
     const result = await startWith(repo, ["--pr"]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
@@ -3266,7 +2780,7 @@ test("start decision: --pr under required on an entry base goes on to the entry 
   });
 });
 
-test("start decision: a suggested entry is taken without a question and base-checked: HEAD on its base settles it (DoD.2, rule 6)", async () => {
+test("start decision: a suggested entry is taken without a question and base-checked: HEAD on its base settles it (DoD.2, rule 5)", async () => {
   await withBranchRepo(GITFLOW, async (repo) => {
     await withGh("Bug-Report", 0, async (stubDir) => {
       const result = await startWith(repo, [ISSUE_URL], [stubDir]);
@@ -3276,7 +2790,7 @@ test("start decision: a suggested entry is taken without a question and base-che
   });
 });
 
-test("start decision: --entry names the entry to base-check, whatever is suggested (DoD.2, rule 5)", async () => {
+test("start decision: --entry names the entry to base-check, whatever is suggested (DoD.2, rule 4)", async () => {
   await withBranchRepo(twoEntries("allowed"), async (repo) => {
     const result = await startWith(repo, ["--entry", "chore"]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
@@ -3312,7 +2826,7 @@ test("start decision: a run with no usable entry prints next: none and a note, o
   });
 });
 
-test("start decision: --roadmap off the base with HEAD at no base settles current (DoD.4, rule 7)", async () => {
+test("start decision: --roadmap off the base with HEAD at no base settles current (DoD.4, rule 6)", async () => {
   await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
     await workAhead(repo);
     const result = await startWith(repo, ["--roadmap"]);
@@ -3397,13 +2911,11 @@ test("start decision: uncommitted changes are named in a note on the base check 
   });
 });
 
-test("start decision: a pull request's settlement is kept on the re-run whatever a draft would settle (DoD.5, rule 2)", async () => {
+test("start decision: a pull request's settlement is kept on the re-run whatever the entry rules would settle (DoD.5, rule 2)", async () => {
   await withBranchRepo(SINGLE, async (repo) => {
-    await withSource(["work: feature", "branch: feature/login"], async (src) => {
-      const result = await startWith(repo, ["--settled", "pr", "--draft", src]);
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(decisionOf(result.stdout), ["next: kept", "settled: pr"]);
-    });
+    const result = await startWith(repo, ["--settled", "pr", "--entry", "feature"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(decisionOf(result.stdout), ["next: kept", "settled: pr"]);
   });
 });
 
@@ -3490,12 +3002,9 @@ test("start decision: --settled nothing without an error: line goes through the 
 
 for (const [what, args] of [
   ["an unknown flag", ["--bogus"]],
-  ["--draft with no value", ["--draft"]],
   ["--entry with no value", ["--entry"]],
   ["--settled with no value", ["--settled"]],
-  ["--draft followed by a flag", ["--draft", "--pr"]],
-  ["a --draft path that does not exist", ["--draft", "no-such-draft.md"]],
-  ["a --draft path that is a directory", ["--draft", "."]],
+  ["--entry followed by a flag", ["--entry", "--pr"]],
 ] as const) {
   test(`start report exits 2 on ${what} and prints nothing (DoD.6)`, async () => {
     await withBranchRepo(SINGLE, async (repo) => {
@@ -3562,11 +3071,11 @@ test("checkout form: the branch HEAD is already on reads kept (DoD.2)", async ()
   });
 });
 
-test("checkout form: a name with no local branch exits 6 and creates nothing (DoD.3)", async () => {
+test("checkout form: a name with no local branch exits 5 and creates nothing (DoD.3)", async () => {
   await withBranchRepo(SINGLE, async (repo) => {
     const branches = await branchesOf(repo);
     const result = await runIn(repo, ["--checkout", "feature/absent"]);
-    assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+    assert.equal(result.status, 5, `stdout: ${result.stdout}`);
     assert.equal(result.stdout, "");
     assert.match(result.stderr, /branch feature\/absent does not exist locally/);
     assert.equal(await headOf(repo), "main");
@@ -3574,10 +3083,10 @@ test("checkout form: a name with no local branch exits 6 and creates nothing (Do
   });
 });
 
-test("checkout form: an invalid name exits 6 with HEAD unchanged (DoD.4)", async () => {
+test("checkout form: an invalid name exits 5 with HEAD unchanged (DoD.4)", async () => {
   await withBranchRepo(SINGLE, async (repo) => {
     const result = await runIn(repo, ["--checkout", "bad..name"]);
-    assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+    assert.equal(result.status, 5, `stdout: ${result.stdout}`);
     assert.equal(result.stdout, "");
     assert.match(result.stderr, /invalid branch name: bad\.\.name/);
     assert.equal(await headOf(repo), "main");
@@ -3591,13 +3100,13 @@ test("checkout form: the previous-branch shorthand is an invalid name, never a s
     // a Windows child re-parses its command line and drops the braces of a bare
     // argument, so the name crosses inside a shell string that holds spaces
     const result = await runScript(`exec bash "${SUT.replace(/\\/g, "/")}" --checkout '@{-1}'`, [], { cwd: repo.dir, shell: ["bash", "-c"], env: repo.env });
-    assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+    assert.equal(result.status, 5, `stdout: ${result.stdout}`);
     assert.match(result.stderr, /invalid branch name/);
     assert.equal(await headOf(repo), "main");
   });
 });
 
-test("checkout form: a dirty tree and a branch at another commit exits 6 with HEAD, index and tree unchanged (DoD.5)", async () => {
+test("checkout form: a dirty tree and a branch at another commit exits 5 with HEAD, index and tree unchanged (DoD.5)", async () => {
   await withBranchRepo(SINGLE, async (repo) => {
     await branchAhead(repo, "feature/login");
     fs.writeFileSync(path.join(repo.dir, "README.md"), "changed\n");
@@ -3606,7 +3115,7 @@ test("checkout form: a dirty tree and a branch at another commit exits 6 with HE
     const tree = await treeOf(repo);
     const index = await indexOf(repo);
     const result = await runIn(repo, ["--checkout", "feature/login"]);
-    assert.equal(result.status, 6, `stdout: ${result.stdout}`);
+    assert.equal(result.status, 5, `stdout: ${result.stdout}`);
     assert.equal(result.stdout, "");
     assert.match(result.stderr, /uncommitted changes and feature\/login is at another commit/);
     assert.equal(await headOf(repo), "main");

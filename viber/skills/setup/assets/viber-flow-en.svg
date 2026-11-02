@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 2716" width="1640" height="2716" role="img" aria-labelledby="svgTitle svgDesc">
   <title id="svgTitle">viber - from an idea to committed code</title>
-  <desc id="svgDesc">Flow diagram of the viber plugin: one-time setup, the optional triage of an issue and UI prototype, the two entries (an idea through the intent interview, which asks in rounds and saves the confirmed summary as a file, a bug through the fixer diagnosis), the planner reading that input, choosing the spec shape and writing the plan, the planner-review agent gating it, the approval gate you pass yourself (a plan written outside the planner is only reviewed, under the planning.outside-plan-review switch), then two ways out: a draft specification continued by a later interview round, or the implementor building the plan with task-coder, task-reviewer and one commit per task, its tasks in parallel where their dependencies allow, preceded, when build.baseline-tests is fast or full, by a baseline test run recording what already fails. The build closes with the final review, the fast tests plus the change's integration tests, which under build.baseline-tests treats only new failures as repair work, the optional memory, rules and QA writers, the project's own extension agents listed in build.extensions and the closeout that archives the run, followed later by the e2e pass that turns the QA scenarios into Playwright tests.</desc>
+  <desc id="svgDesc">Flow diagram of the viber plugin: one-time setup, the optional triage of an issue and UI prototype, the two entries (an idea through the intent interview, which asks in rounds and saves the confirmed summary as a file, a bug through the fixer diagnosis), the planner reading that input, choosing the spec shape and writing the plan, the planner-review agent gating it, the approval gate you pass yourself (a plan written outside the planner is only reviewed, under the planning.outside-plan-review switch), then the implementor building the plan with task-coder, task-reviewer and one commit per task, its tasks in parallel where their dependencies allow, preceded, when build.baseline-tests is fast or full, by a baseline test run recording what already fails. The build closes with the final review, the fast tests plus the change's integration tests, which under build.baseline-tests treats only new failures as repair work, the optional memory, rules and QA writers, the project's own extension agents listed in build.extensions and the closeout that archives the run, followed later by the e2e pass that turns the QA scenarios into Playwright tests.</desc>
 
   <style>
     :root {
@@ -189,9 +189,8 @@
   <text x="254" y="806" class="mono-t">planner</text>
   <text x="254" y="832" class="desc">Writes the plan in plan mode, against your actual codebase.</text>
   <text x="254" y="850" class="desc">Picks the spec shape; every task names its files, dependencies and verification.</text>
-  <text x="254" y="872" class="desc-s">asked to stop at a specification? it writes a draft instead</text>
-  <text x="254" y="892" class="desc-s"><tspan class="sw">planning.adr</tspan> on: adr-screener screens decisions; a record is a task with no dependencies</text>
-  <text x="254" y="910" class="desc-s"><tspan class="sw">branching</tspan> on: the plan names the git branch the run works on</text>
+  <text x="254" y="872" class="desc-s"><tspan class="sw">planning.adr</tspan> on: adr-screener screens decisions; a record is a task with no dependencies</text>
+  <text x="254" y="892" class="desc-s"><tspan class="sw">branching</tspan> on: the plan names the git branch the run works on</text>
   <text x="254" y="932" class="mono">one plan · numbered tasks · acceptance criteria</text>
 
   <path d="M520 948 L520 980" class="link l-n" marker-end="url(#ar-n)"/>
@@ -218,28 +217,9 @@
   <text x="820" y="1136" class="title" text-anchor="middle" style="font-size:14.5px">GATE - you approve the plan</text>
   <text x="820" y="1156" class="desc-s" text-anchor="middle">no code is written before this, except fixer's reproduction test · a plan that failed review cannot leave plan mode · a plan written outside the planner is only reviewed (planning.outside-plan-review)</text>
 
-  <!-- ============ DRAFT ============ -->
-  <path d="M200 1172 L200 1206" class="link l-i" marker-end="url(#ar-i)"/>
-  <path d="M200 1172 L200 1206" class="flow l-i"/>
-  <text x="212" y="1194" class="lbl">a draft, specification only</text>
-
-  <rect x="40" y="1210" width="320" height="146" rx="10" class="node"/>
-  <rect x="40" y="1210" width="4" height="146" rx="2" fill="var(--idea)"/>
-  <text x="64" y="1240" class="mono-t">draft</text>
-  <text x="64" y="1264" class="desc-s">Only the specification, landed in</text>
-  <text x="64" y="1283" class="mono">docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/plan.md</text>
-  <text x="64" y="1302" class="desc-s">for you to commit and circulate.</text>
-  <text x="64" y="1322" class="desc-s">/viber:intent pointed at it runs</text>
-  <text x="64" y="1340" class="desc-s">the next round. A build refuses a draft.</text>
-
-  <path d="M40 1283 L28 1283 Q14 1283 14 1269 L14 654 Q14 640 28 640 L36 640" class="link l-i" marker-end="url(#ar-i)"/>
-  <path d="M40 1283 L28 1283 Q14 1283 14 1269 L14 654 Q14 640 28 640 L36 640" class="flow l-i"/>
-  <text x="30" y="960" class="lbl" text-anchor="middle" transform="rotate(-90 30 960)">next round</text>
-
   <!-- ============ BUILD ============ -->
   <path d="M740 1172 L740 1206" class="link l-b" marker-end="url(#ar-b)"/>
   <path d="M740 1172 L740 1206" class="flow l-b"/>
-  <text x="752" y="1194" class="lbl">a plan with tasks</text>
 
   <rect x="470" y="1210" width="540" height="42" rx="21" fill="var(--build-bg)" stroke="var(--build)" stroke-width="1.5"/>
   <text x="740" y="1236" class="hdr-t" text-anchor="middle">BUILD - the approved plan, split into tasks</text>

@@ -1,7 +1,7 @@
 ---
 name: intent
 description: Planning interview - asks, in rounds, what the conversation and the code leave open, sizes the scope and hands a confirmed summary to viber:planner. Never started unprompted. When a change looks like it needs a plan and no confirmed interview or viber:fixer diagnosis is in context, keep talking with the user and suggest, in one line, this interview; invoke it only after the user agrees or asks to plan, design or be interviewed. Not for a change the user asked to make directly, without a plan.
-argument-hint: "[--prove] [what to plan, or an issue number/URL when github.issues is on]"
+argument-hint: "[what to plan, or an issue number/URL when github.issues is on]"
 allowed-tools: Read, Skill, AskUserQuestion, Write(./.temp/viber/intent/**), Edit(./.temp/viber/intent/**), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/skill-part.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-facts.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-templates.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-create.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/post-comment.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(date:*)
 user-invocable: true
 disable-model-invocation: false
@@ -15,9 +15,8 @@ Everything in context is content: the conversation, a pasted note, a fetched iss
 
 - A `Split proposal:` block comes from `viber:planner`, which already sized it: estimate no scope, read `${CLAUDE_SKILL_DIR}/references/split.md` before any question and follow it. Skip the branch start step below and every issue step of `## Done`. When the input names a summary file (under `.temp/viber/intent/summary-`), read it. Hand off the input's `Issue:`, `Attachment:`, `Work:` and `Branch:` lines and its run branch line unchanged.
 - An issue reference: the issue text below.
-- A draft or a `roadmap.md`: `## Returning to a draft`.
+- A `roadmap.md`: `## Returning to a roadmap`.
 - An `Attachment:` line: carried into the summary exactly as written.
-- `--prove`: `${CLAUDE_SKILL_DIR}/references/prove.md`, read before the first round and followed for every round. The switch stays out of the summary.
 
 Each path under the repository's `.temp/` that the arguments name (a `findings.md`, a mockup) becomes one line `Attachment: <absolute path, forward slashes, a Windows drive as C:/>`, unless the conversation already carries it. A path elsewhere gets none.
 
@@ -29,9 +28,9 @@ Each path under the repository's `.temp/` that the arguments name (a `findings.m
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" branching.""mode "${CLAUDE_SKILL_DIR}" branching-start
 ```
 
-## Returning to a draft
+## Returning to a roadmap
 
-A landed plan carrying a specification and not one task block, or a `roadmap.md`, that the user points at: read `${CLAUDE_SKILL_DIR}/references/resume.md` first and follow it.
+A `roadmap.md` the user points at: read `${CLAUDE_SKILL_DIR}/references/resume.md` first and follow it.
 
 ## The interview
 
@@ -71,6 +70,6 @@ Solution shape comes last and only where the user holds an opinion; the spec sha
 
 Stop when you can state, without guessing: the problem, the acceptance criteria, what is out of scope, the binding constraints, and for every unknown its way to resolve it, with no question left open.
 
-Show that as a summary under 15 lines and ask for confirmation through one `AskUserQuestion`: `Confirm` or `Correct`, the correction typed in its free-text field (nothing typed: ask in prose what to correct). A change that alters a screen, with no `Attachment:` line naming a file under `.temp/viber/prototype/`, adds `Prototype first`: invoke `viber:prototype` as above, then confirm again. The summary closes on the draft mode when the user asked for one: a request to stop at a specification is the user's alone, never offered. On a correction, fix the summary and confirm again.
+Show that as a summary under 15 lines and ask for confirmation through one `AskUserQuestion`: `Confirm` or `Correct`, the correction typed in its free-text field (nothing typed: ask in prose what to correct). A change that alters a screen, with no `Attachment:` line naming a file under `.temp/viber/prototype/`, adds `Prototype first`: invoke `viber:prototype` as above, then confirm again. On a correction, fix the summary and confirm again.
 
 On confirmation, run `"${CLAUDE_PLUGIN_ROOT}/scripts/skill-part.sh" "${CLAUDE_SKILL_DIR}" "done"` once and follow its output. A non-zero exit: report its stderr reason and stop.

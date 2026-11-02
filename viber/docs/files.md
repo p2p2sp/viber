@@ -35,9 +35,6 @@ names.
 - With `build.qa` on, the build's test scenarios land here too. `rulings.md` appears only when the
   build ruled on something.
 
-A plan that stopped at a draft, with no tasks yet, is not a build to resume. Point `/viber:intent`
-at it to continue it.
-
 ## The archive
 
 With `build.cleanup` on, the build ends by moving what is worth keeping to `docs/specs/`:

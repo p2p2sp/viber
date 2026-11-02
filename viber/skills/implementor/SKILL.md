@@ -54,11 +54,10 @@ A `VERDICT: DENIED` question names the refused call from its `REASON:` line and 
 2. The `source:` line of the approved plan's frontmatter, or an older plan's `<!-- source: <path> -->` comment. Never offer to save plan text you are holding: the script copies the file.
 3. `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh"` with no argument returns the run most recently worked on. Exit 3 -> `AskUserQuestion` for the approved plan's full path, then land that.
 
-Exit 6 - the run branch could not be set -> report the stderr reason and stop: nothing landed, and the build does not proceed to step 2. Any other non-zero exit this step does not name by number (2, 4, 5, 7) -> the same: report the stderr reason and stop.
+Exit 5 - the run branch could not be set -> report the stderr reason and stop: nothing landed, and the build does not proceed to step 2. Any other non-zero exit this step does not name by number (2, 4, 6) -> the same: report the stderr reason and stop.
 
 A `target:` line following `branch:` and differing from the branch makes the run a pull request branch: carry both values to step 7.
 
-- `state: draft` -> report the path and that `/viber:intent` pointed at that draft continues it, then stop without a question.
 - `state: new` with any `open:` line -> `AskUserQuestion` naming both: build the plan just landed, or resume that run instead.
 - Resolved through 3 with any `open:` line -> `AskUserQuestion` for which run to resume.
 - Anything else -> proceed. `state: existing` is a run already open with its own progress; take it as it stands.
