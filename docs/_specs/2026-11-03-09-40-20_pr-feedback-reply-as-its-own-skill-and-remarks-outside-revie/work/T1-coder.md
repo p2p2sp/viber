@@ -1,4 +1,0 @@
-- The gh filter prints remarks before threads (R/Q lines: kind, id, login, isBot, createdAt, state), so the sentinel T line still closes the last thread; the header gains CMORE=, RMORE= and AUTH= (empty AUTH/login = null account).
-- Remarks are buffered and decided in the awk END block: a Conversation comment answers a remark wherever it sits in the list.
-- The tests' stub emulates that line shape; a filter change changes `remarkText`/`ghOut` in tests/viber/pr-threads.test.ts. The filter was checked against sample JSON with jq (gh uses gojq).
-- `CLAUDE.github.md` line 14 still names only T/C/B lines and line 8 only threads: the memory close should add R/Q and the remarks.

@@ -1,4 +1,0 @@
-- pr-feedback with `--reply` now ends on one line pointing at /viber:pr-feedback-reply (no flag handling); its argument-hint dropped `[--reply]`.
-- The two grep checks in Verification are literal: pr-feedback-reply/SKILL.md names `issuecomment` through the REPLY_URL shape of a remark reply.
-- help.html: the pr-feedback card and command-list entry were reworded for the remark kinds; the new card sits right after it.
-- Not touched (out of scope, memory close owns them): viber/skills/CLAUDE.md still lists `pr-feedback` only in the user-only skills and Relationships, and scripts/CLAUDE.md says pr-threads.sh/pr-reply.sh are called by `pr-feedback`; both should name pr-feedback-reply and the 22 -> 23 skill count.
