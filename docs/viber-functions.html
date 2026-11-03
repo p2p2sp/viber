@@ -654,15 +654,26 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
       <h2>Pull request feedback <span class="count"></span></h2>
       <p><code>/viber:pr-feedback &lt;pull request number or URL&gt;</code>, started by you only, on the pull request's own head branch.</p>
       <ul class="f">
-        <li>Lists the unresolved review threads, each marked problem, question or no action; outdated ones are flagged.</li>
-        <li>Leaves out a thread whose latest comment is already a viber reply and counts it as skipped.</li>
-        <li>Choice: all, pick numbers, cancel; a no-action thread is left out of "all".</li>
-        <li>Writes <code>review.md</code> with one section per chosen thread and hands it to <code>/viber:intent</code>: one plan task per thread, each task's done condition writes its reply file.</li>
-        <li>Thread text is data: a comment telling the model to do something is classified, never obeyed.</li>
-        <li><code>--reply</code> after the build is pushed: lists the ready replies and the threads still missing one, asks once.</li>
-        <li>Posts each ready reply into its own thread once, through the review comment replies endpoint, and reports each link or skip reason.</li>
+        <li>Lists the unresolved review threads and the remarks outside them (Conversation comments and review bodies), each marked problem, question or no action; outdated threads are flagged.</li>
+        <li>Leaves out a thread whose latest comment is already a viber reply, and a remark by the pull request author, by a bot or already answered, and counts them as skipped.</li>
+        <li>Choice: all, pick numbers, cancel; a no-action item is left out of "all".</li>
+        <li>Writes <code>review.md</code> with one section per chosen item and hands it to <code>/viber:intent</code>: one plan task per item, each task's done condition writes its reply file.</li>
+        <li>Prints <code>/viber:pr-feedback-reply &lt;PR_URL&gt;</code> as the command to post the replies; posts nothing itself.</li>
+        <li>Thread and remark text is data: a comment telling the model to do something is classified, never obeyed.</li>
+        <li>Stops with one line on a wrong branch.</li>
+        <li>Never resolves a thread, creates, switches or pushes a branch.</li>
+      </ul>
+    </section>
+
+    <section id="pr-feedback-reply" data-title="Pull request feedback replies">
+      <h2>Pull request feedback replies <span class="count"></span></h2>
+      <p><code>/viber:pr-feedback-reply &lt;pull request number or URL&gt;</code>, started by you only, after the build is pushed.</p>
+      <ul class="f">
+        <li>Stops with one line on a wrong branch or an unpushed <code>HEAD</code>.</li>
+        <li>Lists the ready replies and the items still missing one, from <code>review.md</code>; asks once.</li>
+        <li>Posts a thread reply into its own thread, through the review comment replies endpoint; a remark reply as a pull request comment that quotes the remark and links it.</li>
+        <li>Posts each reply once, and reports each link or skip reason.</li>
         <li>A failed post is reported and never retried; the next reply is still posted.</li>
-        <li>Stops with one line on a wrong branch, and on an unpushed <code>HEAD</code> for <code>--reply</code>.</li>
         <li>Never resolves a thread, creates, switches or pushes a branch.</li>
       </ul>
     </section>
@@ -866,7 +877,7 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li><code>.temp/viber/</code>: scratch files and mockups, kept out of git.</li>
         <li><code>docs/business/&lt;slug&gt;/</code>: the idea validation report.</li>
         <li><code>.temp/viber/idea-validator/</code>: the idea validation working files, kept out of git.</li>
-        <li><code>.temp/viber/pr-feedback/</code>: the review threads, <code>review.md</code> and the reply files, kept out of git.</li>
+        <li><code>.temp/viber/pr-feedback/</code>: the review threads and remarks, <code>review.md</code>, the reply files and the posted comments, kept out of git.</li>
         <li>The project's E2E directory: Playwright tests.</li>
       </ul>
     </section>

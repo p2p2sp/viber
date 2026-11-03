@@ -936,9 +936,14 @@ oknie<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="current
   </div>
   <div>
     <dt><a href="#skill-pr-feedback"><code data-copy>/viber:pr-feedback</code></a></dt>
-    <dd><span lang="en">Turns the unresolved review threads of a pull request into plan tasks, then posts the replies
-    once the fixes are pushed.</span><span lang="pl">Zamienia nierozwiązane wątki przeglądu pull requesta w zadania
-    planu, a potem wysyła odpowiedzi, gdy poprawki są wypchnięte.</span></dd>
+    <dd><span lang="en">Turns the unresolved review threads and the remarks outside them (Conversation comments, review
+    bodies) of a pull request into plan tasks.</span><span lang="pl">Zamienia nierozwiązane wątki przeglądu i uwagi poza
+    nimi (komentarze w Conversation, treści przeglądów) pull requesta w zadania planu.</span></dd>
+  </div>
+  <div>
+    <dt><a href="#skill-pr-feedback-reply"><code data-copy>/viber:pr-feedback-reply</code></a></dt>
+    <dd><span lang="en">Posts the replies of those tasks into the pull request once the fixes are pushed.</span><span lang="pl">Wysyła
+    odpowiedzi na te zadania do pull requesta, gdy poprawki są wypchnięte.</span></dd>
   </div>
   <div>
     <dt><a href="#skill-memory"><code data-copy>/viber:memory</code></a></dt>
@@ -2829,35 +2834,34 @@ z nich mówi, jak nim sterować.</p>
 
 <article class="card" id="skill-pr-feedback">
   <h4><code>/viber:pr-feedback</code></h4>
-  <p lang="en">Turns the unresolved review threads of one pull request into plan tasks. It lists the threads nobody
-  answered yet, lets you pick the ones to act on and hands them to
-  <a href="#skill-intent"><code>/viber:intent</code></a>, so that every thread becomes its own plan task whose done
-  condition writes a reply describing the fix. The build commits on the pull request's own branch, never on a new
-  run branch. A second call of the same skill posts those replies into their
-  threads once the fixes are pushed. Resolving a thread stays with the reviewer.</p>
-  <p lang="pl">Zamienia nierozwiązane wątki przeglądu jednego pull requesta w zadania planu. Wypisuje wątki, na które
-  nikt jeszcze nie odpowiedział, pozwala wybrać te, którymi się zajmiesz, i przekazuje je do
-  <a href="#skill-intent"><code>/viber:intent</code></a>, tak że każdy wątek staje się osobnym zadaniem planu,
-  którego warunek ukończenia zapisuje odpowiedź opisującą poprawkę. Build commituje na gałęzi pull requesta, nigdy
-  na nowej gałęzi runu. Drugie wywołanie tego samego skilla wysyła te
-  odpowiedzi do ich wątków, gdy poprawki są wypchnięte. Rozwiązanie wątku zostaje po stronie recenzenta.</p>
+  <p lang="en">Turns the unresolved review threads of one pull request, and the remarks a reviewer leaves outside
+  them (the pull request's Conversation comments and the bodies of submitted reviews), into plan tasks. It lists the
+  items nobody answered yet, leaving out the pull request author's own and bots' remarks, lets you pick the ones to
+  act on and hands them to
+  <a href="#skill-intent"><code>/viber:intent</code></a>, so that every thread or remark becomes its own plan task
+  whose done condition writes a reply describing the fix. The build commits on the pull request's own branch, never on
+  a new run branch. It prints <code>/viber:pr-feedback-reply</code> as the command that posts the replies; see
+  <a href="#skill-pr-feedback-reply"><code>/viber:pr-feedback-reply</code></a>.</p>
+  <p lang="pl">Zamienia nierozwiązane wątki przeglądu jednego pull requesta oraz uwagi recenzenta poza nimi (komentarze
+  w Conversation i treści wysłanych przeglądów) w zadania planu. Wypisuje pozycje, na które nikt jeszcze nie
+  odpowiedział, pomijając uwagi autora pull requesta i botów, pozwala wybrać te, którymi się zajmiesz, i przekazuje je do
+  <a href="#skill-intent"><code>/viber:intent</code></a>, tak że każdy wątek albo uwaga staje się osobnym zadaniem
+  planu, którego warunek ukończenia zapisuje odpowiedź opisującą poprawkę. Build commituje na gałęzi pull requesta,
+  nigdy na nowej gałęzi runu. Wypisuje <code>/viber:pr-feedback-reply</code> jako polecenie wysyłające odpowiedzi; zob.
+  <a href="#skill-pr-feedback-reply"><code>/viber:pr-feedback-reply</code></a>.</p>
   <dl>
     <div>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
       <dd><span lang="en">Only by typing the command, on the pull request's own head branch. It stops with a reason
-      when there is no <code>gh</code>, the directory is no git repository or another branch is checked out; the
-      reply call also stops while the local HEAD is not the pull request's head commit. It never creates, switches or
-      pushes a branch.</span><span lang="pl">Tylko przez wpisanie polecenia, na gałęzi źródłowej pull requesta. Kończy
-      z powodem, gdy nie ma <code>gh</code>, katalog nie jest repozytorium git albo wybrana jest inna gałąź;
-      wywołanie z odpowiedziami kończy też, dopóki lokalny HEAD nie jest commitem głowy pull requesta. Nigdy nie
-      tworzy, nie przełącza ani nie wypycha gałęzi.</span></dd>
+      when there is no <code>gh</code>, the directory is no git repository or another branch is checked out. It never
+      creates, switches or pushes a branch.</span><span lang="pl">Tylko przez wpisanie polecenia, na gałęzi źródłowej
+      pull requesta. Kończy z powodem, gdy nie ma <code>gh</code>, katalog nie jest repozytorium git albo wybrana jest
+      inna gałąź. Nigdy nie tworzy, nie przełącza ani nie wypycha gałęzi.</span></dd>
     </div>
     <div>
       <dt><span lang="en">Arguments</span><span lang="pl">Argumenty</span></dt>
-      <dd><span lang="en">The pull request number or URL; add <code>--reply</code> to post the replies:
-      <code>/viber:pr-feedback 42</code>, then <code>/viber:pr-feedback 42 --reply</code>.</span><span lang="pl">Numer
-      albo adres URL pull requesta; dodaj <code>--reply</code>, żeby wysłać odpowiedzi:
-      <code>/viber:pr-feedback 42</code>, a potem <code>/viber:pr-feedback 42 --reply</code>.</span></dd>
+      <dd><span lang="en">The pull request number or URL: <code>/viber:pr-feedback 42</code>.</span><span lang="pl">Numer
+      albo adres URL pull requesta: <code>/viber:pr-feedback 42</code>.</span></dd>
     </div>
     <div>
       <dt><span lang="en">Switches</span><span lang="pl">Przełączniki</span></dt>
@@ -2865,14 +2869,53 @@ z nich mówi, jak nim sterować.</p>
     </div>
     <div>
       <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
-      <dd><span lang="en">The thread list and <code>review.md</code> under
-      <code>.temp/viber/pr-feedback/&lt;number&gt;/</code>, and the replies the build writes in its
-      <code>replies/</code> directory. On your yes the reply call posts each reply into its thread, once per thread:
-      a thread that already holds a viber reply gets no second one. Nothing is resolved and nothing is
-      pushed.</span><span lang="pl">Listę wątków i <code>review.md</code> w
-      <code>.temp/viber/pr-feedback/&lt;numer&gt;/</code> oraz odpowiedzi, które build zapisuje w katalogu
-      <code>replies/</code>. Na twoje tak wywołanie z odpowiedziami wysyła każdą do jej wątku, raz na wątek: wątek,
-      który ma już odpowiedź viber, nie dostaje drugiej. Nic nie jest rozwiązywane i nic nie jest
+      <dd><span lang="en">The thread and remark list and <code>review.md</code> under
+      <code>.temp/viber/pr-feedback/&lt;number&gt;/</code>. Nothing is posted, resolved or
+      pushed.</span><span lang="pl">Listę wątków i uwag oraz <code>review.md</code> w
+      <code>.temp/viber/pr-feedback/&lt;numer&gt;/</code>. Nic nie jest wysyłane, rozwiązywane ani
+      wypychane.</span></dd>
+    </div>
+  </dl>
+</article>
+
+<article class="card" id="skill-pr-feedback-reply">
+  <h4><code>/viber:pr-feedback-reply</code></h4>
+  <p lang="en">Posts the replies a <a href="#skill-pr-feedback"><code>/viber:pr-feedback</code></a> build wrote, once
+  the fixes are pushed. It lists the ready replies and the items still missing one, asks once, then posts each reply:
+  a thread reply into its thread, a remark reply as a pull request comment that quotes the remark and links it.
+  Resolving a thread stays with the reviewer.</p>
+  <p lang="pl">Wysyła odpowiedzi, które zapisał build z <a href="#skill-pr-feedback"><code>/viber:pr-feedback</code></a>,
+  gdy poprawki są wypchnięte. Wypisuje gotowe odpowiedzi i pozycje, którym jeszcze jej brakuje, pyta raz, a potem
+  wysyła każdą: odpowiedź na wątek do jego wątku, odpowiedź na uwagę jako komentarz pull requesta, który cytuje uwagę
+  i podaje do niej link. Rozwiązanie wątku zostaje po stronie recenzenta.</p>
+  <dl>
+    <div>
+      <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
+      <dd><span lang="en">Only by typing the command, on the pull request's own head branch. It stops with a reason
+      when there is no <code>gh</code>, the directory is no git repository or another branch is checked out, and
+      while the local HEAD is not the pull request's head commit. It never creates, switches or pushes a
+      branch.</span><span lang="pl">Tylko przez wpisanie polecenia, na gałęzi źródłowej pull requesta. Kończy z
+      powodem, gdy nie ma <code>gh</code>, katalog nie jest repozytorium git albo wybrana jest inna gałąź, oraz dopóki
+      lokalny HEAD nie jest commitem głowy pull requesta. Nigdy nie tworzy, nie przełącza ani nie wypycha
+      gałęzi.</span></dd>
+    </div>
+    <div>
+      <dt><span lang="en">Arguments</span><span lang="pl">Argumenty</span></dt>
+      <dd><span lang="en">The pull request number or URL: <code>/viber:pr-feedback-reply 42</code>.</span><span lang="pl">Numer
+      albo adres URL pull requesta: <code>/viber:pr-feedback-reply 42</code>.</span></dd>
+    </div>
+    <div>
+      <dt><span lang="en">Switches</span><span lang="pl">Przełączniki</span></dt>
+      <dd><span lang="en">None.</span><span lang="pl">Brak.</span></dd>
+    </div>
+    <div>
+      <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
+      <dd><span lang="en">On your yes, one reply per item: a thread that already holds a viber reply, or a remark
+      already answered, gets no second one. The posted comment of a remark is kept in
+      <code>.temp/viber/pr-feedback/&lt;number&gt;/posted/</code>. Nothing is resolved and nothing is
+      pushed.</span><span lang="pl">Na twoje tak jedną odpowiedź na pozycję: wątek, który ma już odpowiedź viber, albo
+      uwaga, na którą już odpowiedziano, nie dostaje drugiej. Wysłany komentarz do uwagi zostaje w
+      <code>.temp/viber/pr-feedback/&lt;numer&gt;/posted/</code>. Nic nie jest rozwiązywane i nic nie jest
       wypychane.</span></dd>
     </div>
   </dl>
