@@ -5,14 +5,17 @@
  * malformed one, the no-gh and no-repo stops, the wrong-branch stop (no thread
  * line, no threads file), the PR= to PUSHED= lines of a ready run, its
  * THREADS_FILE=, SKIPPED=, TRUNCATED= and THREAD= lines with the threads file,
- * and exit 1 with one ERROR line when gh fails or prints nothing usable.
+ * the REMARK= lines and file sections of the Conversation comments and review
+ * bodies (listed, unlisted, skipped, truncated), and exit 1 with one ERROR line
+ * when gh fails or prints nothing usable.
  *
  * pr-threads.sh is `#!/bin/sh`, so every case runs through
  * forEachShell("posix", ...) via opts.shell, never executed directly. `gh` is
  * always a withStub, or absent - this test never shells out to the real gh. The
  * stub answers `gh api graphql ... --jq <filter>` with the text the filter
- * would print (URL=, HEAD=, OID=, MORE= lines, then per thread a T line and per
- * comment a C line and one B line per body line), because the filter itself
+ * would print (URL=, HEAD=, OID=, MORE=, CMORE=, RMORE=, AUTH= lines, then per
+ * remark an R line and one Q line per body line, then per thread a T line and
+ * per comment a C line and one B line per body line), because the filter itself
  * runs inside the real gh.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
@@ -99,10 +102,50 @@ function threadText(t: FixtureThread): string {
   return head + comments.join("");
 }
 
+interface FixtureRemark {
+  kind: "conversation" | "review";
+  id: number;
+  author: string | null;
+  bot?: boolean;
+  at?: string;
+  state?: string;
+  body: string;
+}
+
+/** One remark as the --jq filter prints it: an R line (an empty author field is a null author), then one Q line per body line. */
+function remarkText(r: FixtureRemark): string {
+  const head = `R\t${r.kind}\t${r.id}\t${r.author ?? ""}\t${r.bot ?? false}\t${r.at ?? "2026-10-01T10:00:00Z"}\t${r.state ?? ""}\n`;
+  return head + (r.body === "" ? "" : r.body.split("\n").map((l) => `Q\t${l}\n`).join(""));
+}
+
+interface GhOutOpts {
+  url?: string;
+  more?: boolean;
+  commentsMore?: boolean;
+  reviewsMore?: boolean;
+  prAuthor?: string | null;
+  remarks?: FixtureRemark[];
+  threads?: FixtureThread[];
+}
+
 /** What the real gh prints once its --jq filter ran. */
-function ghOut(head: string, oid: string, opts: { url?: string; more?: boolean; threads?: FixtureThread[] } = {}): string {
-  const header = `URL=${opts.url ?? PR_URL}\nHEAD=${head}\nOID=${oid}\nMORE=${opts.more ?? false}\n`;
-  return header + (opts.threads ?? []).map(threadText).join("");
+function ghOut(head: string, oid: string, opts: GhOutOpts = {}): string {
+  const header =
+    `URL=${opts.url ?? PR_URL}\nHEAD=${head}\nOID=${oid}\nMORE=${opts.more ?? false}\n` +
+    `CMORE=${opts.commentsMore ?? false}\nRMORE=${opts.reviewsMore ?? false}\nAUTH=${opts.prAuthor === undefined ? "pat" : (opts.prAuthor ?? "")}\n`;
+  return header + (opts.remarks ?? []).map(remarkText).join("") + (opts.threads ?? []).map(threadText).join("");
+}
+
+function conversation(id: number, author: string | null, body: string, extra: Partial<FixtureRemark> = {}): FixtureRemark {
+  return { kind: "conversation", id, author, body, ...extra };
+}
+
+function review(id: number, author: string | null, body: string, extra: Partial<FixtureRemark> = {}): FixtureRemark {
+  return { kind: "review", id, author, body, state: "COMMENTED", ...extra };
+}
+
+function remarkLines(result: RunResult): string[] {
+  return lines(result).filter((l) => l.startsWith("REMARK="));
 }
 
 function comment(id: number, author: string, body: string, at = "2026-10-01T10:00:00Z"): FixtureComment {
@@ -113,7 +156,8 @@ function threadLines(result: RunResult): string[] {
   return lines(result).filter((l) => l.startsWith("THREAD="));
 }
 
-const marker = (id: number) => `<!-- viber:pr-feedback ${id} -->`;
+const keyMarker = (key: string) => `<!-- viber:pr-feedback ${key} -->`;
+const marker = (id: number) => keyMarker(String(id));
 
 async function runThreads(
   shell: Shell,
@@ -485,6 +529,168 @@ test("a ready run replaces the threads file of the earlier run, an empty one whe
       fs.writeFileSync(target, "stale\n");
       await runThreads(shell, scene, ["7"], { env: { GH_STDOUT: ghOut("feature/x", scene.sha) } });
       assert.equal(fs.readFileSync(target, "utf-8"), "");
+    });
+  });
+});
+
+// --- the remarks (Conversation comments and review bodies) -----------------------------
+
+const NO_REMARKS = [`THREADS_FILE=${THREADS_PATH}`, "SKIPPED=0", "TRUNCATED=no"];
+
+test("a Conversation comment and a review body each print a REMARK= line numbered after the threads, comments first", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      const threads: FixtureThread[] = [{ path: "src/a.ts", line: 12, comments: [comment(101, "alice", "first")] }];
+      const remarks = [conversation(11, "carol", "Please add docs."), review(21, "bob", "Looks off.", { state: "CHANGES_REQUESTED" })];
+      const result = await runThreads(shell, scene, ["7"], { env: { GH_STDOUT: ghOut("feature/x", scene.sha, { threads, remarks }) } });
+      assert.deepEqual(lines(result).slice(6), [
+        ...NO_REMARKS,
+        "THREAD=1 | 101 | src/a.ts:12 | alice | current",
+        "REMARK=2 | comment-11 | carol | conversation",
+        "REMARK=3 | review-21 | bob | review",
+      ]);
+    });
+  });
+});
+
+const UNLISTED: { name: string; remark: FixtureRemark }[] = [
+  { name: "an empty Conversation comment", remark: conversation(11, "carol", "") },
+  { name: "a whitespace-only Conversation comment", remark: conversation(11, "carol", "  \n\t\n") },
+  { name: "an empty review body", remark: review(21, "bob", "") },
+  { name: "a whitespace-only review body", remark: review(21, "bob", " \n ") },
+  { name: "a Conversation comment opening with a viber marker", remark: conversation(11, "me", `${marker(5)}\nDone.`) },
+];
+
+for (const row of UNLISTED) {
+  test(`${row.name} prints no REMARK= line and leaves SKIPPED= at 0`, async () => {
+    await assertPosix(async (shell) => {
+      await withScene(async (scene) => {
+        const result = await runThreads(shell, scene, ["7"], { env: { GH_STDOUT: ghOut("feature/x", scene.sha, { remarks: [row.remark] }) } });
+        assert.deepEqual(lines(result).slice(6), NO_REMARKS);
+      });
+    });
+  });
+}
+
+const SKIPPED_REMARKS: { name: string; remarks: FixtureRemark[] }[] = [
+  { name: "a Conversation comment by the pull request author", remarks: [conversation(11, "pat", "my own note")] },
+  { name: "a review body by the pull request author", remarks: [review(21, "pat", "my own review")] },
+  { name: "a Conversation comment by a bot", remarks: [conversation(11, "ci-bot", "coverage report", { bot: true })] },
+  { name: "a review body by a bot", remarks: [review(21, "ci-bot", "scan done", { bot: true })] },
+  {
+    name: "a Conversation comment answered by a comment opening with its marker",
+    remarks: [conversation(11, "carol", "Please add docs."), conversation(12, "me", `${keyMarker("comment-11")}\nAdded.`)],
+  },
+  {
+    name: "a review body answered by a comment opening with its marker",
+    remarks: [review(21, "bob", "Looks off."), conversation(12, "me", `${keyMarker("review-21")}\nFixed.`)],
+  },
+];
+
+for (const row of SKIPPED_REMARKS) {
+  test(`${row.name} prints no REMARK= line and raises SKIPPED= to 1`, async () => {
+    await assertPosix(async (shell) => {
+      await withScene(async (scene) => {
+        const result = await runThreads(shell, scene, ["7"], { env: { GH_STDOUT: ghOut("feature/x", scene.sha, { remarks: row.remarks }) } });
+        assert.deepEqual(lines(result).slice(6), [`THREADS_FILE=${THREADS_PATH}`, "SKIPPED=1", "TRUNCATED=no"]);
+      });
+    });
+  });
+}
+
+test("a Conversation comment that mentions its marker only on a later line is not answered and stays listed", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      const remarks = [conversation(11, "carol", "Please add docs."), conversation(12, "dave", `see below\n${keyMarker("comment-11")}`)];
+      const result = await runThreads(shell, scene, ["7"], { env: { GH_STDOUT: ghOut("feature/x", scene.sha, { remarks }) } });
+      assert.deepEqual(remarkLines(result), ["REMARK=1 | comment-11 | carol | conversation", "REMARK=2 | comment-12 | dave | conversation"]);
+    });
+  });
+});
+
+const GHOSTS: { name: string; prAuthor: string | null }[] = [
+  { name: "a null author with a named pull request author", prAuthor: "pat" },
+  { name: "a null author when the pull request author is null too", prAuthor: null },
+];
+
+for (const row of GHOSTS) {
+  test(`${row.name}: the remark is listed with author ghost`, async () => {
+    await assertPosix(async (shell) => {
+      await withScene(async (scene) => {
+        const remarks = [conversation(11, null, "from a deleted account")];
+        const result = await runThreads(shell, scene, ["7"], { env: { GH_STDOUT: ghOut("feature/x", scene.sha, { remarks, prAuthor: row.prAuthor }) } });
+        assert.deepEqual(lines(result).slice(6), [...NO_REMARKS, "REMARK=1 | comment-11 | ghost | conversation"]);
+      });
+    });
+  });
+}
+
+const REMARK_TRUNCATION: { name: string; opts: GhOutOpts }[] = [
+  { name: "a further page of Conversation comments", opts: { commentsMore: true } },
+  { name: "a further page of reviews", opts: { reviewsMore: true } },
+];
+
+for (const row of REMARK_TRUNCATION) {
+  test(`${row.name} prints TRUNCATED=yes`, async () => {
+    await assertPosix(async (shell) => {
+      await withScene(async (scene) => {
+        const result = await runThreads(shell, scene, ["7"], { env: { GH_STDOUT: ghOut("feature/x", scene.sha, row.opts) } });
+        assert.equal(lines(result)[8], "TRUNCATED=yes");
+      });
+    });
+  });
+}
+
+test("the threads file holds one section per listed remark after the thread sections, none for a skipped or empty one", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      const threads: FixtureThread[] = [{ path: "src/a.ts", line: 12, comments: [comment(101, "alice", "Rename this.")] }];
+      const remarks = [
+        conversation(11, "carol", "Please add docs.\r\n\r\n- one", { at: "2026-10-03T09:00:00Z" }),
+        conversation(12, "pat", "my own note"),
+        conversation(13, "dave", ""),
+        review(21, "bob", "Looks off.", { state: "CHANGES_REQUESTED", at: "2026-10-04T09:00:00Z" }),
+      ];
+      await runThreads(shell, scene, ["7"], { env: { GH_STDOUT: ghOut("feature/x", scene.sha, { threads, remarks }) } });
+      const file = fs.readFileSync(path.join(scene.work.dir, THREADS_PATH), "utf-8");
+      assert.equal(
+        file,
+        [
+          "## 1 - src/a.ts:12 (current)",
+          "comment-id: 101",
+          "",
+          "### alice - 2026-10-01T10:00:00Z",
+          "",
+          "Rename this.",
+          "",
+          "## 2 - conversation",
+          "comment-id: comment-11",
+          "",
+          "### carol - 2026-10-03T09:00:00Z",
+          "",
+          "Please add docs.",
+          "",
+          "- one",
+          "",
+          "## 3 - review (CHANGES_REQUESTED)",
+          "comment-id: review-21",
+          "",
+          "### bob - 2026-10-04T09:00:00Z",
+          "",
+          "Looks off.",
+          "",
+        ].join("\n"),
+      );
+    });
+  });
+});
+
+test("a thread opened by the pull request author is still listed as a THREAD= line", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      const threads: FixtureThread[] = [{ path: "src/a.ts", line: 12, comments: [comment(101, "pat", "note to self")] }];
+      const result = await runThreads(shell, scene, ["7"], { env: { GH_STDOUT: ghOut("feature/x", scene.sha, { threads }) } });
+      assert.deepEqual(threadLines(result), ["THREAD=1 | 101 | src/a.ts:12 | pat | current"]);
     });
   });
 });
