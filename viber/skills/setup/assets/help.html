@@ -2192,7 +2192,10 @@ z nich mówi, jak nim sterować.</p>
   that differ in kind. Every claim that carries weight (versions, numbers, limits, prices, licences, what a
   tool or standard does) goes to the <a href="#agent-researcher"><code>researcher</code></a> agent, which
   checks it against trusted sources on the web, the vendor's own documentation and the standard's own text
-  first, and comes back confirmed, refuted, disputed or unverified, with links. The talk ends on conclusions:
+  first, and comes back confirmed, refuted, disputed or unverified, with links. It reads GitHub read-only
+  through <code>gh</code>: an issue or pull request you name becomes the topic, and during the talk it searches
+  this repository's issues and pull requests and reads files and releases of other repositories, private ones
+  included. The talk ends on conclusions:
   what was established, what stays open, where you still disagree and the options you have, each with its
   trade-off.</p>
   <p lang="pl">Rozmowa o jednym temacie, zanim cokolwiek zdecydujesz. Claude zajmuje stanowisko wobec każdej
@@ -2202,7 +2205,9 @@ z nich mówi, jak nim sterować.</p>
   rodzajem. Każde istotne twierdzenie (wersje, liczby, limity, ceny, licencje, działanie
   narzędzia lub standardu) trafia do agenta <a href="#agent-researcher"><code>researcher</code></a>, który
   sprawdza je w zaufanych źródłach w sieci, najpierw w dokumentacji producenta i tekście samego standardu,
-  i wraca z oceną: potwierdzone, obalone, sporne albo niezweryfikowane, z linkami. Rozmowa kończy się
+  i wraca z oceną: potwierdzone, obalone, sporne albo niezweryfikowane, z linkami. Czyta GitHuba tylko do odczytu
+  przez <code>gh</code>: wskazane issue albo pull request staje się tematem, a w trakcie rozmowy przeszukuje issues
+  i pull requesty tego repozytorium oraz czyta pliki i wydania innych repozytoriów, także prywatnych. Rozmowa kończy się
   wnioskami: co ustalono, co zostaje otwarte, w czym nadal się różnicie i jakie masz opcje, każda z jej
   kosztem.</p>
   <dl>
@@ -2218,10 +2223,10 @@ z nich mówi, jak nim sterować.</p>
     <div>
       <dt><span lang="en">Arguments</span><span lang="pl">Argumenty</span></dt>
       <dd><span lang="en">The topic or an opening thesis:
-      <code>/viber:talk is SQLite enough for a multi-user app?</code>. With none, it asks what to talk
-      about.</span><span lang="pl">Temat albo teza na początek:
-      <code>/viber:talk czy SQLite wystarczy dla aplikacji wielu użytkowników?</code>. Bez argumentu pyta, o czym
-      rozmawiać.</span></dd>
+      <code>/viber:talk is SQLite enough for a multi-user app?</code>, or an issue or pull request:
+      <code>/viber:talk #42</code>. With none, it asks what to talk about.</span><span lang="pl">Temat albo teza na początek:
+      <code>/viber:talk czy SQLite wystarczy dla aplikacji wielu użytkowników?</code>, albo issue lub pull request:
+      <code>/viber:talk #42</code>. Bez argumentu pyta, o czym rozmawiać.</span></dd>
     </div>
     <div>
       <dt><span lang="en">Switches</span><span lang="pl">Przełączniki</span></dt>

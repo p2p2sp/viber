@@ -80,6 +80,9 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
   approaches that differ in kind instead of tweaking what exists. It takes positions and argues them, and
   the `researcher` agent checks every claim that carries weight, the vendor's documentation and the
   standard's own text first, each coming back confirmed, refuted, disputed or unverified with links.
+  It reads GitHub read-only through `gh`: give it an issue or pull request (`#12` or a link) and its
+  discussion becomes the topic; mid-talk it searches this repository's issues and pull requests and reads
+  files and releases of other repositories, private ones your `gh` can reach included.
   The conclusions are yours to act on; `/viber:handoff` keeps them for a later session.
 - **`/viber:intent`**: if you ask for a plan without an interview, viber suggests the interview
   first, and you decide.

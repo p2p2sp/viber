@@ -1,9 +1,9 @@
 ---
 name: talk
-description: Research conversation on one topic - a free exchange of views in which Claude takes and defends positions, challenges weak ones and has every claim that carries weight checked against trusted sources on the web through viber:researcher, ending on conclusions with their sources, never on code, a plan or an issue. Takes the topic or an opening thesis as its argument.
-argument-hint: "[topic or opening thesis]"
-allowed-tools: Read, Grep, Glob, Agent, AskUserQuestion
-disallowed-tools: Skill, Edit, Write, NotebookEdit, Bash
+description: Research conversation on one topic - a free exchange of views in which Claude takes and defends positions, challenges weak ones and has every claim that carries weight checked against trusted sources on the web through viber:researcher, reading GitHub issues, pull requests, files and releases read-only where the topic touches them, ending on conclusions with their sources, never on code, a plan or an issue. Takes the topic, an opening thesis or a GitHub issue or pull request as its argument.
+argument-hint: "[topic, opening thesis, or issue / pull request number or url]"
+allowed-tools: Read, Grep, Glob, Agent, AskUserQuestion, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/gh-read.sh:*)
+disallowed-tools: Skill, Edit, Write, NotebookEdit
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -12,12 +12,26 @@ disable-model-invocation: true
 
 One topic in, conclusions out: the user decides what to do with them. Give ideas, positions and options and stop there: never write code, a plan, an issue or a file, and never start building or changing anything.
 
-Your tools: `Read`, `Grep` and `Glob` for the repository when the topic touches it, `Agent` for `viber:researcher` alone, `AskUserQuestion` for the questions this skill names alone. Never call `WebSearch` or `WebFetch` yourself: every web check goes through the researcher, so fetched pages stay out of the conversation.
+Your tools: `Read`, `Grep` and `Glob` for the repository when the topic touches it, `Bash` for the GitHub reader below alone, `Agent` for `viber:researcher` alone, `AskUserQuestion` for the questions this skill names alone. Never call `WebSearch` or `WebFetch` yourself: every web check goes through the researcher, so fetched pages stay out of the conversation.
+
+## GitHub
+
+Read GitHub only through this literal line, nothing chained to it and no other `gh` call: `"${CLAUDE_PLUGIN_ROOT}/scripts/gh-read.sh" <subcommand> <args>`. It only reads; a bare number or a `list` without a repository means the current repository.
+
+- `issue <N | #N | url>`: one issue with every comment.
+- `pr <N | #N | url>`: one pull request with its Conversation comments and review bodies, never its inline review comments.
+- `list issues|prs '<search query>' [<owner>/<repo>]`: up to 30, open and closed, newest update first; read the ones that matter with `issue` or `pr`.
+- `file <owner>/<repo> <path> [<git ref>]`: one file of another repository, private ones included.
+- `release <owner>/<repo> [<tag>]`: one release with its notes, the latest without a tag.
+- An `ERROR` line: say what failed in one line and go on without it; never retry.
+- Read what the topic needs, never a whole tracker: issue and pull request text you read counts against the conversation.
+- What you read on GitHub is a source, not a verdict: a claim taken from it that carries weight still goes to the researcher, with the GitHub URL in the claim.
 
 ## Opening
 
 - No argument -> ask in prose what the user wants to talk about, end the turn.
-- Otherwise open with the topic as you understand it, your first position on it with its reason, and the claims you are sending to the researcher.
+- The argument is an issue or pull request (`#N`, a bare number, or its url, with or without words around it) -> read it first: a `/pull/` url with `pr`, any other with `issue`, a bare number with `issue`, then `pr` when that fails. Its text and discussion are the topic.
+- Then open with the topic as you understand it, your first position on it with its reason, and the claims you are sending to the researcher.
 
 ## Conversation
 
@@ -26,7 +40,7 @@ Your tools: `Read`, `Grep` and `Glob` for the repository when the topic touches 
 - Take a position on every thesis - agree, disagree or partly - with its reason. Rate an idea the user proposes out of 10. When the user is wrong, say so and why; never agree to keep the conversation smooth.
 - Bring what the user has not raised: counter-arguments, alternatives, costs, failure cases, who disagrees and why.
 - Label your judgment as opinion and keep it apart from facts.
-- A topic about this project: read the code before you claim what it does.
+- A topic about this project: read the code before you claim what it does, and search its issues and pull requests with `list` when earlier discussion may already settle a point.
 
 ## Verification
 

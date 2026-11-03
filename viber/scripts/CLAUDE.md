@@ -5,13 +5,13 @@ This directory holds the scripts more than one viber skill or agent calls: the c
 ## Terms
 
 - Run scripts: the four bash scripts of the run lifecycle, `plan-path.sh`, `plan-index.sh`, `commit-task.sh` and `archive-run.sh`, all `set -euo pipefail`, each refusal a distinct exit code.
-- GitHub wrappers: the `#!/bin/sh` scripts `issue-facts.sh`, `issue-templates.sh`, `issue-create.sh`, `post-comment.sh`, `pr-facts.sh`, `pr-create.sh`, `pr-threads.sh`, `pr-reply.sh` and `qa-comment.sh`. Each prints its fixed `KEY=value` block only after `gh` succeeded and its output parsed (self-verifying), else one `ERROR <script>: ...` line on stderr; the bash scripts report on stderr as `error: ...`.
+- GitHub wrappers: the `#!/bin/sh` scripts `issue-facts.sh`, `issue-templates.sh`, `issue-create.sh`, `post-comment.sh`, `pr-facts.sh`, `pr-create.sh`, `pr-threads.sh`, `pr-reply.sh`, `qa-comment.sh` and `gh-read.sh`. Each prints its fixed `KEY=value` block only after `gh` succeeded and its output parsed (self-verifying), else one `ERROR <script>: ...` line on stderr; the bash scripts report on stderr as `error: ...`.
 
 ## Relationships
 
 - Callers: `config.sh` is preloaded by `implementor`, `planner`, `e2e` and `intent` (`--questions`) and run by `skills/extension/scripts/extension.sh` and `hooks/scripts/plan-gate.sh`; `run-clock.sh` by `implementor` alone; `switch-text.sh` by `implementor`, `planner`, `intent`, `fixer`, `triage` and `prototype`; `skill-part.sh` by `implementor` (its `close` part) and `intent` (its `done` part); `plan-path.sh` by `planner`, `implementor`, `intent` and `fixer` (`--start`/`--checkout`) and `e2e` (no argument, the latest run); `plan-index.sh` by `planner` (validate), `implementor` (`--split`), `task-reviewer` (`--extra`, through its `scope` line) and `closeout`; `commit-task.sh` by `implementor` (`--drop` included), `e2e` (`--e2e`) and `closeout` (`--outside`); `archive-run.sh` by the `closeout` agent alone; `red-check.sh` by `implementor` alone (`fragments/red-check.true.md`).
-- GitHub callers: `issue-facts.sh` by `intent`, `fixer`, `triage`, `prototype`; `issue-templates.sh` and `issue-create.sh` by `issue-create`, `intent`, `fixer`; `post-comment.sh` by `intent`, `triage`, `prototype`; `pr-facts.sh` and `pr-create.sh` by `pr-create`; `pr-threads.sh` by `pr-feedback` and `pr-feedback-reply`; `pr-reply.sh` by `pr-feedback-reply`; `qa-comment.sh` by `pr-create` and the `implementor` close (`qa.true.md`); `open-page.sh` by `setup`, `help`, `prototype`; `check-playwright.sh` by `e2e`.
-- Sibling calls: `plan-path.sh` sources `run-branch.sh`; `run-branch.sh` runs `config.sh --branching` and `sh issue-facts.sh`; `red-check.sh` runs `plan-index.sh` and `config.sh --red-check`.
+- GitHub callers: `issue-facts.sh` by `intent`, `fixer`, `triage`, `prototype`; `issue-templates.sh` and `issue-create.sh` by `issue-create`, `intent`, `fixer`; `post-comment.sh` by `intent`, `triage`, `prototype`; `pr-facts.sh` and `pr-create.sh` by `pr-create`; `pr-threads.sh` by `pr-feedback` and `pr-feedback-reply`; `pr-reply.sh` by `pr-feedback-reply`; `qa-comment.sh` by `pr-create` and the `implementor` close (`qa.true.md`); `gh-read.sh` by `talk`; `open-page.sh` by `setup`, `help`, `prototype`; `check-playwright.sh` by `e2e`.
+- Sibling calls: `plan-path.sh` sources `run-branch.sh`; `run-branch.sh` runs `config.sh --branching` and `sh issue-facts.sh`; `gh-read.sh issue` runs `sh issue-facts.sh`; `red-check.sh` runs `plan-index.sh` and `config.sh --red-check`.
 
 ## Contracts
 
@@ -44,6 +44,7 @@ This directory holds the scripts more than one viber skill or agent calls: the c
 - A failed GitHub call is never retried by its caller: `post-comment.sh` exits 1 when whether the comment landed is unknown, and `pr-create.sh` exits 1 after the push may already have happened (its ERROR line names the pushed branch); `pr-reply.sh` exits 1 when a reply may or may not have landed; the caller reports.
 - The portability sweep reads the awk block of `pr-threads.sh` as shell: it flags `function NAME` and `((` there, so the block defines no function (a sentinel `T` line closes the last thread) and the `--jq` filter avoids `((`.
 - `issue-create.sh` never removes a created issue when applying its type or its `--parent` attach fails: the type failure is reported as `TYPE=dropped` (benign: types not enabled, 403, 404) or `TYPE=error`, the attach failure as `PARENT=error` with `PARENT_ERROR=`, always with exit 0.
+- `gh-read.sh` is the read-only reader: every `gh api` call in it stays a GET (no `-X`, `-f`, `-F`), which `tests/viber/gh-read.test.ts` asserts; a write belongs in its own wrapper.
 - `plan-index.sh` counts only `AC<n>` tokens of `Covers:`; `#<n>` and a bare `<n>` cover nothing (exit 4).
 
 ## Sections
