@@ -1,0 +1,4 @@
+- The original read uses one --jq filter printing two lines (html_url, first non-blank body line); the test stub emulates that shape through its ORIGINAL env var, so a filter change changes the stub.
+- The gh stub tells the three read kinds apart by endpoint (issues/comments/<id> and pulls/<N>/reviews/<id> are the original; issues/<N>/comments is the pull request comments read).
+- An empty first body line of the original yields a body line 3 of `> ` (no trailing-space trim), as C4 states it.
+- viber/scripts/CLAUDE.github.md still describes pr-reply.sh as thread-only; the memory close owns it (out of scope).
