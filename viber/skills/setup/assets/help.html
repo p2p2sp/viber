@@ -876,9 +876,9 @@ oknie<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="current
   </div>
   <div>
     <dt><a href="#skill-talk"><code data-copy>/viber:talk</code></a></dt>
-    <dd><span lang="en">Talks a topic through with you and checks the claims against trusted sources, ending on
-    conclusions.</span><span lang="pl">Omawia z tobą temat i sprawdza twierdzenia w zaufanych źródłach, kończąc
-    na wnioskach.</span></dd>
+    <dd><span lang="en">Talks a topic through with you, researches it on the web and checks the claims against
+    trusted sources, ending on conclusions.</span><span lang="pl">Omawia z tobą temat, bada go w sieci i sprawdza
+    twierdzenia w zaufanych źródłach, kończąc na wnioskach.</span></dd>
   </div>
   <div>
     <dt><a href="#skill-intent"><code data-copy>/viber:intent</code></a></dt>
@@ -2189,8 +2189,10 @@ z nich mówi, jak nim sterować.</p>
   thesis, yours and its own, says when it disagrees, rates ideas out of 10 and brings the counter-arguments
   you have not raised. It keeps in mind whether you want the current solution improved or are looking for
   another way: in the second case the current solution is only context, and the talk ranges over approaches
-  that differ in kind. Every claim that carries weight (versions, numbers, limits, prices, licences, what a
-  tool or standard does) goes to the <a href="#agent-researcher"><code>researcher</code></a> agent, which
+  that differ in kind. It researches open questions on the web itself, splitting a question for in-depth
+  analysis and comparing the approaches against your goal. A claim that carries weight (versions, numbers,
+  limits, prices, licences, what a tool or standard does) is settled by a passage it read in a primary source,
+  or goes to the <a href="#agent-researcher"><code>researcher</code></a> agent, which
   checks it against trusted sources on the web, the vendor's own documentation and the standard's own text
   first, and comes back confirmed, refuted, disputed or unverified, with links. It reads GitHub read-only
   through <code>gh</code>: an issue or pull request you name becomes the topic, and during the talk it searches
@@ -2202,8 +2204,10 @@ z nich mówi, jak nim sterować.</p>
   tezy, twojej i własnej, mówi, kiedy się nie zgadza, ocenia pomysły w skali do 10 i przynosi kontrargumenty,
   których w rozmowie jeszcze nie było. Pamięta, czy chcesz poprawić obecne rozwiązanie, czy szukasz innej drogi:
   w drugim przypadku obecne rozwiązanie jest tylko kontekstem, a rozmowa obejmuje podejścia różniące się
-  rodzajem. Każde istotne twierdzenie (wersje, liczby, limity, ceny, licencje, działanie
-  narzędzia lub standardu) trafia do agenta <a href="#agent-researcher"><code>researcher</code></a>, który
+  rodzajem. Otwarte pytania bada w sieci sam, a przy pogłębionej analizie dzieli pytanie na części i porównuje
+  podejścia pod kątem twojego celu. Istotne twierdzenie (wersje, liczby, limity, ceny, licencje, działanie
+  narzędzia lub standardu) rozstrzyga fragment przeczytany w źródle pierwotnym, a jeśli go nie ma, trafia ono
+  do agenta <a href="#agent-researcher"><code>researcher</code></a>, który
   sprawdza je w zaufanych źródłach w sieci, najpierw w dokumentacji producenta i tekście samego standardu,
   i wraca z oceną: potwierdzone, obalone, sporne albo niezweryfikowane, z linkami. Czyta GitHuba tylko do odczytu
   przez <code>gh</code>: wskazane issue albo pull request staje się tematem, a w trakcie rozmowy przeszukuje issues
