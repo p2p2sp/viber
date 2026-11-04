@@ -66,4 +66,4 @@ Read GitHub only through this literal line, nothing chained to it and no other `
   - What stays disputed or unverified, and what would settle it.
   - Where you and the user still disagree, both positions.
   - The options the user now has, each with its main trade-off. Your own pick only when the user asks for it.
-- Close with one line: the conclusions can be kept for a later session with `/viber:handoff`. Never run it and never offer to build, plan or file anything: the next step is the user's.
+- Close with one line: the conclusions can be kept for a later session with `/viber:handoff`, or turned into a task with `/viber:issue-create`, which files its issue from this conversation. Run neither and never offer to build or plan anything: the next step is the user's.

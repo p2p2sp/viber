@@ -85,7 +85,8 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
   It reads GitHub read-only through `gh`: give it an issue or pull request (`#12` or a link) and its
   discussion becomes the topic; mid-talk it searches this repository's issues and pull requests and reads
   files and releases of other repositories, private ones your `gh` can reach included.
-  The conclusions are yours to act on; `/viber:handoff` keeps them for a later session.
+  The conclusions are yours to act on: `/viber:handoff` keeps them for a later session, and
+  `/viber:issue-create` turns them into a task as an issue.
 - **`/viber:intent`**: if you ask for a plan without an interview, viber suggests the interview
   first, and you decide.
 - **`/viber:triage`**: takes an issue number, a link or pasted text. It names the next step and can
