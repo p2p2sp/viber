@@ -77,7 +77,9 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
 
 - **`/viber:talk`**: takes a topic or an opening thesis. Claude keeps in mind whether you want the
   current solution improved or another way, and when you look for another way it ranges over
-  approaches that differ in kind instead of tweaking what exists. It takes positions and argues them,
+  approaches that differ in kind instead of tweaking what exists. Before its first message it reads the
+  code and docs the topic touches, and it asks only what the project leaves open, each question with a
+  recommended answer a plain "yes" accepts. It takes positions and argues them,
   and it researches open questions on the web itself, splitting a question for in-depth analysis and
   comparing the approaches against your goal. A claim that carries weight is settled by a passage it read
   in a primary source, or goes to the `researcher` agent, the vendor's documentation and the
