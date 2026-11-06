@@ -54,7 +54,9 @@ No agent is dispatched before Map, and every stop below prints its one line and 
 
 ## Hunt
 
-Hunter budget: one hunter per lens angle on the diff scope, 8 for a directory, 16 for the repository. At most 16 agents run at once in every phase; beyond that, run successive batches.
+Hunter budget: one hunter per lens angle on the diff scope, 8 for a directory, 16 for the repository. At most 16 agents run at once in every phase: scouts in successive batches, hunters and critics together as one rolling pool, where each return frees a slot for the next queued agent, critics ahead of hunters.
+
+Dispatch every hunter and critic in the background, its description naming its hunt id or `<hunt id>-<k>`, so each return arrives alone and names its own work. Between returns end the turn; never poll.
 
 - Diff scope: no scout. One hunter per angle of the lens's `## Hunts`, hunt id `A-<angle slug>`, carrying `Angle: <angle slug>`.
 - Directory and repository: with no more units than the budget, hunt every unit. Only above the budget, dispatch `viber:scout`s, passing `model` `sonnet` on the security lens (Haiku's cyber classifiers refuse with no fallback) and no `model` on the others, each with `Run file:`, `Lens file:` and up to 8 unit lines verbatim. One hunter per kept unit, hunt id `U<n>`, carrying `Unit: <unit line verbatim>`.
@@ -65,15 +67,16 @@ Every `viber:hunter` brief: `Run file: <ws>/run.md`, `Lens file: <lens-file>`, `
 
 ## Verify
 
-Once every hunter has returned, a hunt that left in `<ws>/reports/` no `<hunt id>-<digit>.md` (a hyphen and one digit right after the full id, so `A-x` never counts an `A-x-y` file) is dispatched once more with the same brief and, for a worktree lens, the worktree path suffixed `-retry`; after a second miss the hunt goes under `synthesis.md`'s `- Hunts with no report:` and a `U<n>` hunt's unit counts toward `J`.
+Verify runs alongside Hunt: handle each hunter on its own return, never waiting for the other hunters. Look in `<ws>/reports/` only for that hunt's files:
 
-For every `<hunt id>-<k>.claim.md` in `<ws>/reports/`, dispatch one `viber:critic` with `Claim: <sidecar path>`, `Run file: <ws>/run.md` and `Lens file: <lens-file>`; for a worktree lens add `Worktree script:` as above and `Worktree: <ws>/worktrees/critic-<hunt id>-<k>`, never the hunter's, and on the diff scope `Overlay script:` as above. Never hand a critic the report or its path.
+- No `<hunt id>-<digit>.md` (a hyphen and one digit right after the full id, so `A-x` never counts an `A-x-y` file): dispatch the hunt once more with the same brief and, for a worktree lens, the worktree path suffixed `-retry`; after a second miss the hunt goes under `synthesis.md`'s `- Hunts with no report:` and a `U<n>` hunt's unit counts toward `J`.
+- Each `<hunt id>-<k>.claim.md`, `k` one digit: dispatch one `viber:critic` with `Claim: <sidecar path>`, `Run file: <ws>/run.md` and `Lens file: <lens-file>`; for a worktree lens add `Worktree script:` as above and `Worktree: <ws>/worktrees/critic-<hunt id>-<k>`, never the hunter's, and on the diff scope `Overlay script:` as above. Never hand a critic the report or its path.
 
 A critic whose final message carries no `VERDICT:` line is dispatched once more with the same brief and, for a worktree lens, the worktree path suffixed `-retry`; after a second miss the finding is filed `INCONCLUSIVE` with `critic returned no verdict`.
 
 ## Synthesize
 
-Read `${CLAUDE_SKILL_DIR}/references/synthesis.md` and write `<ws>/findings.md` exactly as it specifies, reading only what its `## What the moderator reads` allows. It is the sole authority on folding verdicts, deduplication, severity and the shape of `findings.md`: never restate or reinterpret its rules.
+Start only when no hunter or critic is running or queued. Read `${CLAUDE_SKILL_DIR}/references/synthesis.md` and write `<ws>/findings.md` exactly as it specifies, reading only what its `## What the moderator reads` allows. It is the sole authority on folding verdicts, deduplication, severity and the shape of `findings.md`: never restate or reinterpret its rules.
 
 Show the user the path of `findings.md` and one short summary: units mapped, hunts dispatched, confirmed findings, units not investigated. With at least one confirmed finding, the run's last message, after any variant wave, ends on the line `/viber:intent <absolute path of findings.md>`.
 
@@ -84,4 +87,4 @@ Offer one variant wave through `AskUserQuestion` only when at least one finding 
 - Diff scope: one `V-<n>` hunt per confirmed class, `n` from 1, carrying `Angle: <its angle slug>` and that class's `Seed:` line, searching the repository outside the changed files.
 - Directory and repository: one `U<n>` hunt per uninvestigated unit, best first within the scope's budget, each carrying every `Seed:` line.
 
-Every other brief line is as in Hunt. Verify the new claims, each critic brief adding `Variant: yes`, then rebuild `findings.md` from every report and verdict of the run and show it again. A run offers one wave only.
+Every other brief line and the rolling pool are as in Hunt. Verify the new claims the same way, each critic brief adding `Variant: yes`, then, with the pool empty, rebuild `findings.md` from every report and verdict of the run and show it again. A run offers one wave only.
