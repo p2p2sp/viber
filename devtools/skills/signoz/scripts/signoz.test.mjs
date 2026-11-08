@@ -13,7 +13,7 @@ import { promisify } from "node:util";
 
 import {
   SignozError, buildCountPayload, buildLogsPayload, formatKeys, formatLogLine, formatResult, formatValues,
-  normalizePath, prepareQueryPayload, run, timeRange, toMs,
+  iso, normalizePath, prepareQueryPayload, run, timeRange, toMs, zoneName,
 } from "./signoz.mjs";
 
 const CLI = fileURLToPath(new URL("./signoz.mjs", import.meta.url));
@@ -36,6 +36,30 @@ describe("normalizePath", () => {
   });
   test("rejects a mangled path without an API part", () =>
     assert.throws(() => normalizePath("C:/Program Files/Git/usr/bin"), SignozError));
+});
+
+describe("display zone", () => {
+  test("UTC prints like toISOString", () => assert.equal(iso(NOW), "2026-09-28T12:00:00.000Z"));
+  test("a zone prints local time with its offset, DST included", () => {
+    assert.equal(iso(NOW, "Europe/Warsaw"), "2026-09-28T14:00:00.000+02:00");
+    assert.equal(iso(Date.parse("2026-12-31T23:30:00.5Z"), "Europe/Warsaw"), "2027-01-01T00:30:00.500+01:00");
+    assert.equal(iso(NOW, "America/St_Johns"), "2026-09-28T09:30:00.000-02:30");
+  });
+  test("SIGNOZ_TZ overrides, a bad name fails", () => {
+    assert.equal(zoneName({ SIGNOZ_TZ: "Asia/Tokyo" }), "Asia/Tokyo");
+    assert.throws(() => zoneName({ SIGNOZ_TZ: "Mars/Base" }), /bad SIGNOZ_TZ: Mars\/Base/);
+  });
+  test("zone command reports the zone and never fails", async () => {
+    const lines = [];
+    assert.equal(await run(["zone"], { env: { SIGNOZ_TZ: "UTC" }, print: (l) => lines.push(l) }), 0);
+    assert.equal(await run(["zone"], { env: { SIGNOZ_TZ: "Mars/Base" }, print: (l) => lines.push(l) }), 0);
+    assert.deepEqual(lines, ["UTC (UTC offset now: Z)", "INVALID: bad SIGNOZ_TZ: Mars/Base (use an IANA name like Europe/Warsaw)"]);
+  });
+  test("log lines and series use the zone", () => {
+    assert.ok(formatLogLine(logRow({ body: "x" }), [], false, "Europe/Warsaw").startsWith("2026-09-28T13:59:59.123+02:00 "));
+    const out = formatResult({ data: { results: [{ queryName: "A", aggregations: [{ index: 0, series: [{ values: [{ timestamp: NOW, value: 1 }] }] }] }] } }, [], false, "Europe/Warsaw");
+    assert.equal(out.at(-1), "2026-09-28T14:00:00.000+02:00\t1");
+  });
 });
 
 describe("time parsing", () => {
@@ -120,13 +144,13 @@ describe("formatLogLine", () => {
     resources_string: { "service.name": "svc" }, attributes_number: { StatusCode: 500 }, attributes_string: { "http.route": "/orders" },
   };
   test("prints time, severity, service, body and trace_id", () =>
-    assert.equal(formatLogLine(logRow(base)), '2026-09-28T11:59:59.123 Error       svc | boom | {"trace_id":"t1"}'));
+    assert.equal(formatLogLine(logRow(base)), '2026-09-28T11:59:59.123Z Error       svc | boom | {"trace_id":"t1"}'));
   test("adds requested fields from attribute and resource bags", () =>
     assert.equal(formatLogLine(logRow(base), ["StatusCode", "http.route", "missing"]).split(" | ")[2],
       '{"StatusCode":500,"http.route":"/orders","trace_id":"t1"}'));
   test("shows selectFields columns carried at the top level", () => {
     const line = formatLogLine(logRow({ body: "x", id: "i", timestamp: 1, Elapsed: 2.5 }));
-    assert.equal(line, '2026-09-28T11:59:59.123 -           - | x | {"Elapsed":2.5}');
+    assert.equal(line, '2026-09-28T11:59:59.123Z -           - | x | {"Elapsed":2.5}');
   });
   test("truncates and flattens long bodies unless full", () => {
     const body = "a\n" + "b".repeat(600);
@@ -145,7 +169,7 @@ describe("formatResult", () => {
       data: { results: [{ queryName: "A", nextCursor: cursor, rows: [logRow({ body: "b" })] }] },
     });
     assert.deepEqual(out, [
-      "# warning: top", "# warning: inner", "# A: 1 rows", "2026-09-28T11:59:59.123 -           - | b",
+      "# warning: top", "# warning: inner", "# A: 1 rows", "2026-09-28T11:59:59.123Z -           - | b",
       `# nextCursor: ${cursor} (last row 2026-09-28T14:00:00.000Z)`,
     ]);
   });
@@ -184,7 +208,7 @@ describe("formatKeys and formatValues", () => {
 });
 
 describe("run argument validation", () => {
-  const env = { SIGNOZ_URL: "http://127.0.0.1:9", SIGNOZ_API_KEY: "k" };
+  const env = { SIGNOZ_URL: "http://127.0.0.1:9", SIGNOZ_API_KEY: "k", SIGNOZ_TZ: "UTC" };
   test("unknown command", () => assert.rejects(run(["nope"], { env }), /usage/));
   test("wrong positional count", () => assert.rejects(run(["api", "GET"], { env }), /expected 2 positional/));
   test("unknown option", () => assert.rejects(run(["logs", "--bogus"], { env }), SignozError));
@@ -240,7 +264,7 @@ describe("HTTP against a mock server", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  const env = () => ({ SIGNOZ_URL: url + "/", SIGNOZ_API_KEY: "test-key" });
+  const env = () => ({ SIGNOZ_URL: url + "/", SIGNOZ_API_KEY: "test-key", SIGNOZ_TZ: "UTC" });
   const collect = async (argv, opts = {}) => {
     const lines = [];
     const code = await run(argv, { env: env(), print: (l) => lines.push(l), ...opts });
@@ -288,7 +312,7 @@ describe("HTTP against a mock server", () => {
     assert.equal(req.path, "/api/v5/query_range");
     assert.deepEqual([req.body.start, req.body.end, req.body.requestType], [1000, 2000, "raw"]);
     assert.equal(req.body.compositeQuery.queries[0].spec.limit, 3);
-    assert.deepEqual(lines, ["# 1970-01-01T00:00:01.000Z .. 1970-01-01T00:00:02.000Z", "# A: 1 rows", "2026-09-28T11:59:59.123 -           - | hello"]);
+    assert.deepEqual(lines, ["# 1970-01-01T00:00:01.000Z .. 1970-01-01T00:00:02.000Z", "# A: 1 rows", "2026-09-28T11:59:59.123Z -           - | hello"]);
   });
 
   test("count prints a table", async () => {

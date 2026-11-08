@@ -2,11 +2,14 @@
 name: signoz
 description: SigNoz logs, dashboards and alerts through its HTTP API.
 disable-model-invocation: true
+allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/scripts/signoz.mjs" zone)
 ---
 
 # signoz
 
 Environment: !`for v in SIGNOZ_URL SIGNOZ_API_KEY; do if test -n "$(printenv "$v")"; then echo "$v set"; else echo "$v MISSING"; fi; done`
+
+Display zone: !`node "${CLAUDE_SKILL_DIR}/scripts/signoz.mjs" zone`
 
 ## Connection
 
@@ -26,7 +29,8 @@ Environment: !`for v in SIGNOZ_URL SIGNOZ_API_KEY; do if test -n "$(printenv "$v
 - `values NAME [--search TEXT] [--filter EXPR]`: known values of one field.
 - `query FILE [--since 1h | --start T --end T] [--json | --out FILE]`: POST a `/api/v5/query_range` body; `start`/`end` are filled from the flags. Prints tables for scalar, chronological zero-filled series for time_series, log lines for raw.
 - `api METHOD PATH [--data FILE|-] [--out FILE]`: any endpoint. Use `--out` for dashboards and large lists so they do not flood the context.
-- Time: `--since` takes `30s`, `15m`, `1h`, `2d`, `1w`; `--start`/`--end` take epoch ms or ISO 8601.
+- Time: `--since` takes `30s`, `15m`, `1h`, `2d`, `1w`; `--start`/`--end` take epoch ms or ISO 8601, read in the display zone when the ISO carries no offset.
+- SigNoz stores and returns UTC; the helper prints every time in the display zone with its offset. Give the user times in that zone exactly as printed, never converted back to UTC. If the Display zone line shows INVALID, tell the user to fix `SIGNOZ_TZ` (an IANA name like `Europe/Warsaw`) and stop. Raw `--json`/`--out` dumps, `api` responses and ClickHouse SQL stay UTC: convert them to the display zone before reporting; in SQL use `toTimeZone(timestamp, '<zone>')`.
 
 ## Log analysis
 

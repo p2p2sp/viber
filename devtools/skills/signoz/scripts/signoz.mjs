@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // SigNoz API helper. No dependencies, Node 20+.
 //
-// Env: SIGNOZ_URL and SIGNOZ_API_KEY (both required).
+// Env: SIGNOZ_URL and SIGNOZ_API_KEY (both required); SIGNOZ_TZ (optional IANA zone, default: system zone).
 //
+//   signoz.mjs zone                                               display zone; never fails
 //   signoz.mjs api METHOD PATH [--data FILE|-] [--out FILE]      PATH like api/v2/rules or /api/v2/rules
 //   signoz.mjs query FILE [--since 1h | --start T --end T] [--json] [--out FILE]
 //   signoz.mjs logs [--filter EXPR] [--since 1h] [--limit 50] [--fields a,b] [--asc] [--cursor C] [--full]
@@ -10,7 +11,8 @@
 //   signoz.mjs keys [--search TEXT] [--signal logs] [--context resource|attribute|log|body|scope]
 //   signoz.mjs values NAME [--search TEXT] [--signal logs] [--filter EXPR]
 //
-// T = epoch ms or ISO 8601 (2026-09-28T10:00:00Z). Durations: 30s, 15m, 1h, 2d, 1w.
+// T = epoch ms or ISO 8601 (2026-09-28T10:00:00Z); ISO without an offset is read in the display zone.
+// Durations: 30s, 15m, 1h, 2d, 1w. Printed times are in the display zone, with their UTC offset.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -51,7 +53,25 @@ export function timeRange({ since = "1h", start, end } = {}, now = Date.now()) {
   return [e - Number(m[1]) * UNITS[m[2]] * 1000, e];
 }
 
-export const iso = (ms) => new Date(ms).toISOString();
+export function zoneName(env = process.env) {
+  const tz = env.SIGNOZ_TZ || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+  } catch {
+    throw new SignozError(`bad SIGNOZ_TZ: ${tz} (use an IANA name like Europe/Warsaw)`);
+  }
+  return tz;
+}
+
+// ISO 8601 in the given zone with its offset; UTC prints the same as toISOString().
+export function iso(ms, tz = "UTC") {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit",
+    minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3, timeZoneName: "longOffset",
+  }).formatToParts(ms).map((x) => [x.type, x.value]));
+  const offset = p.timeZoneName.replace(/^GMT(\+00:00)?$/, "Z").replace("GMT", "");
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}.${p.fractionalSecond}${offset}`;
+}
 
 const num = (v) => (typeof v === "number" ? String(Number(v.toPrecision(6))) : String(v));
 
@@ -131,10 +151,11 @@ export function buildCountPayload({ filter = "", by, signal = "logs", limit = 20
 
 const splitList = (s) => (s ? s.split(",").filter(Boolean) : []);
 
-export function formatLogLine(row, fields = [], full = false) {
+export function formatLogLine(row, fields = [], full = false, tz = "UTC") {
   const d = row.data;
   const res = d.resources_string || {};
-  const ts = (row.timestamp || "").slice(0, 23);
+  const ms = Date.parse(row.timestamp || "");
+  const ts = Number.isNaN(ms) ? (row.timestamp || "") : iso(ms, tz);
   const head = `${ts} ${String(d.severity_text ?? "-").padEnd(11)} ${res["service.name"] ?? d["service.name"] ?? "-"}`;
   let body = d.body ?? "";
   if (!full) {
@@ -161,17 +182,17 @@ export function formatWarnings(data) {
   return [w, ...(w.warnings || [])].filter((i) => i.message).map((i) => `# warning: ${i.message}`);
 }
 
-export function formatResult(data, fields = [], full = false) {
+export function formatResult(data, fields = [], full = false, tz = "UTC") {
   const out = formatWarnings(data);
   for (const res of data.data.results) {
     const name = res.queryName;
     if ("rows" in res) {
       const rows = res.rows || [];
       out.push(`# ${name}: ${rows.length} rows`);
-      for (const row of rows) out.push(formatLogLine(row, fields, full));
+      for (const row of rows) out.push(formatLogLine(row, fields, full, tz));
       if (res.nextCursor) {
         const last = Number(Buffer.from(res.nextCursor, "base64").toString());
-        out.push(`# nextCursor: ${res.nextCursor} (last row ${iso(last)})`);
+        out.push(`# nextCursor: ${res.nextCursor} (last row ${iso(last, tz)})`);
       }
     } else if ("columns" in res) {
       out.push(`# ${name}`, res.columns.map((c) => c.name).join("\t"));
@@ -183,7 +204,7 @@ export function formatResult(data, fields = [], full = false) {
           const vals = [...(s.values || [])].sort((a, b) => a.timestamp - b.timestamp);
           const total = vals.reduce((acc, v) => acc + v.value, 0);
           out.push(`## ${labelStr(s.labels)} | points=${vals.length} sum=${num(total)}`);
-          for (const v of vals) out.push(`${iso(v.timestamp)}\t${num(v.value)}`);
+          for (const v of vals) out.push(`${iso(v.timestamp, tz)}\t${num(v.value)}`);
         }
       }
     } else {
@@ -209,6 +230,7 @@ export function formatValues(data) {
 
 const TIME = { since: { type: "string", default: "1h" }, start: { type: "string" }, end: { type: "string" } };
 const COMMANDS = {
+  zone: { positionals: 0, options: {} },
   api: { positionals: 2, options: { data: { type: "string" }, out: { type: "string" } } },
   query: { positionals: 1, options: { ...TIME, json: { type: "boolean" }, out: { type: "string" } } },
   logs: {
@@ -254,6 +276,18 @@ export async function run(argv, { env = process.env, print = console.log, readSt
   if (pos.length !== def.positionals) throw new SignozError(`${cmd}: expected ${def.positionals} positional argument(s), got ${pos.length}`);
   const printAll = (lines) => lines.forEach((l) => print(l));
 
+  if (cmd === "zone") {
+    // skill preload: report a bad zone as text, since a non-zero exit would abort the skill load
+    try {
+      const tz = zoneName(env);
+      print(`${tz} (UTC offset now: ${iso(Date.now(), tz).slice(23)})`);
+    } catch (err) {
+      if (!(err instanceof SignozError)) throw err;
+      print(`INVALID: ${err.message}`);
+    }
+    return 0;
+  }
+  const tz = zoneName(env);
   if (cmd === "api") {
     const body = o.data === undefined ? undefined : o.data === "-" ? readStdin() : readFileSync(o.data);
     const { status, text } = await request(pos[0], pos[1], body, env);
@@ -275,22 +309,22 @@ export async function run(argv, { env = process.env, print = console.log, readSt
     } else if (o.json) {
       print(JSON.stringify(data));
     } else {
-      printAll(formatResult(data));
+      printAll(formatResult(data, [], false, tz));
     }
     return 0;
   }
   if (cmd === "logs") {
     const [start, end] = timeRange(o);
     const payload = buildLogsPayload({ ...o, limit: toInt(o.limit, "limit") }, start, end);
-    print(`# ${iso(start)} .. ${iso(end)}`);
-    printAll(formatResult(await queryRange(payload, env), splitList(o.fields), o.full));
+    print(`# ${iso(start, tz)} .. ${iso(end, tz)}`);
+    printAll(formatResult(await queryRange(payload, env), splitList(o.fields), o.full, tz));
     return 0;
   }
   if (cmd === "count") {
     const [start, end] = timeRange(o);
     const payload = buildCountPayload({ ...o, limit: toInt(o.limit, "limit") }, start, end);
-    print(`# ${iso(start)} .. ${iso(end)}`);
-    printAll(formatResult(await queryRange(payload, env)));
+    print(`# ${iso(start, tz)} .. ${iso(end, tz)}`);
+    printAll(formatResult(await queryRange(payload, env), [], false, tz));
     return 0;
   }
   if (cmd === "keys") {
@@ -313,6 +347,8 @@ async function main() {
     throw err;
   });
   try {
+    // offsetless ISO in --start/--end is then parsed in the display zone
+    if (process.env.SIGNOZ_TZ) process.env.TZ = process.env.SIGNOZ_TZ;
     process.exitCode = await run(process.argv.slice(2));
   } catch (err) {
     if (!(err instanceof SignozError)) throw err;
