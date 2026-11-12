@@ -29,7 +29,13 @@
 #   reads  : <root>/.claude/rules/**/*.md - every file at any depth, the root
 #            holding the shared rules and each subdirectory one area's, its
 #            frontmatter and its size; the git index - which of them are tracked, modified or
-#            untracked, and how many tracked paths a rule's globs match.
+#            untracked, and how many tracked paths a rule's globs match;
+#            <root>/docs/<directories.specifications>/*/failures.md - the
+#            archived failure trails, whose `- <cause> | ...` lines it counts;
+#            and the `directories.specifications:` line printed by
+#            `scripts/config.sh`, reached through a path relative to this
+#            script (`../../../scripts/config.sh`). When that call fails or
+#            prints no such line the directory is `specs`.
 #   writes : nothing at all in map mode. In reset mode, and only once every
 #            target has passed, the given files are deleted from the working
 #            tree, and a subdirectory left empty by them is removed with it.
@@ -43,6 +49,8 @@
 #              frozen: <path> <chars>
 #              dead: <path>
 #              dirty: <path> modified | untracked
+#              trail: <repo-relative path of one archived failures.md> convention <n>
+#              waiting: convention <n> place <n> plan <n> task <n> test <n> unknown <n>
 #              total: <chars> ok | OVER-DIR
 #            `id` is this run's stamp, which the caller spends as
 #            `.temp/viber/<id>/`; it reads `unknown` only when the clock cannot
@@ -66,6 +74,12 @@
 #            rule.
 #            `dirty:` covers every `.md` in the directory, frozen included:
 #            uncommitted work is a fact about the file, not a score.
+#            `trail:` is one line per archived `failures.md` holding at least
+#            one `convention` entry, alphabetical by path, with that file's
+#            count of them. `waiting:` is one line summing the entries of every
+#            archived `failures.md` by cause; it prints when at least one such
+#            file exists, a cause with no entry reading 0, and neither line
+#            prints when none exists.
 #            `total:` sums every `.md`, frozen included, and closes on `ok` or
 #            `OVER-DIR` past 40000 bytes.
 #
@@ -88,6 +102,8 @@ set -u
 rules_dir=".claude/rules"
 file_cap=4000
 dir_cap=40000
+
+script_dir="$(cd "$(dirname "$0")" 2>/dev/null && pwd || true)"
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 if [ -z "$root" ] || [ ! -d "$root" ]; then
@@ -394,6 +410,66 @@ else
   state="partial"
 fi
 
+# The archive directory is whatever the project configured; a failed call, or
+# one printing no such line, leaves the default. Never an error: this is a
+# preload.
+specs_dir=""
+config_out=""
+if [ -n "$script_dir" ] && [ -f "$script_dir/../../../scripts/config.sh" ]; then
+  config_out="$("$script_dir/../../../scripts/config.sh" 2>/dev/null || true)"
+fi
+while IFS= read -r config_line; do
+  config_line="${config_line%$'\r'}"
+  case "$config_line" in
+    "directories.specifications: "*) specs_dir="${config_line#directories.specifications: }" ;;
+  esac
+done < <(printf '%s\n' "$config_out")
+case "$specs_dir" in
+  "" | . | .. | *[!A-Za-z0-9._-]*) specs_dir="specs" ;;
+esac
+
+# The archived failure trails: `- <cause> | <source> | <text>` entries, counted
+# per cause. `waiting:` stands once at least one trail is archived; `trail:`
+# names only a file holding a `convention` entry, the cause a rule can rest on.
+trail_lines=""
+waiting_line=""
+trails_seen=0
+sum_convention=0
+sum_place=0
+sum_plan=0
+sum_task=0
+sum_test=0
+sum_unknown=0
+trail_listing=""
+if [ -d "docs/$specs_dir" ]; then
+  trail_listing="$(find "docs/$specs_dir" -mindepth 2 -maxdepth 2 -type f -name failures.md 2>/dev/null |
+    LC_ALL=C sort || true)"
+fi
+while IFS= read -r trail; do
+  [ -n "$trail" ] || continue
+  counts="$(awk '
+    { sub(/\r$/, "") }
+    /^- (convention|place|plan|task|test|unknown) [|]/ { n[$2]++ }
+    END { print n["convention"] + 0, n["place"] + 0, n["plan"] + 0, n["task"] + 0, n["test"] + 0, n["unknown"] + 0 }
+  ' "$trail" 2>/dev/null || true)"
+  [ -n "$counts" ] || continue
+  read -r c_convention c_place c_plan c_task c_test c_unknown < <(printf '%s\n' "$counts")
+  trails_seen=$(( trails_seen + 1 ))
+  sum_convention=$(( sum_convention + c_convention ))
+  sum_place=$(( sum_place + c_place ))
+  sum_plan=$(( sum_plan + c_plan ))
+  sum_task=$(( sum_task + c_task ))
+  sum_test=$(( sum_test + c_test ))
+  sum_unknown=$(( sum_unknown + c_unknown ))
+  if [ "$c_convention" -gt 0 ]; then
+    trail_lines="$trail_lines"'trail: '"$trail convention $c_convention"'
+'
+  fi
+done < <(printf '%s\n' "$trail_listing")
+if [ "$trails_seen" -gt 0 ]; then
+  waiting_line="waiting: convention $sum_convention place $sum_place plan $sum_plan task $sum_task test $sum_test unknown $sum_unknown"
+fi
+
 printf '# viber rules map\n'
 printf 'id: %s\n' "$stamp"
 printf 'state: %s\n' "$state"
@@ -401,6 +477,8 @@ printf '%s' "$rule_lines"
 printf '%s' "$frozen_lines"
 printf '%s' "$dead_lines"
 printf '%s' "$dirty_lines"
+printf '%s' "$trail_lines"
+[ -z "$waiting_line" ] || printf '%s\n' "$waiting_line"
 dir_verdict="ok"
 [ "$total" -gt "$dir_cap" ] && dir_verdict="OVER-DIR"
 printf 'total: %s %s\n' "$total" "$dir_verdict"

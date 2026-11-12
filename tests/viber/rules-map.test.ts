@@ -342,6 +342,152 @@ test("map mode names every rule holding uncommitted work", async () => {
   });
 });
 
+/** The body of one archived `failures.md`, one `- <cause> | <source> | <text>`
+ *  entry per line. */
+function failures(entries: string[]): string {
+  return ["# Failures", "", ...entries.map((entry) => `- ${entry}`), ""].join("\n");
+}
+
+test("map mode names every archived failures.md holding a convention entry, alphabetical by path, with its count", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "README.md": "# repo\n",
+      "docs/specs/2026-02-01-00-00-00_b/failures.md": failures([
+        "convention | review-T1-1 | uses a hand-rolled parser",
+        "convention | review-T2-1 | skips the header block",
+        "task | review-T2-2 | misses DoD.3",
+      ]),
+      "docs/specs/2026-01-01-00-00-00_a/failures.md": failures([
+        "convention | final-review-1 | names a flag differently",
+      ]),
+      "docs/specs/2026-03-01-00-00-00_c/failures.md": failures(["place | review-T1-1 | a trap"]),
+    });
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(section(result.stdout, "trail"), [
+      "docs/specs/2026-01-01-00-00-00_a/failures.md convention 1",
+      "docs/specs/2026-02-01-00-00-00_b/failures.md convention 2",
+    ]);
+  });
+});
+
+test("map mode sums the entries of every archived failures.md into one waiting line by cause", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "docs/specs/run-a/failures.md": failures([
+        "convention | review-T1-1 | x",
+        "place | review-T1-1 | y",
+        "task | review-T1-2 | z",
+        "test | tests-1 | FAIL a",
+      ]),
+      "docs/specs/run-b/failures.md": failures([
+        "convention | final-review-1 | x",
+        "plan | review-T3-1 | y",
+        "test | tests-1 | FAIL b",
+        "test | tests-1 | FAIL c",
+        "unknown | review-T3-1 | w",
+      ]),
+    });
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(section(result.stdout, "waiting"), [
+      "convention 2 place 1 plan 1 task 1 test 3 unknown 1",
+    ]);
+  });
+});
+
+test("map mode prints neither trail nor waiting line when no failures.md is archived", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, { "README.md": "# repo\n", "docs/specs/run-a/outcome.md": "# outcome\n" });
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(section(result.stdout, "trail"), []);
+    assert.deepEqual(section(result.stdout, "waiting"), []);
+  });
+});
+
+test("map mode prints the waiting line and no trail line when the archived entries hold no convention cause", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "docs/specs/run-a/failures.md": failures(["task | review-T1-1 | x", "test | tests-1 | FAIL a"]),
+    });
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(section(result.stdout, "trail"), []);
+    assert.deepEqual(section(result.stdout, "waiting"), [
+      "convention 0 place 0 plan 0 task 1 test 1 unknown 0",
+    ]);
+  });
+});
+
+test("map mode reads the archive from the directories.specifications value of the project config", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      ".claude/viber.yml": "directories:\n  runs: _specs\n  specifications: archive\n",
+      "docs/archive/run-a/failures.md": failures(["convention | review-T1-1 | x"]),
+      "docs/specs/run-b/failures.md": failures(["task | review-T1-1 | y", "task | review-T1-2 | z"]),
+    });
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(section(result.stdout, "trail"), ["docs/archive/run-a/failures.md convention 1"]);
+    assert.deepEqual(section(result.stdout, "waiting"), [
+      "convention 1 place 0 plan 0 task 0 test 0 unknown 0",
+    ]);
+  });
+});
+
+test("map mode falls back to the specs directory when the config call fails, and still exits 0", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      ".claude/viber.yml": "directories:\n  runs: _specs\n  specifications: archive\n",
+      "docs/archive/run-a/failures.md": failures(["task | review-T1-1 | x"]),
+      "docs/specs/run-b/failures.md": failures(["convention | review-T1-1 | y"]),
+    });
+    await withTempDir("p2p2-rules-bare-", async (dir) => {
+      const lonely = path.join(dir, "viber", "skills", "rules", "scripts", "rules-map.sh");
+      fs.mkdirSync(path.dirname(lonely), { recursive: true });
+      fs.copyFileSync(SUT, lonely);
+
+      const result = await runScript(lonely, [], { cwd: repo.dir, env: repo.env, shell: "bash" });
+
+      assert.equal(result.status, 0);
+      assert.deepEqual(section(result.stdout, "trail"), ["docs/specs/run-b/failures.md convention 1"]);
+      assert.deepEqual(section(result.stdout, "waiting"), [
+        "convention 1 place 0 plan 0 task 0 test 0 unknown 0",
+      ]);
+    });
+  });
+});
+
+test("map mode prints the trail and waiting lines after the dirty lines and before total", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "src/a.ts": "a\n",
+      ".claude/rules/live.md": rule(["src/*.ts"]),
+      "docs/specs/run-a/failures.md": failures(["convention | review-T1-1 | x"]),
+    });
+    write(repo, ".claude/rules/fresh.md", rule(["src/*.ts"]));
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(
+      lines(result.stdout).map((line) => line.split(":")[0]),
+      ["# viber rules map", "id", "state", "rule", "rule", "dirty", "trail", "waiting", "total"],
+    );
+  });
+});
+
 test("map mode scores the rules of every area subdirectory beside the shared root ones (a nested rule is loaded, so it costs the budget)", async () => {
   await withGitRepo(async (repo) => {
     const shared = rule(["**/*.ts"]);
@@ -565,6 +711,8 @@ test("the script ships directly invocable, LF-only, its header printing its own 
       "frozen: <path> <chars>",
       "dead: <path>",
       "dirty: <path> modified | untracked",
+      "trail: <repo-relative path of one archived failures.md> convention <n>",
+      "waiting: convention <n> place <n> plan <n> task <n> test <n> unknown <n>",
       "total: <chars> ok | OVER-DIR",
       "removed: <path>",
       "removed: <n>",
@@ -572,4 +720,12 @@ test("the script ships directly invocable, LF-only, its header printing its own 
     ]),
     [],
   );
+});
+
+test("the header's reads list names the archived failures.md files and the config.sh call", () => {
+  const source = fs.readFileSync(SUT, "utf-8");
+  const header = source.slice(0, source.indexOf("\nset -u"));
+  const reads = header.slice(header.indexOf("#   reads"), header.indexOf("#   writes"));
+
+  assert.deepEqual(missingFrom(reads, ["failures.md", "scripts/config.sh"]), []);
 });

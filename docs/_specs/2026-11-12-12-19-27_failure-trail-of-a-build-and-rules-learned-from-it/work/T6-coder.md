@@ -1,0 +1,3 @@
+- `waiting:` prints whenever at least one archived `failures.md` exists (zeros for absent causes), even if it holds no valid entry line; the task left that edge open.
+- Entries are recognised as column-0 `- <cause> | ` with one of the six C2 words; other lines (heading, blanks) are ignored.
+- The config call is skipped when `../../../scripts/config.sh` is absent next to the script (tests copy the script alone to prove the `specs` fallback).
