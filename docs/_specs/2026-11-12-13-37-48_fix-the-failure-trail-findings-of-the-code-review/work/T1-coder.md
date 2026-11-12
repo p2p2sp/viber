@@ -1,4 +1,0 @@
-- red-check.sh cannot seal T1: config.sh --red-check counts every path with a `tests/` segment as a test, so tests/harness/markdown.ts (the C4 helper, T1's only production code) lands in the red run, and red and control runs are the same tree. PASSED-WITHOUT-CHANGE is certain on every retry.
-- The real red is .temp/viber/T1/red.log: the five section cases of tests/harness.test.ts failing against a stub section before the helper existed. The build's decision waives T1's red check on that log.
-- close-part-prose slices step 3 and the "5 to 7. Close and archive" pointer from implementor SKILL.md, steps 5 and 7 from parts/close.md; a heading matches by prefix, so "5." also matches "5 to 7." in SKILL.md (not in PART).
-- section keeps the trailing "\n" before the next heading, so lines(section(...)) ends on one more empty string than the removed per-file slicers gave: a count of lines in a section must allow for it.

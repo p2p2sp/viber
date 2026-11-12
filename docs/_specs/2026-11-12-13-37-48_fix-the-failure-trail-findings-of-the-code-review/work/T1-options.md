@@ -1,1 +1,0 @@
-DECIDE: record a ruling that T1's red check is waived, its red proven by .temp/viber/T1/red.log (5 failing section cases against a stub helper) | rule T1 as TDD: none, so no red check runs on a task whose every path is a test file

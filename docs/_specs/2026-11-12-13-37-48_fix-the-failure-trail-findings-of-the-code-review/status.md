@@ -1,9 +1,0 @@
-# status
-
-progress: 10/10
-done: T9 T2 T3 T4 T6 T1 T8 T5 T7 T10
-skipped: none
-unreviewed: none
-deferred: none
-closed: memory rules
-decision: T1: auto: record a ruling that T1's red check is waived, its red proven by .temp/viber/T1/red.log (5 failing section cases against a stub helper)

@@ -1,2 +1,0 @@
-- The rules line text now lives only in the archived `closeout returned VERDICT: ARCHIVED` bullet of step 7 (after the closing sentence, before the next-part line); the both-forms paragraph after the rulings keeps just the not-written bullet. A test pins "/viber:rules extend" to one occurrence in step 7.
-- The old "convention count of 0 -> no line" bullet is gone: the archived bullet's condition (convention above 0 and runs at least 2) covers it, and the screen form bullet says nothing about the trail.
