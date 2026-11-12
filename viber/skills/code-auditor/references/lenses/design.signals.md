@@ -35,3 +35,8 @@ Dead export candidates: an exported name that `git grep -lw` finds in one file o
 ```bash
 git grep -hoE '^(export (default )?(async )?(function|class|const|let|interface|type|enum)|def|class|func( \([^)]*\))?) [A-Za-z_][A-Za-z0-9_]*' -- '<scope>' | awk '{print $NF}' | sort -u | head -150 | while read -r n; do [ -z "$(git grep -lw -e "$n" | sed -n 2p)" ] && echo "$n"; done | head -30
 ```
+
+Mock density per test file; the source a mock-heavy test covers is an untestable-decisions lead:
+```bash
+git -c core.quotePath=false grep -c -E 'jest[.]mock|vi[.]mock|mock[.]patch|@patch[(]|MagicMock|mocker[.]|Mockito|sinon[.]|toHaveBeenCalled|gomock|[.]On[(]|new Mock<|Substitute[.]For|mockk|every [{]|instance_double|allow[(]|createMock[(]|page[.]route|cy[.]intercept' -- '<scope>' | sort -t: -k2 -nr | head -30
+```

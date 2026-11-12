@@ -86,7 +86,7 @@ Hands off: a defect in the production code to bugs; an exploitable flaw to secur
 
 ## design
 
-Audits: structure that makes change expensive. One piece of knowledge kept in several places, code that must change together but lives apart, abstractions that grew wrong, dependencies pointing the wrong way, dead or drifted code, and breaks of the project's own written rules. Every finding needs a concrete change scenario plus history evidence.
+Audits: structure that makes change expensive. One piece of knowledge kept in several places, code that must change together but lives apart, abstractions that grew wrong, dependencies pointing the wrong way, decisions no unit test can reach, dead or drifted code, and breaks of the project's own written rules. Every finding needs a concrete change scenario plus history evidence.
 
 Angles:
 - `knowledge-duplication`: one fact written in two or more places that must change together.
@@ -95,6 +95,7 @@ Angles:
 - `boundary-coupling`: imports against a declared boundary, import cycles, reaching into internals and shared mutable state.
 - `dead-and-drifted`: unreferenced exports, unset flags, unreachable branches and comments that contradict the code.
 - `rule-drift`: a written rule in `CLAUDE.md`, rules, an ADR or CONTRIBUTING that the code breaks in several places.
+- `untestable-decisions`: a branch, rule, calculation or validation written inside code that reaches a database, queue, broker or network, so only the real dependency or a chain of doubles reaches it.
 
 Verified by: gates refuted one by one from the repository and its git history (existence, same knowledge, change scenario, pain evidence, not deliberate, fix economics); nothing is run. `Worktree: none`.
 
@@ -138,6 +139,7 @@ One row per hand-off clause in the intros and `## Excluded` sections of the six 
 | slow server path | tests | runtime-performance | `complexity-cliff` |
 | slow browser path | tests | web-performance | `interaction-hydration` |
 | flake rooted in a production race | tests | bugs | `race-state` |
+| decision no unit test can reach | tests | design | `untestable-decisions` |
 | wrong result | design | bugs | `wrong-result` |
 | crash | design | bugs | `crash-hang` |
 | lost failure | design | bugs | `silent-failure` |

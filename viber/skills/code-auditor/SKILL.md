@@ -32,7 +32,7 @@ No agent is dispatched before Map, and every stop below prints its one line and 
      3. `web-performance`: entry JS weight, LCP, layout shifts, hydration, asset delivery.
      4. `runtime-performance`: complexity cliffs, I/O per item, unbounded growth, blocking calls, repeated setup, query shape.
      5. `tests`: pseudo-tested code, hollow assertions, over-mocking, untested error paths, flaky, dead and wasteful tests.
-     6. `design`: duplicated knowledge, change preventers, wrong abstractions, coupling, dead code, rule drift.
+     6. `design`: duplicated knowledge, change preventers, wrong abstractions, coupling, untestable decisions, dead code, rule drift.
    - A reply of a listed number or a lens name selects that lens; any other reply prints the list again.
    - No scope given: once the lens is settled, ask How much through `AskUserQuestion`: Changes -> `diff`, Directory -> a directory, Whole repository -> `repo`. After a Directory answer, ask in prose for its path.
 2. `<root>`: the output of `git rev-parse --show-toplevel` in the current directory, else the current directory.

@@ -32,6 +32,7 @@ Redundant: two tests failing on exactly the same regressions, or variants of one
 - Gaps in unreachable, dead or non-critical code.
 - A gap already closed by a test at a higher layer, unless filed as misplaced: the mutant is killed there.
 - Golden-file tests whose snapshot is the deliberate contract, such as CLI output.
+- A decision no unit test can reach as written: the design lens.
 
 ## Verify
 Worktree: required

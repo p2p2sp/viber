@@ -9,9 +9,9 @@
  * by the mapper alone, holding at least one ```bash block, every `<scope>`
  * single-quoted and no `\b` word boundary.
  *
- * The `tests` lens, its signals file, the code-auditor README and SKILL.md are
- * product text (prompts and guides), so the wasteful-tests cases below assert
- * the wording they carry.
+ * The `tests` and `design` lenses, their signals files, the code-auditor README
+ * and SKILL.md are product text (prompts and guides), so the wasteful-tests and
+ * untestable-decisions cases below assert the wording they carry.
  *
  * Every rule lives in the pure functions `lensProblems` and `signalsProblems`,
  * proven to fire on a synthetic bad file before it is trusted on the real
@@ -234,6 +234,51 @@ ${"```"}bash
 git -c core.quotePath=false ls-files -- '<scope>' | grep -E '(^|/)(tests?|__tests__|specs?|e2e|cypress)/|[._-](test|spec|cy)[.]|(^|/)test_|(Test|Tests|Spec)[.][A-Za-z]+$' | grep -i -E '(^|/)(integration|integ)[^/]*/|[._-](integration|integ|it)[._-]|integration(tests?|spec)?[.]|[.]integrationtests/' | sed 's|/[^/]*$||' | sort | uniq -c | sort -nr | head -30
 ${"```"}`));
   assert.ok(TESTS_SIGNALS.trimEnd().endsWith("head -30\n```"));
+});
+
+const DESIGN_LENS = fs.readFileSync(path.join(LENSES, "design.md"), "utf-8");
+const DESIGN_SIGNALS = fs.readFileSync(path.join(LENSES, "design.signals.md"), "utf-8");
+
+test("the design lens names decisions no unit test can reach in its opening sentence and holds untestable-decisions as its seventh angle", () => {
+  assert.ok(DESIGN_LENS.split(/\r?\n/)[1].includes("dependencies pointing the wrong way, decisions no unit test can reach, dead or drifted code"));
+  assert.equal(anglesOf(DESIGN_LENS)[6], "untestable-decisions");
+});
+
+test("the untestable-decisions angle names the decision, the dependency it sits in and the function over plain values", () => {
+  const body = sectionOf(DESIGN_LENS, "## Hunts").split("### untestable-decisions\n")[1] ?? "";
+  assert.ok(body.startsWith("A decision (a branch, a rule, a calculation, a validation) written inside code that reaches a database, queue, broker or network, so a test reaches it only through the real dependency or a chain of doubles. Name the decision and the function over plain values that would hold it."));
+});
+
+test("gate 7 of the design lens passes an untestable-decisions claim through gates 3 and 4 by the tests that assert the decision", () => {
+  const gate = lineOf(sectionOf(DESIGN_LENS, "## Verify"), "7. ");
+  assert.ok(gate.endsWith("An untestable-decisions claim passes 3 by a change to the decision and 4 by its tests: only integration tests assert it, its unit test builds 3 or more doubles, or none asserts it."));
+});
+
+test("the design lens scores an untestable decision on its 3-4 line", () => {
+  const line = lineOf(sectionOf(DESIGN_LENS, "## Severity"), "- 3-4:");
+  assert.ok(line.endsWith("A decision reachable only through the real dependency or 3 or more doubles."));
+});
+
+test("the tests lens closes its exclusions by handing a decision no unit test can reach to the design lens", () => {
+  const excluded = sectionOf(TESTS_LENS, "## Excluded").trimEnd();
+  assert.ok(excluded.endsWith("\n- A decision no unit test can reach as written: the design lens."));
+});
+
+test("the design signals file closes on the mock-density command after its lead-in line, with a single-quoted scope", () => {
+  assert.ok(DESIGN_SIGNALS.includes(String.raw`Mock density per test file; the source a mock-heavy test covers is an untestable-decisions lead:
+${"```"}bash
+git -c core.quotePath=false grep -c -E 'jest[.]mock|vi[.]mock|mock[.]patch|@patch[(]|MagicMock|mocker[.]|Mockito|sinon[.]|toHaveBeenCalled|gomock|[.]On[(]|new Mock<|Substitute[.]For|mockk|every [{]|instance_double|allow[(]|createMock[(]|page[.]route|cy[.]intercept' -- '<scope>' | sort -t: -k2 -nr | head -30
+${"```"}`));
+  assert.ok(DESIGN_SIGNALS.trimEnd().endsWith("head -30\n```"));
+});
+
+test("the README design section lists untestable-decisions and the ownership table hands a decision no unit test can reach from tests to design under it", () => {
+  assert.ok(readmeSection("design").includes("- `untestable-decisions`:"));
+  assert.ok(README.includes("| decision no unit test can reach | tests | design | `untestable-decisions` |"));
+});
+
+test("the code-auditor SKILL design line names untestable decisions", () => {
+  assert.ok(lineOf(SKILL.replace(/^ +/gm, ""), "6. `design`:").includes("untestable decisions"));
 });
 
 const LENS_ANGLES = LENS_FILES.flatMap((file) =>
