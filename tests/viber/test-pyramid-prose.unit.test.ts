@@ -158,6 +158,36 @@ test("integration-tests third bullet limits an integration test to what the real
   assert.ok(has(text, "An integration test proves only what the real dependency alone reveals (a query's result, a mapping, a constraint, a transaction), and the done clause it proves names that. One asserting a decision, or a case a unit or component test proves or could prove, is a finding, and so is a second test of a behaviour another integration test covers: one test per adapter behaviour. (blocking)"));
 });
 
+test("test-strategy Never tested rule limits a test to an important path or a decision, bars a name, the presence of a field and the shape of data, and is blocking", () => {
+  const text = bullet(STRATEGY, "A test exists only for an important path or a decision in the logic");
+  assert.ok(has(text, "A test exists only for an important path or a decision in the logic: name the regression in behaviour a caller observes that it would catch; no answer means no test. Never tested: accessors, trivial constructors, data holders without behaviour, 1:1 mappings, framework behaviour, third-party library internals, an assertion true by construction, a name, the presence of a field, the shape of data. A test that fails on a refactor keeping the observed behaviour is a finding. (blocking)"));
+});
+
+test("test-strategy holds one regression to one test, variants as parameterised rows, a duplicate found by deleting it, right after the Never tested rule", () => {
+  const lines = STRATEGY.split(/\r?\n/);
+  const never = lines.findIndex((candidate) => candidate.startsWith("- A test exists only for an important path or a decision"));
+  const text = bullet(STRATEGY, "One regression, one test:");
+  assert.ok(never >= 0);
+  assert.ok(lines[never + 1].startsWith("- One regression, one test:"));
+  assert.ok(has(text, "- One regression, one test: two tests failing on exactly the same regressions are one test too many, whatever their layer, and variants of one input belong in the framework's parameterised form, one row each. A test whose deletion leaves every regression still caught is a duplicate. (blocking)"));
+});
+
+test("plan-rules TDD closes with a done clause on a name, the presence of a field or the shape of data as a finding on a TDD required task", () => {
+  const text = rule("TDD");
+  assert.ok(text.includes("On `TDD: required` each done clause states a behaviour or a decision a caller observes: a clause on a name, the presence of a field or the shape of data is a finding, since it belongs in a `## Contracts` block or a `TDD: none` task."));
+  assert.ok(text.trimEnd().endsWith("or a `TDD: none` task. (review)"));
+});
+
+test("task-coder first Implement bullet stops at the met done clauses and a green Verification, adding no test, file, doc or refactor, a helpful idea going to the notes", () => {
+  const text = bullet(CODER, "Deliver exactly what `Delivers` and `DoD` describe");
+  assert.ok(has(text, "- Deliver exactly what `Delivers` and `DoD` describe: no tests, docs, comments or files beyond what they and `Files` name. Once every `DoD` clause is met and `Verification` is green, stop and report: don't add features, tests, files, docs or refactors the task did not ask for, and one you think would help goes into your notes instead of the tree. A pre-existing bug you find outside them goes into your notes, unfixed."));
+});
+
+test("task-reviewer Hits its target blocks a test the task added that proves none of its DoD clauses, ahead of the clause numbers sentence", () => {
+  const text = bullet(REVIEWER, "Hits its target:");
+  assert.ok(has(text, "A test this task added that proves none of its `DoD` clauses is Blocking: the task asked for no test beyond them. Your report cites clause numbers."));
+});
+
 test("test-strategy Construct rule hints to extract a decision before adding a double and stays untagged", () => {
   const text = bullet(STRATEGY, "Construct whatever can be constructed.");
   assert.ok(has(text, "A test needing a double to reach a decision points at the code's shape: extract the decision into a function over plain values and test that, before adding the double."));
