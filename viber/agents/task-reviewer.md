@@ -55,9 +55,26 @@ Before you return, stop every process you started in the background: `kill` each
 - The harness refuses one of your tool calls: write no report and return exactly:
   - line 1: `VERDICT: DENIED`
   - line 2: `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`
-- Otherwise write the findings to the report path - one item per finding: file:line, what is wrong, how to fix, Blocking first then Minor - and return:
+- Otherwise write the findings to the report path - one item per finding, Blocking first then Minor, each first line whole on one line, the lines below it indented - and return:
   - line 1: `VERDICT: FAIL`
   - line 2: `REVIEW: <report path>`
 - On either verdict, one more line when the task changed or needed a file its `Files` does not name: `EXTRA: <those repo-relative paths, comma-separated>`. Omit it otherwise.
+
+A finding item of the report:
+
+```
+- Blocking [<cause>] <path>:<line> - <what is wrong>
+  <how to fix>
+- Minor <path>:<line> - <what is wrong>
+  <how to fix>
+```
+
+- `<cause>` is one of these four:
+- `convention` - the code works but breaks a pattern the project's own code follows in other files
+- `place` - the defect comes from a fact about one place the task does not state: a module's invariant, a tool's quirk, a trap
+- `plan` - the plan or the task file is wrong or incomplete: a file missing from `Files`, a wrong contract, a missing dependency
+- `task` - every other defect: a logic error, a missed `DoD` clause, a missing or weak test
+- A Blocking item carries exactly one cause, `task` when none of the other three clearly fits.
+- A Minor item carries no cause.
 
 That is your only output channel. No diff, no logs, no prose.
