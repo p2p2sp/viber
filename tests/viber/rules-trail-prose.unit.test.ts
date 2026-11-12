@@ -15,6 +15,11 @@
  * (two lines at most), an `IGNORED:` line for an entry an existing rule already covers, a
  * `REJECTED:` line for an entry the gate refuses, and a `USED:` line below each finding.
  *
+ * `rules-writer.md` folds those findings under the map shape: a `MISS:` as a rule counted
+ * toward the two per run, an `IGNORED:` as a correction of the rule it names, and the
+ * `failures.md` entry of each applied `USED:` and each `REJECTED:` line removed, an emptied
+ * file deleted with `rm`.
+ *
  * Run directly by Node's type stripping:
  *   node --test tests/viber/rules-trail-prose.unit.test.ts
  */
@@ -256,4 +261,123 @@ test("the trail return is the single AUDIT: trail line", () => {
       line.startsWith("AUDIT: trail miss <n> ignored <n> rejected <n> -> <path of the findings file> | none"),
     ),
   );
+});
+
+const WRITER = fs.readFileSync(path.join(VIBER, "agents/rules-writer.md"), "utf8");
+
+function writerSection(heading: string): string[] {
+  const start = WRITER.indexOf(`\n## ${heading}\n`);
+  const rest = WRITER.slice(start + 1);
+  const next = rest.indexOf("\n## ", 1);
+  return lines(next === -1 ? rest : rest.slice(0, next));
+}
+
+const WRITE = writerSection("Write");
+const BUDGET = writerSection("Budget");
+const WRITER_OUTPUT = writerSection("Output");
+
+function writeBullet(start: string): string {
+  return WRITE.find((line) => line.startsWith(`- ${start}`)) ?? "";
+}
+
+test("the writer writes a trail MISS line as a rule like any other MISS", () => {
+  assert.ok(
+    writeBullet("Under the map shape, a `MISS:` line of `_trail-audit.md`").includes(
+      "is written as a rule like any other `MISS:`",
+    ),
+  );
+});
+
+test("a trail MISS line counts toward the two per run", () => {
+  assert.ok(
+    writeBullet("Under the map shape, a `MISS:` line of `_trail-audit.md`").includes("counts toward the two per run"),
+  );
+});
+
+test("a trail MISS line is kept ahead of a MISS proposed from the code", () => {
+  assert.ok(
+    writeBullet("Under the map shape, a `MISS:` line of `_trail-audit.md`").includes(
+      "kept ahead of a `MISS:` proposed from the code",
+    ),
+  );
+});
+
+test("a trail IGNORED line corrects the rule it names as the line says", () => {
+  assert.ok(
+    writeBullet("Under the map shape, an `IGNORED:` line of `_trail-audit.md`").includes(
+      "corrects the rule it names as the line says",
+    ),
+  );
+});
+
+test("the rule an IGNORED line names is changeable though no rule line of the map names it", () => {
+  assert.ok(
+    writeBullet("Under the map shape, an `IGNORED:` line of `_trail-audit.md`").includes(
+      "that rule changeable though no `rule:` line of the map names it",
+    ),
+  );
+});
+
+test("an IGNORED line never adds a file", () => {
+  assert.ok(
+    writeBullet("Under the map shape, an `IGNORED:` line of `_trail-audit.md`").includes("never adds a file"),
+  );
+});
+
+test("the map shape changes only a rule a rule line of the map or an IGNORED line names", () => {
+  assert.ok(
+    writeBullet("Under the map shape, change, move or remove only an existing rule").includes(
+      "a `rule:` line of the map or an `IGNORED:` line of `_trail-audit.md` names",
+    ),
+  );
+});
+
+test("a USED line below an applied MISS or IGNORED line and a REJECTED line each remove that one entry line from the failures.md they name", () => {
+  assert.ok(
+    writeBullet("Under the map shape, each `USED:` line of `_trail-audit.md`").includes(
+      "below a `MISS:` or `IGNORED:` line you applied, and each `REJECTED:` line, removes that one entry line from the `failures.md` it names",
+    ),
+  );
+});
+
+test("removing an entry line changes nothing else in its failures.md", () => {
+  assert.ok(
+    writeBullet("Under the map shape, each `USED:` line of `_trail-audit.md`").includes(
+      "nothing else in that file changing",
+    ),
+  );
+});
+
+test("a USED line below a finding the writer did not apply removes nothing", () => {
+  assert.ok(
+    writeBullet("Under the map shape, each `USED:` line of `_trail-audit.md`").includes(
+      "a `USED:` line below a finding you did not apply removes nothing",
+    ),
+  );
+});
+
+test("a failures.md left with no entry line is deleted with rm", () => {
+  assert.ok(
+    WRITE.some((line) =>
+      line.startsWith("- A `failures.md` left with no entry line (a line starting `- `) is deleted with `rm -- <path>`"),
+    ),
+  );
+});
+
+test("the FILES line names every failures.md changed or deleted", () => {
+  assert.ok(WRITER_OUTPUT.some((line) => line.includes("every `failures.md` changed or deleted")));
+});
+
+test("the write scope names the failures.md paths of USED and REJECTED lines under the map shape", () => {
+  assert.ok(
+    WRITE.some(
+      (line) =>
+        line.startsWith("Your whole scope is `.claude/rules/**/*.md`") &&
+        line.includes("the `failures.md` paths of `USED:` and `REJECTED:` lines under the map shape"),
+    ),
+  );
+});
+
+test("the Bash sentence of the Budget allows rm on an emptied failures.md", () => {
+  assert.ok(BUDGET.some((line) => line.includes("`rm -- <one path>`") && line.includes("an emptied `failures.md`")));
 });

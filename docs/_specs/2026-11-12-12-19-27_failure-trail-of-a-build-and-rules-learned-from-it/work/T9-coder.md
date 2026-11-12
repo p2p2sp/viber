@@ -1,0 +1,4 @@
+- `rules-writer` reads `_trail-audit.md` through its existing `*-audit.md` read; the `_` freeze sentence now says "rule file" so the findings file is not read as frozen.
+- A `failures.md` entry line is a line starting `- `; a file keeping other-cause or waiting entries stays, only an entry-less file is `rm`-ed.
+- `rules/SKILL.md` still does not dispatch the trail direction (T8 note); the writer prose is ready for when it does.
+- The tests pin the prose per phrase; the red log counts 14 failing of the 14 new cases.
