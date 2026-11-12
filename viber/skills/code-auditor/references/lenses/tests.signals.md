@@ -1,5 +1,5 @@
 # Tests lens map signals
-Rank a source unit higher the more of these signals it carries: critical code with no test, fixed often while its test rarely changed, a fix that changed no test, tests skipped, hollow, mock-heavy or flaky. Compare each source file's churn with its test's churn in the second list, and rank by fixes relative to size (`wc -l`). On the diff scope, rank first a changed source file of `## Changed files` whose test file did not change.
+Rank a source unit higher the more of these signals it carries: critical code with no test, fixed often while its test rarely changed, a fix that changed no test, tests skipped, hollow, mock-heavy, wasteful or flaky. Compare each source file's churn with its test's churn in the second list, and rank by fixes relative to size (`wc -l`). On the diff scope, rank first a changed source file of `## Changed files` whose test file did not change.
 
 Source files with no test file mentioning their name (a Rust file holding `#[cfg(test)]` counts as tested):
 ```bash
@@ -39,4 +39,14 @@ git -c core.quotePath=false grep -c -E 'jest[.]mock|vi[.]mock|mock[.]patch|@patc
 Flake risk inside test files, the test file decided by its path alone:
 ```bash
 git -c core.quotePath=false grep -n -E 'sleep[(]|setTimeout|waitForTimeout|Thread[.]sleep|Date[.]now|new Date[(][)]|Math[.]random|time[.]time[(]|datetime[.]now|time[.]Now[(]|System[.]currentTimeMillis|LocalDate[.]now|random[.]|rand[.]|process[.]env|os[.]environ|retryTimes|--reruns|@flaky|retries:' -- '<scope>' | grep -E '^[^:]*((^|/)(tests?|__tests__|specs?|e2e|cypress)/|[._-](test|spec|cy)[.][^:/]*:|(^|/)test_[^:/]*:|(Test|Tests|Spec)[.][A-Za-z]+:)' | head -40
+```
+
+Test declarations per test file; far more tests than the source has branches is a duplication lead:
+```bash
+git -c core.quotePath=false grep -c -E '^[[:space:]]*(it|test)[(]|^[[:space:]]*def test_|^func Test|@Test|\[(Fact|Theory|Test|TestMethod)\]|#\[test\]' -- '<scope>' | sort -t: -k2 -nr | head -30
+```
+
+Integration test files per directory, told by path alone; a directory rich in them is a misplaced-layer lead:
+```bash
+git -c core.quotePath=false ls-files -- '<scope>' | grep -E '(^|/)(tests?|__tests__|specs?|e2e|cypress)/|[._-](test|spec|cy)[.]|(^|/)test_|(Test|Tests|Spec)[.][A-Za-z]+$' | grep -i -E '(^|/)(integration|integ)[^/]*/|[._-](integration|integ|it)[._-]|integration(tests?|spec)?[.]|[.]integrationtests/' | sed 's|/[^/]*$||' | sort | uniq -c | sort -nr | head -30
 ```

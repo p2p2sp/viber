@@ -1,5 +1,5 @@
 # Tests lens
-Audits whether the tests would catch a real regression: code that runs under test but is never checked, assertions that pass whatever the code does, mocks that replace the behaviour under test, untested error paths and boundaries, flaky tests, and tests that are skipped or never run. A defect in the production code itself belongs to the bugs lens, an exploitable flaw to the security lens and a slow path to a performance lens. A flake rooted in a production race is filed here naming the race, which the bugs lens owns.
+Audits whether the tests would catch a real regression: code that runs under test but is never checked, assertions that pass whatever the code does, mocks that replace the behaviour under test, untested error paths and boundaries, flaky tests, and tests that are skipped or never run; and whether they cost more than they prove. A defect in the production code itself belongs to the bugs lens, an exploitable flaw to the security lens and a slow path to a performance lens. A flake rooted in a production race is filed here naming the race, which the bugs lens owns.
 
 ## Hunts
 ### pseudo-tested
@@ -20,20 +20,23 @@ Async waits, sleeps, the real clock, timezone or locale, randomness, unordered c
 ### dead-tests
 Tests that never run: `skip`, `only`, `todo`, `xfail`, `@Disabled` or `#[ignore]` hiding a regression, a stray `.only` silently running nothing else; a test the runner never collects: outside the discovery pattern, a name the runner ignores, a duplicate name shadowing an earlier test, an `async` test under a synchronous runner, a JUnit 4 `@Test` on the JUnit 5 platform.
 
+### wasteful-tests
+Redundant: two tests failing on exactly the same regressions, or variants of one input outside a parameterised form. Trivial: assertions only on a name, a field's presence, a data shape, an accessor or a constant. Misplaced: a decision only an integration test asserts, though a unit test could reach it.
+
 ## Excluded
 - Coverage percentage on its own, and anything argued only from it.
 - Generated, vendored, migration-snapshot and fixture code.
-- Trivial getters, setters, DTOs and constants.
-- Test style, structure, naming, DAMP or DRY and readability with no missed regression.
+- A missing test for a trivial getter, setter, DTO or constant.
+- Test style, structure, naming, repeated set-up code and readability.
 - Arid production code, where mutants are unproductive: logging, metrics and tracing, caching and memoization, timeouts and deadlines, capacity hints, feature-flag plumbing.
 - Gaps in unreachable, dead or non-critical code.
-- A gap already closed by a test at a higher layer: the mutant is killed there.
+- A gap already closed by a test at a higher layer, unless filed as misplaced: the mutant is killed there.
 - Golden-file tests whose snapshot is the deliberate contract, such as CLI output.
 
 ## Verify
 Worktree: required
 
-The oracle is a surviving mutant for a coverage or assertion finding, a reproduced failure for a flakiness finding and the dead-test procedure for a dead-test finding. Apply each mutant inside the clean checkout, run the test, and restore the line before the next mutant.
+The oracle is a surviving mutant for a coverage or assertion finding, a reproduced failure for a flakiness finding, the dead-test procedure for a dead-test finding and the waste procedure for a `wasteful-tests` finding. Apply each mutant inside the clean checkout, run the test, and restore the line before the next mutant.
 
 Mutation procedure:
 1. Run the target test unchanged; it must pass. A failing baseline goes to the flake procedure, or INCONCLUSIVE.
@@ -49,6 +52,11 @@ Flake procedure:
 
 Dead-test procedure: remove the cited `skip` or `.only` and run the file; a failure is a hidden regression, VERIFIED; a pass is REFUTED unless a mutant the re-enabled test kills survives the rest of the suite. A never-collected claim is VERIFIED when the test is absent from the runner's own listing (`pytest --collect-only -q`, `go test -list .`, `vitest list`, `jest --listTests` for files, `rspec --dry-run`).
 
+Waste procedure:
+1. Redundant: run the mutants of mutation step 3 with the cited test removed; every mutant it kills is still killed, VERIFIED; one survives, REFUTED.
+2. Trivial: apply a change keeping the observed behaviour (a rename, a reorder); the cited test fails and alone kills no behaviour mutant, VERIFIED; else REFUTED.
+3. Misplaced: an integration test asserts the decision; mutate it and run the fast tier alone, never the integration test; the mutant survives, VERIFIED; a unit or component test kills it, REFUTED.
+
 Verdicts:
 - VERIFIED: the mutant survives, the throw probe passes, the flake reproduces, the broken assertion stays green, the un-skipped test fails, or the test is missing from the runner's listing.
 - PARTIALLY VERIFIED: the gap is real but narrower than claimed: the mutant survives the full suite on fewer lines or branches than cited.
@@ -56,8 +64,8 @@ Verdicts:
 - INCONCLUSIVE: the test needs a database, external service, credentials, Docker or a GPU, or runs only in CI; the baseline fails in the worktree; the build exceeds the time budget; no mutant compiles; judging the mutant needs domain knowledge; a flake does not reproduce within 20 runs, which is not proof of absence.
 
 ## Severity
-Set by how critical the behaviour escaping the tests is, not by the kind of smell.
+Set by how critical the behaviour escaping the tests is, not by the kind of smell. A `wasteful-tests` finding scores by the tests' cost.
 - 9-10: a mutant survives or a flake hides in auth, security, money, data loss, migrations or concurrency safety; a stray `.only` or skip disables a critical suite.
 - 7-8: a mutant survives in core business logic that would cause user-facing errors; a flaky test gates merges on the main branch.
-- 4-6: an untested error path or boundary with limited impact; a skip hides a known regression in non-critical code.
-- 1-3: smells with no VERIFIED evidence. A finding with none of the VERIFIED evidence scores at most 3.
+- 4-6: an untested error path or boundary with limited impact; a skip hides a known regression in non-critical code; a core decision proven only in the integration layer, or redundant integration tests.
+- 1-3: smells with no VERIFIED evidence. A finding with none of the VERIFIED evidence scores at most 3. Redundant or trivial tests in the fast tier.

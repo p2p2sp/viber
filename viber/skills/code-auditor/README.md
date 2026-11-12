@@ -69,7 +69,7 @@ Hands off: render, bundle and Core Web Vitals problems to web-performance; a dat
 
 ## tests
 
-Audits: whether the tests would catch a real regression. Code that runs under test but is never checked, assertions that pass whatever the code does, mocks that replace the behaviour under test, untested error paths and boundaries, flaky tests, and tests that are skipped or never run.
+Audits: whether the tests would catch a real regression. Code that runs under test but is never checked, assertions that pass whatever the code does, mocks that replace the behaviour under test, untested error paths and boundaries, flaky tests, tests that are skipped or never run, and wasteful tests (redundant, trivial or misplaced in a slower layer).
 
 Angles:
 - `pseudo-tested`: critical code whose mutant (empty body, flipped condition) leaves every test green.
@@ -78,8 +78,9 @@ Angles:
 - `untested-error-paths`: catch blocks, rejections and limits on a critical flow that no test reaches.
 - `flaky-tests`: timing, clock, randomness, order and shared state that give a mixed result.
 - `dead-tests`: tests that are skipped, focused with `.only` or never collected by the runner.
+- `wasteful-tests`: redundant tests, trivial tests and a decision asserted only by an integration test.
 
-Verified by: a surviving mutant for a coverage or assertion finding, a reproduced mixed result for a flake and the dead-test procedure for a dead test, each run in a clean worktree. `Worktree: required`.
+Verified by: a surviving mutant for a coverage or assertion finding, a reproduced mixed result for a flake, the dead-test procedure for a dead test and the waste procedure for a wasteful test, each run in a clean worktree. `Worktree: required`.
 
 Hands off: a defect in the production code to bugs; an exploitable flaw to security; a slow path to runtime-performance or web-performance. A flake rooted in a production race is filed here naming the race, which bugs owns.
 
