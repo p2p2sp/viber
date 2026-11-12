@@ -13,6 +13,6 @@ How a test is written. Where two rules pull against each other, catching a real 
 - No control flow in a test body - no branch, no loop, no switch. Cases belong in the framework's parameterised form, one row each. (blocking)
 - Assert on what a caller observes: the returned value, the public state, the side effect through its own surface, the raised error. Never on log output, and never on data the test did not arrange itself. (blocking)
 - A test never reads the source of the code under test as text to assert its shape: no regular expression, substring or line match over a source file. The one exception is a file the host declares as its product (a document, a configuration, a prompt), whose text is the behaviour. (blocking)
-- Construct whatever can be constructed. A double for a value, a record or a single config lookup hides the real shape.
+- Construct whatever can be constructed. A double for a value, a record or a single config lookup hides the real shape. A test needing a double to reach a decision points at the code's shape: extract the decision into a function over plain values and test that, before adding the double.
 
 Three shapes raise none of the blocking findings except the end-to-end rule: an end-to-end scenario whose steps model one user flow, a snapshot assertion, and a loop inside a property-based generator - control flow in the property body still counts. A test taking one of these carries a comment naming which; an undocumented one is a finding.

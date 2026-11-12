@@ -4,9 +4,9 @@ What an integration test runs against and how the layer stays fast. A rule endin
 
 ## What it runs against
 
-- An integration test covers one adapter - the code that talks to one external dependency - against that real dependency, started disposable for the run, never against an in-process substitute; an entry point that calls data access directly counts as the adapter. (blocking)
+- An integration test covers one adapter - the code that talks to one external dependency - against that real dependency, started disposable for the run, never against an in-process substitute; an entry point that calls data access directly counts as the adapter for that data access alone, never for a decision inside it. (blocking)
 - Real only at the boundary under test. Every other collaborator the path drags in is substituted by its cheapest honest stand-in. An integration test pays for the wiring it asserts and nothing else. (blocking)
-- An integration test that asserts a case a unit or component test already proves is a finding: it proves only what the real dependency itself can reveal. (blocking)
+- An integration test proves only what the real dependency alone reveals (a query's result, a mapping, a constraint, a transaction), and the done clause it proves names that. One asserting a decision, or a case a unit or component test proves or could prove, is a finding, and so is a second test of a behaviour another integration test covers: one test per adapter behaviour. (blocking)
 
 ## Time matters
 
