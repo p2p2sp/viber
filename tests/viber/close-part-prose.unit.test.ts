@@ -181,3 +181,78 @@ test("a repair coder with no FILES line no longer leads to a test run at the nex
 test("step 3 no longer waits on a close part being loaded", () => {
   assert.ok(!stepThree().includes("loaded below"));
 });
+
+const TRAIL_CALL = '"${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh" "<dir>"';
+const RULES_LINE = "/viber:rules extend - <n> convention failures of this build wait in the failure trail";
+const NOT_WRITTEN_LINE = "failure trail not written: <the error: line of run-failures.sh>";
+
+/** Step 7 of the close part, whole. */
+function stepSeven(): string {
+  return PART.slice(PART.indexOf("## 7."));
+}
+
+/** The step 7 paragraph that opens on the given text, whole. */
+function stepSevenParagraph(opening: string): string {
+  return stepSeven().split(/\r?\n\r?\n/).find((paragraph) => paragraph.startsWith(opening)) ?? "";
+}
+
+/** The step 7 line that opens on the given text. */
+function stepSevenLine(opening: string): string {
+  return lines(stepSeven()).find((line) => line.startsWith(opening)) ?? "";
+}
+
+test("allowed-tools lists the run-failures script", () => {
+  assert.ok(allowedTools().includes("Bash(${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh:*)"));
+});
+
+test("step 7 makes the one trail call with the run directory, before the final summary is composed", () => {
+  const paragraph = stepSevenParagraph("For the close part below");
+  assert.equal(stepSeven().split(TRAIL_CALL).length, 2);
+  assert.ok(paragraph.includes(TRAIL_CALL));
+  assert.ok(paragraph.indexOf(TRAIL_CALL) < paragraph.indexOf("compose the final summary"));
+});
+
+test("the trail call runs under the three conditions of the cleanup close part", () => {
+  const paragraph = stepSevenParagraph("For the close part below");
+  const conditions = ["`build.cleanup:` line reads `true`", "`closed:` line does not already name it", "did not end on `abort`"];
+  const before = paragraph.slice(0, paragraph.indexOf(TRAIL_CALL));
+  assert.ok(paragraph.includes(TRAIL_CALL));
+  assert.deepEqual(
+    conditions.filter((condition) => !before.includes(condition)),
+    [],
+  );
+});
+
+test("the trail call has no config key of its own", () => {
+  const paragraph = stepSevenParagraph("For the close part below");
+  assert.deepEqual(paragraph.match(/`build\.[a-z-]+/g), ["`build.cleanup"]);
+  assert.ok(paragraph.includes("no config key"));
+});
+
+test("a convention count above 0 puts the rules line in the final summary outside its 7 lines, in both forms", () => {
+  const paragraph = stepSevenParagraph("After those, also outside its 7 lines, in both forms");
+  assert.ok(paragraph.includes(`\`${RULES_LINE}\``));
+  assert.ok(paragraph.includes("`convention` count above 0"));
+});
+
+test("the archived close prints the rules line after the closing sentence and before the next-part line", () => {
+  const bullet = stepSevenLine("- `closeout` returned `VERDICT: ARCHIVED` ->");
+  const sentence = bullet.indexOf("the closing sentence");
+  const rules = bullet.indexOf("/viber:rules extend");
+  assert.ok(sentence > 0);
+  assert.ok(rules > sentence);
+  assert.ok(bullet.indexOf("`/viber:intent <path>/roadmap.md`") > rules);
+});
+
+test("a non-zero exit of the trail call puts the not-written line in the final summary, asks nothing and goes on to the cleanup close part", () => {
+  const paragraph = stepSevenParagraph("After those, also outside its 7 lines, in both forms");
+  assert.ok(paragraph.includes(`\`${NOT_WRITTEN_LINE}\``));
+  assert.ok(paragraph.includes("- A non-zero exit of the trail call ->"));
+  assert.ok(paragraph.includes("asks nothing"));
+  assert.ok(paragraph.includes("goes on to the cleanup close part"));
+});
+
+test("a convention count of 0 adds no line", () => {
+  const paragraph = stepSevenParagraph("After those, also outside its 7 lines, in both forms");
+  assert.ok(paragraph.includes("- A `convention` count of 0 -> no line."));
+});

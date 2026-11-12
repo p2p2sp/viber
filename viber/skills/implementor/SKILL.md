@@ -1,7 +1,7 @@
 ---
 name: implementor
 description: Builds an approved plan task by task. Requires an existing plan; without one, suggest the viber:intent interview.
-allowed-tools: Agent, SendMessage, AskUserQuestion, Skill, TaskCreate, TaskUpdate, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/run-clock.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/skill-part.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/qa-comment.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/red-check.sh:*)
+allowed-tools: Agent, SendMessage, AskUserQuestion, Skill, TaskCreate, TaskUpdate, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/run-clock.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/skill-part.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/qa-comment.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/red-check.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh:*)
 model: sonnet
 effort: medium
 user-invocable: false
