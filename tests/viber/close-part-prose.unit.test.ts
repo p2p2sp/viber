@@ -228,10 +228,27 @@ test("the trail call has no config key of its own", () => {
   assert.ok(paragraph.includes("no config key"));
 });
 
-test("a convention count above 0 puts the rules line in the final summary outside its 7 lines, in both forms", () => {
-  const paragraph = stepSevenParagraph("After those, also outside its 7 lines, in both forms");
-  assert.ok(paragraph.includes(`\`${RULES_LINE}\``));
-  assert.ok(paragraph.includes("`convention` count above 0"));
+test("the trail call paragraph takes the runs count from the failures line besides the convention count", () => {
+  const paragraph = stepSevenParagraph("For the close part below");
+  assert.ok(paragraph.includes("`convention` and `runs` counts"));
+});
+
+test("the archived close prints the rules line only with a convention count above 0 and a runs count of at least 2", () => {
+  const bullet = stepSevenLine("- `closeout` returned `VERDICT: ARCHIVED` ->");
+  assert.ok(bullet.includes("with a `convention` count above 0 and a `runs` count of at least 2"));
+  assert.ok(bullet.includes(`\`${RULES_LINE}\``));
+});
+
+test("the rules line is named once in step 7, inside the archived close bullet (a screen form or both-forms paragraph carrying it printed it on a run with no archive)", () => {
+  const bullet = stepSevenLine("- `closeout` returned `VERDICT: ARCHIVED` ->");
+  assert.equal(stepSeven().split("/viber:rules extend").length, 2);
+  assert.ok(bullet.includes("/viber:rules extend"));
+});
+
+test("the screen form bullet carries no line about the failure trail", () => {
+  const bullet = stepSevenLine("- Every other case");
+  assert.ok(bullet.includes("screen form"));
+  assert.ok(!/trail|rules|convention/.test(bullet));
 });
 
 test("the archived close prints the rules line after the closing sentence and before the next-part line", () => {
@@ -251,7 +268,7 @@ test("a non-zero exit of the trail call puts the not-written line in the final s
   assert.ok(paragraph.includes("goes on to the cleanup close part"));
 });
 
-test("a convention count of 0 adds no line", () => {
+test("the both-forms paragraph after the rulings keeps only the not-written line", () => {
   const paragraph = stepSevenParagraph("After those, also outside its 7 lines, in both forms");
-  assert.ok(paragraph.includes("- A `convention` count of 0 -> no line."));
+  assert.equal(lines(paragraph).filter((line) => line.startsWith("- ")).length, 1);
 });

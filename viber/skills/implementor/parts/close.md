@@ -55,7 +55,7 @@ Commit what the memory and rules dispatches above return, one call: memory and r
 
 First `"${CLAUDE_PLUGIN_ROOT}/scripts/run-clock.sh" "<started>"`, one call.
 
-For the close part below, when the config block's `build.cleanup:` line reads `true`, the index's `closed:` line does not already name it and the build did not end on `abort`, first make one call, no config key of its own turning it on or off, `"${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh" "<dir>"`: its `failures:` line gives the `convention` count, and its non-zero exit gives the `error:` line of its stderr. Then compose the final summary in its archived form, then:
+For the close part below, when the config block's `build.cleanup:` line reads `true`, the index's `closed:` line does not already name it and the build did not end on `abort`, first make one call, no config key of its own turning it on or off, `"${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh" "<dir>"`: its `failures:` line gives the `convention` and `runs` counts, and its non-zero exit gives the `error:` line of its stderr. Then compose the final summary in its archived form, then:
 
 ```!
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" build.cleanup "${CLAUDE_SKILL_DIR}" cleanup
@@ -65,7 +65,7 @@ Complete every task the last `progress: <n>/<total>` settled and every entry sti
 
 Then close:
 
-- `closeout` returned `VERDICT: ARCHIVED` -> print `<n>/<total> tasks committed, tests <the test verdict>, <elapsed>` (`, <elapsed>` left out on `elapsed: unknown`), then `Summary: <path>/outcome.md`, then the closing sentence, then, with a `convention` count above 0, the final summary's `/viber:rules extend` line, then, only with a `next: part` index line, `/viber:intent <path>/roadmap.md`; `<path>` is the directory its `PATH:` line names, the parenthesized file count dropped. Nothing else.
+- `closeout` returned `VERDICT: ARCHIVED` -> print `<n>/<total> tasks committed, tests <the test verdict>, <elapsed>` (`, <elapsed>` left out on `elapsed: unknown`), then `Summary: <path>/outcome.md`, then the closing sentence, then, with a `convention` count above 0 and a `runs` count of at least 2, `/viber:rules extend - <n> convention failures of this build wait in the failure trail`, then, only with a `next: part` index line, `/viber:intent <path>/roadmap.md`; `<path>` is the directory its `PATH:` line names, the parenthesized file count dropped. Nothing else.
 - Every other case (the close part not run, `abort`, `BLOCKED`, an accepted `DENIED`) -> print the final summary in its screen form.
 
 Final summary, both forms: max 7 lines, then every line this step places after them. The 7 lines: tasks committed, review rounds spent, test verdict, the clock's `elapsed:` (none on `elapsed: unknown`, never estimated), what memory, rules and QA recorded, then the form's own line below, then everything the steps carried to it but the `FIXED:`, `OWNER:` and `left uncommitted:` lines.
@@ -80,8 +80,6 @@ After the summary and outside its 7 lines, list every `FIXED:` line the final re
 After those, also outside its 7 lines, list the rulings: each index `ruling:` line, then each ruling this session recorded that is not already one, every one with its ruling, `why:` and `cost if wrong:`.
 
 After those, also outside its 7 lines, in both forms:
-- A `convention` count above 0 -> `/viber:rules extend - <n> convention failures of this build wait in the failure trail`.
-- A `convention` count of 0 -> no line.
 - A non-zero exit of the trail call -> `failure trail not written: <the error: line of run-failures.sh>`; it asks nothing and goes on to the cleanup close part.
 
 Closing sentence, in both forms: one sentence in the conversation's language, printed after everything above it (archived form: after the `Summary:` line). All clear when no problem kind below was found; otherwise it says `outcome.md` records a problem (on the screen form with no `outcome.md`: the summary above records a problem), naming each kind found. `OWNER:` lines and drift markers are no problem kind. The kinds:
