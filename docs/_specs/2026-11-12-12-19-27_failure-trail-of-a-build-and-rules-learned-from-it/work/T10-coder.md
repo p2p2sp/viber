@@ -1,4 +1,0 @@
-- The trail target is one target for all `trail:` paths; step 4 shows it as a single line, step 5 sends one auditor call with the comma-separated paths.
-- The step 5 return block lists both AUDIT forms; the trail form is said to answer the trail target alone.
-- The writer `map:` template stays unbackticked (`rule:`, `dead:`, `trail:`) as it was inside its code block.
-- Red log: 14 failing of 15 new cases; the "verbatim" case already held through the existing step 5 sentence.
