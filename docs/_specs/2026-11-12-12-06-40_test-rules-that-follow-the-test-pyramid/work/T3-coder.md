@@ -1,3 +1,0 @@
-- The old `Never tested` bullet is replaced in place by the C7 rule (now opening "A test exists only for..."), so it stays the same bullet, not a second one.
-- The new TDD sentence sits before the closing `(review)` tag of the `TDD` rule, after the integration-test sentence.
-- `tests/viber/lenses.unit.test.ts` was already modified in the tree before this task; left untouched.
