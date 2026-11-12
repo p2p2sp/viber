@@ -22,6 +22,12 @@
 #     everything after the bracket (after the word Blocking when there is no
 #     bracket), leading blanks dropped. A Blocking line with no text yields no
 #     entry. A Minor item and every indented continuation line yield nothing.
+#   - a finding repeated across the review rounds of one task is kept once: of the
+#     entries of `review-<id>-<round>` reports with the same <id> (the same task), the same cause
+#     and the same text, only the one of the lowest round stays (rounds compared as
+#     numbers, so round 2 is lower than round 10). The entries of one report, of
+#     `final-review-*` reports, of the same finding in two different tasks and
+#     every test entry are never merged.
 #   - every line of a final test run report carries the cause `test`, the line as
 #     written less a leading `- ` or `* ` marker; the report's `status:` line and
 #     its blank lines are no failure.
@@ -100,17 +106,64 @@ n_task=0
 n_test=0
 n_unknown=0
 
+# Every entry read is first held here, in report order; the ones kept are written
+# and counted after the last report is read. e_id and e_round are set for the
+# entries of a review-<id>-<round> report alone, the only ones that can be merged.
+e_cause=()
+e_source=()
+e_text=()
+e_id=()
+e_round=()
+n_ent=0
+round_re='^review-(.+)-([0-9]+)$'
+
 add_entry() {
-  entries+="- $1 | $2 | $3"$'\n'
-  total=$((total + 1))
-  case "$1" in
-    convention) n_convention=$((n_convention + 1)) ;;
-    place) n_place=$((n_place + 1)) ;;
-    plan) n_plan=$((n_plan + 1)) ;;
-    task) n_task=$((n_task + 1)) ;;
-    test) n_test=$((n_test + 1)) ;;
-    *) n_unknown=$((n_unknown + 1)) ;;
-  esac
+  local id="" round=""
+  if [[ "$2" =~ $round_re ]]; then
+    id="${BASH_REMATCH[1]}"
+    round="${BASH_REMATCH[2]}"
+  fi
+  e_cause[$n_ent]="$1"
+  e_source[$n_ent]="$2"
+  e_text[$n_ent]="$3"
+  e_id[$n_ent]="$id"
+  e_round[$n_ent]="$round"
+  n_ent=$((n_ent + 1))
+}
+
+# An entry of a review report is dropped when another one of the same task, the
+# same cause and the same text stands in a lower round (compared as a number).
+is_repeat() {
+  local i="$1" j=0
+  [[ -n "${e_id[$i]}" ]] || return 1
+  while [[ $j -lt $n_ent ]]; do
+    if [[ $j -ne $i && "${e_id[$j]}" == "${e_id[$i]}" && "${e_cause[$j]}" == "${e_cause[$i]}" && "${e_text[$j]}" == "${e_text[$i]}" ]]; then
+      if [[ $((10#${e_round[$j]})) -lt $((10#${e_round[$i]})) ]]; then
+        return 0
+      fi
+    fi
+    j=$((j + 1))
+  done
+  return 1
+}
+
+keep_entries() {
+  local i=0
+  while [[ $i -lt $n_ent ]]; do
+    if ! is_repeat "$i"; then
+      entries+="- ${e_cause[$i]} | ${e_source[$i]} | ${e_text[$i]}"$'\n'
+      total=$((total + 1))
+      case "${e_cause[$i]}" in
+        convention) n_convention=$((n_convention + 1)) ;;
+        place) n_place=$((n_place + 1)) ;;
+        plan) n_plan=$((n_plan + 1)) ;;
+        task) n_task=$((n_task + 1)) ;;
+        test) n_test=$((n_test + 1)) ;;
+        *) n_unknown=$((n_unknown + 1)) ;;
+      esac
+    fi
+    i=$((i + 1))
+  done
 }
 
 # The report names, without `.md`; the tests reports only when the suffix is a
@@ -172,6 +225,8 @@ while IFS= read -r report <&3; do
     esac
   done <"$work/$report.md"
 done 3< <(printf '%s' "$names" | LC_ALL=C sort)
+
+keep_entries
 
 if [[ $total -eq 0 ]]; then
   if [[ -e "$out" || -L "$out" ]]; then

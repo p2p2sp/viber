@@ -1,0 +1,4 @@
+VERDICT: RULED
+RULING: record a ruling that T1's red check is waived, its red proven by .temp/viber/T1/red.log (5 failing section cases against a stub helper)
+WHY: T1-coder.md shows red-check.sh copies tests/harness/markdown.ts into the red run because config.sh --red-check counts every tests/ path as a test, so the red and control trees match and PASSED-WITHOUT-CHANGE comes back every time; red.log holds the real red, and keeping T1 as TDD: required keeps its review mandatory and the C4 helper's DoD.1/DoD.2 proof tied to a recorded red (inference: neither option makes red-check.sh itself pass, so a waiver is the more honest record)
+COST: if the waiver is not honoured, T1 keeps failing on PASSED-WITHOUT-CHANGE, has to be re-ruled as TDD: none or have its red checked by hand, and its dependents stay blocked until then

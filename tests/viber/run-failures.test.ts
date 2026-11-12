@@ -263,6 +263,109 @@ test("a bare Blocking line yields no entry", async () => {
   });
 });
 
+// --- a finding repeated across the review rounds of one task is kept once ---
+
+const REPEATED = "- Blocking [task] src/a.ts:1 - reads the file twice";
+
+test("the same Blocking line in two rounds of one task's reviews yields one entry, with the first round's source", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "review-T3-1.md": lines(REPEATED), "review-T3-2.md": lines(REPEATED) });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(readFailures(dir), lines("# Failures", "", "- task | review-T3-1 | src/a.ts:1 - reads the file twice"));
+  });
+});
+
+test("rounds are compared as numbers: round 2 is lower than round 10", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "review-T2-10.md": lines(REPEATED), "review-T2-2.md": lines(REPEATED) });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(readFailures(dir), lines("# Failures", "", "- task | review-T2-2 | src/a.ts:1 - reads the file twice"));
+  });
+});
+
+test("the same Blocking line in the reviews of two different tasks yields two entries", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "review-T1-1.md": lines(REPEATED), "review-T2-1.md": lines(REPEATED) });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      readFailures(dir),
+      lines("# Failures", "", "- task | review-T1-1 | src/a.ts:1 - reads the file twice", "- task | review-T2-1 | src/a.ts:1 - reads the file twice"),
+    );
+  });
+});
+
+test("the same Blocking line twice in one review report yields two entries", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "review-T1-1.md": lines(REPEATED, REPEATED) });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      readFailures(dir),
+      lines("# Failures", "", "- task | review-T1-1 | src/a.ts:1 - reads the file twice", "- task | review-T1-1 | src/a.ts:1 - reads the file twice"),
+    );
+  });
+});
+
+test("the same Blocking line in two final review reports yields two entries", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "final-review-1.md": lines(REPEATED), "final-review-2.md": lines(REPEATED) });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      readFailures(dir),
+      lines("# Failures", "", "- task | final-review-1 | src/a.ts:1 - reads the file twice", "- task | final-review-2 | src/a.ts:1 - reads the file twice"),
+    );
+  });
+});
+
+test("the same text under two different causes in two rounds of one task yields two entries", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, {
+      "review-T1-1.md": lines("- Blocking [task] src/a.ts:1 - same words"),
+      "review-T1-2.md": lines("- Blocking [plan] src/a.ts:1 - same words"),
+    });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      readFailures(dir),
+      lines("# Failures", "", "- task | review-T1-1 | src/a.ts:1 - same words", "- plan | review-T1-2 | src/a.ts:1 - same words"),
+    );
+  });
+});
+
+test("two identical lines of a tests report yield two test entries", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "tests-1.md": lines("status: fail", "a case | tests/a.test.ts | boom", "a case | tests/a.test.ts | boom") });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      readFailures(dir),
+      lines("# Failures", "", "- test | tests-1 | a case | tests/a.test.ts | boom", "- test | tests-1 | a case | tests/a.test.ts | boom"),
+    );
+  });
+});
+
+test("the counts line counts the entries kept after a repeated finding is merged", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, {
+      "review-T3-1.md": lines(REPEATED),
+      "review-T3-2.md": lines(REPEATED, "- Blocking [place] src/b.ts:2 - a new finding"),
+    });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "failures: 2 convention 0 place 1 plan 0 task 1 test 0 unknown 0\n");
+  });
+});
+
+test("the header's entries paragraph states how a repeated finding is merged", () => {
+  const source = fs.readFileSync(SUT, "utf8");
+  const header = source.slice(0, source.indexOf("\nset -u"));
+  assert.deepEqual(missingFrom(header, ["lowest round", "same task", "never merged"]), []);
+});
+
 // --- DoD.3: the counts line ---
 
 test("stdout is the one counts line, each count matching the entries written", async () => {
