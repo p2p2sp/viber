@@ -29,6 +29,10 @@ function read(relative: string): string {
 const PLAN_RULES = read("references/plan-rules.md");
 const INTEGRATION = read("references/integration-tests.md");
 const STRATEGY = read("references/test-strategy.md");
+const TDD = read("references/tdd.md");
+const CODER = read("agents/task-coder.md");
+const REVIEWER = read("agents/task-reviewer.md");
+const TEST_RUNNER = read("agents/test-runner.md");
 
 function phrase(text: string): RegExp {
   const escaped = text.trim().split(/\s+/).map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
@@ -80,8 +84,73 @@ test("plan-rules Layered limits an integration test to what the real dependency 
   assert.ok(has(rule("Layered"), "An integration test proves only what the real dependency alone reveals (a query's result, a mapping, a constraint, a transaction): its done clause names that, and one test covers one adapter behaviour, never one test per case."));
 });
 
-test("plan-rules Layered keeps the adapter task sentence after the new opening", () => {
-  assert.ok(has(rule("Layered"), "The adapter task stays `TDD: required`"));
+test("plan-rules Layered closes with an integration test written in its adapter's task and never run there, a Repro test excepted, and names no Exclusive leaf task", () => {
+  const text = rule("Layered");
+  assert.ok(has(text, "An integration test is written in the task that creates or changes its adapter and never run there, a `Repro:` test excepted: that task's `Verification` runs the test tool's own listing or type-check step plus a grep of one identifier on both sides, the test and the adapter declaring it, and the build's final test run runs the test once. (review)"));
+  assert.ok(!text.includes("The adapter task stays"));
+  assert.ok(!text.includes("Exclusive"));
+});
+
+test("plan-rules Sequenced moves clauses out of three Task rules and names no Exclusive leaf task of an adapter", () => {
+  const text = rule("Sequenced");
+  assert.ok(text.startsWith("- Sequenced: the plan-wide clauses moved out of three `## Task` rules, each kept in its own wording:"));
+  assert.ok(!text.includes("from Layered"));
+  assert.ok(!text.includes("Exclusive"));
+});
+
+test("plan-rules Provable excepts an integration test from running inside Verification, keeping the end-to-end exception after it", () => {
+  assert.ok(has(rule("Provable"), "The test proving each done clause runs inside the task's `Verification` command, an integration test excepted, which the Layered rule proves without running it, a write-only end-to-end task excepted, whose clauses the End-to-end rule proves without running the test"));
+});
+
+test("plan-rules TDD marks a task writing only an adapter holding no decision and its integration test TDD none, after the Repro case", () => {
+  assert.ok(has(rule("TDD"), "carries `Repro:` (Reproduced); writes only an adapter holding no decision and its integration test (Layered); writes or runs an end-to-end test (End-to-end);"));
+});
+
+test("plan-rules TDD frees a clause proven by an integration test from red evidence", () => {
+  assert.ok(has(rule("TDD"), "On a `TDD: required` task a done clause proven by an integration test needs no red evidence."));
+});
+
+test("integration-tests Time matters opens with an integration test written in its adapter's task and never run there", () => {
+  const lines = INTEGRATION.split(/\r?\n/);
+  const heading = lines.indexOf("## Time matters");
+  const first = lines.slice(heading + 1).find((candidate) => candidate.startsWith("- ")) ?? "";
+  assert.ok(heading >= 0);
+  assert.ok(has(first, "- An integration test is written in the task that creates or changes its adapter and never run there, a `Repro:` test excepted: the task's `Verification` lists or type-checks it, the build's final test run runs it once, and the whole layer belongs to continuous integration."));
+});
+
+test("tdd Iron law backs a clause the task proves by an integration test with no red or green run", () => {
+  assert.ok(has(TDD, "A test never watched failing on an assertion backs no `DoD` clause, a clause the task proves by an integration test excepted: write that test and its code with no red or green run, since `Verification` only lists or type-checks it."));
+});
+
+test("tdd Workflow excepts an integration-proven clause from the failing test", () => {
+  assert.ok(has(TDD, "The behaviors are the plan task's numbered `DoD` clauses, one failing test each, an integration-proven clause excepted (Iron law), worked in their numbered order: never start a clause before the one above it is green."));
+});
+
+test("task-coder counts an integration-proven clause as met once its test is written and listed", () => {
+  assert.ok(has(CODER, "Each numbered `DoD` clause is one behaviour, and counts as met on your `DOD:` line only with a test that fails without it; a clause proven by an integration test counts as met once that test is written and `Verification` lists or type-checks it."));
+});
+
+test("task-coder never runs an integration test it wrote, a Repro test and the failing tests of a test-run report excepted", () => {
+  assert.ok(has(CODER, "An integration test you write is the one test you never run, a `Repro:` test and the failing tests of a test-run report excepted: `Verification` only lists or type-checks it, and the build's final test run runs it once."));
+});
+
+test("task-coder keeps the generous timeout for a command that runs an integration test", () => {
+  assert.ok(has(CODER, "A command that runs an integration test (a `Repro:` test, the failing tests of a test-run report) uses an explicit generous timeout measured in minutes: the default cuts it off and comes back as a false red."));
+  assert.ok(!has(CODER, "A task that writes or runs an integration test uses an explicit generous timeout"));
+});
+
+test("task-reviewer Proven runs no integration test Verification only lists and judges it by reading", () => {
+  const text = bullet(REVIEWER, "Proven:");
+  assert.ok(has(text, "A `Verification` or `recheck:` command that runs an integration test uses an explicit generous timeout measured in minutes: the default cuts it off and comes back as a false red. An integration test that `Verification` only lists or type-checks is never run: judge it by reading."));
+});
+
+test("task-reviewer Tested asks an adapter's integration test clause for no red evidence", () => {
+  const text = bullet(REVIEWER, "Tested:");
+  assert.ok(has(text, "that proof belongs to the adapter's own integration test, whose clause needs no red evidence."));
+});
+
+test("test-runner step 2 keeps an integration test that is itself among the changed paths", () => {
+  assert.ok(has(TEST_RUNNER, "2. Through the layer marker convention, find every test marked integration. Keep each one that is itself among the changed paths, or whose adapter file, or a file that adapter depends on (a migration, a schema, shared data access), is among them."));
 });
 
 test("integration-tests third bullet limits an integration test to what the real dependency alone reveals and holds one asserting a decision as blocking", () => {

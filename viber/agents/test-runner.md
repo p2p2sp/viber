@@ -56,7 +56,7 @@ The fast command and the layer marker convention are the ones the project instru
 Selecting the integration tests covering the change:
 
 1. With `run: <dir>`, take the oldest commit of `git log --diff-filter=A --format=%H -- <dir>/plan.md`; the change is `git diff --name-only <that commit>` plus `git ls-files --others --exclude-standard`. Without it, the change is `git diff --name-only HEAD` plus the same untracked list.
-2. Through the layer marker convention, find every test marked integration. Keep each one whose adapter file, or a file that adapter depends on (a migration, a schema, shared data access), is among the changed paths.
+2. Through the layer marker convention, find every test marked integration. Keep each one that is itself among the changed paths, or whose adapter file, or a file that adapter depends on (a migration, a schema, shared data access), is among them.
 3. None kept: no integration test runs. Otherwise one integration command runs exactly the kept tests through the test tool's own filter.
 
 With both a fast and an integration command, the test command below is `<fast command> && <integration command>`. Run it exactly once. Do not re-run, do not narrow further, do not investigate a failure beyond reading the message it printed.

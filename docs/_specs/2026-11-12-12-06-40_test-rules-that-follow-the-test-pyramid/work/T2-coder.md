@@ -1,0 +1,4 @@
+- Replaced the old `Layered` test pinning "The adapter task stays `TDD: required`": C4 removes that sentence, and the task allows tests to change where they pin edited text.
+- `Layered` and `Sequenced` hold no `Exclusive` word now; the `Exclusive` rules in `Task` are untouched.
+- `viber/CLAUDE.md`-style nodes (`references/CLAUDE.md`, `agents/CLAUDE.md`) still describe adapters/Sequenced in old words only where they were not named by this task; the memory step owns them.
+- `tests/viber/lenses.unit.test.ts` was already modified in the tree before this task (T1); left untouched.

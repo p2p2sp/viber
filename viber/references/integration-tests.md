@@ -10,6 +10,7 @@ What an integration test runs against and how the layer stays fast. A rule endin
 
 ## Time matters
 
+- An integration test is written in the task that creates or changes its adapter and never run there, a `Repro:` test excepted: the task's `Verification` lists or type-checks it, the build's final test run runs it once, and the whole layer belongs to continuous integration.
 - The layer's wall-clock is a design constraint: a slow layer is a missing strategy, never the price of real dependencies.
 - Start each dependency once per run, on a random port, and apply its schema once, then reuse it across every test it fits; never restart it between tests. (blocking)
 - Reset state between tests by the cheapest honest means - a rolled-back transaction, a truncate, a namespace of its own per test - so reuse costs no test its independence: each run's own disposable instance keeps the sharing safe.
