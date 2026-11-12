@@ -26,7 +26,7 @@ older version is ignored.
 | `build.baseline-tests` | **off** | Takes `off`, `fast` or `full`. Runs your tests before the first task, so the build repairs only the failures it caused. |
 | `build.final-review` | on | One reviewer checks the whole build's diff after the last task, and a coder fixes what it finds. |
 | `build.memory` | on | The build closes by updating your `CLAUDE.md` files below the root. |
-| `build.rules` | on | The build closes by recording a convention it confirmed in `.claude/rules/`. |
+| `build.rules` | on | The build closes by correcting or removing the rules in `.claude/rules/` that it contradicted. |
 | `build.qa` | **off** | The build closes by writing test scenarios that `/viber:e2e` can automate. |
 | `build.cleanup` | on | The build closes by archiving the run with its summary and dropping the working files. |
 | `build.red-check` | on | A `TDD: required` task's tests must fail in a separate checkout without the task's production change before the task is reviewed or committed. |
@@ -45,9 +45,10 @@ older version is ignored.
 - **`build.memory`**: the root `CLAUDE.md` stays yours. The build only suggests changes to it.
   When the specification records the root cause of a fixed defect, it is written to the nearest
   `CLAUDE.md` as the first trap of the run, ahead of every other fact.
-- **`build.rules`**: a build never compacts, splits or moves your existing rule files: it adds
-  only what passes the admission gate, even over the size cap, and reports each file left over
-  budget. `/viber:rules` brings those files back under it.
+- **`build.rules`**: a build corrects or removes the rules it contradicted and adds none. It never
+  compacts, splits or moves your existing rule files, and reports each file left over budget.
+  `/viber:rules` brings those files back under the size cap and learns new rules from the
+  `failures.md` of your archived runs (see [Where viber writes](files.md#the-archive)) and from the code.
 - **`build.cleanup`**: first notes anything the build delivered that the specification does not
   promise, then records every file the build left uncommitted with its reason and commits those
   left without a deliberate reason. The close then prints one sentence saying

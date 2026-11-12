@@ -351,7 +351,7 @@
   <rect x="882" y="2188" width="58" height="16" rx="8" class="badge"/>
   <text x="911" y="2200" class="badge-t" text-anchor="middle">agent</text>
   <text x="544" y="2208" class="mono-t">rules-writer</text>
-  <text x="544" y="2232" class="desc">Potwierdzone konwencje trafiają do .claude/rules/.</text>
+  <text x="544" y="2232" class="desc">Poprawia reguły, którym build zaprzeczył.</text>
   <text x="544" y="2252" class="desc-s">fakt o jednym miejscu trafia zamiast tego do CLAUDE.md</text>
   <text x="544" y="2274" class="desc-s"><tspan class="sw">build.rules</tspan> włączony</text>
 

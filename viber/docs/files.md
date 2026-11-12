@@ -7,7 +7,7 @@ Every file viber creates or changes in your project. Back to the [viber guide](.
 | `docs/_specs/<date>_<slug>/` | A run in progress: the approved plan, its progress and working notes |
 | `docs/specs/<date>_<slug>/` | The archive of a finished run |
 | `docs/adr/` | Architecture decision records, with `planning.adr` on |
-| `CLAUDE.md` files, `.claude/rules/` | What builds, `/viber:memory` and `/viber:rules` learned |
+| `CLAUDE.md` files, `.claude/rules/` | What builds and `/viber:memory` learned, the rules a build corrected, and the rules `/viber:rules` added |
 | `.claude/agents/`, `.claude/skills/` | Agents and skills `/viber:extension` and `/viber:skill-designer` write with you |
 | `docs/business/<slug>/report.html` | `/viber:idea-validator`'s report, always at this path |
 | `.claude/viber.yml` | The config, see [Configuring viber](configuration.md) |
@@ -43,6 +43,10 @@ With `build.cleanup` on, the build ends by moving what is worth keeping to `docs
 - the test scenarios
 - `rulings.md`
 - `attachments/`, when the run has one
+- `failures.md`, the failure trail: one line per Blocking finding of a review and per failing line of
+  a final test run, each labelled with its cause (`convention`, `place`, `plan`, `task`, `test` or
+  `unknown`). It exists only when the run had a failure, and `/viber:rules` removes the entries it
+  has handled from it
 - the build summary, `outcome.md`, with the list of files left uncommitted and the reason for each
 
 It drops the plan, the progress file and the working notes. They stay in git, so nothing is lost.
@@ -52,6 +56,9 @@ The archive is the half you would want to read a year later.
 
 - `/viber:memory` and `/viber:rules` write the same `CLAUDE.md` cascade and `.claude/rules/` that a
   build closes with, on your own schedule. Both ask before writing and leave the result unstaged.
+- A build corrects or removes the rules it contradicted and adds none. `/viber:rules` adds them: it
+  learns new rules from the `failures.md` of your archived runs, where a failure repeats, and from
+  the code.
 - The root `CLAUDE.md` is written once, only where none exists. No build or review rewrites it
   afterwards: what they would change there arrives as suggestions.
 - Both offer a `reset` mode, which deletes the whole layer and starts from zero. It is refused

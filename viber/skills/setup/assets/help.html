@@ -1597,13 +1597,13 @@ na innym komputerze.</p>
 <p lang="en">With <a href="#key-build-cleanup"><code>build.cleanup</code></a> on, the build ends by moving the run to
 <code>docs/specs/&lt;stamp&gt;_&lt;slug&gt;/</code> in one commit. The archive keeps the specification and the QA
 documents and drops <code>plan.md</code>, <code>status.md</code>, <code>tasks/</code> and <code>work/</code>, which
-git history still holds; <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code> and the build summary <code>outcome.md</code> stay in the archive with them. A run with a task neither done
+git history still holds; <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code>, the failure trail <code>failures.md</code> and the build summary <code>outcome.md</code> stay in the archive with them. A run with a task neither done
 nor skipped is never archived.
 <a href="#key-directories"><code>directories</code></a> renames both directories.</p>
 <p lang="pl">Przy włączonym <a href="#key-build-cleanup"><code>build.cleanup</code></a> build kończy się przeniesieniem
 przebiegu do <code>docs/specs/&lt;stamp&gt;_&lt;slug&gt;/</code> w jednym commicie. Archiwum zachowuje
 specyfikację i dokumenty QA, a usuwa <code>plan.md</code>, <code>status.md</code>, <code>tasks/</code>
-i <code>work/</code>, które nadal są w historii gita; <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code> i podsumowanie buildu <code>outcome.md</code> zostają w archiwum razem z nimi.
+i <code>work/</code>, które nadal są w historii gita; <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code>, ślad porażek <code>failures.md</code> i podsumowanie buildu <code>outcome.md</code> zostają w archiwum razem z nimi.
 Przebieg z zadaniem ani ukończonym, ani pominiętym nigdy nie trafia do archiwum. Nazwy obu katalogów zmienisz kluczem
 <a href="#key-directories"><code>directories</code></a>.</p>
 
@@ -1699,11 +1699,11 @@ uruchamia te części zamknięcia, które włączają twoje przełączniki:</p>
   i w stałym szablonie, a zmiany w głównym pliku tylko sugeruje, bo zostaje twój; przyczynę źródłową naprawionego
   błędu zapisuje jako pierwszą pułapkę przebiegu;</span></li>
   <li><span lang="en"><a href="#key-build-rules"><code>build.rules</code></a>: <a href="#agent-rules-writer"><code>rules-writer</code></a>
-  folds the conventions the build confirmed into <code>.claude/rules/</code>, in the same commit as the
-  memory update; it never compacts, splits or moves your existing rule files, and points to
+  corrects or removes the rules in <code>.claude/rules/</code> that the build contradicted and adds none, in the
+  same commit as the memory update; it never compacts, splits or moves your existing rule files, and points to
   <a href="#skill-rules"><code>/viber:rules</code></a> when one is over budget;</span><span lang="pl"><a href="#key-build-rules"><code>build.rules</code></a>:
-  <a href="#agent-rules-writer"><code>rules-writer</code></a> przenosi konwencje potwierdzone przez build do
-  <code>.claude/rules/</code>, w tym samym commicie co aktualizacja pamięci; nigdy nie kompresuje, nie dzieli ani
+  <a href="#agent-rules-writer"><code>rules-writer</code></a> poprawia lub usuwa reguły w
+  <code>.claude/rules/</code>, którym build zaprzeczył, i żadnej nie dodaje, w tym samym commicie co aktualizacja pamięci; nigdy nie kompresuje, nie dzieli ani
   nie przenosi twoich istniejących plików reguł, a gdy któryś przekracza limit, wskazuje
   <a href="#skill-rules"><code>/viber:rules</code></a>;</span></li>
   <li><span lang="en"><a href="#key-build-qa"><code>build.qa</code></a>: <a href="#agent-qa-writer"><code>qa-writer</code></a>
@@ -1878,11 +1878,11 @@ linie co w <code>rulings.md</code>.</p>
 <details id="ts-plan-gone">
   <summary><span lang="en">Where did <code>plan.md</code> and the task files go?</span><span lang="pl">Gdzie się podziały <code>plan.md</code> i pliki zadań?</span></summary>
   <p lang="en">With <code>build.cleanup</code> on, the <a href="#term-archive">archive</a> keeps the specification, the
-  QA documents, <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code> and <code>outcome.md</code> and drops the plan, <code>status.md</code>, <code>tasks/</code> and <code>work/</code>. Git
+  QA documents, <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code>, <code>failures.md</code> and <code>outcome.md</code> and drops the plan, <code>status.md</code>, <code>tasks/</code> and <code>work/</code>. Git
   still has them: <code>git log -- docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/plan.md</code> lists the commits that
   touched the plan.</p>
   <p lang="pl">Przy włączonym <code>build.cleanup</code> <a href="#term-archive">archiwum</a> zachowuje specyfikację,
-  dokumenty QA, <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code> i <code>outcome.md</code>, a usuwa plan, <code>status.md</code>, <code>tasks/</code> i <code>work/</code>. Git nadal je
+  dokumenty QA, <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code>, <code>failures.md</code> i <code>outcome.md</code>, a usuwa plan, <code>status.md</code>, <code>tasks/</code> i <code>work/</code>. Git nadal je
   ma: <code>git log -- docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/plan.md</code> wypisuje commity, które zmieniały
   plan.</p>
 </details>
@@ -2005,11 +2005,11 @@ każdą ustawioną przez ciebie wartość.</p>
   <div id="term-archive">
     <dt><span lang="en">archive</span><span lang="pl">archiwum</span></dt>
     <dd><span lang="en">Where a finished run goes with <code>build.cleanup</code> on, <code>docs/specs/&lt;stamp&gt;_&lt;slug&gt;/</code>
-    by default. Only its specification, QA documents, <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code> and
-    <code>outcome.md</code> stay there.</span><span lang="pl">Miejsce, do którego
+    by default. Only its specification, QA documents, <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code>,
+    <code>failures.md</code> and <code>outcome.md</code> stay there.</span><span lang="pl">Miejsce, do którego
     przy włączonym <code>build.cleanup</code> trafia zakończony przebieg, domyślnie
     <code>docs/specs/&lt;stamp&gt;_&lt;slug&gt;/</code>. Zostają w nim tylko specyfikacja, dokumenty QA,
-    <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code> i <code>outcome.md</code>.</span></dd>
+    <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code>, <code>failures.md</code> i <code>outcome.md</code>.</span></dd>
   </div>
   <div id="term-build">
     <dt><span lang="en">build</span><span lang="pl">build</span></dt>
@@ -2993,12 +2993,14 @@ z nich mówi, jak nim sterować.</p>
   <h4><code>/viber:rules</code></h4>
   <p lang="en">Maps <code>.claude/rules/</code>, has <a href="#agent-rules-auditor"><code>rules-auditor</code></a>
   check each rule against the files its paths match, and hands what must change to
-  <a href="#agent-rules-writer"><code>rules-writer</code></a>, the same writer the build close uses. A rule stays
-  within 4000 bytes and the directory within 40000.</p>
+  <a href="#agent-rules-writer"><code>rules-writer</code></a>, the same writer the build close uses. It also
+  reads the <code>failures.md</code> of your archived runs and learns a rule from a failure that repeats across
+  runs, removing the entries it has handled. A rule stays within 4000 bytes and the directory within 40000.</p>
   <p lang="pl">Mapuje <code>.claude/rules/</code>, zleca <a href="#agent-rules-auditor"><code>rules-auditor</code></a>
   sprawdzenie każdej reguły względem plików, do których pasują jej ścieżki, i przekazuje konieczne zmiany do
   <a href="#agent-rules-writer"><code>rules-writer</code></a>, tego samego autora, którego używa zamknięcie
-  buildu. Reguła mieści się w 4000 bajtów, a cały katalog w 40000.</p>
+  buildu. Czyta też <code>failures.md</code> z zarchiwizowanych przebiegów i uczy się reguły z porażki, która
+  powtarza się w kolejnych przebiegach, usuwając obsłużone wpisy. Reguła mieści się w 4000 bajtów, a cały katalog w 40000.</p>
   <dl>
     <div>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
@@ -3312,11 +3314,13 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
   <a href="#key-build-memory"><code>build.memory</code></a> jest włączony, umieszczając każdy nowy fakt pod nagłówkami szablonu. Przyczynę źródłową naprawionego błędu
   zapisuje jako pierwszą pułapkę przebiegu. Główny plik zostawia tobie i tylko
   sugeruje w nim zmiany.</span></li>
-  <li id="agent-rules-writer"><code>rules-writer</code> <span lang="en">folds the conventions a build confirmed,
-  or a <a href="#skill-rules"><code>/viber:rules</code></a> review found, into <code>.claude/rules/</code>. In a build it
-  never compacts, splits or moves existing rule files; the review does.</span><span lang="pl">przenosi
-  konwencje potwierdzone przez build albo znalezione w przeglądzie <a href="#skill-rules"><code>/viber:rules</code></a>
-  do <code>.claude/rules/</code>. W buildzie nigdy nie kompresuje, nie dzieli ani nie przenosi istniejących plików reguł;
+  <li id="agent-rules-writer"><code>rules-writer</code> <span lang="en">corrects or removes the rules in
+  <code>.claude/rules/</code> that a build contradicted, and folds the conventions a <a href="#skill-rules"><code>/viber:rules</code></a>
+  review or a repeated failure of <code>failures.md</code> found into them. In a build it adds no rule and
+  never compacts, splits or moves existing rule files; the review does.</span><span lang="pl">poprawia lub usuwa
+  reguły w <code>.claude/rules/</code>, którym build zaprzeczył, i przenosi do nich konwencje znalezione w przeglądzie
+  <a href="#skill-rules"><code>/viber:rules</code></a> albo w powtarzającej się porażce z <code>failures.md</code>.
+  W buildzie nie dodaje reguł i nigdy nie kompresuje, nie dzieli ani nie przenosi istniejących plików reguł;
   robi to przegląd.</span></li>
   <li id="agent-qa-writer"><code>qa-writer</code> <span lang="en">writes the QA scenarios into the run
   directory, <code>qa.md</code> for a person and <code>qa.e2e.md</code> for
@@ -3351,9 +3355,10 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
   podstawie audytu albo tworzy nowy z kodu jego obszaru. Istniejącego głównego pliku nie przepisuje: zamiast tego
   wypisuje sugestie.</span></li>
   <li id="agent-rules-auditor"><code>rules-auditor</code> <span lang="en">checks one rule against the files its
-  paths match, or proposes a rule for a directory that has none.</span><span lang="pl">sprawdza jedną regułę
-  względem plików, do których pasują jej ścieżki, albo proponuje regułę dla katalogu, który jej nie
-  ma.</span></li>
+  paths match, proposes a rule for a directory that has none, or checks the entries of <code>failures.md</code>
+  against the rules.</span><span lang="pl">sprawdza jedną regułę
+  względem plików, do których pasują jej ścieżki, proponuje regułę dla katalogu, który jej nie
+  ma, albo porównuje wpisy z <code>failures.md</code> z regułami.</span></li>
 </ul>
 
 <h4><span lang="en">Code audit</span><span lang="pl">Audyt kodu</span></h4>
@@ -3524,14 +3529,16 @@ wartość.</p>
   </div>
   <div id="key-build-rules">
     <dt><code>build.rules</code> <span class="tag on"><span lang="en">on</span><span lang="pl">wł.</span></span></dt>
-    <dd><span lang="en">The build closes by updating <code>.claude/rules/</code> through
-    <a href="#agent-rules-writer"><code>rules-writer</code></a>. A build never compacts, splits or moves your
-    existing rule files: it adds only what passes the admission gate, even over the size cap, and reports each
-    file left over budget, which <a href="#skill-rules"><code>/viber:rules</code></a> brings back under it.</span><span lang="pl">Build kończy się
-    aktualizacją <code>.claude/rules/</code> przez <a href="#agent-rules-writer"><code>rules-writer</code></a>.
-    Build nigdy nie kompresuje, nie dzieli ani nie przenosi twoich istniejących plików reguł: dodaje tylko to, co
-    przejdzie bramkę przyjęcia, nawet ponad limit rozmiaru, i zgłasza każdy plik ponad budżet, który
-    <a href="#skill-rules"><code>/viber:rules</code></a> sprowadza z powrotem pod limit.</span></dd>
+    <dd><span lang="en">The build closes by correcting or removing the rules in <code>.claude/rules/</code> that it
+    contradicted, through <a href="#agent-rules-writer"><code>rules-writer</code></a>, and adds none. A build never
+    compacts, splits or moves your existing rule files, and reports each file left over budget.
+    <a href="#skill-rules"><code>/viber:rules</code></a> brings those files back under the size cap and learns new
+    rules from the <code>failures.md</code> of your archived runs.</span><span lang="pl">Build kończy się
+    poprawieniem lub usunięciem reguł w <code>.claude/rules/</code>, którym zaprzeczył, przez
+    <a href="#agent-rules-writer"><code>rules-writer</code></a>, i żadnej nie dodaje.
+    Build nigdy nie kompresuje, nie dzieli ani nie przenosi twoich istniejących plików reguł i zgłasza każdy plik
+    ponad budżet. <a href="#skill-rules"><code>/viber:rules</code></a> sprowadza je z powrotem pod limit i uczy się
+    nowych reguł z <code>failures.md</code> twoich zarchiwizowanych przebiegów.</span></dd>
   </div>
   <div id="key-build-qa">
     <dt><code>build.qa</code> <span class="tag"><span lang="en">off</span><span lang="pl">wył.</span></span></dt>

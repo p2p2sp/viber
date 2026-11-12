@@ -1,0 +1,2 @@
+- shell-script-header.md counts 33 of 36 scripts with run-failures.sh added; its "thirty-five" total was already stale (the tree holds more .sh files, e.g. gh-read.sh, pr-reply.sh, skill-part.sh), left unfixed.
+- The `build.rules` switch-table row in configuration.md now reads as correcting or removing rules, matching the key's prose.

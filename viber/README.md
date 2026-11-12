@@ -60,7 +60,7 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
 | Command | What it does |
 | --- | --- |
 | `/viber:memory` | Reviews or extends your project's `CLAUDE.md` cascade. |
-| `/viber:rules` | Reviews or extends your project's `.claude/rules/`. |
+| `/viber:rules` | Reviews or extends your project's `.claude/rules/`, learning new rules from the `failures.md` of your archived runs. |
 | `/viber:code-auditor` | Audits your code through one lens (bugs, security, performance, tests, design) over the current diff, one directory or the whole repository. |
 | `/viber:extension` | Creates, with you, an agent of your own that runs at the close of every build. |
 | `/viber:skill-designer` | Writes, audits and tunes your own Claude Code skills and agents, for the model they run on. Starts on its own. |
@@ -203,7 +203,8 @@ Every ruling goes into `rulings.md` with its reason and its cost if wrong, and t
 lists them. When the run is archived, the screen shows a short result and one closing sentence saying
 whether `outcome.md` records a problem, plus the command that starts the next roadmap part when one
 is left, and the full summary is in `outcome.md` in the archive, along with every file the build
-left uncommitted and the reason.
+left uncommitted and the reason. The archive also keeps `failures.md`, the failure trail of the run,
+which `/viber:rules` turns into rules when a failure repeats across runs.
 
 ### When it stops to ask you
 
@@ -228,8 +229,8 @@ left uncommitted and the reason.
 | Path | What it holds |
 | --- | --- |
 | `docs/_specs/<date>_<slug>/` | A run in progress, committed so a build resumes in a new session or on another machine |
-| `docs/specs/<date>_<slug>/` | The archive: specification, test scenarios, rulings, build summary |
-| `CLAUDE.md` files, `.claude/rules/` | What builds learned about your project |
+| `docs/specs/<date>_<slug>/` | The archive: specification, test scenarios, rulings, failure trail (`failures.md`), build summary |
+| `CLAUDE.md` files, `.claude/rules/` | What builds learned about your project, the rules they corrected, and the rules `/viber:rules` learned from `failures.md` |
 | `.temp/viber/` | Scratch files and mockups, kept out of git |
 
 [Where viber writes](docs/files.md) lists every file, including settings, extensions and what is

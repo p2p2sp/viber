@@ -147,7 +147,7 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li><code>build.baseline-tests</code>: <code>off</code>, <code>fast</code> or <code>full</code>.</li>
         <li><code>build.final-review</code>: a review of the whole build after the last task.</li>
         <li><code>build.memory</code>: updates <code>CLAUDE.md</code> at the close of a build.</li>
-        <li><code>build.rules</code>: updates <code>.claude/rules/</code> at the close of a build.</li>
+        <li><code>build.rules</code>: corrects or removes the rules in <code>.claude/rules/</code> that a build contradicted, at its close; <code>/viber:rules</code> adds rules learned from <code>failures.md</code>.</li>
         <li><code>build.qa</code>: QA scenarios and an E2E handoff at the close of a build.</li>
         <li><code>build.cleanup</code>: archives the run with its summary.</li>
         <li><code>build.extensions</code>: a map of your own agents that close a build.</li>
@@ -585,7 +585,8 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
       <ul class="f">
         <li>Memory: updates the <code>CLAUDE.md</code> nodes below the root.</li>
         <li>Root changes only as suggestions.</li>
-        <li>Rules: confirmed conventions written into <code>.claude/rules/</code>.</li>
+        <li>Rules: the rules the build contradicted corrected or removed in <code>.claude/rules/</code>; none added.</li>
+        <li>Failure trail: <code>failures.md</code> written into the archive, one labelled line per failure.</li>
         <li>Memory and rules in one chore commit.</li>
         <li>QA: written on sonnet; <code>qa.md</code> with scenarios to perform by hand.</li>
         <li>QA: every scenario opens with a checkbox the tester ticks once it is performed.</li>
@@ -802,6 +803,7 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>The auditor checks a rule against the files it covers.</li>
         <li>New rules only through the admission gate (three criteria).</li>
         <li>The writer creates, corrects, moves, compacts and removes rules.</li>
+        <li>Learns rules from the <code>failures.md</code> of archived runs: a failure that repeats becomes a rule, and the handled entries are removed from the file.</li>
         <li>Names facts that are no rule, to move into <code>CLAUDE.md</code>.</li>
         <li>Reset protected against uncommitted changes.</li>
         <li>The result stays uncommitted.</li>

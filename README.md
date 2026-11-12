@@ -25,7 +25,7 @@ A failed task retries up to five times, one model tier up each time. Where a bui
 Each task gets the cheapest model that can do it, between a floor and a ceiling you set, so your usage limits last longer.
 
 ### It learns your project
-Conventions go to `.claude/rules/`, area knowledge to that area's `CLAUDE.md`. You explain less with every run.
+Area knowledge goes to that area's `CLAUDE.md`, and a build corrects the rules in `.claude/rules/` it contradicted. Each run also leaves `failures.md` in its archive, a record of where its agents failed, and `/viber:rules` turns the failures that repeat across runs into new rules. You explain less with every run.
 
 ### Nothing gets lost
 The plan and its progress are committed, so an interrupted build resumes in a new session or on another machine.
