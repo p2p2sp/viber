@@ -1,0 +1,5 @@
+- A test report's first line `status:` and blank lines yield no entry (C3 says "every line"; the status line is no failure). A `tests-baseline.md` and a non-numeric `tests-<x>.md` are not read.
+- Bracket cause matching is exact and case-sensitive; `[test]` in a reviewer's bracket is `unknown` (test is the script's alone).
+- Git Bash accepts `> <directory>` without failing, so the write branch checks `-d` first to reach exit 3.
+- DoD.6 header is tested as product text (the shell-script-header rule makes it the caller's contract), shaped like rules-map.test.ts's `missingFrom` case; mode and LF through `git ls-files -s` / `--eol`.
+- The test file is untracked until the orchestrator commits it; the script's index mode is already 100755.

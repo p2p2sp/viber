@@ -1,0 +1,4 @@
+VERDICT: FAIL
+
+- Blocking [task] tests/viber/run-failures.test.ts:356 - DoD.6 is only partly proven: mode 100755 and LF are pinned (lines 363-369), but nothing fails if the header loses its `Contract:` block. The task is `TDD: required`, so each DoD clause needs a test that breaks when the clause does. The coder's note says test-strategy forbids a header test. It does not apply here: the shell-script-header rule makes the header the I/O contract callers trust, which puts its text in the product exception, and the project already tests a header this way (tests/viber/rules-map.test.ts:548-558).
+  Fix: add one case that reads the header (the source up to the `set -u` line) and asserts it opens with the file name and carries `Contract:` plus the `argv`, `cwd`, `env`, `reads`, `writes`, `stdout` and `exit` entries. Use the `missingFrom` shape of rules-map.test.ts so the assertion is a single deepEqual against `[]`.
