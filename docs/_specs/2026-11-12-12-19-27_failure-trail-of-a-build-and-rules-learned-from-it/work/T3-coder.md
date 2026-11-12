@@ -1,0 +1,3 @@
+- T2 already shipped the tests-<digits> reading, the baseline exclusion and the test count; T3 added only the leading `- `/`* ` marker strip (column 0, marker followed by a space) to the `test` entry text.
+- The first line `status:` still yields no entry (T2 decision; DoD.1 says "non-blank line", the status line is no failure).
+- An indented marker (`  - x`) and `-x` with no space are kept as written.

@@ -132,6 +132,27 @@ test("every line of a final test run report but its status line and blank lines 
   });
 });
 
+test("a leading '- ' or '* ' marker of a test report line is removed, any other leading character is kept", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, {
+      "tests-1.md": lines("status: fail", "- a case | tests/a.test.ts | dash marker", "* b case | tests/b.test.ts | star marker", "-c case | tests/c.test.ts | no space", "  - d case | tests/d.test.ts | indented"),
+    });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      readFailures(dir),
+      lines(
+        "# Failures",
+        "",
+        "- test | tests-1 | a case | tests/a.test.ts | dash marker",
+        "- test | tests-1 | b case | tests/b.test.ts | star marker",
+        "- test | tests-1 | -c case | tests/c.test.ts | no space",
+        "- test | tests-1 |   - d case | tests/d.test.ts | indented",
+      ),
+    );
+  });
+});
+
 test("the baseline test report and a tests report whose suffix is not a round number are not read", async () => {
   await withTempDir("p2p2-viber-", async (tmp) => {
     const dir = seedRun(tmp, {

@@ -20,7 +20,8 @@
 #     text is everything after the bracket (after the word Blocking when there is
 #     no bracket). A Minor item and every indented continuation line yield nothing.
 #   - every line of a final test run report carries the cause `test`, the line as
-#     written; the report's `status:` line and its blank lines are no failure.
+#     written less a leading `- ` or `* ` marker; the report's `status:` line and
+#     its blank lines are no failure.
 # `<source>` is the report's file name without `.md`. Entries are ordered by source
 # in byte order (LC_ALL=C), then by the order inside the report.
 #
@@ -139,6 +140,9 @@ while IFS= read -r report <&3; do
       tests-*)
         if [[ $lineno -eq 1 && "$line" == status:* ]]; then continue; fi
         [[ -n "${line//[[:space:]]/}" ]] || continue
+        case "$line" in
+          '- '* | '* '*) line="${line#??}" ;;
+        esac
         add_entry test "$report" "$line"
         ;;
       *)
