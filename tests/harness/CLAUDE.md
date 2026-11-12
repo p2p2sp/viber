@@ -10,7 +10,7 @@ Owns the helper modules the suites build on: the concurrent `test()`, the subpro
 ## Relationships
 
 - Imported by every test file through a relative `.ts` import. Internal chain: `stub.ts` -> `tmp.ts` -> `run.ts`; every other module imports only Node builtins (`png.ts` encodes through `node:zlib`, no image library).
-- `tests/harness.test.ts` covers `run`, `tmp`, `perms`, `stub`, `shells` and `png`; `paths.ts`, `symlinks.ts` and `coreUtilsPath()` have no case there, and `canSymlinkDir()` has no importer.
+- `tests/harness.test.ts` covers `run`, `tmp`, `perms`, `stub`, `shells`, `png` and `markdown`; `paths.ts`, `symlinks.ts` and `coreUtilsPath()` have no case there, and `canSymlinkDir()` has no importer.
 
 ## Contracts
 
@@ -25,6 +25,7 @@ Owns the helper modules the suites build on: the concurrent `test()`, the subpro
 - `coreUtilsPath()` returns the first `PATH` dir resolving `grep`, plus the first one resolving `bash` when that differs, and throws when none does. It is not tool-free: on POSIX that dir also ships `git`.
 - `forEachShell(kind, fn)` runs `fn` once per shell, one after another, and returns a `ShellSkip[]` for every absent or unrun one, never throwing. `bash` means one bash per distinct major version; `posix` means `/bin/sh`, `dash`, `busybox sh`, `bash --posix`. Discovery is memoised per `PATH` value.
 - `denyRead(file)` returns `false`, leaving the file readable, whenever the deny cannot be verified by a failed read (a POSIX root run, a filesystem or policy dropping the ACE). Windows denies with `icacls /deny`, spawned directly, never through a shell. `restoreRead(file)` never throws and is safe on a file never denied.
+- `section(text, heading)` (`markdown.ts`) returns the first line starting `## ` + heading (a prefix match, so `5.` also matches `5 to 7.`) up to the next `## ` line, a newline kept before it, and throws an error naming the heading when no line starts so; `rules-trail-prose`, `failure-trail-prose`, `close-part-prose` and `rules-close-prose` slice through it.
 - `slash(value)` rewrites every backslash as `/`; a test comparing a path a script printed slashes both sides.
 - `writePng(width, height, rgba)` emits 8-bit, non-interlaced, filter-0 RGBA and throws on a non-positive size or an `rgba` length other than `width * height * 4`.
 
