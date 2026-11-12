@@ -1,0 +1,3 @@
+- The one-awk test stubs `awk` through `withStub` and counts calls whose argv names a failures.md; the stub execs /usr/bin/awk (present on Git Bash, macOS, Linux).
+- `waiting:` still prints whenever the archive holds at least one failures.md (even a 0-byte one), as before; `trail:` prints only for a file with at least one entry.
+- rules-map.sh no longer validates the directory name: config.sh --specifications is trusted.

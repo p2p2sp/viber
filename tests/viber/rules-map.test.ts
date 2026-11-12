@@ -28,6 +28,7 @@ import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
 import { slash } from "../harness/paths.ts";
+import { withStub } from "../harness/stub.ts";
 import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
 
 const SUT = path.resolve(import.meta.dirname, "../../viber/skills/rules/scripts/rules-map.sh");
@@ -348,28 +349,47 @@ function failures(entries: string[]): string {
   return ["# Failures", "", ...entries.map((entry) => `- ${entry}`), ""].join("\n");
 }
 
-test("map mode names every archived failures.md holding a convention entry, alphabetical by path, with its count", async () => {
+test("map mode names every archived failures.md alphabetical by path, with its convention count and the count of its other causes", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo, {
       "README.md": "# repo\n",
       "docs/specs/2026-02-01-00-00-00_b/failures.md": failures([
         "convention | review-T1-1 | uses a hand-rolled parser",
-        "convention | review-T2-1 | skips the header block",
-        "task | review-T2-2 | misses DoD.3",
+        "task | review-T2-1 | misses DoD.3",
+        "task | review-T2-2 | misses DoD.4",
       ]),
       "docs/specs/2026-01-01-00-00-00_a/failures.md": failures([
         "convention | final-review-1 | names a flag differently",
       ]),
-      "docs/specs/2026-03-01-00-00-00_c/failures.md": failures(["place | review-T1-1 | a trap"]),
     });
 
     const result = await run(repo);
 
     assert.equal(result.status, 0);
     assert.deepEqual(section(result.stdout, "trail"), [
-      "docs/specs/2026-01-01-00-00-00_a/failures.md convention 1",
-      "docs/specs/2026-02-01-00-00-00_b/failures.md convention 2",
+      "docs/specs/2026-01-01-00-00-00_a/failures.md convention 1 other 0",
+      "docs/specs/2026-02-01-00-00-00_b/failures.md convention 1 other 2",
     ]);
+  });
+});
+
+test("map mode counts place, plan, task, test and unknown entries of one failures.md as its other causes", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "docs/specs/run-a/failures.md": failures([
+        "place | review-T1-1 | a",
+        "plan | review-T1-2 | b",
+        "task | review-T1-3 | c",
+        "test | tests-1 | FAIL d",
+        "unknown | review-T1-4 | e",
+        "convention | review-T1-5 | f",
+      ]),
+    });
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(section(result.stdout, "trail"), ["docs/specs/run-a/failures.md convention 1 other 5"]);
   });
 });
 
@@ -412,19 +432,49 @@ test("map mode prints neither trail nor waiting line when no failures.md is arch
   });
 });
 
-test("map mode prints the waiting line and no trail line when the archived entries hold no convention cause", async () => {
+test("map mode prints a trail line with convention 0 for a failures.md holding only test entries", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo, {
-      "docs/specs/run-a/failures.md": failures(["task | review-T1-1 | x", "test | tests-1 | FAIL a"]),
+      "docs/specs/run-a/failures.md": failures(["test | tests-1 | FAIL a", "test | tests-1 | FAIL b"]),
     });
 
     const result = await run(repo);
 
     assert.equal(result.status, 0);
-    assert.deepEqual(section(result.stdout, "trail"), []);
+    assert.deepEqual(section(result.stdout, "trail"), ["docs/specs/run-a/failures.md convention 0 other 2"]);
     assert.deepEqual(section(result.stdout, "waiting"), [
-      "convention 0 place 0 plan 0 task 1 test 1 unknown 0",
+      "convention 0 place 0 plan 0 task 0 test 2 unknown 0",
     ]);
+  });
+});
+
+test("map mode counts every archived failures.md in one awk process", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "docs/specs/run-a/failures.md": failures(["convention | review-T1-1 | x"]),
+      "docs/specs/run-b/failures.md": failures(["task | review-T1-1 | y"]),
+      "docs/specs/run-c/failures.md": failures(["test | tests-1 | FAIL z"]),
+    });
+    const log = path.join(repo.dir, ".git", "awk-trail.log");
+    const stub = [
+      'case "$*" in',
+      '  *failures.md*) echo hit >> "$AWK_LOG" ;;',
+      "esac",
+      'exec /usr/bin/awk "$@"',
+    ].join("\n");
+
+    await withStub("awk", stub, async (stubDir) => {
+      const result = await runScript(SUT, [], {
+        cwd: repo.dir,
+        env: { ...repo.env, AWK_LOG: log },
+        shell: "bash",
+        stubDirs: [stubDir],
+      });
+
+      assert.equal(result.status, 0);
+      assert.equal(section(result.stdout, "trail").length, 3);
+      assert.equal(fs.readFileSync(log, "utf-8").trim().split("\n").length, 1);
+    });
   });
 });
 
@@ -439,7 +489,7 @@ test("map mode reads the archive from the directories.specifications value of th
     const result = await run(repo);
 
     assert.equal(result.status, 0);
-    assert.deepEqual(section(result.stdout, "trail"), ["docs/archive/run-a/failures.md convention 1"]);
+    assert.deepEqual(section(result.stdout, "trail"), ["docs/archive/run-a/failures.md convention 1 other 0"]);
     assert.deepEqual(section(result.stdout, "waiting"), [
       "convention 1 place 0 plan 0 task 0 test 0 unknown 0",
     ]);
@@ -461,11 +511,48 @@ test("map mode falls back to the specs directory when the config call fails, and
       const result = await runScript(lonely, [], { cwd: repo.dir, env: repo.env, shell: "bash" });
 
       assert.equal(result.status, 0);
-      assert.deepEqual(section(result.stdout, "trail"), ["docs/specs/run-b/failures.md convention 1"]);
+      assert.deepEqual(section(result.stdout, "trail"), ["docs/specs/run-b/failures.md convention 1 other 0"]);
       assert.deepEqual(section(result.stdout, "waiting"), [
         "convention 1 place 0 plan 0 task 0 test 0 unknown 0",
       ]);
     });
+  });
+});
+
+/** Runs a copy of the script whose sibling `scripts/config.sh` is `config`, a
+ *  `#!/bin/sh` body, in a repo holding an archive under `docs/archive` and
+ *  another under `docs/specs`. */
+async function withConfigStub(config: string, check: (stdout: string) => void): Promise<void> {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "docs/archive/run-a/failures.md": failures(["convention | review-T1-1 | x"]),
+      "docs/specs/run-b/failures.md": failures(["task | review-T1-1 | y", "task | review-T1-2 | z"]),
+    });
+    await withTempDir("p2p2-rules-config-", async (dir) => {
+      const lonely = path.join(dir, "viber", "skills", "rules", "scripts", "rules-map.sh");
+      fs.mkdirSync(path.dirname(lonely), { recursive: true });
+      fs.copyFileSync(SUT, lonely);
+      const stub = path.join(dir, "viber", "scripts", "config.sh");
+      fs.mkdirSync(path.dirname(stub), { recursive: true });
+      fs.writeFileSync(stub, `#!/bin/sh\n${config}\n`, { mode: 0o755 });
+
+      const result = await runScript(lonely, [], { cwd: repo.dir, env: repo.env, shell: "bash" });
+
+      assert.equal(result.status, 0);
+      check(result.stdout);
+    });
+  });
+}
+
+test("map mode reads the archive directory from the one line config.sh --specifications prints", async () => {
+  await withConfigStub('[ "$1" = "--specifications" ] && echo archive', (stdout) => {
+    assert.deepEqual(section(stdout, "trail"), ["docs/archive/run-a/failures.md convention 1 other 0"]);
+  });
+});
+
+test("map mode reads the specs directory when config.sh --specifications prints nothing", async () => {
+  await withConfigStub("exit 0", (stdout) => {
+    assert.deepEqual(section(stdout, "trail"), ["docs/specs/run-b/failures.md convention 0 other 2"]);
   });
 });
 
@@ -711,7 +798,7 @@ test("the script ships directly invocable, LF-only, its header printing its own 
       "frozen: <path> <chars>",
       "dead: <path>",
       "dirty: <path> modified | untracked",
-      "trail: <repo-relative path of one archived failures.md> convention <n>",
+      "trail: <repo-relative path of one archived failures.md> convention <n> other <n>",
       "waiting: convention <n> place <n> plan <n> task <n> test <n> unknown <n>",
       "total: <chars> ok | OVER-DIR",
       "removed: <path>",

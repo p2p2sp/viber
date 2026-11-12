@@ -31,11 +31,12 @@
 #            frontmatter and its size; the git index - which of them are tracked, modified or
 #            untracked, and how many tracked paths a rule's globs match;
 #            <root>/docs/<directories.specifications>/*/failures.md - the
-#            archived failure trails, whose `- <cause> | ...` lines it counts;
-#            and the `directories.specifications:` line printed by
-#            `scripts/config.sh`, reached through a path relative to this
-#            script (`../../../scripts/config.sh`). When that call fails or
-#            prints no such line the directory is `specs`.
+#            archived failure trails, whose `- <cause> | ...` lines one awk
+#            process counts; and the one line `scripts/config.sh
+#            --specifications` prints, reached through a path relative to this
+#            script (`../../../scripts/config.sh`) and taken as the directory
+#            name as it stands. When that call fails or prints nothing the
+#            directory is `specs`.
 #   writes : nothing at all in map mode. In reset mode, and only once every
 #            target has passed, the given files are deleted from the working
 #            tree, and a subdirectory left empty by them is removed with it.
@@ -49,7 +50,7 @@
 #              frozen: <path> <chars>
 #              dead: <path>
 #              dirty: <path> modified | untracked
-#              trail: <repo-relative path of one archived failures.md> convention <n>
+#              trail: <repo-relative path of one archived failures.md> convention <n> other <n>
 #              waiting: convention <n> place <n> plan <n> task <n> test <n> unknown <n>
 #              total: <chars> ok | OVER-DIR
 #            `id` is this run's stamp, which the caller spends as
@@ -75,8 +76,9 @@
 #            `dirty:` covers every `.md` in the directory, frozen included:
 #            uncommitted work is a fact about the file, not a score.
 #            `trail:` is one line per archived `failures.md` holding at least
-#            one `convention` entry, alphabetical by path, with that file's
-#            count of them. `waiting:` is one line summing the entries of every
+#            one entry of any cause, alphabetical by path, with that file's
+#            count of `convention` entries and of all its other causes (place,
+#            plan, task, test, unknown). `waiting:` is one line summing the entries of every
 #            archived `failures.md` by cause; it prints when at least one such
 #            file exists, a cause with no entry reading 0, and neither line
 #            prints when none exists.
@@ -410,63 +412,58 @@ else
   state="partial"
 fi
 
-# The archive directory is whatever the project configured; a failed call, or
-# one printing no such line, leaves the default. Never an error: this is a
-# preload.
+# The archive directory is whatever `config.sh --specifications` prints, which
+# has already validated the name; a failed call or an empty answer leaves the
+# default. Never an error: this is a preload.
 specs_dir=""
-config_out=""
 if [ -n "$script_dir" ] && [ -f "$script_dir/../../../scripts/config.sh" ]; then
-  config_out="$("$script_dir/../../../scripts/config.sh" 2>/dev/null || true)"
+  specs_dir="$("$script_dir/../../../scripts/config.sh" --specifications 2>/dev/null || true)"
 fi
-while IFS= read -r config_line; do
-  config_line="${config_line%$'\r'}"
-  case "$config_line" in
-    "directories.specifications: "*) specs_dir="${config_line#directories.specifications: }" ;;
-  esac
-done < <(printf '%s\n' "$config_out")
-case "$specs_dir" in
-  "" | . | .. | *[!A-Za-z0-9._-]*) specs_dir="specs" ;;
-esac
+specs_dir="${specs_dir%%$'\n'*}"
+specs_dir="${specs_dir%$'\r'}"
+[ -n "$specs_dir" ] || specs_dir="specs"
 
-# The archived failure trails: `- <cause> | <source> | <text>` entries, counted
-# per cause. `waiting:` stands once at least one trail is archived; `trail:`
-# names only a file holding a `convention` entry, the cause a rule can rest on.
+# The archived failure trails: `- <cause> | <source> | <text>` entries. One awk
+# process reads every trail and prints, per file, the six counts and then the
+# path; `trail:` names each file holding an entry of any cause, `waiting:` sums
+# the causes of all of them.
 trail_lines=""
 waiting_line=""
-trails_seen=0
 sum_convention=0
 sum_place=0
 sum_plan=0
 sum_task=0
 sum_test=0
 sum_unknown=0
-trail_listing=""
+trail_files=()
 if [ -d "docs/$specs_dir" ]; then
-  trail_listing="$(find "docs/$specs_dir" -mindepth 2 -maxdepth 2 -type f -name failures.md 2>/dev/null |
-    LC_ALL=C sort || true)"
+  while IFS= read -r trail; do
+    [ -n "$trail" ] && trail_files+=("$trail")
+  done < <(find "docs/$specs_dir" -mindepth 2 -maxdepth 2 -type f -name failures.md 2>/dev/null |
+    LC_ALL=C sort || true)
 fi
-while IFS= read -r trail; do
-  [ -n "$trail" ] || continue
-  counts="$(awk '
+if [ "${#trail_files[@]}" -gt 0 ]; then
+  while read -r c_convention c_place c_plan c_task c_test c_unknown trail; do
+    sum_convention=$(( sum_convention + c_convention ))
+    sum_place=$(( sum_place + c_place ))
+    sum_plan=$(( sum_plan + c_plan ))
+    sum_task=$(( sum_task + c_task ))
+    sum_test=$(( sum_test + c_test ))
+    sum_unknown=$(( sum_unknown + c_unknown ))
+    c_other=$(( c_place + c_plan + c_task + c_test + c_unknown ))
+    if [ $(( c_convention + c_other )) -gt 0 ]; then
+      trail_lines="$trail_lines"'trail: '"$trail convention $c_convention other $c_other"'
+'
+    fi
+  done < <(awk '
+    function flush() {
+      if (cur != "") print n["convention"] + 0, n["place"] + 0, n["plan"] + 0, n["task"] + 0, n["test"] + 0, n["unknown"] + 0, cur
+    }
+    FNR == 1 { flush(); cur = FILENAME; split("", n) }
     { sub(/\r$/, "") }
     /^- (convention|place|plan|task|test|unknown) [|]/ { n[$2]++ }
-    END { print n["convention"] + 0, n["place"] + 0, n["plan"] + 0, n["task"] + 0, n["test"] + 0, n["unknown"] + 0 }
-  ' "$trail" 2>/dev/null || true)"
-  [ -n "$counts" ] || continue
-  read -r c_convention c_place c_plan c_task c_test c_unknown < <(printf '%s\n' "$counts")
-  trails_seen=$(( trails_seen + 1 ))
-  sum_convention=$(( sum_convention + c_convention ))
-  sum_place=$(( sum_place + c_place ))
-  sum_plan=$(( sum_plan + c_plan ))
-  sum_task=$(( sum_task + c_task ))
-  sum_test=$(( sum_test + c_test ))
-  sum_unknown=$(( sum_unknown + c_unknown ))
-  if [ "$c_convention" -gt 0 ]; then
-    trail_lines="$trail_lines"'trail: '"$trail convention $c_convention"'
-'
-  fi
-done < <(printf '%s\n' "$trail_listing")
-if [ "$trails_seen" -gt 0 ]; then
+    END { flush() }
+  ' "${trail_files[@]}" 2>/dev/null || true)
   waiting_line="waiting: convention $sum_convention place $sum_place plan $sum_plan task $sum_task test $sum_test unknown $sum_unknown"
 fi
 
