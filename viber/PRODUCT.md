@@ -10,7 +10,11 @@
 
 - An `integration` test covers exactly one adapter against its real dependency, started disposably for the test run; it is never the base proof that a function works, and it never stands in for a `unit` or `component` test.
 
-- An adapter's `integration` test lives in the task that creates or changes that adapter, not in a task of its own.
+- An adapter's `integration` test lives in the task that creates or changes that adapter, not in a task of its own, and is never run there: the task's verification lists or type-checks it, and the build's final test run runs it once.
+
+- Every decision in the code is proven by a unit test, and a decision is shaped as a function over plain values, so a double is allowed only at a boundary. A `component` test proves only what the assembled application shows; an `integration` test proves only what the real dependency reveals.
+
+- A build writes one test per regression, and none for a name or a data shape: two tests failing on exactly the same regressions are one test too many, whatever their layer.
 
 - Unit and component tests must outnumber integration tests by a wide margin.
 
