@@ -2995,12 +2995,16 @@ z nich mówi, jak nim sterować.</p>
   check each rule against the files its paths match, and hands what must change to
   <a href="#agent-rules-writer"><code>rules-writer</code></a>, the same writer the build close uses. It also
   reads the <code>failures.md</code> of your archived runs and learns a rule from a failure that repeats across
-  runs, removing the entries it has handled. A rule stays within 4000 bytes and the directory within 40000.</p>
+  runs, removing the convention entries it has handled and every entry of another cause. The build close suggests
+  <code>/viber:rules extend</code> once convention failures stand in two runs. A rule stays within 4000 bytes and
+  the directory within 40000.</p>
   <p lang="pl">Mapuje <code>.claude/rules/</code>, zleca <a href="#agent-rules-auditor"><code>rules-auditor</code></a>
   sprawdzenie każdej reguły względem plików, do których pasują jej ścieżki, i przekazuje konieczne zmiany do
   <a href="#agent-rules-writer"><code>rules-writer</code></a>, tego samego autora, którego używa zamknięcie
   buildu. Czyta też <code>failures.md</code> z zarchiwizowanych przebiegów i uczy się reguły z porażki, która
-  powtarza się w kolejnych przebiegach, usuwając obsłużone wpisy. Reguła mieści się w 4000 bajtów, a cały katalog w 40000.</p>
+  powtarza się w kolejnych przebiegach, usuwając obsłużone wpisy o zasadach oraz każdy wpis innej przyczyny.
+  Zamknięcie buildu podpowiada <code>/viber:rules extend</code>, gdy porażki dotyczące zasad występują w dwóch
+  przebiegach. Reguła mieści się w 4000 bajtów, a cały katalog w 40000.</p>
   <dl>
     <div>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>

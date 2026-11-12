@@ -204,7 +204,9 @@ lists them. When the run is archived, the screen shows a short result and one cl
 whether `outcome.md` records a problem, plus the command that starts the next roadmap part when one
 is left, and the full summary is in `outcome.md` in the archive, along with every file the build
 left uncommitted and the reason. The archive also keeps `failures.md`, the failure trail of the run,
-which `/viber:rules` turns into rules when a failure repeats across runs.
+which `/viber:rules` turns into rules when a failure repeats across runs. The close suggests
+`/viber:rules extend` once convention failures stand in two runs, and `/viber:rules` removes the
+convention entries it handled and every entry of another cause.
 
 ### When it stops to ask you
 
