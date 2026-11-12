@@ -28,7 +28,7 @@ Before any question, one line per fact worth deciding on:
 - each `dead:` line, named as a rule whose declared scope matches no tracked file.
 - each `dirty:` line with its `modified` or `untracked` word.
 - the `waiting:` line, the number of waiting trail entries per cause.
-- each `trail:` line, one archived `failures.md` with its `convention` count. The `convention` entries are the only ones this command reads; the other causes are only counted.
+- each `trail:` line, one archived `failures.md` with its `convention` and `other` counts. The `convention` entries are the only ones the auditor reads; the writer removes every other entry.
 
 The root of the directory holds the shared rules, each subdirectory one area's. Name each root `rule:` line whose globs all stay inside one area, or whose basename carries an area as a prefix: the writer moves it into that area's directory.
 
@@ -89,7 +89,7 @@ refs: ${CLAUDE_PLUGIN_ROOT}/references
 
 `<id>` is the `id:` value of the map above. A rule whose `paths` field reads `none` gates the whole repository: pass `**` as its scope and `none` as its matches. A scope with no rule is the proposing direction: `target: none`, `scope` that directory, `matches: none`, and only missing conventions can come back.
 
-A kept trail target gets one `viber:rules-auditor` call, the same five lines with `target: trail`, `scope` being every `trail:` path of the map, comma-separated, and `matches: none`.
+A kept trail target gets one `viber:rules-auditor` call only when a kept `trail:` line has a `convention` count above 0, the same five lines with `target: trail`, `scope` being those `trail:` paths, comma-separated, and `matches: none`.
 
 Each call returns one line:
 
@@ -108,9 +108,9 @@ A call returning `VERDICT: DENIED` instead -> one `AskUserQuestion` naming the t
 
 ## 6. Confirm, then the writer
 
-Every returned line carrying five zero counters, a trail line carrying its three zero counters (`miss`, `ignored`, `rejected`), or `-> none`, with no kept rule named in step 1 as misplaced, no kept rule flagged `OVER-FILE` and no `OVER-DIR` on `total:`, means the layer is already true and no scope earned a new rule. Say so in one line, dispatch no writer, and stop.
+Every returned line carrying five zero counters, a trail line carrying its three zero counters (`miss`, `ignored`, `rejected`), or `-> none`, with no kept rule named in step 1 as misplaced, no kept rule flagged `OVER-FILE` and no `OVER-DIR` on `total:`, means the layer is already true and no scope earned a new rule. With no kept `trail:` line carrying an `other` count above 0, say so in one line, dispatch no writer, and stop.
 
-Otherwise one `AskUserQuestion` over the counters just reported, the over-budget flags and the moves named in step 1: fold them in, or stop. Only on approval, one `Agent` call, `subagent_type: viber:rules-writer`, no `model:` line, three labelled lines and nothing else:
+Otherwise one `AskUserQuestion` over the counters just reported, the over-budget flags, the moves named in step 1 and the `other` entries of each kept trail: fold them in, or stop. A kept `trail:` line with an `other` count above 0 reaches the writer even with every audit counter at 0. Only on approval, one `Agent` call, `subagent_type: viber:rules-writer`, no `model:` line, three labelled lines and nothing else:
 
 ```
 map: <the map's id:, state: and total: lines plus every rule: and dead: line of a kept target and every trail: line of a kept trail target, verbatim>

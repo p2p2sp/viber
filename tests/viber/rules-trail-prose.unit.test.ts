@@ -20,10 +20,12 @@
  * `failures.md` entry of each applied `USED:` and each `REJECTED:` line removed, an emptied
  * file deleted with `rm`.
  *
- * `rules/SKILL.md` reports the `waiting:` and `trail:` lines, offers the trail as one target on
- * `extend`, `both` and `state: none`, dispatches the auditor for it, folds its counters into the
- * writer gate, passes its `trail:` lines in the writer's `map:` and reports the `failures.md`
- * files the writer changed.
+ * `rules/SKILL.md` reports the `waiting:` and `trail:` lines with their `convention` and `other`
+ * counts, offers the trail as one target on `extend`, `both` and `state: none`, dispatches the
+ * auditor for it only over the trails with a convention count above 0, folds its counters into
+ * the writer gate (a kept trail with an other count above 0 reaches the writer regardless),
+ * passes its `trail:` lines in the writer's `map:` and reports the `failures.md` files the writer
+ * changed. The writer removes every non-convention entry of each `trail:` file of its map.
  *
  * Run directly by Node's type stripping:
  *   node --test tests/viber/rules-trail-prose.unit.test.ts
@@ -142,9 +144,13 @@ test("the input block carries the trail dispatch with target trail", () => {
   assert.ok(AUDITOR_INPUT.some((line) => line.startsWith("target: ") && line.includes("| trail")));
 });
 
-test("the input block names scope as every trail: path of the map, comma-separated", () => {
+test("the input block names scope as the trail: paths of the map with a convention count above 0, comma-separated", () => {
   assert.ok(
-    AUDITOR_INPUT.some((line) => line.startsWith("scope: ") && line.includes("<every trail: path of the map, comma-separated>")),
+    AUDITOR_INPUT.some(
+      (line) =>
+        line.startsWith("scope: ") &&
+        line.includes("<the trail: paths of the map with a convention count above 0, comma-separated>"),
+    ),
   );
 });
 
@@ -348,6 +354,32 @@ test("a failures.md left with no entry line is deleted with rm", () => {
   );
 });
 
+test("the writer removes every entry line not starting with convention from each failures.md a trail line of its map names", () => {
+  assert.ok(
+    writeBullet("Under the map shape, remove every entry line not starting `- convention | `").includes(
+      "from each `failures.md` a `trail:` line of the map names",
+    ),
+  );
+});
+
+test("a convention entry stays unless an applied USED line or a REJECTED line removes it", () => {
+  assert.ok(
+    writeBullet("Under the map shape, remove every entry line not starting `- convention | `").includes(
+      "A `- convention | ` entry stays unless a `USED:` line you applied or a `REJECTED:` line removes it",
+    ),
+  );
+});
+
+test("the write scope names the failures.md paths of the trail lines of the map", () => {
+  assert.ok(
+    WRITE.some(
+      (line) =>
+        line.startsWith("Your whole scope is `.claude/rules/**/*.md`") &&
+        line.includes("the `failures.md` paths named by the `trail:` lines of its map"),
+    ),
+  );
+});
+
 test("the FILES line names every failures.md changed or deleted", () => {
   assert.ok(WRITER_OUTPUT.some((line) => line.includes("every `failures.md` changed or deleted")));
 });
@@ -390,13 +422,15 @@ test("step 1 reports the waiting line, the waiting trail entries per cause", () 
   );
 });
 
-test("step 1 reports each trail line with its convention count", () => {
-  assert.ok(skillLine(REPORT, "- each `trail:` line").includes("its `convention` count"));
+test("step 1 reports each trail line with its convention and other counts", () => {
+  assert.ok(skillLine(REPORT, "- each `trail:` line").includes("its `convention` and `other` counts"));
 });
 
-test("step 1 names convention entries as the only ones this command reads", () => {
+test("step 1 names convention entries as the only ones the auditor reads and the other entries as the writer's to remove", () => {
   assert.ok(
-    skillLine(REPORT, "- each `trail:` line").includes("`convention` entries are the only ones this command reads"),
+    skillLine(REPORT, "- each `trail:` line").includes(
+      "The `convention` entries are the only ones the auditor reads; the writer removes every other entry",
+    ),
   );
 });
 
@@ -432,10 +466,18 @@ test("step 5 dispatches one rules-auditor for a kept trail target with target tr
   );
 });
 
-test("step 5 passes every trail path of the map, comma-separated, as the trail scope", () => {
+test("step 5 dispatches the trail auditor only when a kept trail line has a convention count above 0", () => {
   assert.ok(
-    AUDIT.some((line) => line.includes("`scope` being every `trail:` path of the map, comma-separated")),
+    AUDIT.some((line) =>
+      line.includes(
+        "A kept trail target gets one `viber:rules-auditor` call only when a kept `trail:` line has a `convention` count above 0",
+      ),
+    ),
   );
+});
+
+test("step 5 passes those trail paths, comma-separated, as the trail scope", () => {
+  assert.ok(AUDIT.some((line) => line.includes("`scope` being those `trail:` paths, comma-separated")));
 });
 
 test("step 5 passes matches none for the trail target", () => {
@@ -458,6 +500,24 @@ test("step 6 reads a trail line with three zero counters as five zero counters",
   assert.ok(
     CONFIRM.some((line) =>
       line.includes("a trail line carrying its three zero counters (`miss`, `ignored`, `rejected`)"),
+    ),
+  );
+});
+
+test("step 6 dispatches the writer for a kept trail line with an other count above 0 even with every audit counter at 0", () => {
+  assert.ok(
+    CONFIRM.some((line) =>
+      line.includes(
+        "A kept `trail:` line with an `other` count above 0 reaches the writer even with every audit counter at 0",
+      ),
+    ),
+  );
+});
+
+test("step 6 stops without a writer on zero counters only when no kept trail line has an other count above 0", () => {
+  assert.ok(
+    CONFIRM.some((line) =>
+      line.includes("With no kept `trail:` line carrying an `other` count above 0, say so in one line, dispatch no writer, and stop"),
     ),
   );
 });

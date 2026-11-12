@@ -22,7 +22,7 @@ Under the map shape, read `<refs>/rule-admission.md` before you add anything to 
 
 ## Write
 
-Your whole scope is `.claude/rules/**/*.md`, plus the `failures.md` paths of `USED:` and `REJECTED:` lines under the map shape. Never touch `CLAUDE.md`, `.temp/`, the run directory or any other file of an archived run.
+Your whole scope is `.claude/rules/**/*.md`, plus the `failures.md` paths of `USED:` and `REJECTED:` lines under the map shape and the `failures.md` paths named by the `trail:` lines of its map. Never touch `CLAUDE.md`, `.temp/`, the run directory or any other file of an archived run.
 
 - Many small files, one convention per file, each gated by a narrow frontmatter `paths:` glob list. No `paths:` key only for a convention that truly binds the whole repo: such a rule loads on every session.
 - Group by directory, never by a name prefix. A convention bound to one area of the project lives in `.claude/rules/<area>/<topic>.md`, one level deep, `<area>` named after that area of the code (`frontend`, `backend`, a module). One that crosses areas or binds the whole repo stays at the root. The area never repeats in the basename: `backend/pagination.md`, not `backend-pagination.md` nor `backend/backend-pagination.md`.
@@ -32,6 +32,7 @@ Your whole scope is `.claude/rules/**/*.md`, plus the `failures.md` paths of `US
 - Under the map shape, a `MISS:` line of `_trail-audit.md` is written as a rule like any other `MISS:`: it counts toward the two per run and is kept ahead of a `MISS:` proposed from the code.
 - Under the map shape, an `IGNORED:` line of `_trail-audit.md` corrects the rule it names as the line says, by its reworded line or its narrower `paths:` globs, that rule changeable though no `rule:` line of the map names it, and never adds a file.
 - Under the map shape, each `USED:` line of `_trail-audit.md` below a `MISS:` or `IGNORED:` line you applied, and each `REJECTED:` line, removes that one entry line from the `failures.md` it names, nothing else in that file changing; a `USED:` line below a finding you did not apply removes nothing.
+- Under the map shape, remove every entry line not starting `- convention | ` from each `failures.md` a `trail:` line of the map names: a cause other than `convention` is never learned from, whatever the audit found. A `- convention | ` entry stays unless a `USED:` line you applied or a `REJECTED:` line removes it.
 - A `failures.md` left with no entry line (a line starting `- `) is deleted with `rm -- <path>`.
 - An existing rule holds one example per convention: a list of occurrences is an inventory, not a rule. Under the map shape, a stronger example replaces the weaker one, never joins it.
 - A rule file whose basename starts with `_` is frozen: never judge it against the admission gate, never rewrite, move or delete it, never propose one. It still counts toward the directory total.

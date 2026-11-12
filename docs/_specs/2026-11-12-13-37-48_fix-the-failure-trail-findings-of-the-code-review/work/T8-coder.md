@@ -1,0 +1,4 @@
+- The trail target stays one approved target; only its auditor dispatch is conditional (a kept `trail:` line with `convention` above 0). The writer still receives every `trail:` line of the kept target, so it also cleans a trail whose convention count is 0.
+- Step 6's zero-counter stop now yields to a kept `other` count above 0; the confirmation question lists the `other` entries so the user sees what the writer will delete.
+- Two existing cases of rules-trail-prose were reworded to the new prose (step 1 counts sentence, step 5 scope, auditor input scope): the old "this command reads only convention" claim no longer holds.
+- The writer's cleanup bullet restates that a convention entry leaves only on an applied USED or a REJECTED line (DoD.6), pinned by its own case.

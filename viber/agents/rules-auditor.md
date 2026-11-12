@@ -19,7 +19,7 @@ The prompt carries one labelled line each:
 
 ```
 target: <repo-relative path of one rule file> | none | trail
-scope: <glob list the target gates> | <repo-relative directory to propose for> | <every trail: path of the map, comma-separated>
+scope: <glob list the target gates> | <repo-relative directory to propose for> | <the trail: paths of the map with a convention count above 0, comma-separated>
 matches: <the tracked-file count the map measured for that rule> | none
 out: .temp/viber/<id>/
 refs: <the plugin reference directory>
