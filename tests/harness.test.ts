@@ -23,6 +23,7 @@ import { canDenyRead, denyRead, restoreRead } from "./harness/perms.ts";
 import { withStub } from "./harness/stub.ts";
 import { FULL_SHELL_MATRIX, forEachShell, shellBin } from "./harness/shells.ts";
 import { writePng } from "./harness/png.ts";
+import { section } from "./harness/markdown.ts";
 
 test("runScript round-trips stdout and stderr and reports the real exit status", async () => {
   await withTempDir("p2p2-harness-run-", async (dir) => {
@@ -123,6 +124,33 @@ test('forEachShell("posix", ...) yields at least one shell and never throws when
     assert.equal(skip.kind, "posix");
     assert.ok(skip.reason.length > 0, "a skip must record a reason");
   }
+});
+
+test("section returns the text from its heading line up to, excluding, the next ## line", () => {
+  const text = "# Title\n\n## One\nfirst\n### Sub\nsecond\n\n## Two\nthird\n";
+  assert.equal(section(text, "One"), "## One\nfirst\n### Sub\nsecond\n\n");
+});
+
+test("section of the last heading runs to the end of the text", () => {
+  const text = "## One\nfirst\n## Two\nthird\nfourth\n";
+  assert.equal(section(text, "Two"), "## Two\nthird\nfourth\n");
+});
+
+test("section matches a heading by its leading text, so a numbered heading is found by its number", () => {
+  const text = "## 5. Close\nfinal run\n## 6. Record\nmemory\n";
+  assert.equal(section(text, "5."), "## 5. Close\nfinal run\n");
+});
+
+test("section throws an Error naming the heading when no line starts with it", () => {
+  assert.throws(() => section("## One\nfirst\n", "Missing"), (error: unknown) => {
+    assert.ok(error instanceof Error);
+    assert.ok(error.message.includes("Missing"));
+    return true;
+  });
+});
+
+test("section does not take a heading mentioned mid-line for a heading line", () => {
+  assert.throws(() => section("text with ## Two inside\n", "Two"), Error);
 });
 
 test("writePng emits a decodable 8-bit RGBA PNG carrying the pixels it was given", () => {

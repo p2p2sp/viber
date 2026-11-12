@@ -17,6 +17,7 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { section } from "../harness/markdown.ts";
 
 const VIBER = path.resolve(import.meta.dirname, "../../viber");
 
@@ -28,12 +29,8 @@ function lines(text: string): string[] {
   return text.split(/\r?\n/);
 }
 
-function output(text: string): string {
-  return text.slice(text.indexOf("\n## Output\n"));
-}
-
-const TASK_OUTPUT = output(read("agents/task-reviewer.md"));
-const FINAL_OUTPUT = output(read("agents/final-reviewer.md"));
+const TASK_OUTPUT = section(read("agents/task-reviewer.md"), "Output");
+const FINAL_OUTPUT = section(read("agents/final-reviewer.md"), "Output");
 
 const BLOCKING_ITEM = "- Blocking [<cause>] <path>:<line> - <what is wrong>";
 const MINOR_ITEM = "- Minor <path>:<line> - <what is wrong>";
@@ -48,8 +45,8 @@ const CAUSE_LINES = [
 const ONE_CAUSE_RULE = "- A Blocking item carries exactly one cause, `task` when none of the other three clearly fits.";
 const MINOR_RULE = "- A Minor item carries no cause.";
 
-function causeLines(section: string): string[] {
-  return lines(section).filter((line) => /^- `(convention|place|plan|task)` - /.test(line));
+function causeLines(block: string): string[] {
+  return lines(block).filter((line) => /^- `(convention|place|plan|task)` - /.test(line));
 }
 
 test("task-reviewer's Output states the Blocking finding item, its first line whole on one line", () => {

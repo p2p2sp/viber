@@ -20,6 +20,7 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { section } from "../harness/markdown.ts";
 
 const VIBER = path.resolve(import.meta.dirname, "../../viber");
 
@@ -32,10 +33,10 @@ function lines(text: string): string[] {
 }
 
 const WRITER = read("agents/rules-writer.md");
-const BUDGET = WRITER.slice(WRITER.indexOf("## Budget"), WRITER.indexOf("## Output"));
-const WRITE = WRITER.slice(WRITER.indexOf("## Write"), WRITER.indexOf("## Budget"));
+const BUDGET = section(WRITER, "Budget");
+const WRITE = section(WRITER, "Write");
 const ADMISSION = read("references/rule-admission.md");
-const CALIBRATION = ADMISSION.slice(ADMISSION.indexOf("## Calibration"), ADMISSION.indexOf("## Never a rule"));
+const CALIBRATION = section(ADMISSION, "Calibration");
 const FRAGMENT = lines(read("skills/implementor/fragments/rules.true.md"));
 
 test("the compact and split order of the Budget is scoped to the map shape", () => {

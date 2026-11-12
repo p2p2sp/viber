@@ -18,6 +18,7 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { section } from "../harness/markdown.ts";
 
 const SKILL_DIR = path.resolve(import.meta.dirname, "../../viber/skills/implementor");
 
@@ -36,12 +37,11 @@ function allowedTools(): string {
 }
 
 function stepThree(): string {
-  const start = SKILL.indexOf("## 3. Profile the tasks");
-  return SKILL.slice(start, SKILL.indexOf("## 4. Run the plan"));
+  return section(SKILL, "3.");
 }
 
 function pointer(): string {
-  return SKILL.slice(SKILL.indexOf(POINTER_HEADING));
+  return section(SKILL, "5 to 7. Close and archive");
 }
 
 test("the close part opens on the step 5 heading", () => {
@@ -163,8 +163,7 @@ test("switch-fragments.md names parts/close.md as where implementor calls its se
 
 /** The step 5 bullet that opens on the given text, whole. */
 function stepFiveBullet(opening: string): string {
-  const step = PART.slice(0, PART.indexOf("## 6."));
-  return lines(step).find((line) => line.startsWith(`- ${opening}`)) ?? "";
+  return lines(section(PART, "5.")).find((line) => line.startsWith(`- ${opening}`)) ?? "";
 }
 
 test("a repair round that changed nothing goes to the tests arbiter at once, never to another test run (an empty repair commit looped on the same failure up to round 6)", () => {
@@ -188,7 +187,7 @@ const NOT_WRITTEN_LINE = "failure trail not written: <the error: line of run-fai
 
 /** Step 7 of the close part, whole. */
 function stepSeven(): string {
-  return PART.slice(PART.indexOf("## 7."));
+  return section(PART, "7.");
 }
 
 /** The step 7 paragraph that opens on the given text, whole. */

@@ -33,6 +33,7 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { section } from "../harness/markdown.ts";
 
 const VIBER = path.resolve(import.meta.dirname, "../../viber");
 
@@ -41,36 +42,21 @@ function lines(text: string): string[] {
 }
 
 const ADMISSION = fs.readFileSync(path.join(VIBER, "references/rule-admission.md"), "utf8");
-
-function section(heading: string): string[] {
-  const start = ADMISSION.indexOf(`\n## ${heading}\n`);
-  const rest = ADMISSION.slice(start + 1);
-  const next = rest.indexOf("\n## ", 1);
-  return lines(next === -1 ? rest : rest.slice(0, next));
-}
-
 const AUDITOR = fs.readFileSync(path.join(VIBER, "agents/rules-auditor.md"), "utf8");
 
-function auditorSection(heading: string): string[] {
-  const start = AUDITOR.indexOf(`\n## ${heading}\n`);
-  const rest = AUDITOR.slice(start + 1);
-  const next = rest.indexOf("\n## ", 1);
-  return lines(next === -1 ? rest : rest.slice(0, next));
-}
-
 const DESCRIPTION = lines(AUDITOR).find((line) => line.startsWith("description: ")) ?? "";
-const AUDITOR_INPUT = auditorSection("Input");
-const TRAIL = auditorSection("Trail - target reads trail");
-const FINDINGS = auditorSection("Findings file");
-const AUDITOR_OUTPUT = auditorSection("Output");
+const AUDITOR_INPUT = lines(section(AUDITOR, "Input"));
+const TRAIL = lines(section(AUDITOR, "Trail - target reads trail"));
+const FINDINGS = lines(section(AUDITOR, "Findings file"));
+const AUDITOR_OUTPUT = lines(section(AUDITOR, "Output"));
 
 function trailBullet(start: string): string {
   return TRAIL.find((line) => line.startsWith(`- ${start}`)) ?? "";
 }
 
-const CRITERION_1 = section("The three criteria").filter((line) => line.startsWith("1. "));
-const CALIBRATION = section("Calibration");
-const SILENT_DROP = section("The silent drop");
+const CRITERION_1 = lines(section(ADMISSION, "The three criteria")).filter((line) => line.startsWith("1. "));
+const CALIBRATION = lines(section(ADMISSION, "Calibration"));
+const SILENT_DROP = lines(section(ADMISSION, "The silent drop"));
 
 test("criterion 1 stays one paragraph of the criteria list", () => {
   assert.equal(CRITERION_1.length, 1);
@@ -270,16 +256,9 @@ test("the trail return is the single AUDIT: trail line", () => {
 
 const WRITER = fs.readFileSync(path.join(VIBER, "agents/rules-writer.md"), "utf8");
 
-function writerSection(heading: string): string[] {
-  const start = WRITER.indexOf(`\n## ${heading}\n`);
-  const rest = WRITER.slice(start + 1);
-  const next = rest.indexOf("\n## ", 1);
-  return lines(next === -1 ? rest : rest.slice(0, next));
-}
-
-const WRITE = writerSection("Write");
-const BUDGET = writerSection("Budget");
-const WRITER_OUTPUT = writerSection("Output");
+const WRITE = lines(section(WRITER, "Write"));
+const BUDGET = lines(section(WRITER, "Budget"));
+const WRITER_OUTPUT = lines(section(WRITER, "Output"));
 
 function writeBullet(start: string): string {
   return WRITE.find((line) => line.startsWith(`- ${start}`)) ?? "";
@@ -389,23 +368,16 @@ test("the Bash sentence of the Budget allows rm on an emptied failures.md", () =
 
 const SKILL = fs.readFileSync(path.join(VIBER, "skills/rules/SKILL.md"), "utf8");
 
-function skillSection(heading: string): string[] {
-  const start = SKILL.indexOf(`\n## ${heading}\n`);
-  const rest = SKILL.slice(start + 1);
-  const next = rest.indexOf("\n## ", 1);
-  return lines(next === -1 ? rest : rest.slice(0, next));
-}
-
 const SKILL_DESCRIPTION = lines(SKILL).find((line) => line.startsWith("description: ")) ?? "";
-const REPORT = skillSection("1. Report the layer");
-const ROUTE = skillSection("2. Route on the state, then the mode");
-const APPROVE = skillSection("4. Approve the targets");
-const AUDIT = skillSection("5. Audit");
-const CONFIRM = skillSection("6. Confirm, then the writer");
-const FINAL_REPORT = skillSection("7. Report");
+const REPORT = lines(section(SKILL, "1. Report the layer"));
+const ROUTE = lines(section(SKILL, "2. Route on the state, then the mode"));
+const APPROVE = lines(section(SKILL, "4. Approve the targets"));
+const AUDIT = lines(section(SKILL, "5. Audit"));
+const CONFIRM = lines(section(SKILL, "6. Confirm, then the writer"));
+const FINAL_REPORT = lines(section(SKILL, "7. Report"));
 
-function skillLine(section: string[], start: string): string {
-  return section.find((line) => line.startsWith(start)) ?? "";
+function skillLine(block: string[], start: string): string {
+  return block.find((line) => line.startsWith(start)) ?? "";
 }
 
 test("the skill description names learning from the failure trail", () => {
