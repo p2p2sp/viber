@@ -26,8 +26,9 @@
 # Contract:
 #   argv   : none -> the block below. `--branching` -> the branching report,
 #            `--red-check` -> the red-check report, `--questions` -> the
-#            questions-per-round report (see their own stdout paragraphs) in
-#            place of the block. Anything else -> the block.
+#            questions-per-round report, `--specifications` -> the archive
+#            directory report (see their own stdout paragraphs) in place of the
+#            block. Anything else -> the block.
 #   cwd    : any directory inside the host project - the repository root is
 #            resolved here. Outside a repository, the cwd is the base.
 #   env    : none.
@@ -220,6 +221,11 @@
 #            shared one. The no-argument block carries no line for the key; its
 #            `# local:` line names the key after tiers.max when a local value
 #            took, and under ignored when the local value was invalid.
+#   stdout (--specifications): exactly one line, the directories.specifications
+#            value resolved as for the block (default `specs`; an invalid value
+#            or the key outside the `directories:` group -> `specs`). Only the
+#            `directories:` group of the shared file is read, before the switches,
+#            the local file and the extensions.
 #   exit  : ALWAYS 0 (fail-open - a missing file or key never breaks a run, and
 #            a non-zero exit in a `!` preload would abort the whole skill load).
 #
@@ -602,6 +608,11 @@ END {
 
 if [ "${1:-}" = "--branching" ]; then
   branching_report
+  exit 0
+fi
+
+if [ "${1:-}" = "--specifications" ]; then
+  resolve_dir specifications specs
   exit 0
 fi
 

@@ -35,6 +35,8 @@
  * empty, a comment alone or absent.
  * `--questions` prints one line, `planning.questions-per-round` as 1 to 10 or
  * `all`, 5 for any other value or none; a valid local value wins over it.
+ * `--specifications` prints one line, the `directories.specifications` value as
+ * the block resolves it (`specs` for an invalid value or the key outside its group).
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:
@@ -1611,5 +1613,55 @@ test("--red-check of a config carrying the key prints the two defaults", async (
     writeConfig(dir, asked("3"));
 
     assert.deepEqual(await redCheck(dir), RED_CHECK_DEFAULTS);
+  });
+});
+
+// --- config.sh --specifications: the archive directory alone ---
+
+/** Every line `--specifications` printed, the exit asserted 0 first: no input may break the caller. */
+async function specifications(dir: string): Promise<string[]> {
+  const result = await runScript(SUT, ["--specifications"], { cwd: dir, shell: "bash" });
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  return result.stdout.replace(/\r/g, "").trimEnd().split("\n");
+}
+
+test("--specifications with no config file prints specs and exits 0", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    assert.deepEqual(await specifications(dir), ["specs"]);
+  });
+});
+
+test("--specifications prints a valid directories.specifications value as written, a trailing comment cut", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, ["directories:", "  runs: builds", "  specifications: docs_archive.v2  # finished runs", ""].join("\n"));
+
+    assert.deepEqual(await specifications(dir), ["docs_archive.v2"]);
+  });
+});
+
+for (const [label, body] of [
+  ["a value holding a slash", group({ specifications: "a/b" })],
+  ["a traversal", group({ specifications: ".." })],
+  ["an absolute path", group({ specifications: "/archive" })],
+  ["the key at column 0", "specifications: archive\n"],
+  ["the key under another group", inGroup("build", "specifications: archive")],
+  ["the key below a later top-level key", ["directories:", "  runs: builds", "build:", "  specifications: archive", ""].join("\n")],
+] as const) {
+  test(`--specifications prints specs for ${label}`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      writeConfig(dir, body);
+
+      assert.deepEqual(await specifications(dir), ["specs"]);
+    });
+  });
+}
+
+test("--specifications prints exactly one line with a local file and an extension map present", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeAgents(dir, "write-help");
+    writeConfig(dir, extensionMap("write-help:") + group({ specifications: "archive" }));
+    writeLocal(dir, inGroup("tiers", "max: fable") + inGroup("github", "issues: true", "stray: 1") + "stray: 2\n");
+
+    assert.deepEqual(await specifications(dir), ["archive"]);
   });
 });
