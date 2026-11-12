@@ -51,10 +51,17 @@
 #            <run>/work/review-*.md, <run>/work/final-review-*.md and
 #            <run>/work/tests-<digits>.md. Any other file of work/ is ignored,
 #            tests-baseline.md included. A missing work/ means no report.
+#            docs/<specifications>/*/failures.md, the archived trails, for the
+#            runs count; <specifications> is the line `config.sh --specifications`
+#            (the sibling script) prints, `specs` when the call fails or prints
+#            nothing.
 #   writes : <run>/failures.md alone, or removes it when no entry is left.
 #   stdout : on exit 0 exactly one line, nothing else:
-#              failures: <total> convention <n> place <n> plan <n> task <n> test <n> unknown <n>
-#            each count is the number of entries of that cause in the file.
+#              failures: <total> convention <n> place <n> plan <n> task <n> test <n> unknown <n> runs <n>
+#            each cause count is the number of entries of that cause in the file.
+#            runs is the number of archived failures.md files holding at least one
+#            line starting `- convention | `, plus 1 when this run's convention
+#            count is above 0: the runs a convention gap stood in.
 #   exit   : 0 the trail was written, or <total> is 0 and no failures.md is left.
 #            2 unusable argv: no argument, more than one, a directory that does
 #              not exist or one holding no status.md; one `error: ...` line on
@@ -72,6 +79,10 @@ usage() {
 [[ $# -eq 1 ]] || usage
 raw="$1"
 [[ -n "$raw" ]] || usage
+
+# The sibling config.sh is found before the move to the repository root, because
+# the script path may be relative to the cwd.
+script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
 
 # A relative argument is relative to the repository root, never to the cwd of the
 # agent that calls this script. Outside a repository the cwd stays.
@@ -248,4 +259,24 @@ else
   fi
 fi
 
-echo "failures: $total convention $n_convention place $n_place plan $n_plan task $n_task test $n_test unknown $n_unknown"
+# The runs a convention gap stood in: the archived trails holding a convention
+# entry, and this run when it holds one. The directory name comes from config.sh,
+# which owns the grammar; anything it does not answer with a plain name is `specs`.
+specs="$(bash "$script_dir/config.sh" --specifications 2>/dev/null || true)"
+specs="${specs%%$'\n'*}"
+if [[ ! "$specs" =~ ^[A-Za-z0-9._-]+$ || "$specs" == "." || "$specs" == ".." ]]; then
+  specs="specs"
+fi
+
+runs=0
+for trail in docs/"$specs"/*/failures.md; do
+  [[ -f "$trail" ]] || continue
+  if grep -q '^- convention | ' "$trail" 2>/dev/null; then
+    runs=$((runs + 1))
+  fi
+done
+if [[ $n_convention -gt 0 ]]; then
+  runs=$((runs + 1))
+fi
+
+echo "failures: $total convention $n_convention place $n_place plan $n_plan task $n_task test $n_test unknown $n_unknown runs $runs"

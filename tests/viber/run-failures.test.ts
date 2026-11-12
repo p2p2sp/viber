@@ -161,7 +161,7 @@ test("the baseline test report and a tests report whose suffix is not a round nu
     });
     const result = await run(tmp, [dir]);
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, "failures: 0 convention 0 place 0 plan 0 task 0 test 0 unknown 0\n");
+    assert.equal(result.stdout, "failures: 0 convention 0 place 0 plan 0 task 0 test 0 unknown 0 runs 0\n");
     assert.equal(fs.existsSync(failuresFile(dir)), false);
   });
 });
@@ -248,7 +248,7 @@ test("a Blocking line whose bracket is followed by no text yields no entry", asy
     const dir = seedRun(tmp, { "review-T1-1.md": lines("- Blocking [task]") });
     const result = await run(tmp, [dir]);
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, "failures: 0 convention 0 place 0 plan 0 task 0 test 0 unknown 0\n");
+    assert.equal(result.stdout, "failures: 0 convention 0 place 0 plan 0 task 0 test 0 unknown 0 runs 0\n");
     assert.equal(fs.existsSync(failuresFile(dir)), false);
   });
 });
@@ -258,7 +258,7 @@ test("a bare Blocking line yields no entry", async () => {
     const dir = seedRun(tmp, { "review-T1-1.md": lines("- Blocking") });
     const result = await run(tmp, [dir]);
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, "failures: 0 convention 0 place 0 plan 0 task 0 test 0 unknown 0\n");
+    assert.equal(result.stdout, "failures: 0 convention 0 place 0 plan 0 task 0 test 0 unknown 0 runs 0\n");
     assert.equal(fs.existsSync(failuresFile(dir)), false);
   });
 });
@@ -356,8 +356,108 @@ test("the counts line counts the entries kept after a repeated finding is merged
     });
     const result = await run(tmp, [dir]);
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, "failures: 2 convention 0 place 1 plan 0 task 1 test 0 unknown 0\n");
+    assert.equal(result.stdout, "failures: 2 convention 0 place 1 plan 0 task 1 test 0 unknown 0 runs 0\n");
   });
+});
+
+// --- the runs field: archived trails holding a convention entry, plus this run ---
+
+const CONVENTION_REPORT = lines("- Blocking [convention] src/a.ts:1 - breaks the naming rule");
+const TASK_REPORT = lines("- Blocking [task] src/a.ts:1 - reads the file twice");
+
+/** An archived run `docs/<archive>/<name>/failures.md` under `root`. */
+function seedArchived(root: string, archive: string, name: string, body: string): void {
+  const dir = path.join(root, "docs", archive, name);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "failures.md"), body);
+}
+
+function runsOf(stdout: string): string {
+  return stdout.trimEnd().split(" ").slice(-2).join(" ");
+}
+
+test("with no archived trail and one convention entry the counts line ends 'runs 1'", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "review-T1-1.md": CONVENTION_REPORT });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "failures: 1 convention 1 place 0 plan 0 task 0 test 0 unknown 0 runs 1\n");
+  });
+});
+
+test("an archived failures.md holding a convention entry and one convention entry in this run end the line 'runs 2'", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    seedArchived(tmp, "specs", "2026-01-01-00-00-00_old", lines("# Failures", "", "- task | review-T1-1 | x", "- convention | review-T2-1 | y"));
+    const dir = seedRun(tmp, { "review-T1-1.md": CONVENTION_REPORT });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(runsOf(result.stdout), "runs 2");
+  });
+});
+
+test("an archived trail holding only test entries adds nothing to runs", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    seedArchived(tmp, "specs", "2026-01-01-00-00-00_old", lines("# Failures", "", "- test | tests-1 | a case | f.test.ts | boom"));
+    const dir = seedRun(tmp, { "review-T1-1.md": CONVENTION_REPORT });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(runsOf(result.stdout), "runs 1");
+  });
+});
+
+test("an archived trail holding several convention entries counts as one run", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    seedArchived(tmp, "specs", "2026-01-01-00-00-00_old", lines("# Failures", "", "- convention | a | x", "- convention | b | y"));
+    const dir = seedRun(tmp, { "review-T1-1.md": TASK_REPORT });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(runsOf(result.stdout), "runs 1");
+  });
+});
+
+test("with no convention entry in this run the count is the archived trails alone", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    seedArchived(tmp, "specs", "2026-01-01-00-00-00_a", lines("# Failures", "", "- convention | a | x"));
+    seedArchived(tmp, "specs", "2026-01-02-00-00-00_b", lines("# Failures", "", "- convention | b | y"));
+    const dir = seedRun(tmp, { "review-T1-1.md": TASK_REPORT });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(runsOf(result.stdout), "runs 2");
+  });
+});
+
+test("a 'directories.specifications: archive' config makes it read docs/archive/*/failures.md and not docs/specs", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    fs.mkdirSync(path.join(tmp, ".claude"));
+    fs.writeFileSync(path.join(tmp, ".claude", "viber.yml"), lines("directories:", "  runs: _specs", "  specifications: archive"));
+    seedArchived(tmp, "archive", "2026-01-01-00-00-00_a", lines("# Failures", "", "- convention | a | x"));
+    seedArchived(tmp, "specs", "2026-01-02-00-00-00_b", lines("# Failures", "", "- convention | b | y"));
+    const dir = seedRun(tmp, { "review-T1-1.md": TASK_REPORT });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(runsOf(result.stdout), "runs 1");
+  });
+});
+
+test("with no reachable config.sh answer it reads docs/specs/*/failures.md", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    await withTempDir("p2p2-viber-", async (lonely) => {
+      const lone = path.join(lonely, "run-failures.sh");
+      fs.copyFileSync(SUT, lone);
+      seedArchived(tmp, "specs", "2026-01-01-00-00-00_a", lines("# Failures", "", "- convention | a | x"));
+      const dir = seedRun(tmp, { "review-T1-1.md": TASK_REPORT });
+      const result = await runScript(lone, [dir], { cwd: tmp, shell: "bash" });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(runsOf(result.stdout), "runs 1");
+    });
+  });
+});
+
+test("the header's reads and stdout paragraphs state the runs field and the directory it reads", () => {
+  const source = fs.readFileSync(SUT, "utf8");
+  const header = source.slice(0, source.indexOf("\nset -u"));
+  assert.deepEqual(missingFrom(header, ["unknown <n> runs <n>", "config.sh --specifications", "failures.md"]), []);
+  assert.deepEqual(missingFrom(header, ["docs/<specifications>/*/failures.md", "- convention | "]), []);
 });
 
 test("the header's entries paragraph states how a repeated finding is merged", () => {
@@ -383,7 +483,7 @@ test("stdout is the one counts line, each count matching the entries written", a
     });
     const result = await run(tmp, [dir]);
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, "failures: 7 convention 1 place 1 plan 1 task 2 test 1 unknown 1\n");
+    assert.equal(result.stdout, "failures: 7 convention 1 place 1 plan 1 task 2 test 1 unknown 1 runs 1\n");
     assert.equal(readFailures(dir).split("\n").filter((line) => line.startsWith("- ")).length, 7);
   });
 });
@@ -395,7 +495,7 @@ test("with no entry the call writes no failures.md and prints zero counts", asyn
     const dir = seedRun(tmp, { "review-T1-1.md": NO_ENTRY_REPORT, "tests-1.md": "status: pass\n" });
     const result = await run(tmp, [dir]);
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, "failures: 0 convention 0 place 0 plan 0 task 0 test 0 unknown 0\n");
+    assert.equal(result.stdout, "failures: 0 convention 0 place 0 plan 0 task 0 test 0 unknown 0 runs 0\n");
     assert.equal(fs.existsSync(failuresFile(dir)), false);
   });
 });
