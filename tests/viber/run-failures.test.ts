@@ -214,6 +214,55 @@ test("a Minor line and an indented continuation line yield no entry, even one th
   });
 });
 
+// --- a loosely written Blocking line is read into one entry ---
+
+test("a bracket cause written with capitals is read lower-cased", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "review-T1-1.md": lines("- Blocking [Convention] x") });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(readFailures(dir), lines("# Failures", "", "- convention | review-T1-1 | x"));
+  });
+});
+
+test("blanks inside the bracket around the cause are trimmed", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "review-T1-1.md": lines("- Blocking [ task ] x") });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(readFailures(dir), lines("# Failures", "", "- task | review-T1-1 | x"));
+  });
+});
+
+test("a bold Blocking marker opens a Blocking line like the plain one", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "review-T1-1.md": lines("- **Blocking** [plan] x") });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(readFailures(dir), lines("# Failures", "", "- plan | review-T1-1 | x"));
+  });
+});
+
+test("a Blocking line whose bracket is followed by no text yields no entry", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "review-T1-1.md": lines("- Blocking [task]") });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "failures: 0 convention 0 place 0 plan 0 task 0 test 0 unknown 0\n");
+    assert.equal(fs.existsSync(failuresFile(dir)), false);
+  });
+});
+
+test("a bare Blocking line yields no entry", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "review-T1-1.md": lines("- Blocking") });
+    const result = await run(tmp, [dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "failures: 0 convention 0 place 0 plan 0 task 0 test 0 unknown 0\n");
+    assert.equal(fs.existsSync(failuresFile(dir)), false);
+  });
+});
+
 // --- DoD.3: the counts line ---
 
 test("stdout is the one counts line, each count matching the entries written", async () => {
@@ -394,6 +443,15 @@ test("the script is stored with LF line endings only", () => {
 function missingFrom(header: string, needles: string[]): string[] {
   return needles.filter((needle) => !header.includes(needle));
 }
+
+test("the header's entries paragraph states how a loosely written Blocking line is read", () => {
+  const source = fs.readFileSync(SUT, "utf8");
+  const header = source.slice(0, source.indexOf("\nset -u"));
+  assert.deepEqual(
+    missingFrom(header, ["`- **Blocking**`", "lower-cased", "blanks inside the bracket", "no text"]),
+    [],
+  );
+});
 
 // The header is the I/O contract a caller trusts (shell-script-header rule), so its
 // text is product here and is read as such.

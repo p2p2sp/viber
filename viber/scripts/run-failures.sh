@@ -15,10 +15,13 @@
 #
 # Entries, one per line of `failures.md`, `- <cause> | <source> | <text>`:
 #   - a Blocking item of a review report (`- Blocking [<cause>] <path>:<line> -
-#     <what is wrong>`, the first line of the item only) carries the bracket's
-#     cause when it is one of convention, place, plan or task, else `unknown`; its
-#     text is everything after the bracket (after the word Blocking when there is
-#     no bracket). A Minor item and every indented continuation line yield nothing.
+#     <what is wrong>`, the first line of the item only) opens with `- Blocking` or
+#     `- **Blocking**`, followed by the end of the line or a blank. It carries the
+#     bracket's cause, trimmed and lower-cased (blanks inside the bracket allowed),
+#     when it is one of convention, place, plan or task, else `unknown`; its text is
+#     everything after the bracket (after the word Blocking when there is no
+#     bracket), leading blanks dropped. A Blocking line with no text yields no
+#     entry. A Minor item and every indented continuation line yield nothing.
 #   - every line of a final test run report carries the cause `test`, the line as
 #     written less a leading `- ` or `* ` marker; the report's `status:` line and
 #     its blank lines are no failure.
@@ -128,6 +131,7 @@ for f in "$work"/review-*.md "$work"/final-review-*.md "$work"/tests-*.md; do
   names+="$base"$'\n'
 done
 
+blocking_re='^- (\*\*Blocking\*\*|Blocking)([[:space:]].*)?$'
 bracket_re='^\[([^]]*)\][[:space:]]*(.*)$'
 
 while IFS= read -r report <&3; do
@@ -146,17 +150,22 @@ while IFS= read -r report <&3; do
         add_entry test "$report" "$line"
         ;;
       *)
-        if [[ "$line" == "- Blocking" || "$line" == "- Blocking "* ]]; then
-          rest="${line#- Blocking}"
+        if [[ "$line" =~ $blocking_re ]]; then
+          rest="${BASH_REMATCH[2]}"
           rest="${rest#"${rest%%[![:space:]]*}"}"
           cause="unknown"
           text="$rest"
           if [[ "$rest" =~ $bracket_re ]]; then
             text="${BASH_REMATCH[2]}"
-            case "${BASH_REMATCH[1]}" in
-              convention | place | plan | task) cause="${BASH_REMATCH[1]}" ;;
+            word="${BASH_REMATCH[1]}"
+            word="${word#"${word%%[![:space:]]*}"}"
+            word="${word%"${word##*[![:space:]]}"}"
+            word="$(printf '%s' "$word" | tr '[:upper:]' '[:lower:]')"
+            case "$word" in
+              convention | place | plan | task) cause="$word" ;;
             esac
           fi
+          [[ -n "$text" ]] || continue
           add_entry "$cause" "$report" "$text"
         fi
         ;;
