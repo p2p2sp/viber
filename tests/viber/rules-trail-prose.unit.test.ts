@@ -20,6 +20,11 @@
  * `failures.md` entry of each applied `USED:` and each `REJECTED:` line removed, an emptied
  * file deleted with `rm`.
  *
+ * `rules/SKILL.md` reports the `waiting:` and `trail:` lines, offers the trail as one target on
+ * `extend`, `both` and `state: none`, dispatches the auditor for it, folds its counters into the
+ * writer gate, passes its `trail:` lines in the writer's `map:` and reports the `failures.md`
+ * files the writer changed.
+ *
  * Run directly by Node's type stripping:
  *   node --test tests/viber/rules-trail-prose.unit.test.ts
  */
@@ -380,4 +385,119 @@ test("the write scope names the failures.md paths of USED and REJECTED lines und
 
 test("the Bash sentence of the Budget allows rm on an emptied failures.md", () => {
   assert.ok(BUDGET.some((line) => line.includes("`rm -- <one path>`") && line.includes("an emptied `failures.md`")));
+});
+
+const SKILL = fs.readFileSync(path.join(VIBER, "skills/rules/SKILL.md"), "utf8");
+
+function skillSection(heading: string): string[] {
+  const start = SKILL.indexOf(`\n## ${heading}\n`);
+  const rest = SKILL.slice(start + 1);
+  const next = rest.indexOf("\n## ", 1);
+  return lines(next === -1 ? rest : rest.slice(0, next));
+}
+
+const SKILL_DESCRIPTION = lines(SKILL).find((line) => line.startsWith("description: ")) ?? "";
+const REPORT = skillSection("1. Report the layer");
+const ROUTE = skillSection("2. Route on the state, then the mode");
+const APPROVE = skillSection("4. Approve the targets");
+const AUDIT = skillSection("5. Audit");
+const CONFIRM = skillSection("6. Confirm, then the writer");
+const FINAL_REPORT = skillSection("7. Report");
+
+function skillLine(section: string[], start: string): string {
+  return section.find((line) => line.startsWith(start)) ?? "";
+}
+
+test("the skill description names learning from the failure trail", () => {
+  assert.ok(SKILL_DESCRIPTION.includes("learns rules from the failure trail of archived runs"));
+});
+
+test("step 1 reports the waiting line, the waiting trail entries per cause", () => {
+  assert.ok(
+    skillLine(REPORT, "- the `waiting:` line").includes("the number of waiting trail entries per cause"),
+  );
+});
+
+test("step 1 reports each trail line with its convention count", () => {
+  assert.ok(skillLine(REPORT, "- each `trail:` line").includes("its `convention` count"));
+});
+
+test("step 1 names convention entries as the only ones this command reads", () => {
+  assert.ok(
+    skillLine(REPORT, "- each `trail:` line").includes("`convention` entries are the only ones this command reads"),
+  );
+});
+
+test("step 2 adds the trail as one target on extend, on both and on state none when a trail line exists", () => {
+  assert.ok(
+    ROUTE.some((line) =>
+      line.includes(
+        "On `extend`, on `both` and on `state: none`, a map with at least one `trail:` line adds one more target to the list: the trail",
+      ),
+    ),
+  );
+});
+
+test("step 2 never adds the trail on review or reset", () => {
+  assert.ok(ROUTE.some((line) => line.includes("`review` and `reset` never carry it")));
+});
+
+test("step 4 shows the trail target as one line carrying the waiting line and its trail paths", () => {
+  assert.ok(
+    APPROVE.some((line) =>
+      line.includes("The trail target is one line: the `waiting:` line and every `trail:` path"),
+    ),
+  );
+});
+
+test("step 5 dispatches one rules-auditor for a kept trail target with target trail", () => {
+  assert.ok(
+    AUDIT.some(
+      (line) =>
+        line.includes("A kept trail target gets one `viber:rules-auditor` call") &&
+        line.includes("`target: trail`"),
+    ),
+  );
+});
+
+test("step 5 passes every trail path of the map, comma-separated, as the trail scope", () => {
+  assert.ok(
+    AUDIT.some((line) => line.includes("`scope` being every `trail:` path of the map, comma-separated")),
+  );
+});
+
+test("step 5 passes matches none for the trail target", () => {
+  assert.ok(AUDIT.some((line) => line.includes("`matches: none`") && line.includes("trail")));
+});
+
+test("step 5 lists the AUDIT trail return line", () => {
+  assert.ok(
+    AUDIT.some((line) =>
+      line.startsWith("AUDIT: trail miss <n> ignored <n> rejected <n> -> <findings file> | none"),
+    ),
+  );
+});
+
+test("step 5 reports the trail AUDIT line verbatim", () => {
+  assert.ok(AUDIT.some((line) => line.includes("Report the `AUDIT:` line for each target verbatim")));
+});
+
+test("step 6 reads a trail line with three zero counters as five zero counters", () => {
+  assert.ok(
+    CONFIRM.some((line) =>
+      line.includes("a trail line carrying its three zero counters (`miss`, `ignored`, `rejected`)"),
+    ),
+  );
+});
+
+test("step 6 passes every trail line of a kept trail target in the writer's map", () => {
+  assert.ok(
+    skillLine(CONFIRM, "map: ").includes("every trail: line of a kept trail target"),
+  );
+});
+
+test("step 7 names the failures.md files the writer changed or deleted on the FILES bullet", () => {
+  assert.ok(
+    skillLine(FINAL_REPORT, "- `FILES:`").includes("every `failures.md` it changed or deleted"),
+  );
 });

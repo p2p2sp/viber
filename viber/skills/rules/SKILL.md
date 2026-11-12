@@ -1,6 +1,6 @@
 ---
 name: rules
-description: Reviews and repairs the host project's .claude/rules/ directory - maps every rule with its own size, the scope it declares and the number of tracked files that scope really matches, proposes the rules a scope with none needs, verifies each existing rule against the code it gates, and resets the layer on demand. Use whenever the user wants to create, review, audit, refresh or reset the project's coding rules, or asks which rules went stale, match nothing or grew past their budget.
+description: Reviews and repairs the host project's .claude/rules/ directory - maps every rule with its own size, the scope it declares and the number of tracked files that scope really matches, proposes the rules a scope with none needs, verifies each existing rule against the code it gates, learns rules from the failure trail of archived runs, and resets the layer on demand. Use whenever the user wants to create, review, audit, refresh or reset the project's coding rules, or asks which rules went stale, match nothing or grew past their budget.
 argument-hint: "[review, extend, reset, or nothing]"
 allowed-tools: AskUserQuestion, Agent, Bash(${CLAUDE_SKILL_DIR}/scripts/rules-map.sh:*), Bash(${CLAUDE_SKILL_DIR}/scripts/rules-map.sh --reset:*)
 user-invocable: true
@@ -27,6 +27,8 @@ Before any question, one line per fact worth deciding on:
 - each `frozen:` line, named as a file this command reports and never scores, audits, resets or rewrites.
 - each `dead:` line, named as a rule whose declared scope matches no tracked file.
 - each `dirty:` line with its `modified` or `untracked` word.
+- the `waiting:` line, the number of waiting trail entries per cause.
+- each `trail:` line, one archived `failures.md` with its `convention` count. The `convention` entries are the only ones this command reads; the other causes are only counted.
 
 The root of the directory holds the shared rules, each subdirectory one area's. Name each root `rule:` line whose globs all stay inside one area, or whose basename carries an area as a prefix: the writer moves it into that area's directory.
 
@@ -47,6 +49,8 @@ An argument naming one of the four is that answer already: take it and ask nothi
 
 `reset` goes to step 3. Every other mode goes to step 4, its target list being the `rule:` lines on `review`, the scopes to propose for on `extend`, and both on `both`. The map lists no candidate scope, a rule's reach being its globs rather than where its file sits: on `extend` ask the user which directories to propose for, the repository root standing in when they name none.
 
+On `extend`, on `both` and on `state: none`, a map with at least one `trail:` line adds one more target to the list: the trail, standing for every `trail:` path at once. `review` and `reset` never carry it.
+
 ## 3. Reset
 
 The list is every `rule:` line, or the ones the user named. A `frozen:` line never enters it, whatever the user names. Print the list whole, one path per line: a reset deletes this project's rules.
@@ -65,7 +69,7 @@ Otherwise one `AskUserQuestion` over that exact list. On anything but approval, 
 
 ## 4. Approve the targets
 
-Nothing is dispatched before the user has seen the target list and kept what belongs in it. Show it, one line per target, carrying what step 1 already measured for that path.
+Nothing is dispatched before the user has seen the target list and kept what belongs in it. Show it, one line per target, carrying what step 1 already measured for that path. The trail target is one line: the `waiting:` line and every `trail:` path.
 
 Then one `AskUserQuestion` over that list: all of them, or the ones the user picks. Offer the targets themselves as options while the list is short enough to show; past that, offer all of them, none of them, and take the paths a free answer names verbatim. A target the user dropped reaches no auditor and no writer. Nothing kept -> stop, having dispatched nothing and written nothing.
 
@@ -85,11 +89,16 @@ refs: ${CLAUDE_PLUGIN_ROOT}/references
 
 `<id>` is the `id:` value of the map above. A rule whose `paths` field reads `none` gates the whole repository: pass `**` as its scope and `none` as its matches. A scope with no rule is the proposing direction: `target: none`, `scope` that directory, `matches: none`, and only missing conventions can come back.
 
+A kept trail target gets one `viber:rules-auditor` call, the same five lines with `target: trail`, `scope` being every `trail:` path of the map, comma-separated, and `matches: none`.
+
 Each call returns one line:
 
 ```
 AUDIT: <area> stale <n> gone <n> unverifiable <n> drop <n> miss <n> -> <findings file> | none
+AUDIT: trail miss <n> ignored <n> rejected <n> -> <findings file> | none
 ```
+
+The second form answers the trail target alone.
 
 Report the `AUDIT:` line for each target verbatim. Read none of those files - the writer does.
 
@@ -99,12 +108,12 @@ A call returning `VERDICT: DENIED` instead -> one `AskUserQuestion` naming the t
 
 ## 6. Confirm, then the writer
 
-Every returned line carrying five zero counters, or `-> none`, with no kept rule named in step 1 as misplaced, no kept rule flagged `OVER-FILE` and no `OVER-DIR` on `total:`, means the layer is already true and no scope earned a new rule. Say so in one line, dispatch no writer, and stop.
+Every returned line carrying five zero counters, a trail line carrying its three zero counters (`miss`, `ignored`, `rejected`), or `-> none`, with no kept rule named in step 1 as misplaced, no kept rule flagged `OVER-FILE` and no `OVER-DIR` on `total:`, means the layer is already true and no scope earned a new rule. Say so in one line, dispatch no writer, and stop.
 
 Otherwise one `AskUserQuestion` over the counters just reported, the over-budget flags and the moves named in step 1: fold them in, or stop. Only on approval, one `Agent` call, `subagent_type: viber:rules-writer`, no `model:` line, three labelled lines and nothing else:
 
 ```
-map: <the map's id:, state: and total: lines plus every rule: and dead: line of a kept target, verbatim>
+map: <the map's id:, state: and total: lines plus every rule: and dead: line of a kept target and every trail: line of a kept trail target, verbatim>
 notes: .temp/viber/<id>/
 refs: ${CLAUDE_PLUGIN_ROOT}/references
 ```
@@ -115,7 +124,7 @@ refs: ${CLAUDE_PLUGIN_ROOT}/references
 
 Repeat what the writer returned and add nothing to it:
 
-- `FILES:` -> the rules it created, corrected, moved or removed, one path per line.
+- `FILES:` -> the rules it created, corrected, moved or removed and every `failures.md` it changed or deleted, one path per line.
 - `OVER:` -> repeat each line verbatim.
 - `MOVE:` -> repeat each line verbatim: a fact removed from a rule that its `CLAUDE.md` node does not hold yet. This run never writes that node; `/viber:memory` over those paths records it, except the root `CLAUDE.md`, which is the user's to record: `/viber:memory` only suggests a change to it.
 - `VERDICT: NONE` -> nothing in the layer needed changing.
