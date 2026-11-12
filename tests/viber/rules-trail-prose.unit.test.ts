@@ -10,6 +10,11 @@
  * second exception, reported on a `REJECTED:` line. The file read here is a shipped prompt,
  * whose text is the behaviour. Nothing is spawned.
  *
+ * `rules-auditor.md` carries the third direction that reads the trail: only the `convention`
+ * entries of the archived `failures.md` files, a `MISS:` line for a gap in at least two runs
+ * (two lines at most), an `IGNORED:` line for an entry an existing rule already covers, a
+ * `REJECTED:` line for an entry the gate refuses, and a `USED:` line below each finding.
+ *
  * Run directly by Node's type stripping:
  *   node --test tests/viber/rules-trail-prose.unit.test.ts
  */
@@ -32,6 +37,25 @@ function section(heading: string): string[] {
   const rest = ADMISSION.slice(start + 1);
   const next = rest.indexOf("\n## ", 1);
   return lines(next === -1 ? rest : rest.slice(0, next));
+}
+
+const AUDITOR = fs.readFileSync(path.join(VIBER, "agents/rules-auditor.md"), "utf8");
+
+function auditorSection(heading: string): string[] {
+  const start = AUDITOR.indexOf(`\n## ${heading}\n`);
+  const rest = AUDITOR.slice(start + 1);
+  const next = rest.indexOf("\n## ", 1);
+  return lines(next === -1 ? rest : rest.slice(0, next));
+}
+
+const DESCRIPTION = lines(AUDITOR).find((line) => line.startsWith("description: ")) ?? "";
+const AUDITOR_INPUT = auditorSection("Input");
+const TRAIL = auditorSection("Trail - target reads trail");
+const FINDINGS = auditorSection("Findings file");
+const AUDITOR_OUTPUT = auditorSection("Output");
+
+function trailBullet(start: string): string {
+  return TRAIL.find((line) => line.startsWith(`- ${start}`)) ?? "";
 }
 
 const CRITERION_1 = section("The three criteria").filter((line) => line.startsWith("1. "));
@@ -102,6 +126,134 @@ test("the silent drop reports a rejected trail entry on a REJECTED line so the w
   assert.ok(
     SILENT_DROP.some((line) =>
       line.includes("reported on a `REJECTED:` line so the writer removes it from its `failures.md`"),
+    ),
+  );
+});
+
+test("the auditor description names the trail as its third direction, grouping entries into candidates, corrections and rejections", () => {
+  assert.ok(
+    DESCRIPTION.includes(
+      "groups the `convention` entries of archived failure trails into rule candidates, rule corrections and rejected entries",
+    ),
+  );
+});
+
+test("the auditor description keeps its Invoked-only ending", () => {
+  assert.ok(DESCRIPTION.endsWith("Invoked only by the rules skill, never directly."));
+});
+
+test("the input block carries the trail dispatch with target trail", () => {
+  assert.ok(AUDITOR_INPUT.some((line) => line.startsWith("target: ") && line.includes("| trail")));
+});
+
+test("the input block names scope as every trail: path of the map, comma-separated", () => {
+  assert.ok(
+    AUDITOR_INPUT.some((line) => line.startsWith("scope: ") && line.includes("<every trail: path of the map, comma-separated>")),
+  );
+});
+
+test("the input prose lets target read the literal trail", () => {
+  assert.ok(AUDITOR_INPUT.some((line) => line.includes("reads the literal `none` or `trail`, never anything else")));
+});
+
+test("the trail direction reads only the convention entries of the scope files", () => {
+  assert.ok(
+    trailBullet("Read only the `convention` entries of the `scope` files").includes(
+      "skip every other cause unread",
+    ),
+  );
+});
+
+test("the trail direction names the run key as the directory holding the failures.md", () => {
+  assert.ok(trailBullet("Read only the `convention` entries").includes("the name of the directory holding its `failures.md`"));
+});
+
+test("a MISS line stands only for a gap in at least two different runs", () => {
+  assert.ok(trailBullet("Group the remaining entries by gap").includes("A gap standing in at least two different runs"));
+});
+
+test("a MISS line needs each entry checked against the code as it stands", () => {
+  assert.ok(trailBullet("Group the remaining entries by gap").includes("each entry holding against the code as it stands"));
+});
+
+test("a MISS line needs the candidate to pass criteria 2 and 3 of the gate", () => {
+  assert.ok(trailBullet("Group the remaining entries by gap").includes("the candidate passing criteria 2 and 3 of the gate"));
+});
+
+test("a MISS line names the runs it stands in", () => {
+  assert.ok(trailBullet("Group the remaining entries by gap").includes("naming those runs after `| runs `"));
+});
+
+test("at most two MISS lines are written, the gaps in the most runs first", () => {
+  assert.ok(
+    trailBullet("At most two `MISS:` lines").includes("the gaps standing in the most runs first"),
+  );
+});
+
+test("an entry of a gap left past the two MISS lines gets no line", () => {
+  assert.ok(trailBullet("At most two `MISS:` lines").includes("The entries of a gap left past the two get no line"));
+});
+
+test("an entry in a file an existing rule's paths cover, for the convention that rule states, yields an IGNORED line, never a MISS", () => {
+  assert.ok(
+    trailBullet("An entry in a file an existing rule's `paths:` cover").includes(
+      "for the convention that rule states, yields an `IGNORED:` line, never a `MISS:`",
+    ),
+  );
+});
+
+test("the IGNORED line carries the correction, the reworded line or the narrower paths globs", () => {
+  assert.ok(
+    trailBullet("An entry in a file an existing rule's `paths:` cover").includes(
+      "the reworded line or the narrower `paths:` globs",
+    ),
+  );
+});
+
+test("a frozen underscore rule is never read nor named on a line", () => {
+  assert.ok(
+    trailBullet("An entry in a file an existing rule's `paths:` cover").includes(
+      "A frozen `_` rule is never read and never named on a line",
+    ),
+  );
+});
+
+test("a USED line stands directly below each MISS or IGNORED line, one per entry it rests on", () => {
+  assert.ok(
+    trailBullet("Directly below each `MISS:` or `IGNORED:` line").includes("one `USED:` line per entry it rests on"),
+  );
+});
+
+test("a REJECTED line is written per entry naming no convention, whose code is gone, or whose gap fails criterion 2 or 3, however many runs it stands in", () => {
+  assert.ok(
+    trailBullet("Write one `REJECTED:` line per entry").includes(
+      "that names no convention, whose code is gone, or whose gap fails criterion 2 or 3 of the gate, however many runs it stands in",
+    ),
+  );
+});
+
+test("an entry standing in one run that verification upheld gets no line", () => {
+  assert.ok(
+    trailBullet("An entry standing in one run").includes("that verification upheld gets no line"),
+  );
+});
+
+test("the findings file of the trail is named _trail-audit.md under out", () => {
+  assert.ok(FINDINGS.some((line) => line.includes("`<out>_trail-audit.md`")));
+});
+
+test("the findings vocabulary lists the four trail lines", () => {
+  const trailLines = ["MISS: <a convention worth a rule", "USED: <failures.md path> | <the entry line, verbatim>", "IGNORED: <rule path> |", "REJECTED: <failures.md path> |"];
+  assert.deepEqual(
+    trailLines.filter((start) => FINDINGS.some((line) => line.startsWith(start))),
+    trailLines,
+  );
+});
+
+test("the trail return is the single AUDIT: trail line", () => {
+  assert.ok(
+    AUDITOR_OUTPUT.some((line) =>
+      line.startsWith("AUDIT: trail miss <n> ignored <n> rejected <n> -> <path of the findings file> | none"),
     ),
   );
 });

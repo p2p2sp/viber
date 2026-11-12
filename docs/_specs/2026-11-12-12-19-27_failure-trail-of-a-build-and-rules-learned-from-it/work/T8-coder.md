@@ -1,0 +1,4 @@
+- `rules-auditor` trail direction: `target: trail` is a third literal beside a path and `none`; its findings file is `<out>_trail-audit.md` (no slug), per C6.
+- A trail entry rejected by the gate (no convention, code gone, criterion 2 or 3) is `REJECTED` even in a gap that stands in several runs; an entry covered by a rule is `IGNORED`; a one-run entry that verification upheld, and entries of a gap past the two `MISS:` lines, get no line.
+- The prose tests for the auditor live in `rules-trail-prose.unit.test.ts` beside the `rule-admission.md` ones, reading `rules-auditor.md` by `## ` section.
+- `rules/SKILL.md` does not dispatch the trail direction yet; no task of this file map covers it (T7 notes were absent).
