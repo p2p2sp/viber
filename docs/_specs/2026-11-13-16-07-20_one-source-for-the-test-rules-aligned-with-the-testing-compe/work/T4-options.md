@@ -1,0 +1,1 @@
+DECIDE: rule T4 TDD: none, a test-only task whose measuring code lives in its own test file, sealed by the stubbed red run in .temp/viber/T4/red.log | rule the red check waived for T4 and accept the tree as it stands
