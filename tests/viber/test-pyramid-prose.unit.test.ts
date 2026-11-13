@@ -2,10 +2,10 @@
  * test-pyramid-prose.unit.test.ts - pins the prose that makes a build prove every decision by a
  * unit test.
  *
- * `plan-rules.md` (`Layers` and `Layered`) counts an entry point calling data access as the
- * adapter for that data access alone, has a decision delivered as a function over plain values,
- * limits a component test to what the assembled application shows and an integration test to what
- * the real dependency reveals. `integration-tests.md` holds the same limits as `(blocking)` rules
+ * `plan-rules.md` (`Layers`, `Layered`, `Observable`, `TDD`, `Owned`, `Shared harness` and
+ * `Block body`) points at the test rules of `test-strategy.md`, gives each done clause the layer
+ * its `Proof` rule names and limits an integration test to what the real dependency reveals.
+ * `integration-tests.md` holds the same limits as `(blocking)` rules
  * and `test-strategy.md` names each rule of what a test proves and how it is written, within the
  * sizes of its contract. The files read here are shipped prompts, whose text is the behaviour. Nothing is
  * spawned. Each phrase is matched with any run of whitespace between its words, so rewrapping a
@@ -53,8 +53,17 @@ function bullet(file: string, start: string): string {
   return line ?? "";
 }
 
-test("plan-rules Layers counts an entry point calling data access as the adapter for that data access alone, never for a decision inside it", () => {
-  assert.ok(has(rule("Layers"), "an entry point calling data access directly counts as the adapter for that data access alone, never for a decision inside it"));
+function rules(name: string): string {
+  return PLAN_RULES.split(/\r?\n/).filter((candidate) => candidate.startsWith(`- ${name}:`)).join("\n");
+}
+
+test("plan-rules Layers names unit, component, integration and e2e by pointing at the Layers section of test-strategy", () => {
+  assert.ok(has(rule("Layers"), "a task's tests are `unit`, `component`, `integration` or `e2e`, as `## Layers` of `test-strategy.md` defines them;"));
+});
+
+test("plan-rules Layers defines none of the four layers itself", () => {
+  assert.ok(!has(rule("Layers"), "started disposably for the test run"));
+  assert.ok(!has(rule("Layers"), "internal layers real"));
 });
 
 test("integration-tests first bullet counts an entry point calling data access as the adapter for that data access alone, still blocking", () => {
@@ -62,26 +71,38 @@ test("integration-tests first bullet counts an entry point calling data access a
   assert.ok(has(text, "an entry point that calls data access directly counts as the adapter for that data access alone, never for a decision inside it. (blocking)"));
 });
 
-test("plan-rules Layered opens with every decision proven by a unit test and delivered as a function over plain values, a double at a boundary staying allowed", () => {
-  const text = rule("Layered");
-  assert.ok(text.startsWith("- Layered: Every decision (a branch, a rule, a calculation, a validation) is proven by a unit test and delivered as a function over plain values wherever the code allows"));
-  assert.ok(has(text, "so that test needs no double; a double at an input or output boundary stays allowed."));
+test("plan-rules Layered gives each done clause the layer the Proof rule of test-strategy names", () => {
+  assert.ok(rule("Layered").startsWith("- Layered: each done clause is proven in the layer the `Proof` rule of `test-strategy.md` gives it;"));
 });
 
-test("plan-rules Layered extracts a decision inside code reaching a database, queue, broker or network on a host without ports too, the surrounding code left as it stands", () => {
-  assert.ok(has(rule("Layered"), "A decision a task adds or changes inside code reaching a database, queue, broker or network is extracted into such a function, on a host without ports too, the code around it left as it stands."));
+test("plan-rules Layered makes a clause whose decision only an integration test proves a finding, and a unit or component test needing the outside world too", () => {
+  assert.ok(has(rule("Layered"), "a clause whose decision only an integration test proves is a finding, and so is a unit or component test needing the outside world."));
 });
 
-test("plan-rules Layered limits a component test to what the assembled application alone shows", () => {
-  assert.ok(has(rule("Layered"), "A component test proves only what the assembled application alone shows: routing, wiring across layers, serialisation through the entry point."));
+test("plan-rules Layered limits an integration test's done clause to what the real dependency alone reveals, one test per adapter behaviour", () => {
+  assert.ok(has(rule("Layered"), "An integration test's done clause names what the real dependency alone reveals, one test per adapter behaviour."));
 });
 
-test("plan-rules Layered makes a done clause whose decision only a component or integration test proves a finding", () => {
-  assert.ok(has(rule("Layered"), "A done clause whose decision only a component or integration test proves is a finding, and so is a unit or component test needing a real database, queue, broker or network."));
+test("plan-rules Layered no longer asks for a decision delivered as a function over plain values", () => {
+  assert.ok(!has(rule("Layered"), "function over plain values"));
 });
 
-test("plan-rules Layered limits an integration test to what the real dependency alone reveals, one test per adapter behaviour", () => {
-  assert.ok(has(rule("Layered"), "An integration test proves only what the real dependency alone reveals (a query's result, a mapping, a constraint, a transaction): its done clause names that, and one test covers one adapter behaviour, never one test per case."));
+test("plan-rules Observable stands in the Task section on one line tagged review", () => {
+  const line = rule("Observable");
+  assert.ok(section(PLAN_RULES, "Task").split("\n").includes(line));
+  assert.ok(line.endsWith(" (review)"));
+});
+
+test("plan-rules Observable asks a TDD required clause for an outcome a caller observes and makes a clause only a ruled-out test could prove a finding", () => {
+  assert.ok(has(rule("Observable"), "on `TDD: required` each done clause states an outcome a caller observes, and a clause only a test that `## Proves` of `test-strategy.md` rules out could prove (such as a member count or a call count) is a finding;"));
+});
+
+test("plan-rules Observable asks a TDD none clause for what the artefact holds, proven by Verification alone, and makes a clause asking for a ruled-out test a finding", () => {
+  assert.ok(has(rule("Observable"), "on `TDD: none` a clause states what the artefact holds (a shape declared as its block gives it, a document's text), proven by `Verification` alone, and a clause asking for a test that `## Proves` rules out is a finding;"));
+});
+
+test("plan-rules Observable sends a shape the change must fix to a Contracts block and lets no clause ask a test for a block's shape", () => {
+  assert.ok(has(rule("Observable"), "a shape the change must fix goes to a `## Contracts` block, and no clause under either value asks a test for a block's shape."));
 });
 
 test("plan-rules Layered closes with an integration test written in its adapter's task and never run there, a Repro test excepted, and names no Exclusive leaf task", () => {
@@ -158,10 +179,37 @@ test("integration-tests third bullet limits an integration test to what the real
   assert.ok(has(text, "An integration test proves only what the real dependency alone reveals (a query's result, a mapping, a constraint, a transaction), and the done clause it proves names that. One asserting a decision, or a case a unit or component test proves or could prove, is a finding, and so is a second test of a behaviour another integration test covers: one test per adapter behaviour. (blocking)"));
 });
 
-test("plan-rules TDD closes with a done clause on a name, the presence of a field or the shape of data as a finding on a TDD required task", () => {
+test("plan-rules TDD closes on the red evidence sentence of a clause proven by an integration test, holding no sentence on a name, a field or a shape", () => {
   const text = rule("TDD");
-  assert.ok(text.includes("On `TDD: required` each done clause states a behaviour or a decision a caller observes: a clause on a name, the presence of a field or the shape of data is a finding, since it belongs in a `## Contracts` block or a `TDD: none` task."));
-  assert.ok(text.trimEnd().endsWith("or a `TDD: none` task. (review)"));
+  assert.ok(text.trimEnd().endsWith("a done clause proven by an integration test needs no red evidence. (review)"));
+});
+
+test("plan-rules TDD holds no TDD none case of a host with no component layer", () => {
+  assert.ok(!has(rule("TDD"), "host with no component layer"));
+});
+
+test("plan-rules Owned names the port, its fake and its contract test the Ported rule asks for, in place of the limit to hosts already using ports", () => {
+  const text = rule("Owned");
+  assert.ok(has(text, "the port, its fake and its contract test that the `Ported` rule of `test-strategy.md` asks for,"));
+  assert.ok(!has(text, "only where the host already uses ports for it"));
+});
+
+test("plan-rules Block body review half bars an instruction on how to build or test a block's shape", () => {
+  assert.ok(has(rules("Block body"), "no instruction on how to build or test it. (review)"));
+});
+
+test("plan-rules Shared harness keeps the component tests of a stack with no in-process hosting, lacking only the whole application run", () => {
+  const text = rule("Shared harness");
+  assert.ok(has(text, "a stack with no such hosting keeps the component tests assembled by hand and lacks only the whole application run from its entry point."));
+  assert.ok(!has(text, "has no component layer"));
+});
+
+test("plan-rules Shared harness gives the harness task the shared fixtures holding the fakes and the two mechanical checks", () => {
+  assert.ok(has(rule("Shared harness"), "The harness task also owns the shared test fixtures holding the fakes, and makes a test with no layer marker fail and the fast tests unable to open a network connection, each by the test framework's own mechanism."));
+});
+
+test("plan-rules stays within 19000 bytes", () => {
+  assert.ok(Buffer.byteLength(PLAN_RULES, "utf8") <= 19000);
 });
 
 test("task-coder first Implement bullet stops at the met done clauses and a green Verification, adding no test, file, doc or refactor, a helpful idea going to the notes", () => {
