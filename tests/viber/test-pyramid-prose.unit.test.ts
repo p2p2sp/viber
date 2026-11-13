@@ -6,8 +6,8 @@
  * adapter for that data access alone, has a decision delivered as a function over plain values,
  * limits a component test to what the assembled application shows and an integration test to what
  * the real dependency reveals. `integration-tests.md` holds the same limits as `(blocking)` rules
- * and `test-strategy.md` gives the coder an untagged hint to extract a decision before adding a
- * double. The files read here are shipped prompts, whose text is the behaviour. Nothing is
+ * and `test-strategy.md` names each rule of what a test proves and how it is written, within the
+ * sizes of its contract. The files read here are shipped prompts, whose text is the behaviour. Nothing is
  * spawned. Each phrase is matched with any run of whitespace between its words, so rewrapping a
  * line breaks no test.
  *
@@ -174,12 +174,6 @@ test("task-reviewer Hits its target blocks a test the task added that proves non
   assert.ok(has(text, "A test this task added that proves none of its `DoD` clauses is Blocking: the task asked for no test beyond them. Your report cites clause numbers."));
 });
 
-test("test-strategy Construct rule hints to extract a decision before adding a double and stays untagged", () => {
-  const text = bullet(STRATEGY, "Construct whatever can be constructed.");
-  assert.ok(has(text, "A test needing a double to reach a decision points at the code's shape: extract the decision into a function over plain values and test that, before adding the double."));
-  assert.ok(!text.includes("(blocking)"));
-});
-
 function section(file: string, heading: string): string {
   const lines = file.split(/\r?\n/);
   const rest = lines.slice(lines.indexOf(`## ${heading}`) + 1);
@@ -249,18 +243,19 @@ for (const [label, sentence] of PORT_ROWS) {
 }
 
 const KEPT_ROWS: [string, string, string][] = [
-  ["the Never tested rule", "Proves", "- A test exists only for an important path or a decision in the logic: name the regression in behaviour a caller observes that it would catch; no answer means no test. Never tested: accessors, trivial constructors, data holders without behaviour, 1:1 mappings, framework behaviour, third-party library internals, an assertion true by construction, a name, the presence of a field, the shape of data. A test that fails on a refactor keeping the observed behaviour is a finding. (blocking)"],
-  ["the observed-assertion rule", "Proves", "- Assert on what a caller observes: the returned value, the public state, the side effect through its own surface, the raised error. Never on log output, and never on data the test did not arrange itself. (blocking)"],
-  ["the source-as-text rule", "Proves", "- A test never reads the source of the code under test as text to assert its shape: no regular expression, substring or line match over a source file. The one exception is a file the host declares as its product (a document, a configuration, a prompt), whose text is the behaviour. (blocking)"],
-  ["the test framework rule", "Writing", "- Never introduce a test framework the project does not have."],
-  ["the end-to-end rule", "Writing", "- An end-to-end test - a browser, or the running application driven from outside - is written only by a task whose acceptance criterion states that the user asked for one in their own words, and run only by a task whose acceptance criterion states that the user asked for it to be run. A coder updates, without the user's request, an existing end-to-end spec its task lists in `Files`, and a reviewer raises no finding for it. (blocking)"],
-  ["the layer marker rule", "Writing", "- Every test written or edited carries its layer's marker in the host's declared layer marker convention, or in the one the plan's harness task designed. (blocking)"],
-  ["the one regression rule", "Writing", "- One regression, one test: two tests failing on exactly the same regressions are one test too many, whatever their layer, and variants of one input belong in the framework's parameterised form, one row each. A test whose deletion leaves every regression still caught is a duplicate. (blocking)"],
-  ["the one act rule", "Writing", "- Every test can fail on a regression, asserts something and carries one act: several actions in one body means several tests. (blocking)"],
-  ["the isolation rule", "Writing", "- Isolation: no sleep, no fixture or other mutable state shared across tests, no dependence on execution order, no fixed port or other machine-wide resource, no database shared with another task's run. Several coders verify in the same tree at once. (blocking)"],
-  ["the real collaborators rule, where Boundary sits", "Writing", "- A unit test may keep its real collaborators; only the input and output boundaries are substituted. Never pay for a collaborator the scenario does not assert: one whose work is slow or heavy - hashing, key derivation, retry backoff, waits, rendering, a large computation - gets a stub or fake returning what the scenario needs, or a cheap configuration of the real one where it offers one: a login test stubs the password hasher. Only that collaborator's own tests use the real thing. (blocking)"],
-  ["the control flow rule", "Writing", "- No control flow in a test body - no branch, no loop, no switch. Cases belong in the framework's parameterised form, one row each. (blocking)"],
-  ["the construct rule", "Writing", "- Construct whatever can be constructed. A double for a value, a record or a single config lookup hides the real shape. A test needing a double to reach a decision points at the code's shape: extract the decision into a function over plain values and test that, before adding the double."],
+  ["Earned, the important path or decision", "Proves", "- Earned: A test exists only for an important path or a decision in the logic: name the regression in behaviour a caller observes that it would catch; no answer means no test. Never tested: accessors, trivial constructors, data holders without behaviour, 1:1 mappings, framework behaviour, third-party library internals, an assertion true by construction, a name, the presence of a field, the shape of data,"],
+  ["Earned, the refactor finding", "Proves", "A test that fails on a refactor keeping the observed behaviour is a finding. (blocking)"],
+  ["State, the observed assertion", "Proves", "- State: Assert on what a caller observes: the returned value, the public state,"],
+  ["State, the log output and arranged data", "Proves", "Never on log output, and never on data the test did not arrange itself. (blocking)"],
+  ["Source, the source-as-text rule", "Proves", "- Source: A test never reads the source of the code under test as text to assert its shape: no regular expression, substring or line match over a source file. The one exception is a file the host declares as its product, whose text is the behaviour. (blocking)"],
+  ["Framework", "Writing", "- Framework: Never introduce a test framework the project does not have."],
+  ["Requested, the end-to-end rule", "Writing", "- Requested: An end-to-end test - a browser, or the running application driven from outside - is written only by a task whose acceptance criterion states that the user asked for one in their own words, and run only by a task whose acceptance criterion states that the user asked for it to be run. A coder updates, without the user's request, an existing end-to-end spec its task lists in `Files`, and a reviewer raises no finding for it. (blocking)"],
+  ["Marked, the layer marker rule", "Writing", "- Marked: Every test written or edited carries its layer's marker in the host's declared layer marker convention, or in the one the plan's harness task designed."],
+  ["Single, the one regression rule", "Writing", "- Single: One regression, one test: two tests failing on exactly the same regressions are one test too many, and variants of one input belong in the framework's parameterised form, one row each. A test whose deletion leaves every regression still caught is a duplicate. (blocking)"],
+  ["Act, the one act rule", "Writing", "- Act: Every test can fail on a regression, asserts something and carries one act: several actions in one body means several tests. (blocking)"],
+  ["Isolated, the isolation rule", "Writing", "- Isolated: no sleep, no fixture or other mutable state shared across tests, no dependence on execution order, no fixed port or other machine-wide resource, no database shared with another task's run."],
+  ["Flat, the control flow rule", "Writing", "- Flat: No control flow in a test body - no branch, no loop, no switch. Cases go in the parameterised form. (blocking)"],
+  ["Built, the construct rule", "Writing", "- Built: Construct whatever can be constructed. A double for a value, a record or a config lookup hides the real shape."],
 ];
 
 for (const [label, where, text] of KEPT_ROWS) {
@@ -268,6 +263,71 @@ for (const [label, where, text] of KEPT_ROWS) {
     assert.ok(has(where === "Proves" ? PROVES : WRITING, text));
   });
 }
+
+const BULLETS = STRATEGY.split(/\r?\n/).filter((candidate) => candidate.startsWith("- "));
+
+test("test-strategy opens every bullet with its contract name, each name once, in the contract's order", () => {
+  const names = BULLETS.map((candidate) => candidate.slice(2, candidate.indexOf(":")));
+  assert.deepEqual(names, [
+    "Outside", "Unit", "Component", "Integration", "E2E", "Proof",
+    "Public", "State", "Source", "Earned", "Architecture",
+    "Ported",
+    "Framework", "Requested", "Marked", "Single", "Act", "Isolated", "Boundary", "Flat", "Literal", "Built",
+  ]);
+});
+
+test("test-strategy ends exactly the contract's rules in (blocking) and leaves Outside, Unit, Component, Integration, E2E, Architecture, Framework and Built untagged", () => {
+  const tagged = BULLETS.filter((candidate) => candidate.endsWith("(blocking)")).map((candidate) => candidate.slice(2, candidate.indexOf(":")));
+  assert.deepEqual(tagged, [
+    "Proof", "Public", "State", "Source", "Earned", "Ported",
+    "Requested", "Marked", "Single", "Act", "Isolated", "Boundary", "Flat", "Literal",
+  ]);
+});
+
+function bytes(text: string): number {
+  return Buffer.byteLength(text, "utf8");
+}
+
+function withHeading(heading: string, body: string): string {
+  return `## ${heading}\n${body}`;
+}
+
+const SIZE_ROWS: [string, number, string][] = [
+  ["the whole file", 6800, STRATEGY],
+  ["Proves", 2000, withHeading("Proves", PROVES)],
+  ["Layers, Proves and Ports together", 4000, [withHeading("Layers", LAYERS), withHeading("Proves", PROVES), withHeading("Ports", PORTS)].join("\n")],
+  ["Layers, Proves and Writing together", 6000, [withHeading("Layers", LAYERS), withHeading("Proves", PROVES), withHeading("Writing", WRITING)].join("\n")],
+];
+
+for (const [label, limit, text] of SIZE_ROWS) {
+  test(`test-strategy keeps ${label} within ${limit} bytes`, () => {
+    assert.ok(bytes(text) <= limit);
+  });
+}
+
+const RULE_ROWS: [string, string, string, string][] = [
+  ["Public bars a private member, reflection, a widened visibility, a method added for a test and a test of an internal class on its own", "Proves", "Public:", "a test goes through the public contract alone, as a real caller does: no private member, no reflection, no visibility widened and no method added for a test, no test of an internal class on its own."],
+  ["State counts the state a fake holds and a published event as observed", "Proves", "State:", "the state a fake holds, a published event,"],
+  ["State bars a call, a call count and a call order on a collaborator, excepting a call that is the behaviour and leaves no state to observe", "Proves", "State:", "Never a call, a call count or a call order on a collaborator, unless the call is the behaviour and leaves no state to observe."],
+  ["Earned adds a count of fields, members or entries, a type's visibility or modifiers, an export and a registration to what is never tested", "Proves", "Earned:", "the shape of data, a count of fields, members or entries, a type's visibility or modifiers, an export, a registration."],
+  ["Architecture allows one test per rule over the whole codebase and no test of one type's structure", "Proves", "Architecture:", "one test per rule over the whole codebase (the direction of dependencies between modules, the fast tests staying off the outside world) is allowed; a test of one type's structure is never that."],
+  ["Marked keeps the marker of a test the task leaves otherwise unchanged", "Writing", "Marked:", "A test the task leaves otherwise unchanged keeps the marker it has."],
+  ["Isolated injects the clock, randomness and identifiers", "Writing", "Isolated:", "The clock, randomness and identifiers are injected."],
+  ["Boundary lets a double stand only for the outside world or a collaborator too slow for a fast test, never another module of the code's own", "Writing", "Boundary:", "A double stands only for the outside world, or for a collaborator too slow for a fast test (hashing, key derivation, retry backoff, rendering), never for another module of the code's own."],
+  ["Boundary orders the choice real implementation, fake, stub, mock", "Writing", "Boundary:", "Order of choice: the real implementation, a fake, a stub, a mock."],
+  ["Boundary never mocks a type the project does not own but wraps it in a port and fakes the port", "Writing", "Boundary:", "A type the project does not own is never mocked: it is wrapped in a port and the port is faked."],
+  ["Literal asks for expected values written as literals, never computed by the algorithm under test", "Writing", "Literal:", "An expected value is written as a literal, never computed by the algorithm under test."],
+];
+
+for (const [label, where, name, sentence] of RULE_ROWS) {
+  test(`test-strategy ${label}`, () => {
+    assert.ok(has(bullet(where === "Proves" ? PROVES : WRITING, name), sentence));
+  });
+}
+
+test("test-strategy Built never sends a decision out into a function over plain values", () => {
+  assert.ok(!has(STRATEGY, "extract the decision into a function over plain values"));
+});
 
 test("test-strategy keeps no bullet of the old component rule outside Layers", () => {
   assert.ok(!has(STRATEGY, "A component test drives the whole application through its own entry point inside the test process"));

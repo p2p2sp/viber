@@ -1,6 +1,6 @@
 # Test strategy
 
-How a test is written. Where two rules pull against each other, catching a real regression and surviving a refactor win over speed and convenience. A rule ending in `(blocking)` is a blocking finding for a reviewer. The integration layer has its own rules in `integration-tests.md`.
+Where two rules pull against each other, catching a real regression and surviving a refactor win over speed and convenience. A rule ending in `(blocking)` is a blocking finding for a reviewer. The integration layer has its own rules in `integration-tests.md`.
 
 ## Layers
 
@@ -13,9 +13,11 @@ How a test is written. Where two rules pull against each other, catching a real 
 
 ## Proves
 
-- A test exists only for an important path or a decision in the logic: name the regression in behaviour a caller observes that it would catch; no answer means no test. Never tested: accessors, trivial constructors, data holders without behaviour, 1:1 mappings, framework behaviour, third-party library internals, an assertion true by construction, a name, the presence of a field, the shape of data. A test that fails on a refactor keeping the observed behaviour is a finding. (blocking)
-- Assert on what a caller observes: the returned value, the public state, the side effect through its own surface, the raised error. Never on log output, and never on data the test did not arrange itself. (blocking)
-- A test never reads the source of the code under test as text to assert its shape: no regular expression, substring or line match over a source file. The one exception is a file the host declares as its product (a document, a configuration, a prompt), whose text is the behaviour. (blocking)
+- Public: a test goes through the public contract alone, as a real caller does: no private member, no reflection, no visibility widened and no method added for a test, no test of an internal class on its own. (blocking)
+- State: Assert on what a caller observes: the returned value, the public state, the state a fake holds, a published event, the raised error. Never a call, a call count or a call order on a collaborator, unless the call is the behaviour and leaves no state to observe. Never on log output, and never on data the test did not arrange itself. (blocking)
+- Source: A test never reads the source of the code under test as text to assert its shape: no regular expression, substring or line match over a source file. The one exception is a file the host declares as its product, whose text is the behaviour. (blocking)
+- Earned: A test exists only for an important path or a decision in the logic: name the regression in behaviour a caller observes that it would catch; no answer means no test. Never tested: accessors, trivial constructors, data holders without behaviour, 1:1 mappings, framework behaviour, third-party library internals, an assertion true by construction, a name, the presence of a field, the shape of data, a count of fields, members or entries, a type's visibility or modifiers, an export, a registration. A test that fails on a refactor keeping the observed behaviour is a finding. (blocking)
+- Architecture: one test per rule over the whole codebase (the direction of dependencies between modules, the fast tests staying off the outside world) is allowed; a test of one type's structure is never that.
 
 ## Ports
 
@@ -23,14 +25,15 @@ How a test is written. Where two rules pull against each other, catching a real 
 
 ## Writing
 
-- Never introduce a test framework the project does not have.
-- An end-to-end test - a browser, or the running application driven from outside - is written only by a task whose acceptance criterion states that the user asked for one in their own words, and run only by a task whose acceptance criterion states that the user asked for it to be run. A coder updates, without the user's request, an existing end-to-end spec its task lists in `Files`, and a reviewer raises no finding for it. (blocking)
-- Every test written or edited carries its layer's marker in the host's declared layer marker convention, or in the one the plan's harness task designed. (blocking)
-- One regression, one test: two tests failing on exactly the same regressions are one test too many, whatever their layer, and variants of one input belong in the framework's parameterised form, one row each. A test whose deletion leaves every regression still caught is a duplicate. (blocking)
-- Every test can fail on a regression, asserts something and carries one act: several actions in one body means several tests. (blocking)
-- Isolation: no sleep, no fixture or other mutable state shared across tests, no dependence on execution order, no fixed port or other machine-wide resource, no database shared with another task's run. Several coders verify in the same tree at once. (blocking)
-- A unit test may keep its real collaborators; only the input and output boundaries are substituted. Never pay for a collaborator the scenario does not assert: one whose work is slow or heavy - hashing, key derivation, retry backoff, waits, rendering, a large computation - gets a stub or fake returning what the scenario needs, or a cheap configuration of the real one where it offers one: a login test stubs the password hasher. Only that collaborator's own tests use the real thing. (blocking)
-- No control flow in a test body - no branch, no loop, no switch. Cases belong in the framework's parameterised form, one row each. (blocking)
-- Construct whatever can be constructed. A double for a value, a record or a single config lookup hides the real shape. A test needing a double to reach a decision points at the code's shape: extract the decision into a function over plain values and test that, before adding the double.
+- Framework: Never introduce a test framework the project does not have.
+- Requested: An end-to-end test - a browser, or the running application driven from outside - is written only by a task whose acceptance criterion states that the user asked for one in their own words, and run only by a task whose acceptance criterion states that the user asked for it to be run. A coder updates, without the user's request, an existing end-to-end spec its task lists in `Files`, and a reviewer raises no finding for it. (blocking)
+- Marked: Every test written or edited carries its layer's marker in the host's declared layer marker convention, or in the one the plan's harness task designed. A test the task leaves otherwise unchanged keeps the marker it has. (blocking)
+- Single: One regression, one test: two tests failing on exactly the same regressions are one test too many, and variants of one input belong in the framework's parameterised form, one row each. A test whose deletion leaves every regression still caught is a duplicate. (blocking)
+- Act: Every test can fail on a regression, asserts something and carries one act: several actions in one body means several tests. (blocking)
+- Isolated: no sleep, no fixture or other mutable state shared across tests, no dependence on execution order, no fixed port or other machine-wide resource, no database shared with another task's run. The clock, randomness and identifiers are injected. (blocking)
+- Boundary: A double stands only for the outside world, or for a collaborator too slow for a fast test (hashing, key derivation, retry backoff, rendering), never for another module of the code's own. Order of choice: the real implementation, a fake, a stub, a mock. A type the project does not own is never mocked: it is wrapped in a port and the port is faked. (blocking)
+- Flat: No control flow in a test body - no branch, no loop, no switch. Cases go in the parameterised form. (blocking)
+- Literal: An expected value is written as a literal, never computed by the algorithm under test. (blocking)
+- Built: Construct whatever can be constructed. A double for a value, a record or a config lookup hides the real shape.
 
 Three shapes raise none of the blocking findings except the end-to-end rule: an end-to-end scenario whose steps model one user flow, a snapshot assertion, and a loop inside a property-based generator - control flow in the property body still counts. A test taking one of these carries a comment naming which; an undocumented one is a finding.
