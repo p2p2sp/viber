@@ -1,6 +1,6 @@
 /*
- * test-pyramid-prose.unit.test.ts - pins the prose that makes a build prove every decision by a
- * unit test.
+ * test-pyramid-prose.unit.test.ts - pins the prose that makes a build prove each decision in the
+ * layer the test rules give it: a domain rule by a unit test, a use case by a component test on fakes.
  *
  * `plan-rules.md` (`Layers`, `Layered`, `Observable`, `TDD`, `Owned`, `Shared harness` and
  * `Block body`) points at the test rules of `test-strategy.md`, gives each done clause the layer
@@ -19,6 +19,7 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { section } from "../harness/markdown.ts";
 
 const VIBER = path.resolve(import.meta.dirname, "../../viber");
 
@@ -226,13 +227,6 @@ test("task-reviewer Hits its target blocks a test the task added that proves non
   assert.ok(has(text, "A test this task added that proves none of its `DoD` clauses is Blocking: the task asked for no test beyond them. Your report cites clause numbers."));
 });
 
-function section(file: string, heading: string): string {
-  const lines = file.split(/\r?\n/);
-  const rest = lines.slice(lines.indexOf(`## ${heading}`) + 1);
-  const end = rest.findIndex((candidate) => candidate.startsWith("## "));
-  return (end < 0 ? rest : rest.slice(0, end)).join("\n");
-}
-
 const LAYERS = section(STRATEGY, "Layers");
 const PROVES = section(STRATEGY, "Proves");
 const PORTS = section(STRATEGY, "Ports");
@@ -269,7 +263,7 @@ for (const [label, name, sentence] of LAYER_ROWS) {
 const PROOF_ROWS: [string, string][] = [
   ["a unit test for a domain rule, a value object or an algorithm", "a domain rule, a value object or an algorithm is proven by a unit test;"],
   ["a component test on fakes for a use case's decisions and error paths", "a use case's decisions and error paths by a component test on fakes;"],
-  ["an integration test only once a unit or component test covers the logic using its adapter", "only what the real dependency alone reveals by an integration test, written once a unit or component test covers the logic using that adapter."],
+  ["an integration test for what the real dependency alone reveals, never logic a fast test could cover", "only what the real dependency alone reveals by an integration test, never logic a unit or component test could cover."],
   ["an own function and unit test only for a decision complex enough to be an entity", "A decision gets a function and a unit test of its own only when it is complex enough to be an entity with its own contract."],
   ["unit and component tests far outnumbering integration tests", "Unit and component tests far outnumber integration tests."],
   ["the Repro reproduction test exemption", "A reproduction test on a `Repro:` line is exempt: where the diverging code has no port, it may reach the real dependency. (blocking)"],
@@ -340,15 +334,11 @@ function bytes(text: string): number {
   return Buffer.byteLength(text, "utf8");
 }
 
-function withHeading(heading: string, body: string): string {
-  return `## ${heading}\n${body}`;
-}
-
 const SIZE_ROWS: [string, number, string][] = [
   ["the whole file", 6800, STRATEGY],
-  ["Proves", 2000, withHeading("Proves", PROVES)],
-  ["Layers, Proves and Ports together", 4000, [withHeading("Layers", LAYERS), withHeading("Proves", PROVES), withHeading("Ports", PORTS)].join("\n")],
-  ["Layers, Proves and Writing together", 6000, [withHeading("Layers", LAYERS), withHeading("Proves", PROVES), withHeading("Writing", WRITING)].join("\n")],
+  ["Proves", 2000, PROVES],
+  ["Layers, Proves and Ports together", 4000, LAYERS + PROVES + PORTS],
+  ["Layers, Proves and Writing together", 6000, LAYERS + PROVES + WRITING],
 ];
 
 for (const [label, limit, text] of SIZE_ROWS) {
@@ -428,6 +418,31 @@ test("task-coder takes neither a surrounding test nor a project rule asking for 
 
 test("task-reviewer reads Layers, Proves and Writing by range, and Ports when the Files hold a port, its fake or its contract test", () => {
   assert.ok(has(bullet(REVIEWER, "Tested:"), "read `<refs>/test-strategy.md` in `## Layers`, `## Proves` and `## Writing` by range (`Grep` it for the `## ` lines, then `Read` those sections), plus `## Ports` when the task's `Files` hold a port, its fake or its contract test,"));
+});
+
+test("task-reviewer reads Ports for work reaching an external dependency and integration-tests for work creating or changing an adapter, tests or none (a missing port or adapter test adds no test to trigger the read)", () => {
+  assert.ok(has(bullet(REVIEWER, "Tested:"), "Tests or none, work reaching an external dependency reads `## Ports` too, and work creating or changing an adapter `integration-tests.md`, raised the same way."));
+});
+
+test("task-coder reads the test rules before its first edit reaching an external dependency and integration-tests on a task creating or changing an adapter (a missing port or adapter test adds no test to trigger the read)", () => {
+  assert.ok(has(CODER, "Before the first test you write or change, or your first edit reaching an external dependency, read `<refs>/test-strategy.md`:"));
+  assert.ok(has(CODER, "A task writing or running an integration test, creating or changing an adapter, or building the shared harness, also reads `<refs>/integration-tests.md`"));
+});
+
+const ADAPTER_READ_ROWS: [string, string, string][] = [
+  ["planner", PLANNER, "A plan carrying an integration test or creating or changing an adapter also reads"],
+  ["planner-review", PLAN_REVIEW, "when the plan carries an integration test or creates or changes an adapter, read `<refs>/integration-tests.md`"],
+  ["planner-task-review", TASK_REVIEW, "when the plan carries an integration test or creates or changes an adapter, read `<refs>/integration-tests.md`"],
+];
+
+for (const [name, text, sentence] of ADAPTER_READ_ROWS) {
+  test(`${name} reads integration-tests for a plan creating or changing an adapter, with or without an integration test`, () => {
+    assert.ok(has(text, sentence));
+  });
+}
+
+test("Lean excepts a function the Proof rule asks for, so a decision complex enough to be an entity is no one-caller finding", () => {
+  assert.ok(has(PLAN_RULES, "a seam another rule requires (a port, its fake, a function `Proof` asks for) excepted"));
 });
 
 test("task-reviewer raises a forbidden test as Blocking naming the rule, with the cause plan when a DoD clause asked for it, and never asks for such a test", () => {

@@ -21,7 +21,7 @@ Async waits, sleeps, the real clock, timezone or locale, randomness, unordered c
 Tests that never run: `skip`, `only`, `todo`, `xfail`, `@Disabled` or `#[ignore]` hiding a regression, a stray `.only` silently running nothing else; a test the runner never collects: outside the discovery pattern, a name the runner ignores, a duplicate name shadowing an earlier test, an `async` test under a synchronous runner, a JUnit 4 `@Test` on the JUnit 5 platform.
 
 ### wasteful-tests
-Redundant: two tests failing on exactly the same regressions, or variants of one input outside a parameterised form. Trivial: what Public, Source or Earned rule out. Misplaced: a decision only an integration test asserts, though a unit or component test could reach it; a suite whose integration tests, counted by the host's layer marker, exceed about a tenth of its tests is a candidate as a whole.
+Redundant: two tests failing on exactly the same regressions, or variants of one input outside a parameterised form. Trivial: what Public, Source or Earned rule out. Misplaced: a decision only an integration test asserts, though a unit or component test could reach it; where integration tests, counted by the host's layer marker, exceed about a tenth of a suite, hunt their decisions first.
 
 ## Excluded
 - Coverage percentage, and anything argued only from it.

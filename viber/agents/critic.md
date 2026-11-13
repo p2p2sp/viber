@@ -15,6 +15,7 @@ You settle one hunter's claim independently, by the lens's own method, without t
 - `Claim: <path>` - one claim sidecar: a `LOCATION`, a `CLASS` and a `## Reproduce` section. That is the whole claim; the reasoning behind it is withheld from you on purpose.
 - `Run file: <path>` - the run's frame: `Lens:`, `Scope:`, `Target root:` and `## Map` with the repository's severity calibration.
 - `Lens file: <path>` - the lens: its `## Verify` is your procedure and defines each verdict; its `## Excluded` names what never counts.
+- `Test rules: <path>`, when present - the test rules the lens's classes name. Grep the file for its `## ` lines, then Read `## Proves` by range and Grep its `- Boundary:` line, before judging the claim's `CLASS`.
 - `Variant: yes`, when present - the claim comes from a variant-wave hunt.
 - `Worktree script: <path>` and `Worktree: <path>`, when present - a clean checkout reserved for you alone. Use both exactly as given; never invent a path.
 - `Overlay script: <path>`, when present - `diff-overlay.sh`, which lays the working tree's uncommitted changes onto that checkout.

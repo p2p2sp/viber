@@ -181,6 +181,7 @@ const TESTS_SIGNALS = fs.readFileSync(path.join(LENSES, "tests.signals.md"), "ut
 const README = fs.readFileSync(path.join(AUDITOR, "README.md"), "utf-8");
 const SKILL = fs.readFileSync(path.join(AUDITOR, "SKILL.md"), "utf-8");
 const HUNTER = fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/agents/hunter.md"), "utf-8");
+const CRITIC = fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/agents/critic.md"), "utf-8");
 
 const sectionOf = (text: string, heading: string) => (parse(text).lines.get(heading) ?? []).join("\n");
 const readmeSection = (name: string) => README.split(/^## /m).find((part) => part.startsWith(`${name}\n`)) ?? "";
@@ -205,9 +206,9 @@ test("the wasteful-tests Trivial class covers what Public, Source and Earned rul
   assert.ok(trivial.startsWith("what Public, Source or Earned rule out."));
 });
 
-test("the wasteful-tests Misplaced class makes a suite whose integration tests exceed about a tenth of its tests a candidate, counted by the host's layer marker", () => {
+test("the wasteful-tests Misplaced class hunts the decisions of a suite whose integration tests exceed about a tenth of it first, counted by the host's layer marker (each finding stays one decision the waste procedure can verify)", () => {
   const body = sectionOf(TESTS_LENS, "## Hunts").split("### wasteful-tests\n")[1] ?? "";
-  assert.ok(body.includes("a suite whose integration tests, counted by the host's layer marker, exceed about a tenth of its tests is a candidate as a whole"));
+  assert.ok(body.includes("where integration tests, counted by the host's layer marker, exceed about a tenth of a suite, hunt their decisions first."));
 });
 
 test("the over-mocking angle covers a double for a module of the code's own and a test asserting only interactions, a finding naming Boundary or State", () => {
@@ -316,6 +317,16 @@ test("every hunter brief of the code-auditor SKILL carries the Test rules line, 
   assert.ok(input.includes("`## Proves`"));
   assert.ok(input.includes("by range"));
   assert.ok(input.includes("before hunting on the tests lens and before writing a test as proof on any lens"));
+});
+
+test("the hunter on the tests lens also reads the Boundary line the over-mocking angle cites, which sits outside ## Proves", () => {
+  assert.ok(lineOf(HUNTER, "- `Test rules: <path>`").endsWith("; on the tests lens also Grep its `- Boundary:` line."));
+});
+
+test("a critic on the tests lens gets the hunter's Test rules line and reads ## Proves and the Boundary line before judging the claim's class (the lens names its classes by rule)", () => {
+  assert.ok(lineOf(SKILL, "- Each `<hunt id>-<k>.claim.md`").includes("on the tests lens add the hunter's `Test rules:` line."));
+  const input = lineOf(CRITIC, "- `Test rules: <path>`");
+  assert.ok(input.includes("Read `## Proves` by range and Grep its `- Boundary:` line, before judging the claim's `CLASS`."));
 });
 
 test("the hunter agent holds a test it writes as proof to the ## Proves section", () => {

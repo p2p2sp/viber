@@ -78,7 +78,7 @@ Angles:
 - `untested-error-paths`: catch blocks, rejections and limits on a critical flow that no test reaches.
 - `flaky-tests`: timing, clock, randomness, order and shared state that give a mixed result.
 - `dead-tests`: tests that are skipped, focused with `.only` or never collected by the runner.
-- `wasteful-tests`: redundant tests, trivial tests (what Public, Source or Earned rule out) and a decision asserted only by an integration test, or a suite whose integration tests exceed about a tenth of its tests.
+- `wasteful-tests`: redundant tests, trivial tests (what Public, Source or Earned rule out) and a decision asserted only by an integration test, hunted first in a suite whose integration tests exceed about a tenth of its tests.
 
 Verified by: a surviving mutant for a coverage or assertion finding, a reproduced mixed result for a flake, the dead-test procedure for a dead test and the waste procedure for a wasteful test, each run in a clean worktree. `Worktree: required`.
 

@@ -15,7 +15,7 @@ You investigate one hunt deeply and file at most three proven findings, or nothi
 - `Run file: <path>` - the run's frame: `Lens:`, `Scope:`, `Target root:`, on the diff scope `## Changed files`, and `## Map` with the repository's conventions, history, severity calibration and units.
 - `Lens file: <path>` - the lens: its `## Hunts` angles, `## Excluded`, `## Verify` and `## Severity`.
 - `Schema: <path>` - the report and sidecar schema. Read its report and sidecar sections before writing.
-- `Test rules: <path>` - the test rules. Grep the file for its `## ` lines, then Read `## Proves` by range, before hunting on the tests lens and before writing a test as proof on any lens.
+- `Test rules: <path>` - the test rules. Grep the file for its `## ` lines, then Read `## Proves` by range, before hunting on the tests lens and before writing a test as proof on any lens; on the tests lens also Grep its `- Boundary:` line.
 - `Hunt: <hunt id>` - `U<n>`, `A-<angle slug>` or `V-<n>`; it goes on every report's `HUNT:` line.
 - `Unit: <unit line>` - investigate its paths through every angle of the lens's `## Hunts`. The paths are an entry point, not a fence: follow callers, callees and neighbouring modules.
 - `Angle: <angle slug>` - investigate that one angle across every file of the run file's `## Changed files`; on a `V-<n>` hunt, across the repository outside those files.

@@ -70,7 +70,7 @@ Every `viber:hunter` brief: `Run file: <ws>/run.md`, `Lens file: <lens-file>`, `
 Verify runs alongside Hunt: handle each hunter on its own return, never waiting for the other hunters. Look in `<ws>/reports/` only for that hunt's files:
 
 - No `<hunt id>-<digit>.md` (a hyphen and one digit right after the full id, so `A-x` never counts an `A-x-y` file): dispatch the hunt once more with the same brief and, for a worktree lens, the worktree path suffixed `-retry`; after a second miss the hunt goes under `synthesis.md`'s `- Hunts with no report:` and a `U<n>` hunt's unit counts toward `J`.
-- Each `<hunt id>-<k>.claim.md`, `k` one digit: dispatch one `viber:critic` with `Claim: <sidecar path>`, `Run file: <ws>/run.md` and `Lens file: <lens-file>`; for a worktree lens add `Worktree script:` as above and `Worktree: <ws>/worktrees/critic-<hunt id>-<k>`, never the hunter's, and on the diff scope `Overlay script:` as above. Never hand a critic the report or its path.
+- Each `<hunt id>-<k>.claim.md`, `k` one digit: dispatch one `viber:critic` with `Claim: <sidecar path>`, `Run file: <ws>/run.md` and `Lens file: <lens-file>`; for a worktree lens add `Worktree script:` as above and `Worktree: <ws>/worktrees/critic-<hunt id>-<k>`, never the hunter's, and on the diff scope `Overlay script:` as above; on the tests lens add the hunter's `Test rules:` line. Never hand a critic the report or its path.
 
 A critic whose final message carries no `VERDICT:` line is dispatched once more with the same brief and, for a worktree lens, the worktree path suffixed `-retry`; after a second miss the finding is filed `INCONCLUSIVE` with `critic returned no verdict`.
 
