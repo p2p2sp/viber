@@ -1,0 +1,4 @@
+- Old bullets sit under `## Proves` / `## Writing` word for word with no C1 name prefix yet; naming them, the `Public`, `Architecture` and `Literal` rules, the extended `State` and the dropped extract-a-decision sentence are T2's.
+- The old "One regression, one test" adjacency check in `test-pyramid-prose.unit.test.ts` was dropped: C1 puts that rule in `## Writing` and the Never-tested rule in `## Proves`, so they cannot be neighbours. The two standalone tests of those bullets were deleted too: their `KEPT_ROWS` rows pin the same text plus the section, so they were duplicates. T2's renaming must update those rows.
+- The new `integration-tests.md` bullet sits after the third bullet of `## What it runs against`; the three pinned bullets are untouched.
+- Section sizes are not asserted here (T2 owns them); the file is 6294 bytes now.

@@ -158,20 +158,6 @@ test("integration-tests third bullet limits an integration test to what the real
   assert.ok(has(text, "An integration test proves only what the real dependency alone reveals (a query's result, a mapping, a constraint, a transaction), and the done clause it proves names that. One asserting a decision, or a case a unit or component test proves or could prove, is a finding, and so is a second test of a behaviour another integration test covers: one test per adapter behaviour. (blocking)"));
 });
 
-test("test-strategy Never tested rule limits a test to an important path or a decision, bars a name, the presence of a field and the shape of data, and is blocking", () => {
-  const text = bullet(STRATEGY, "A test exists only for an important path or a decision in the logic");
-  assert.ok(has(text, "A test exists only for an important path or a decision in the logic: name the regression in behaviour a caller observes that it would catch; no answer means no test. Never tested: accessors, trivial constructors, data holders without behaviour, 1:1 mappings, framework behaviour, third-party library internals, an assertion true by construction, a name, the presence of a field, the shape of data. A test that fails on a refactor keeping the observed behaviour is a finding. (blocking)"));
-});
-
-test("test-strategy holds one regression to one test, variants as parameterised rows, a duplicate found by deleting it, right after the Never tested rule", () => {
-  const lines = STRATEGY.split(/\r?\n/);
-  const never = lines.findIndex((candidate) => candidate.startsWith("- A test exists only for an important path or a decision"));
-  const text = bullet(STRATEGY, "One regression, one test:");
-  assert.ok(never >= 0);
-  assert.ok(lines[never + 1].startsWith("- One regression, one test:"));
-  assert.ok(has(text, "- One regression, one test: two tests failing on exactly the same regressions are one test too many, whatever their layer, and variants of one input belong in the framework's parameterised form, one row each. A test whose deletion leaves every regression still caught is a duplicate. (blocking)"));
-});
-
 test("plan-rules TDD closes with a done clause on a name, the presence of a field or the shape of data as a finding on a TDD required task", () => {
   const text = rule("TDD");
   assert.ok(text.includes("On `TDD: required` each done clause states a behaviour or a decision a caller observes: a clause on a name, the presence of a field or the shape of data is a finding, since it belongs in a `## Contracts` block or a `TDD: none` task."));
@@ -192,4 +178,102 @@ test("test-strategy Construct rule hints to extract a decision before adding a d
   const text = bullet(STRATEGY, "Construct whatever can be constructed.");
   assert.ok(has(text, "A test needing a double to reach a decision points at the code's shape: extract the decision into a function over plain values and test that, before adding the double."));
   assert.ok(!text.includes("(blocking)"));
+});
+
+function section(file: string, heading: string): string {
+  const lines = file.split(/\r?\n/);
+  const rest = lines.slice(lines.indexOf(`## ${heading}`) + 1);
+  const end = rest.findIndex((candidate) => candidate.startsWith("## "));
+  return (end < 0 ? rest : rest.slice(0, end)).join("\n");
+}
+
+const LAYERS = section(STRATEGY, "Layers");
+const PROVES = section(STRATEGY, "Proves");
+const PORTS = section(STRATEGY, "Ports");
+const WRITING = section(STRATEGY, "Writing");
+
+test("test-strategy holds the headings Layers, Proves, Ports and Writing in that order and no other second-level heading", () => {
+  const headings = STRATEGY.split(/\r?\n/).filter((candidate) => candidate.startsWith("## "));
+  assert.deepEqual(headings, ["## Layers", "## Proves", "## Ports", "## Writing"]);
+});
+
+test("test-strategy Layers holds one bullet each for Outside, Unit, Component, Integration, E2E and Proof, in that order", () => {
+  const names = LAYERS.split(/\r?\n/)
+    .filter((candidate) => candidate.startsWith("- "))
+    .map((candidate) => candidate.slice(2, candidate.indexOf(":")));
+  assert.deepEqual(names, ["Outside", "Unit", "Component", "Integration", "E2E", "Proof"]);
+});
+
+const LAYER_ROWS: [string, string, string][] = [
+  ["Outside", "Outside", "the outside world is whatever leaves the test process or is not deterministic: a database (a containerised one too), the network, the file system, the system clock, randomness, a sleep or background thread, the environment, a subprocess."],
+  ["Unit", "Unit", "the behaviour of one entity (a class, function, aggregate or value object, with its own helper types) through its public API. Never the outside world."],
+  ["Component's assembled entities", "Component", "several entities assembled into a component and called through its public entry (a module's facade, a command or query handler, a use case), domain objects real, every output port replaced by its fake."],
+  ["Component's ban on an in-memory database", "Component", "Never the outside world, never an in-memory database dialect or an object-relational mapper's in-memory provider."],
+  ["Component's whole application run", "Component", "The whole application run in the test process from its own entry point with those fakes is a component test too, kept to a few per entry point: routing, input validation, error mapping, serialisation."],
+  ["Integration", "Integration", "one adapter against its real dependency, under integration-tests.md."],
+  ["E2E", "E2E", "the deployed application driven from outside, written and run only on the user's own request."],
+];
+
+for (const [label, name, sentence] of LAYER_ROWS) {
+  test(`test-strategy Layers states ${label} as the contract gives it`, () => {
+    assert.ok(has(bullet(LAYERS, `${name}:`), sentence));
+  });
+}
+
+const PROOF_ROWS: [string, string][] = [
+  ["a unit test for a domain rule, a value object or an algorithm", "a domain rule, a value object or an algorithm is proven by a unit test;"],
+  ["a component test on fakes for a use case's decisions and error paths", "a use case's decisions and error paths by a component test on fakes;"],
+  ["an integration test only once a unit or component test covers the logic using its adapter", "only what the real dependency alone reveals by an integration test, written once a unit or component test covers the logic using that adapter."],
+  ["an own function and unit test only for a decision complex enough to be an entity", "A decision gets a function and a unit test of its own only when it is complex enough to be an entity with its own contract."],
+  ["unit and component tests far outnumbering integration tests", "Unit and component tests far outnumber integration tests."],
+  ["the Repro reproduction test exemption", "A reproduction test on a `Repro:` line is exempt: where the diverging code has no port, it may reach the real dependency. (blocking)"],
+];
+
+for (const [label, sentence] of PROOF_ROWS) {
+  test(`test-strategy Proof names ${label}`, () => {
+    assert.ok(has(bullet(LAYERS, "Proof:"), sentence));
+  });
+}
+
+const PORT_ROWS: [string, string][] = [
+  ["a port in the domain's language with one authoritative fake and a contract test the fake passes as a unit test and the adapter as its integration test", "an external dependency is reached through a port in the domain's language, with one authoritative fake in the shared test fixtures (in memory, holding its own state, test-only controls allowed) and a contract test written against the port alone, which the fake passes as a unit test and the adapter passes as its integration test."],
+  ["all three for a new dependency", "A new dependency gets all three."],
+  ["the touched seam for code with no port, for the operations the task uses only", "Code reaching a dependency with no port gets them at the seam the task touches, for the operations the task uses only."],
+  ["what a fake cannot hold in memory belonging to the adapter's integration tests, as a blocking rule", "Behaviour a fake cannot hold in memory belongs to the adapter's integration tests. (blocking)"],
+];
+
+for (const [label, sentence] of PORT_ROWS) {
+  test(`test-strategy Ports Ported requires ${label}`, () => {
+    assert.ok(has(bullet(PORTS, "Ported:"), sentence));
+  });
+}
+
+const KEPT_ROWS: [string, string, string][] = [
+  ["the Never tested rule", "Proves", "- A test exists only for an important path or a decision in the logic: name the regression in behaviour a caller observes that it would catch; no answer means no test. Never tested: accessors, trivial constructors, data holders without behaviour, 1:1 mappings, framework behaviour, third-party library internals, an assertion true by construction, a name, the presence of a field, the shape of data. A test that fails on a refactor keeping the observed behaviour is a finding. (blocking)"],
+  ["the observed-assertion rule", "Proves", "- Assert on what a caller observes: the returned value, the public state, the side effect through its own surface, the raised error. Never on log output, and never on data the test did not arrange itself. (blocking)"],
+  ["the source-as-text rule", "Proves", "- A test never reads the source of the code under test as text to assert its shape: no regular expression, substring or line match over a source file. The one exception is a file the host declares as its product (a document, a configuration, a prompt), whose text is the behaviour. (blocking)"],
+  ["the test framework rule", "Writing", "- Never introduce a test framework the project does not have."],
+  ["the end-to-end rule", "Writing", "- An end-to-end test - a browser, or the running application driven from outside - is written only by a task whose acceptance criterion states that the user asked for one in their own words, and run only by a task whose acceptance criterion states that the user asked for it to be run. A coder updates, without the user's request, an existing end-to-end spec its task lists in `Files`, and a reviewer raises no finding for it. (blocking)"],
+  ["the layer marker rule", "Writing", "- Every test written or edited carries its layer's marker in the host's declared layer marker convention, or in the one the plan's harness task designed. (blocking)"],
+  ["the one regression rule", "Writing", "- One regression, one test: two tests failing on exactly the same regressions are one test too many, whatever their layer, and variants of one input belong in the framework's parameterised form, one row each. A test whose deletion leaves every regression still caught is a duplicate. (blocking)"],
+  ["the one act rule", "Writing", "- Every test can fail on a regression, asserts something and carries one act: several actions in one body means several tests. (blocking)"],
+  ["the isolation rule", "Writing", "- Isolation: no sleep, no fixture or other mutable state shared across tests, no dependence on execution order, no fixed port or other machine-wide resource, no database shared with another task's run. Several coders verify in the same tree at once. (blocking)"],
+  ["the real collaborators rule, where Boundary sits", "Writing", "- A unit test may keep its real collaborators; only the input and output boundaries are substituted. Never pay for a collaborator the scenario does not assert: one whose work is slow or heavy - hashing, key derivation, retry backoff, waits, rendering, a large computation - gets a stub or fake returning what the scenario needs, or a cheap configuration of the real one where it offers one: a login test stubs the password hasher. Only that collaborator's own tests use the real thing. (blocking)"],
+  ["the control flow rule", "Writing", "- No control flow in a test body - no branch, no loop, no switch. Cases belong in the framework's parameterised form, one row each. (blocking)"],
+  ["the construct rule", "Writing", "- Construct whatever can be constructed. A double for a value, a record or a single config lookup hides the real shape. A test needing a double to reach a decision points at the code's shape: extract the decision into a function over plain values and test that, before adding the double."],
+];
+
+for (const [label, where, text] of KEPT_ROWS) {
+  test(`test-strategy keeps ${label} word for word under ${where}`, () => {
+    assert.ok(has(where === "Proves" ? PROVES : WRITING, text));
+  });
+}
+
+test("test-strategy keeps no bullet of the old component rule outside Layers", () => {
+  assert.ok(!has(STRATEGY, "A component test drives the whole application through its own entry point inside the test process"));
+});
+
+test("integration-tests holds a blocking rule that an adapter passes its port's contract test as an integration test and one created or changed with none is a finding", () => {
+  const text = bullet(INTEGRATION, "An adapter passes the contract test of its port");
+  assert.ok(has(text, "An adapter passes the contract test of its port, written against the port alone and shared with its fake, as an integration test; an adapter a task creates or changes with no integration test is a finding. (blocking)"));
 });
