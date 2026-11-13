@@ -1,4 +1,0 @@
-- Ruled TDD: none: the task's only file is the test, which also holds the measuring code (C4 puts it there), and every path under `tests/` matches the `red-check.tests` pattern, so red-check.sh finds HEAD green.
-- DoD.3 already holds at HEAD (T3 is committed), so no tree read set can be red without the test itself.
-- The red proof is `.temp/viber/T4/red.log`: the measuring functions stubbed (returning 0 and undefined), 5 of the 6 synthetic tests failing; the at-cap test passes by design.
-- Moving the measuring code to `tests/harness/` would not help: that path is a test path too.

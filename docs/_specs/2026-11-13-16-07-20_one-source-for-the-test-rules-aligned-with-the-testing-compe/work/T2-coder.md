@@ -1,3 +1,0 @@
-- The sizes of C1 bind tight: file 6800 and Layers + Proves + Ports 4000 (Layers, Ports and the pinned Proof text are fixed, so Proves carries the cut). To fit, the product file's parenthetical in `Source`, the "Several coders verify..." sentence of `Isolated`, "whatever their layer" in `Single`, "single" in `Built`, the opening "How a test is written." and `Flat`'s "framework's parameterised form, one row each" are shortened; the KEPT_ROWS follow.
-- The size tests count a section as its heading line plus its body, the `Writing` section including the closing paragraph on the three exempt shapes.
-- `State` keeps today's rule minus "the side effect through its own surface", which the state a fake holds and a published event replace.

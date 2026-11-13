@@ -1,4 +1,0 @@
-- tests.md sat at 8937 of its 9000-byte cap: the C5 additions fit only by trimming small phrases elsewhere in that lens (Severity 1-3 lead-in, "Arid ... where mutants are unproductive", the "not proof of absence" tail, "float literals", "itself"). Any later addition there needs another trim.
-- Hunter read set (rule-budget) now sits close under its 18463 cap; hunter.md grew by about 450 bytes.
-- The Misplaced "tenth" candidate has no step in the Waste procedure: it is a candidate as a whole, not a finding the procedure verifies.
-- Red proof: .temp/viber/T7/red.log (14 failing before the edits).

@@ -1,4 +1,0 @@
-- `Lean` also changed, outside the DoD: its "a port, an extracted pure function" became "a port, its fake", since no rule asks for the extracted function now.
-- `plan-rules.md` is 18.9 KB against the 19000 cap: little room is left for a later addition.
-- The red run is `red-2.log` (revert route): the production edit came before the tests, so every change was reverted by hand, the tests run, and the change restored.
-- The old `Layers` entry-point sentence now lives only in `integration-tests.md`, whose pinned bullet is untouched.
