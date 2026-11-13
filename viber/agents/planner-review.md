@@ -22,9 +22,11 @@ A one-line `input:` naming a `.md` file under `.temp/viber/intent/summary-` is r
 
 Read the plan, `<refs>/plan-rules.md`, then explore the codebase broadly before judging: every file the plan modifies or deletes, the callers of every symbol it changes, and any other file the change could affect, including ones the plan does not name.
 
+Read `<refs>/test-strategy.md` in the sections `## Layers`, `## Proves` and `## Ports` only: `Grep` it for the `## ` line numbers, then `Read` those sections by range.
+
 ## Check
 
-Gate every `(review)` rule of `plan-rules.md`, each clause of it, and report a breach under the rule's name. The `(script)` rules are already validated. Then:
+Gate every `(review)` rule of `plan-rules.md`, each clause of it, and report a breach under the rule's name. Gate `Layered`, `Observable` and `Owned` against the three sections of `test-strategy.md` you read, a breach reported under the rule's name. The `(script)` rules are already validated. Then:
 
 - Wired: for each task, list every file, route or symbol its `Verification`, `Delivers` or a done clause reads and the task that creates or changes it, confirming the reading task's `Depends-on` reaches that producing task directly or transitively; then for every `Depends-on` edge, name what the dependent actually takes from its target - a file, route or symbol it reads, or a file both list - and treat an edge whose dependent consumes nothing from its target as Minor.
 - Complete: no TODOs, no placeholders, no task that trails off mid-thought.

@@ -33,6 +33,9 @@ const TDD = read("references/tdd.md");
 const CODER = read("agents/task-coder.md");
 const REVIEWER = read("agents/task-reviewer.md");
 const TEST_RUNNER = read("agents/test-runner.md");
+const PLANNER = read("skills/planner/SKILL.md");
+const PLAN_REVIEW = read("agents/planner-review.md");
+const TASK_REVIEW = read("agents/planner-task-review.md");
 
 function phrase(text: string): RegExp {
   const escaped = text.trim().split(/\s+/).map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
@@ -380,6 +383,39 @@ test("test-strategy Built never sends a decision out into a function over plain 
 test("test-strategy keeps no bullet of the old component rule outside Layers", () => {
   assert.ok(!has(STRATEGY, "A component test drives the whole application through its own entry point inside the test process"));
 });
+
+test("planner step 1 reads Layers, Proves and Ports of test-strategy by range before a task is written", () => {
+  assert.ok(has(section(PLANNER, "1. Map the files first"), "Before a task is written, read `## Layers`, `## Proves` and `## Ports` of `${CLAUDE_PLUGIN_ROOT}/references/test-strategy.md` by range: `Grep` the file for its `## ` lines, then `Read` each of the three sections."));
+});
+
+const REVIEWER_ROWS: [string, string][] = [
+  ["planner-review", PLAN_REVIEW],
+  ["planner-task-review", TASK_REVIEW],
+];
+
+for (const [name, text] of REVIEWER_ROWS) {
+  test(`${name} reads Layers, Proves and Ports of test-strategy by range`, () => {
+    assert.ok(has(text, "Read `<refs>/test-strategy.md` in the sections `## Layers`, `## Proves` and `## Ports` only: `Grep` it for the `## ` line numbers, then `Read` those sections by range."));
+  });
+
+  test(`${name} gates Layered, Observable and Owned against those sections and reports a breach under the rule's name`, () => {
+    assert.ok(has(text, "Gate `Layered`, `Observable` and `Owned` against the three sections of `test-strategy.md` you read, a breach reported under the rule's name."));
+  });
+}
+
+const DEFINITION_ROWS: [string, string][] = [
+  ["planner", PLANNER],
+  ["planner-review", PLAN_REVIEW],
+  ["planner-task-review", TASK_REVIEW],
+];
+
+for (const [name, text] of DEFINITION_ROWS) {
+  test(`${name} states no layer definition and no list of tests never written of its own`, () => {
+    assert.ok(!has(text, "started disposably for the test run"));
+    assert.ok(!has(text, "every external adapter is replaced by a fake"));
+    assert.ok(!has(text, "accessors, trivial constructors"));
+  });
+}
 
 test("integration-tests holds a blocking rule that an adapter passes its port's contract test as an integration test and one created or changed with none is a finding", () => {
   const text = bullet(INTEGRATION, "An adapter passes the contract test of its port");
