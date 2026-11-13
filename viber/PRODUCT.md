@@ -6,13 +6,17 @@
 
 - The plan proves a task's behaviour across four named layers: `unit`, `component`, `integration`, `e2e`.
 
-- A coder proves a decision correct without requiring a real external dependency such as a database: a `unit` test isolates one unit or a few collaborating units with only their input and output boundaries substituted; a `component` test runs the whole application in the test process from its entry point, internal layers real, external adapters replaced by in-memory fakes holding their own state.
+- A coder proves a decision correct without requiring the outside world (a database, the network, the file system, the clock, randomness, a subprocess): a `unit` test covers the behaviour of one entity through its public API; a `component` test calls several entities assembled into a component through its public entry (a facade, a handler, a use case), domain objects real, every output port replaced by its in-memory fake holding its own state.
 
 - An `integration` test covers exactly one adapter against its real dependency, started disposably for the test run; it is never the base proof that a function works, and it never stands in for a `unit` or `component` test.
 
 - An adapter's `integration` test lives in the task that creates or changes that adapter, not in a task of its own, and is never run there: the task's verification lists or type-checks it, and the build's final test run runs it once.
 
-- Every decision in the code is proven by a unit test, and a decision is shaped as a function over plain values, so a double is allowed only at a boundary. A `component` test proves only what the assembled application shows; an `integration` test proves only what the real dependency reveals.
+- A domain rule, a value object or an algorithm is proven by a `unit` test; a use case's decisions and error paths are proven by a `component` test on fakes, and a decision gets a function and a unit test of its own only when it is complex enough to be an entity with its own contract. An `integration` test proves only what the real dependency reveals.
+
+- Every external dependency is reached through a port in the domain's language, with one authoritative in-memory fake and a contract test written against the port alone, which the fake passes as a unit test and the adapter passes as its integration test.
+
+- A test goes through the public contract alone, as a real caller does: no private member, no reflection, no method added for a test. A double stands only for the outside world, never for another module of the code's own.
 
 - A build writes one test per regression, and none for a name or a data shape: two tests failing on exactly the same regressions are one test too many, whatever their layer.
 

@@ -1635,9 +1635,11 @@ nowych testów przed pierwszą zmianą kodu produkcyjnego, inaczej próba przepa
 <code>build.red-check</code> build uruchamia te testy ponownie w osobnej kopii roboczej bez zmiany produkcyjnej,
 a testy, które tam przejdą, odsyłają zadanie do wykonawcy. Recenzent sprawdza, że nie przeszły właśnie nowe testy
 zadania.</p>
-<p lang="en">Every decision in the code is proven by a unit test, and a build writes one test per regression and none for a name or a data shape.
+<p lang="en">Tests go through the public contract alone. A domain rule is proven by a unit test and a use case by a component test on fakes, so most proof stays fast and in memory.
+Every external dependency gets a port, an in-memory fake and a contract test that the fake and the real adapter both pass. A build writes one test per regression and none for a name or a data shape.
 An integration test proves only what the real dependency reveals: its task writes it without running it, and the final run runs it once.</p>
-<p lang="pl">Każdą decyzję w kodzie dowodzi test jednostkowy, a build pisze jeden test na regresję i żadnego dla nazwy czy kształtu danych.
+<p lang="pl">Testy przechodzą wyłącznie przez publiczny kontrakt. Regułę domeny dowodzi test jednostkowy, a przypadek użycia test komponentowy na atrapach, więc większość dowodów zostaje szybka i w pamięci.
+Każda zewnętrzna zależność dostaje port, atrapę w pamięci i test kontraktowy, który przechodzą i atrapa, i prawdziwy adapter. Build pisze jeden test na regresję i żadnego dla nazwy czy kształtu danych.
 Test integracyjny dowodzi tylko tego, co ujawnia prawdziwa zależność: zadanie pisze go bez uruchamiania, a końcowe uruchomienie wykonuje go raz.</p>
 <p lang="en">A task that passes gets its own commit, titled <code>T3 - &lt;task title&gt;</code>. Only viber's
 scripts commit, never an agent.</p>

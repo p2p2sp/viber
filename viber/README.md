@@ -169,7 +169,7 @@ before the first production edit, or the attempt fails. With `build.red-check` o
 those tests in a separate checkout without the production change, and tests that pass there send
 the task back. Its reviewer checks that the tests that failed are the task's new ones.
 
-Every decision in the code is proven by a unit test, and a build writes one test per regression and none for a name or a data shape. An integration test proves only what the real dependency reveals: its task writes it without running it, and the final run runs it once.
+Tests go through the public contract alone. A domain rule is proven by a unit test and a use case by a component test on fakes, so most proof stays fast and in memory. Every external dependency gets a port, an in-memory fake and a contract test that the fake and the real adapter both pass. A build writes one test per regression and none for a name or a data shape. An integration test proves only what the real dependency reveals: its task writes it without running it, and the final run runs it once.
 
 An idea too big for one cycle, such as a whole application, is split into ordered parts before any
 detail question, and the interview covers every part. Each part gets its own plan and its own
