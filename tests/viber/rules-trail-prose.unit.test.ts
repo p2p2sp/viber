@@ -59,6 +59,20 @@ function trailBullet(start: string): string {
 const CRITERION_1 = lines(section(ADMISSION, "The three criteria")).filter((line) => line.startsWith("1. "));
 const CALIBRATION = lines(section(ADMISSION, "Calibration"));
 const SILENT_DROP = lines(section(ADMISSION, "The silent drop"));
+const NEVER_A_RULE = lines(section(ADMISSION, "Never a rule"));
+
+test("never a rule holds one bullet barring a way of writing tests that a blocking rule of test-strategy.md forbids", () => {
+  const bullets = NEVER_A_RULE.filter(
+    (line) => line.startsWith("- ") && line.includes("`(blocking)` rule of the `test-strategy.md`") && line.includes("forbids"),
+  );
+  assert.equal(bullets.length, 1);
+});
+
+test("that bullet names Proves and Writing of the test-strategy.md beside the file as what to read when a candidate or an audited line speaks of how tests are written", () => {
+  const bullet = NEVER_A_RULE.find((line) => line.includes("`(blocking)` rule of the `test-strategy.md`")) ?? "";
+  assert.ok(bullet.includes("`## Proves` and `## Writing` of that file"));
+  assert.ok(bullet.includes("a candidate or an audited line speaks of how tests are written"));
+});
 
 test("criterion 1 stays one paragraph of the criteria list", () => {
   assert.equal(CRITERION_1.length, 1);

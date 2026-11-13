@@ -23,6 +23,7 @@ At most two new conventions per run, a new file and a line added to an existing 
 - A preference stated in a plan, an interview or a review and never carried into the code.
 - A fact about one place: a command, a tool's quirk, one module's API or invariants, a trap met once (a race, a flaky interaction). It belongs to the `CLAUDE.md` node over that place, whatever the node holds today.
 - Anything a `CLAUDE.md` node over the rule's scope already states.
+- A way of writing tests that a `(blocking)` rule of the `test-strategy.md` beside this file forbids: a test reaching a private member, a call or call count asserted on a collaborator, the source read as text, a double of the code's own module. When a candidate or an audited line speaks of how tests are written, read `## Proves` and `## Writing` of that file.
 - History: what a convention replaced, a rename, a migration, what the code used to do. A rule says only what holds now; git and the project's ADRs carry the rest.
 
 ## The silent drop
