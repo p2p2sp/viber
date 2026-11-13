@@ -51,6 +51,9 @@ case "$1 $2" in
   "pr list")
     if [ -n "\${PR_FAIL:-}" ]; then exit 1; fi
     printf '%s' "\${PR_LIST:-}" ;;
+  "issue view")
+    if [ -n "\${ISSUE_FAIL:-}" ]; then exit 1; fi
+    printf '%s\\n' "title of #$3" ;;
 esac
 exit 0
 `;
@@ -172,6 +175,7 @@ test("a ready block prints every C9 line in order, QA= right after SPEC=, for a 
         "TARGET=develop",
         "CLOSES=no",
         "TYPE=feat",
+        "ISSUE_TITLE=",
         "TEMPLATE=",
         "SPEC=",
         "QA=",
@@ -797,6 +801,19 @@ test("ISSUE lists the Refs numbers of the commits ahead and the plan's issue, as
       await commit(scene.work, { "c.txt": "c\n" }, "third", "Refs: #9", "Refs: docs/_specs/x task T1");
       const result = await runFacts(shell, scene, ["--target", "develop"]);
       assert.deepEqual(values(result, "ISSUE"), ["3", "5", "9"]);
+      assert.equal(value(result, "ISSUE_TITLE"), "title of #3");
+    });
+  });
+});
+
+test("a failing `gh issue view` leaves ISSUE_TITLE empty and still prints the ready block (the title falls back to TITLE_PATTERN)", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      await onBranch(scene, "feature/x", { "a.txt": "a\n" }, "work", "Refs: #4");
+      const result = await runFacts(shell, scene, ["--target", "develop"], { env: { ISSUE_FAIL: "1" } });
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(values(result, "ISSUE"), ["4"]);
+      assert.equal(value(result, "ISSUE_TITLE"), "");
     });
   });
 });

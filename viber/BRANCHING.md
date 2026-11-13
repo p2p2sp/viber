@@ -257,7 +257,8 @@ instead. Release branches, their version numbers and back-merging a hotfix into 
 - The work entry comes from the run's `work:`, else from the one entry whose `name` pattern matches
   the branch; when that leaves several or none you are asked. Under `mode: off` you are asked for
   the target branch, the default branch first. The pull request lands on the entry's `target`.
-- The title follows `github.pr-title` (`{type}`, `{summary}`, `{issue-number}` and `{entry}`); the
+- The title is `[<n>] <issue title>` of the first issue; with no issue it follows `github.pr-title`
+  (`{type}`, `{summary}`, `{issue-number}` and `{entry}`). The
   body ends with `Closes #<n>` per issue when the target is the default branch, `Refs #<n>` otherwise.
 - You answer create, create as draft or cancel. Only on create does it push the branch to its
   remote and open the pull request.

@@ -125,7 +125,7 @@ tiers:
 | Key | Default | Sets |
 | --- | --- | --- |
 | `github.issue-title` | `'{summary}'` | The title of an issue viber opens |
-| `github.pr-title` | `'[{issue-number}] {summary}'` | The title of a pull request viber opens |
+| `github.pr-title` | `'[{issue-number}] {summary}'` | The title of a pull request viber opens with no issue; with one it is `[<n>] <issue title>` of the first issue |
 | `directories.runs` | `_specs` | The directory under `docs/` for a run in progress |
 | `directories.specifications` | `specs` | The directory under `docs/` for the archive |
 

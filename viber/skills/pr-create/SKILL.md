@@ -40,14 +40,12 @@ The rerun's block replaces the first one and is read from step 1 again.
 
 ## 3. Title
 
-`TITLE_PATTERN=` with these replaced:
-
-- `{type}` -> the `TYPE=` value.
-- `{summary}` -> one line stating the change, in the language of `SPEC=`'s file, else of this conversation.
-- `{issue-number}` -> the first `ISSUE=` value, empty when none.
-- `{entry}` -> the `ENTRY=` value, empty when none.
-
-Then collapse each run of blanks to one and trim.
+- `ISSUE_TITLE=` set -> `[<first ISSUE=>] <ISSUE_TITLE=>`, the issue title copied verbatim; `TITLE_PATTERN=` is ignored.
+- `ISSUE_TITLE=` empty -> `TITLE_PATTERN=` with these replaced, then each run of blanks collapsed to one and trimmed:
+  - `{type}` -> the `TYPE=` value.
+  - `{summary}` -> one line stating the change, in the language of `SPEC=`'s file, else of this conversation.
+  - `{issue-number}` -> the first `ISSUE=` value, empty when none.
+  - `{entry}` -> the `ENTRY=` value, empty when none.
 
 ## 4. Body
 

@@ -2826,10 +2826,12 @@ z nich mówi, jak nim sterować.</p>
     </div>
     <div>
       <dt><span lang="en">Switches</span><span lang="pl">Przełączniki</span></dt>
-      <dd><span lang="en">None. The title follows <a href="#key-github-pr-title"><code>github.pr-title</code></a>.
+      <dd><span lang="en">None. With an issue the title is <code>[&lt;number&gt;] &lt;issue title&gt;</code> of the
+      first issue; without one it follows <a href="#key-github-pr-title"><code>github.pr-title</code></a>.
       The body follows your template: <code>.github/PULL_REQUEST_TEMPLATE/&lt;entry&gt;.md</code>, else
       <code>.github/pull_request_template.md</code>, else a built-in Summary, Changes and Testing. See
-      <a href="#pr-templates">pull request templates</a>.</span><span lang="pl">Brak. Tytuł układa się według
+      <a href="#pr-templates">pull request templates</a>.</span><span lang="pl">Brak. Z issue tytuł to
+      <code>[&lt;numer&gt;] &lt;tytuł issue&gt;</code> pierwszego issue; bez issue układa się według
       <a href="#key-github-pr-title"><code>github.pr-title</code></a>. Treść podąża za twoim szablonem:
       <code>.github/PULL_REQUEST_TEMPLATE/&lt;wpis&gt;.md</code>, potem <code>.github/pull_request_template.md</code>,
       potem wbudowane Summary, Changes i Testing. Zobacz
@@ -3646,10 +3648,12 @@ wartość.</p>
   </div>
   <div id="key-github-pr-title">
     <dt><code>github.pr-title</code> <span class="tag">[{issue-number}] {summary}</span></dt>
-    <dd><span lang="en">The title of a pull request viber opens: <code>{type}</code> is feat or fix,
+    <dd><span lang="en">The title of a pull request viber opens with no issue (with one, the title is
+    <code>[&lt;number&gt;] &lt;issue title&gt;</code> of the first issue): <code>{type}</code> is feat or fix,
     <code>{summary}</code> a one-line statement of the change, <code>{issue-number}</code> the first issue it
     refers to, <code>{entry}</code> its <a href="#key-branching-work"><code>branching.work</code></a>
-    entry.</span><span lang="pl">Tytuł pull requesta, który otwiera viber: <code>{type}</code> to feat albo fix,
+    entry.</span><span lang="pl">Tytuł pull requesta, który viber otwiera bez issue (z issue tytuł to
+    <code>[&lt;numer&gt;] &lt;tytuł issue&gt;</code> pierwszego issue): <code>{type}</code> to feat albo fix,
     <code>{summary}</code> jednozdaniowe streszczenie zmiany, <code>{issue-number}</code> pierwsze issue, do
     którego się odnosi, <code>{entry}</code> jego wpis
     <a href="#key-branching-work"><code>branching.work</code></a>.</span></dd>

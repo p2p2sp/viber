@@ -99,7 +99,7 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
 - **`/viber:issue-create`**: covers issues of any kind, bugs included. Say what it is about, or let
   it take that from the conversation. Name a parent issue (a number or a same-repository issue URL)
   and the new issue is attached under it as a sub-issue.
-- **`/viber:pr-create`**: opens a pull request or a draft, titles it per `github.pr-title`, pushes only on your yes,
+- **`/viber:pr-create`**: opens a pull request or a draft, titles it `[<n>] <issue title>` of its first issue (per `github.pr-title` with none), pushes only on your yes,
   assigns it to you as its author, and posts the run's `qa.md` as a QA comment on the run's issue
   (on the pull request when the run has none), once per run.
   A build finished on its run branch, with no roadmap part left, offers to run it.

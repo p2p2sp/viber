@@ -27,9 +27,9 @@
 #            archived docs/<directories.specifications>/<key>/spec.md;
 #            .github/PULL_REQUEST_TEMPLATE/<entry>.md and
 #            .github/pull_request_template.md.
-#   gh     : `gh repo view` (repository URL and default branch) and `gh pr list
-#            --head <branch> --state open` (url and base branch). Never a create,
-#            never a push.
+#   gh     : `gh repo view` (repository URL and default branch), `gh pr list
+#            --head <branch> --state open` (url and base branch) and `gh issue
+#            view <first ISSUE>` (its title). Never a create, never a push.
 #   git    : read-only. The target is resolved as the remote-tracking ref of
 #            the local target branch's own upstream (`branch.<target>.remote`
 #            and `.merge`), else that of the head branch's remote
@@ -50,6 +50,7 @@
 #              CLOSES=yes|no|                      (empty while TARGET is empty)
 #              TYPE=feat|fix
 #              ISSUE=<n>                           (0+, ascending, unique)
+#              ISSUE_TITLE=<title of the first ISSUE, empty with no ISSUE or a failed lookup>
 #              TEMPLATE=<repo-relative path or empty>
 #              SPEC=<repo-relative path or empty>
 #              QA=<repo-relative path or empty>
@@ -371,6 +372,14 @@ if [ "$m_type" = fix ]; then type=fix; fi
 
 issues=$(printf '%s\n%s\n%s\n' "$refs_issues" "$spec_issue" "$m_issue" | grep -E '^[0-9]+$' | sort -n -u)
 
+# The first issue's title becomes the pull request title; a failed lookup
+# leaves it empty, so the caller falls back to TITLE_PATTERN.
+issue_title=""
+first_issue=$(printf '%s\n' "$issues" | sed -n '1p')
+if [ -n "$first_issue" ]; then
+  issue_title=$(gh issue view "$first_issue" --json title --jq '.title' 2>/dev/null | tr -d '\r' | sed -n '1p')
+fi
+
 template=""
 if [ -n "$entry" ] && [ -f ".github/PULL_REQUEST_TEMPLATE/$entry.md" ]; then
   template=".github/PULL_REQUEST_TEMPLATE/$entry.md"
@@ -401,6 +410,7 @@ printf '%s\n' "$issues" | while IFS= read -r n; do
   [ -n "$n" ] || continue
   echo "ISSUE=$n"
 done
+echo "ISSUE_TITLE=$issue_title"
 echo "TEMPLATE=$template"
 echo "SPEC=$spec"
 echo "QA=$qa"
