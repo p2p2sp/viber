@@ -54,7 +54,7 @@ No agent is dispatched before Map, and every stop below prints its one line and 
 
 ## Hunt
 
-Hunter budget: one hunter per lens angle on the diff scope, 8 for a directory, 16 for the repository. At most 16 agents run at once in every phase: scouts in successive batches, hunters and critics together as one rolling pool, where each return frees a slot for the next queued agent, critics ahead of hunters.
+Hunter budget: one hunter per lens angle on the diff scope, 8 for a directory, 16 for the repository. At most 16 agents run at once in every phase: scouts in successive batches, hunters and critics together as one rolling pool, where each return frees a slot for the next queued agent, critics ahead of hunters. On the tests lens at most 4 of the pool are hunters: parallel hunters running tests saturate the CPU, so a queued hunter waits for a hunter's return.
 
 Dispatch every hunter and critic in the background, its description naming its hunt id or `<hunt id>-<k>`, so each return arrives alone and names its own work. Between returns end the turn; never poll.
 
