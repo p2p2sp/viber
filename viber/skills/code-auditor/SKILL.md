@@ -63,7 +63,7 @@ Dispatch every hunter and critic in the background, its description naming its h
 - Scout retry: once every scout has returned, the units with no score line go once more to scouts, in batches of up to 8, with the same brief and `model`.
 - Kept units: the budget's count, highest score first, equal scores in map order, and units still unscored after the retry after every scored unit, in map order.
 
-Every `viber:hunter` brief: `Run file: <ws>/run.md`, `Lens file: <lens-file>`, `Schema: ${CLAUDE_SKILL_DIR}/references/synthesis.md`, `Hunt: <hunt id>`, its `Unit:` or `Angle:` line and `Reports: <ws>/reports/<hunt id>`. Only for a lens reading `Worktree: required`, add `Worktree script: ${CLAUDE_SKILL_DIR}/scripts/worktree.sh` and `Worktree: <ws>/worktrees/<hunt id>`, and on the diff scope `Overlay script: ${CLAUDE_SKILL_DIR}/scripts/diff-overlay.sh`. A `Worktree: none` lens reserves no worktree.
+Every `viber:hunter` brief: `Run file: <ws>/run.md`, `Lens file: <lens-file>`, `Schema: ${CLAUDE_SKILL_DIR}/references/synthesis.md`, `Test rules: ${CLAUDE_PLUGIN_ROOT}/references/test-strategy.md`, `Hunt: <hunt id>`, its `Unit:` or `Angle:` line and `Reports: <ws>/reports/<hunt id>`. Only for a lens reading `Worktree: required`, add `Worktree script: ${CLAUDE_SKILL_DIR}/scripts/worktree.sh` and `Worktree: <ws>/worktrees/<hunt id>`, and on the diff scope `Overlay script: ${CLAUDE_SKILL_DIR}/scripts/diff-overlay.sh`. A `Worktree: none` lens reserves no worktree.
 
 ## Verify
 

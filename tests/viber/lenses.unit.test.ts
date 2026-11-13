@@ -180,6 +180,7 @@ const TESTS_LENS = fs.readFileSync(path.join(LENSES, "tests.md"), "utf-8");
 const TESTS_SIGNALS = fs.readFileSync(path.join(LENSES, "tests.signals.md"), "utf-8");
 const README = fs.readFileSync(path.join(AUDITOR, "README.md"), "utf-8");
 const SKILL = fs.readFileSync(path.join(AUDITOR, "SKILL.md"), "utf-8");
+const HUNTER = fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/agents/hunter.md"), "utf-8");
 
 const sectionOf = (text: string, heading: string) => (parse(text).lines.get(heading) ?? []).join("\n");
 const readmeSection = (name: string) => README.split(/^## /m).find((part) => part.startsWith(`${name}\n`)) ?? "";
@@ -195,9 +196,26 @@ test("the tests lens names cost in its opening sentence and holds wasteful-tests
 test("the wasteful-tests angle names the redundant, trivial and misplaced classes", () => {
   const hunts = sectionOf(TESTS_LENS, "## Hunts");
   const body = hunts.split("### wasteful-tests\n")[1] ?? "";
-  assert.ok(body.startsWith("Redundant: two tests failing on exactly the same regressions, or variants of one input outside a parameterised form. Trivial: assertions only on a name, a field's presence, a data shape, an accessor or a constant. Misplaced: a decision only an integration test asserts, though a unit test could reach it."));
+  assert.ok(body.startsWith("Redundant: two tests failing on exactly the same regressions, or variants of one input outside a parameterised form. Trivial: "));
+  assert.ok(body.includes("Misplaced: a decision only an integration test asserts, though a unit or component test could reach it"));
 });
 
+test("the wasteful-tests Trivial class covers what Public, Source and Earned rule out", () => {
+  const trivial = (sectionOf(TESTS_LENS, "## Hunts").split("### wasteful-tests\n")[1] ?? "").split("Trivial: ")[1] ?? "";
+  assert.ok(trivial.startsWith("what Public, Source or Earned rule out."));
+});
+
+test("the wasteful-tests Misplaced class makes a suite whose integration tests exceed about a tenth of its tests a candidate, counted by the host's layer marker", () => {
+  const body = sectionOf(TESTS_LENS, "## Hunts").split("### wasteful-tests\n")[1] ?? "";
+  assert.ok(body.includes("a suite whose integration tests, counted by the host's layer marker, exceed about a tenth of its tests is a candidate as a whole"));
+});
+
+test("the over-mocking angle covers a double for a module of the code's own and a test asserting only interactions, a finding naming Boundary or State", () => {
+  const body = sectionOf(TESTS_LENS, "## Hunts").split("### over-mocking\n")[1]?.split("### untested-error-paths")[0] ?? "";
+  assert.ok(body.includes("a double for a module of the code's own (Boundary)"));
+  assert.ok(body.includes("a test asserting only interactions or repeating the implementation's call sequence (State)"));
+  assert.ok(body.includes("A finding names the rule and the behaviour change that would pass."));
+});
 test("the tests lens excludes by the three C9 bullets: a trivial getter, test style and a higher-layer gap unless filed as misplaced", () => {
   const excluded = sectionOf(TESTS_LENS, "## Excluded");
   assert.ok(excluded.includes("- A missing test for a trivial getter, setter, DTO or constant."));
@@ -239,29 +257,34 @@ ${"```"}`));
 const DESIGN_LENS = fs.readFileSync(path.join(LENSES, "design.md"), "utf-8");
 const DESIGN_SIGNALS = fs.readFileSync(path.join(LENSES, "design.signals.md"), "utf-8");
 
-test("the design lens names decisions no unit test can reach in its opening sentence and holds untestable-decisions as its seventh angle", () => {
-  assert.ok(DESIGN_LENS.split(/\r?\n/)[1].includes("dependencies pointing the wrong way, decisions no unit test can reach, dead or drifted code"));
+test("the design lens names decisions no fast test can reach in its opening sentence and holds untestable-decisions as its seventh angle", () => {
+  assert.ok(DESIGN_LENS.split(/\r?\n/)[1].includes("dependencies pointing the wrong way, decisions no fast test can reach, dead or drifted code"));
   assert.equal(anglesOf(DESIGN_LENS)[6], "untestable-decisions");
 });
 
-test("the untestable-decisions angle names the decision, the dependency it sits in and the function over plain values", () => {
+test("the untestable-decisions angle names the decision, the dependency it sits in with no port between and the port whose fake would let a component test reach it", () => {
   const body = sectionOf(DESIGN_LENS, "## Hunts").split("### untestable-decisions\n")[1] ?? "";
-  assert.ok(body.startsWith("A decision (a branch, a rule, a calculation, a validation) written inside code that reaches a database, queue, broker or network, so a test reaches it only through the real dependency or a chain of doubles. Name the decision and the function over plain values that would hold it."));
+  assert.ok(body.startsWith("A decision (a branch, a rule, a calculation, a validation) written inside code that reaches a database, queue, broker or network with no port between them, so a test reaches it only through the real dependency or a chain of doubles. Name the decision and the port whose fake would let a component test reach it."));
 });
 
-test("gate 7 of the design lens passes an untestable-decisions claim through gates 3 and 4 by the tests that assert the decision", () => {
+test("gate 7 of the design lens passes an untestable-decisions claim through gates 3 and 4, naming the port in gate 3 and the tests that assert the decision in gate 4", () => {
   const gate = lineOf(sectionOf(DESIGN_LENS, "## Verify"), "7. ");
-  assert.ok(gate.endsWith("An untestable-decisions claim passes 3 by a change to the decision and 4 by its tests: only integration tests assert it, its unit test builds 3 or more doubles, or none asserts it."));
+  assert.ok(gate.endsWith("An untestable-decisions claim passes 3 by a change to the decision and the port whose fake would let a component test reach it, and 4 by its tests: only integration tests assert it, its fast test builds 3 or more doubles, or none asserts it."));
 });
 
-test("the design lens scores an untestable decision on its 3-4 line", () => {
+test("the design lens scores an untestable decision on its 3-4 line, naming the port", () => {
   const line = lineOf(sectionOf(DESIGN_LENS, "## Severity"), "- 3-4:");
-  assert.ok(line.endsWith("A decision reachable only through the real dependency or 3 or more doubles."));
+  assert.ok(line.endsWith("A decision reachable only through the real dependency or 3 or more doubles, with the port whose fake would reach it named."));
 });
 
-test("the tests lens closes its exclusions by handing a decision no unit test can reach to the design lens", () => {
+test("the design lens and the README name no function over plain values for a decision", () => {
+  assert.ok(!DESIGN_LENS.includes("function over plain values"));
+  assert.ok(!README.includes("function over plain values"));
+});
+
+test("the tests lens closes its exclusions by handing a decision no fast test can reach to the design lens", () => {
   const excluded = sectionOf(TESTS_LENS, "## Excluded").trimEnd();
-  assert.ok(excluded.endsWith("\n- A decision no unit test can reach as written: the design lens."));
+  assert.ok(excluded.endsWith("\n- A decision no fast test can reach as written: the design lens."));
 });
 
 test("the design signals file closes on the mock-density command after its lead-in line, with a single-quoted scope", () => {
@@ -272,9 +295,31 @@ ${"```"}`));
   assert.ok(DESIGN_SIGNALS.trimEnd().endsWith("head -30\n```"));
 });
 
-test("the README design section lists untestable-decisions and the ownership table hands a decision no unit test can reach from tests to design under it", () => {
+test("the README design section lists untestable-decisions and the ownership table hands a decision no fast test can reach from tests to design under it", () => {
   assert.ok(readmeSection("design").includes("- `untestable-decisions`:"));
-  assert.ok(README.includes("| decision no unit test can reach | tests | design | `untestable-decisions` |"));
+  assert.ok(README.includes("| decision no fast test can reach | tests | design | `untestable-decisions` |"));
+  assert.ok(lineOf(readmeSection("design"), "Audits:").includes("decisions no fast test can reach"));
+});
+
+test("the README describes the three angles as the lenses do: the module double and interactions of over-mocking, the Public, Source and Earned rules of trivial tests with the integration share, and the port of untestable-decisions", () => {
+  const tests = readmeSection("tests");
+  assert.ok(lineOf(tests, "- `over-mocking`:").includes("a double for a module of the code's own, or a test asserting only interactions"));
+  assert.ok(lineOf(tests, "- `wasteful-tests`:").includes("trivial tests (what Public, Source or Earned rule out)"));
+  assert.ok(lineOf(tests, "- `wasteful-tests`:").includes("a suite whose integration tests exceed about a tenth of its tests"));
+  assert.ok(lineOf(readmeSection("design"), "- `untestable-decisions`:").includes("the port whose fake would let a component test reach it"));
+});
+
+test("every hunter brief of the code-auditor SKILL carries the Test rules line, and the hunter agent reads its ## Proves by range before hunting on the tests lens and before writing a test as proof", () => {
+  const brief = lineOf(SKILL, "Every `viber:hunter` brief:");
+  assert.ok(brief.includes("`Schema: ${CLAUDE_SKILL_DIR}/references/synthesis.md`, `Test rules: ${CLAUDE_PLUGIN_ROOT}/references/test-strategy.md`, `Hunt: <hunt id>`"));
+  const input = lineOf(HUNTER, "- `Test rules: <path>`");
+  assert.ok(input.includes("`## Proves`"));
+  assert.ok(input.includes("by range"));
+  assert.ok(input.includes("before hunting on the tests lens and before writing a test as proof on any lens"));
+});
+
+test("the hunter agent holds a test it writes as proof to the ## Proves section", () => {
+  assert.ok(lineOf(HUNTER, "- A test you write as proof holds the `## Proves` section of the `Test rules:` file").length > 0);
 });
 
 test("the code-auditor SKILL design line names untestable decisions", () => {

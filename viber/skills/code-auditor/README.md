@@ -74,11 +74,11 @@ Audits: whether the tests would catch a real regression. Code that runs under te
 Angles:
 - `pseudo-tested`: critical code whose mutant (empty body, flipped condition) leaves every test green.
 - `hollow-assertions`: tests that pass whatever the code does, or whose assertion never runs.
-- `over-mocking`: the code under test mocked away, or a test that repeats the implementation's call sequence.
+- `over-mocking`: the code under test mocked away, a double for a module of the code's own, or a test asserting only interactions or repeating the implementation's call sequence.
 - `untested-error-paths`: catch blocks, rejections and limits on a critical flow that no test reaches.
 - `flaky-tests`: timing, clock, randomness, order and shared state that give a mixed result.
 - `dead-tests`: tests that are skipped, focused with `.only` or never collected by the runner.
-- `wasteful-tests`: redundant tests, trivial tests and a decision asserted only by an integration test.
+- `wasteful-tests`: redundant tests, trivial tests (what Public, Source or Earned rule out) and a decision asserted only by an integration test, or a suite whose integration tests exceed about a tenth of its tests.
 
 Verified by: a surviving mutant for a coverage or assertion finding, a reproduced mixed result for a flake, the dead-test procedure for a dead test and the waste procedure for a wasteful test, each run in a clean worktree. `Worktree: required`.
 
@@ -86,7 +86,7 @@ Hands off: a defect in the production code to bugs; an exploitable flaw to secur
 
 ## design
 
-Audits: structure that makes change expensive. One piece of knowledge kept in several places, code that must change together but lives apart, abstractions that grew wrong, dependencies pointing the wrong way, decisions no unit test can reach, dead or drifted code, and breaks of the project's own written rules. Every finding needs a concrete change scenario plus history evidence.
+Audits: structure that makes change expensive. One piece of knowledge kept in several places, code that must change together but lives apart, abstractions that grew wrong, dependencies pointing the wrong way, decisions no fast test can reach, dead or drifted code, and breaks of the project's own written rules. Every finding needs a concrete change scenario plus history evidence.
 
 Angles:
 - `knowledge-duplication`: one fact written in two or more places that must change together.
@@ -95,7 +95,7 @@ Angles:
 - `boundary-coupling`: imports against a declared boundary, import cycles, reaching into internals and shared mutable state.
 - `dead-and-drifted`: unreferenced exports, unset flags, unreachable branches and comments that contradict the code.
 - `rule-drift`: a written rule in `CLAUDE.md`, rules, an ADR or CONTRIBUTING that the code breaks in several places.
-- `untestable-decisions`: a branch, rule, calculation or validation written inside code that reaches a database, queue, broker or network, so only the real dependency or a chain of doubles reaches it.
+- `untestable-decisions`: a branch, rule, calculation or validation written inside code that reaches a database, queue, broker or network with no port between them, so only the real dependency or a chain of doubles reaches it; the finding names the port whose fake would let a component test reach it.
 
 Verified by: gates refuted one by one from the repository and its git history (existence, same knowledge, change scenario, pain evidence, not deliberate, fix economics); nothing is run. `Worktree: none`.
 
@@ -139,7 +139,7 @@ One row per hand-off clause in the intros and `## Excluded` sections of the six 
 | slow server path | tests | runtime-performance | `complexity-cliff` |
 | slow browser path | tests | web-performance | `interaction-hydration` |
 | flake rooted in a production race | tests | bugs | `race-state` |
-| decision no unit test can reach | tests | design | `untestable-decisions` |
+| decision no fast test can reach | tests | design | `untestable-decisions` |
 | wrong result | design | bugs | `wrong-result` |
 | crash | design | bugs | `crash-hang` |
 | lost failure | design | bugs | `silent-failure` |

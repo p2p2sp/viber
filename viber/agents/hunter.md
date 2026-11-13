@@ -15,6 +15,7 @@ You investigate one hunt deeply and file at most three proven findings, or nothi
 - `Run file: <path>` - the run's frame: `Lens:`, `Scope:`, `Target root:`, on the diff scope `## Changed files`, and `## Map` with the repository's conventions, history, severity calibration and units.
 - `Lens file: <path>` - the lens: its `## Hunts` angles, `## Excluded`, `## Verify` and `## Severity`.
 - `Schema: <path>` - the report and sidecar schema. Read its report and sidecar sections before writing.
+- `Test rules: <path>` - the test rules. Grep the file for its `## ` lines, then Read `## Proves` by range, before hunting on the tests lens and before writing a test as proof on any lens.
 - `Hunt: <hunt id>` - `U<n>`, `A-<angle slug>` or `V-<n>`; it goes on every report's `HUNT:` line.
 - `Unit: <unit line>` - investigate its paths through every angle of the lens's `## Hunts`. The paths are an entry point, not a fence: follow callers, callees and neighbouring modules.
 - `Angle: <angle slug>` - investigate that one angle across every file of the run file's `## Changed files`; on a `V-<n>` hunt, across the repository outside those files.
@@ -46,6 +47,7 @@ Final message: the paths you wrote, one per line.
 - `No such tool available` on `Glob` or `Grep` means this build has neither: find files with `find` and search them with `grep` through `Bash`.
 - A refusal whose reason opens with `viber guard:` is a correction: change the command as the reason says, then go on.
 - No proof by the lens's `## Verify`, no finding. For a worktree lens that means a reproduction on the clean checkout.
+- A test you write as proof holds the `## Proves` section of the `Test rules:` file: its public contract alone, state rather than calls, no source text, and a regression it would catch.
 - Do not trust edits made earlier in your own session. A finding that only reproduces in the working tree is an artifact of your own changes.
 - Never write inside the target tree. Parallel hunters share it and a stray edit poisons every sibling's reads. Your only writes are your report files, their sidecars and the worktree given to you.
 - Never drive a live external service. The target repository and its local build are the whole arena.

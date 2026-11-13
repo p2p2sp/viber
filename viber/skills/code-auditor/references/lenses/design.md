@@ -1,5 +1,5 @@
 # Design lens
-Audits structure that makes change expensive: one piece of knowledge kept in several places, code that must change together but lives apart, abstractions that grew wrong, dependencies pointing the wrong way, decisions no unit test can reach, dead or drifted code, and breaks of the project's own written rules. A wrong result, crash or lost failure belongs to the bugs lens, an exploitable flaw to the security lens, a slow path to the runtime performance or web performance lens, and a weak or missing test to the tests lens. Every finding needs a concrete change scenario plus history evidence; a finding closable as "won't fix" at no argued cost is a nit and is never filed.
+Audits structure that makes change expensive: one piece of knowledge kept in several places, code that must change together but lives apart, abstractions that grew wrong, dependencies pointing the wrong way, decisions no fast test can reach, dead or drifted code, and breaks of the project's own written rules. A wrong result, crash or lost failure belongs to the bugs lens, an exploitable flaw to the security lens, a slow path to the runtime performance or web performance lens, and a weak or missing test to the tests lens. Every finding needs a concrete change scenario plus history evidence; a finding closable as "won't fix" at no argued cost is a nit and is never filed.
 
 ## Hunts
 ### knowledge-duplication
@@ -21,7 +21,7 @@ Exports nothing references, parameters or flags no caller sets, unreachable bran
 A `CLAUDE.md`, `.claude/rules` file, ADR or CONTRIBUTING file says X and the code does Y in several places. Only an explicit written rule qualifies; quote it.
 
 ### untestable-decisions
-A decision (a branch, a rule, a calculation, a validation) written inside code that reaches a database, queue, broker or network, so a test reaches it only through the real dependency or a chain of doubles. Name the decision and the function over plain values that would hold it.
+A decision (a branch, a rule, a calculation, a validation) written inside code that reaches a database, queue, broker or network with no port between them, so a test reaches it only through the real dependency or a chain of doubles. Name the decision and the port whose fake would let a component test reach it.
 
 ## Excluded
 - Style, formatting, naming taste, anything the project's own linter, formatter or compiler configuration already enforces.
@@ -42,7 +42,7 @@ Nothing here is proven by running code. Refute the finding gate by gate from the
 4. Pain evidence, at least one: the pair co-changed in 3 or more commits at a coupling of at least 30%; a commit fixed one copy and missed another; the unit is a top-decile hotspot; the change scenario touches 3 or more files, each cited at file:line; the finding quotes a project rule verbatim with the lines breaking it.
 5. Not deliberate: search `CLAUDE.md`, `.claude/rules`, ADRs and nearby comments for an intentional choice. An intentional one is REFUTED.
 6. Fix economics: a concrete fix exists that touches fewer places than it saves and creates no wrong abstraction; one possible only as a per-caller flag or branch in shared code is REFUTED.
-7. Scope of the gates: 2 and 6 bind knowledge-duplication and wrong-abstraction only. A dead-and-drifted claim passes 3 and 4 by a commit that edited the dead code or the contradicted comment after its last caller went (`git log -L <start>,<end>:<file>`), and first proves deadness against dynamic references too (strings, reflection, config, globs, plugin manifests). An import-cycle claim cites every edge at file:line. An untestable-decisions claim passes 3 by a change to the decision and 4 by its tests: only integration tests assert it, its unit test builds 3 or more doubles, or none asserts it.
+7. Scope of the gates: 2 and 6 bind knowledge-duplication and wrong-abstraction only. A dead-and-drifted claim passes 3 and 4 by a commit that edited the dead code or the contradicted comment after its last caller went (`git log -L <start>,<end>:<file>`), and first proves deadness against dynamic references too (strings, reflection, config, globs, plugin manifests). An import-cycle claim cites every edge at file:line. An untestable-decisions claim passes 3 by a change to the decision and the port whose fake would let a component test reach it, and 4 by its tests: only integration tests assert it, its fast test builds 3 or more doubles, or none asserts it.
 
 Verdicts:
 - VERIFIED: every gate passes.
@@ -53,6 +53,6 @@ Verdicts:
 ## Severity
 Nothing is broken, so this lens caps at 6, at 8 only when history shows the flaw already caused a bug; a wrong behaviour seen now belongs to the bugs lens.
 - 1-2: PARTIALLY VERIFIED only: real, local, pain evidence weak.
-- 3-4: knowledge duplicated in 3 or more places, or co-change in 3 or more commits; every change costs N edits. A decision reachable only through the real dependency or 3 or more doubles.
+- 3-4: knowledge duplicated in 3 or more places, or co-change in 3 or more commits; every change costs N edits. A decision reachable only through the real dependency or 3 or more doubles, with the port whose fake would reach it named.
 - 5-6: a top-decile hotspot or god module, co-change in 5 or more commits at 50% or more, or a written project rule broken in several places.
 - 7-8: a commit fixed one copy and a later fix had to patch another, or a fix commit names a defect the flaw invited.
