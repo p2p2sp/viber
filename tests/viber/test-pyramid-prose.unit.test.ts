@@ -33,6 +33,7 @@ const TDD = read("references/tdd.md");
 const CODER = read("agents/task-coder.md");
 const REVIEWER = read("agents/task-reviewer.md");
 const TEST_RUNNER = read("agents/test-runner.md");
+const FIXER = read("skills/fixer/SKILL.md");
 const PLANNER = read("skills/planner/SKILL.md");
 const PLAN_REVIEW = read("agents/planner-review.md");
 const TASK_REVIEW = read("agents/planner-task-review.md");
@@ -416,6 +417,42 @@ for (const [name, text] of DEFINITION_ROWS) {
     assert.ok(!has(text, "accessors, trivial constructors"));
   });
 }
+
+test("task-coder ends the task on FAIL with the clause number and the DECIDE line for a clause only a forbidden test could prove, on either TDD value", () => {
+  assert.ok(has(bullet(CODER, "Honour `Contracts` as written"), "and a `DoD` clause you cannot meet within your limits, or that only a test a `(blocking)` rule of `test-strategy.md` forbids could prove (on either `TDD` value), end the task on `VERDICT: FAIL` with the clause number in `REASON` and the `DECIDE:` line."));
+});
+
+test("task-coder takes neither a surrounding test nor a project rule asking for a forbidden test as a precedent, writes none and names the project rule in its notes", () => {
+  assert.ok(has(bullet(CODER, "Before the first test you write or change"), "and neither a surrounding test breaking one nor a project rule asking for a test one forbids is a precedent: write no such test and name that project rule in your notes."));
+});
+
+test("task-reviewer reads Layers, Proves and Writing by range, and Ports when the Files hold a port, its fake or its contract test", () => {
+  assert.ok(has(bullet(REVIEWER, "Tested:"), "read `<refs>/test-strategy.md` in `## Layers`, `## Proves` and `## Writing` by range (`Grep` it for the `## ` lines, then `Read` those sections), plus `## Ports` when the task's `Files` hold a port, its fake or its contract test,"));
+});
+
+test("task-reviewer raises a forbidden test as Blocking naming the rule, with the cause plan when a DoD clause asked for it, and never asks for such a test", () => {
+  assert.ok(has(bullet(REVIEWER, "Tested:"), "raise every rule they tag `(blocking)` as a Blocking finding naming the rule, with the cause `plan` when a `DoD` clause asked for the test, and never ask for such a test."));
+});
+
+test("fixer reads Layers, Proves and Writing by range before writing the reproduction test", () => {
+  assert.ok(has(bullet(section(FIXER, "The reproduction test"), "Read"), "Read `## Layers`, `## Proves` and `## Writing` of `${CLAUDE_PLUGIN_ROOT}/references/test-strategy.md` by range before writing it (`Grep` the file for its `## ` lines, then `Read` each section): every rule it marks `(blocking)` binds this test, and no later stage may change it."));
+});
+
+test("fixer writes the reproduction test in the layer Proof gives the diverging behaviour, reaching the real dependency only where the diverging code has no port", () => {
+  const text = section(FIXER, "The reproduction test");
+  assert.ok(has(text, "- Write it in the layer `Proof` gives the diverging behaviour, never an end-to-end run of the symptom: it reaches the real dependency only where the diverging code has no port."));
+  assert.ok(!has(text, "unit at the diverging layer"));
+});
+
+test("tdd keeps horizontal slicing as its only anti-pattern", () => {
+  const items = section(TDD, "Anti-patterns").split(/\r?\n/).filter((candidate) => candidate.startsWith("- "));
+  assert.equal(items.length, 1);
+  assert.ok(items[0].startsWith("- Horizontal slicing - "));
+});
+
+test("tdd Red step names the Public rule of test-strategy", () => {
+  assert.ok(has(TDD, "Through the `Public` rule of `test-strategy.md`."));
+});
 
 test("integration-tests holds a blocking rule that an adapter passes its port's contract test as an integration test and one created or changed with none is a finding", () => {
   const text = bullet(INTEGRATION, "An adapter passes the contract test of its port");

@@ -40,8 +40,8 @@ Three laws, in this order. None substitutes for another.
 ```
 
 ## The reproduction test
-- Read `${CLAUDE_PLUGIN_ROOT}/references/test-strategy.md` before writing it: every rule it marks `(blocking)` binds this test, and no later stage may change it.
-- Narrowest level that reproduces the divergence - unit at the diverging layer, not an end-to-end run of the symptom.
+- Read `## Layers`, `## Proves` and `## Writing` of `${CLAUDE_PLUGIN_ROOT}/references/test-strategy.md` by range before writing it (`Grep` the file for its `## ` lines, then `Read` each section): every rule it marks `(blocking)` binds this test, and no later stage may change it.
+- Write it in the layer `Proof` gives the diverging behaviour, never an end-to-end run of the symptom: it reaches the real dependency only where the diverging code has no port.
 - **Actually run it - never simulate it mentally.**
 - It must fail because the defect is present - not from a syntax error, missing import, typo, harness misconfig, or wrong fixture path.
 - Passes immediately? The diagnosis is wrong or the test misses it. Return to step 2 - never weaken the assertion to force a failure.

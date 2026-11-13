@@ -9,7 +9,7 @@ On `resume`, `reason` or `report` input, the code already in the tree is existin
 ## Red-Green-Refactor cycle
 
 ### Red - write one failing test
-One behavior, one test, named after the behavior ("user can checkout with valid cart", never "constructor returns instance"). Public interface only.
+One behavior, one test, named after the behavior ("user can checkout with valid cart", never "constructor returns instance"). Through the `Public` rule of `test-strategy.md`.
 
 ### Verify red - watch it fail
 Run it. A run counts as red only when the test fails on an assertion about the missing behavior, never on a typo, import miss or harness error. A compile, import or missing-symbol failure gets a signature-only skeleton with no logic, then a rerun, until the test fails on an assertion. Passes immediately? Sharpen the assertion and restart red. The first run, before any production edit, goes to `<out>/red.log`.
@@ -26,9 +26,6 @@ Only code this task wrote. Never refactor while red; the file stays green throug
 ## Anti-patterns
 
 - Horizontal slicing - all tests first, then all implementation. Work vertical: one test, one implementation, repeat.
-- Mocking internal collaborators - couples a test to implementation so it breaks on a refactor that changed no behavior.
-- Testing implementation details - private methods, call counts, call order.
-
 ## Workflow
 
 Decide the public interface before coding. The behaviors are the plan task's numbered `DoD` clauses, one failing test each, an integration-proven clause excepted (Iron law), worked in their numbered order: never start a clause before the one above it is green. Where the task leaves a choice open, take it; where it leaves the behavior under test unnameable, stop and report the task failed with that reason.
