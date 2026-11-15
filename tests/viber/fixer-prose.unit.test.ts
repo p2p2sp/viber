@@ -1,11 +1,13 @@
 /*
- * fixer-prose.unit.test.ts - pins the three tracing checks of `fixer`: the premise two refuted
- * hypotheses share, the legitimacy of the state at the divergence, and the commit that broke a
- * behaviour that used to work.
+ * fixer-prose.unit.test.ts - pins the three tracing checks of `fixer` (the premise two refuted
+ * hypotheses share, the legitimacy of the state at the divergence, the commit that broke a
+ * behaviour that used to work) and its temporary instrumentation (Law 3, the `git status` record
+ * and the handoff gate comparing against it, the session manifest's exception).
  *
- * `fixer/SKILL.md` is a shipped prompt whose text is the behaviour. Each check is one bullet of
- * its `## Tracing checks` section, found by its bold lead; the diagnosis payload names the
- * introducing commit on its `Root cause` line. Nothing is spawned.
+ * `fixer/SKILL.md` and `hooks/content/manifest.md` are shipped prompts whose text is the
+ * behaviour. Each check is one bullet of its `## Tracing checks` or `## Instrumentation` section,
+ * found by its bold lead; the diagnosis payload names the introducing commit on its `Root cause`
+ * line. Nothing is spawned.
  *
  * Run directly by Node's type stripping:
  *   node --test tests/viber/fixer-prose.unit.test.ts
@@ -44,6 +46,37 @@ test("fixer finds the commit that introduced a divergence of a behaviour that us
   assert.ok(rule.includes("`git log -L`"), rule);
   const root = LINES.find((l) => l.startsWith("- **Root cause**")) ?? "";
   assert.ok(root.includes("the introducing commit"), root);
+});
+
+test("fixer allows temporary instrumentation of production code only when reading the code cannot state the actual value, each edit reverted through Edit before the handoff", () => {
+  const law = LINES.find((l) => l.startsWith("**3.")) ?? "";
+  assert.ok(law.includes("temporary instrumentation of production code"), law);
+  assert.ok(law.includes("only when reading the code cannot state the actual value (timing, environment, persisted state)"), law);
+  assert.ok(law.includes("each instrumentation edit reverted through `Edit` before the handoff"), law);
+});
+
+test("fixer records git status before its first edit", () => {
+  const rule = bullet("Record");
+  assert.ok(rule.includes("`git status` before your first edit"), rule);
+});
+
+test("fixer never instruments a file the record shows already changed", () => {
+  const rule = bullet("Instrument");
+  assert.ok(rule.includes("never a file already changed in the record"), rule);
+});
+
+test("the handoff gate runs git status again and stops, naming the path, on any path changed since the record but the reproduction test, leaving every path already changed in the record untouched", () => {
+  const start = LINES.findIndex((l) => l.startsWith("## Handoff"));
+  const gate = LINES.slice(start, start + 4).join("\n");
+  assert.ok(gate.includes("Run `git status` again"), gate);
+  assert.ok(gate.includes("stop, naming the path, on any path changed since the record other than the reproduction test"), gate);
+  assert.ok(gate.includes("leaving every path already changed in the record untouched"), gate);
+});
+
+test("the session manifest's plan-approval exception names fixer's reproduction test and its temporary instrumentation", () => {
+  const manifest = fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/hooks/content/manifest.md"), "utf8");
+  const rule = manifest.split(/\r?\n/).find((l) => l.startsWith("- Write or edit no code")) ?? "";
+  assert.ok(rule.includes("Exception: `viber:fixer`'s reproduction test and its temporary instrumentation."), rule);
 });
 
 test("fixer runs git bisect only on a tree with no uncommitted change and ends it on git bisect reset (a bisect would move files the handoff must leave untouched)", () => {

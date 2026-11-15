@@ -1,0 +1,3 @@
+- The Source rule of test-strategy.md (blocking) forbids reading source text; as in T1, the prose test reads fixer/SKILL.md and manifest.md as the shipped product whose text is the behaviour (tests/viber/CLAUDE.md exception).
+- New `## Instrumentation` section (Record and Instrument bullets) sits before Resolving the report; the Law 3 sentence and the Handoff gate carry the rest, so the T1 tracing checks stay word for word.
+- The gate bullet pin reads the four lines from the `## Handoff` heading: a longer gate text would need that slice widened.

@@ -20,7 +20,7 @@ Three laws, in this order. None substitutes for another.
 
 **2. No handoff without a failing test that reproduces the divergence.** Reading code proves what it says, never what it does. Until a test fails on the divergence found, the root cause is unconfirmed and the fix has nothing to verify it.
 
-**3. Never apply the fix here.** Edit nothing but the reproduction test. The fix is built through `viber:planner` -> `viber:implementor`. "It is trivial" and "it is one line" are the same violation.
+**3. Never apply the fix here.** Edit nothing but the reproduction test, and temporary instrumentation of production code only when reading the code cannot state the actual value (timing, environment, persisted state), each instrumentation edit reverted through `Edit` before the handoff. The fix is built through `viber:planner` -> `viber:implementor`. "It is trivial" and "it is one line" are the same violation.
 
 ## The Process
 1. Resolve the report (below).
@@ -35,6 +35,11 @@ Apply these inside Law 1.
 - **Shared premise** - two hypotheses refuted by the same check share a premise: write it in one sentence and check it directly before a third hypothesis.
 - **Legitimate state** - at the divergence, decide whether the state reaching it is legitimate. Legitimate: the code breaking on it is the root cause. A state that should never exist: the root cause is the place producing it, and a guard at the symptom is no fix direction.
 - **Used to work** - when the report says the behaviour used to work, find the commit that introduced the divergence through `git log -L` over the diverging symbol, or `git bisect` only on a tree with no uncommitted change, ended on `git bisect reset`. The diagnosis names that commit.
+
+## Instrumentation
+Apply these around every edit.
+- **Record** - run `git status` before your first edit and keep the paths it shows as changed.
+- **Instrument** - only per Law 3, never a file already changed in the record.
 
 ## Resolving the report
 ```!
@@ -77,7 +82,7 @@ The handoff payload - state it in context, in this order. No report file: the pa
 ```
 
 ## Handoff [GATE]
-Invoke the `viber:planner` skill, restating every part of the diagnosis verbatim in that invocation. Stop there.
+Run `git status` again: stop, naming the path, on any path changed since the record other than the reproduction test, leaving every path already changed in the record untouched. Otherwise invoke the `viber:planner` skill, restating every part of the diagnosis verbatim in that invocation. Stop there.
 
 ## Bypass authorization
 The reproduction test is unconditional. When reproduction is genuinely infeasible (hard race, rendering artifact, unreachable third-party state), stop and ask the user through one `AskUserQuestion` for explicit authorization to hand off without it, stating what blocks reproduction: `Authorize` or `Keep trying`. `Keep trying` -> return to step 3. Never decide this alone; "hard to test" is not infeasible.
