@@ -359,6 +359,8 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>The red test stays as evidence and as a regression guard.</li>
         <li>Never applies the fix itself, not even a one-liner.</li>
         <li>Diagnosis: cause, symptom link, test, fix direction, blast radius, done condition.</li>
+        <li>The <code>Same defect elsewhere</code> field lists other places repeating the cause; you pick which enter the plan.</li>
+        <li>Temporary instrumentation of production code only when reading cannot state a value, reverted before the handoff.</li>
         <li>Asks you to choose when several fix approaches are defensible.</li>
         <li>Skips the reproduction only with your explicit authorization.</li>
         <li>The diagnosis is always a <code>spec-lite</code>, handed to the planner.</li>
@@ -805,6 +807,7 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>The writer creates, corrects, moves, compacts and removes rules.</li>
         <li>Learns rules from the <code>failures.md</code> of archived runs: a failure that repeats becomes a rule, and the handled entries are removed from the file.</li>
         <li>Names facts that are no rule, to move into <code>CLAUDE.md</code>.</li>
+        <li>A convention a check could enforce comes back as an <code>ENFORCE:</code> proposal, no rule.</li>
         <li>Reset protected against uncommitted changes.</li>
         <li>The result stays uncommitted.</li>
       </ul>

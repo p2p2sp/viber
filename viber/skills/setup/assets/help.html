@@ -1533,10 +1533,10 @@ Plan podaje kryteria akceptacji, pliki, których dotyczy, i zadania, a agent rec
 kodzie, zanim go zobaczysz. Błędne założenie wychodzi więc na jaw, zanim oprze się na nim jakikolwiek kod.</p>
 <p lang="en">For a change you want made right away, say so: an explicit request for a direct change skips the
 plan. The one piece of code allowed before a plan is the failing test <a href="#skill-fixer"><code>fixer</code></a>
-writes to prove a bug.</p>
+writes to prove a bug, with its temporary instrumentation.</p>
 <p lang="pl">Jeśli chcesz zmianę od razu, powiedz to wprost: wyraźna prośba o bezpośrednią zmianę pomija plan.
 Jedyny kod dopuszczalny przed planem to nieprzechodzący test, którym <a href="#skill-fixer"><code>fixer</code></a>
-udowadnia błąd.</p>
+udowadnia błąd, oraz tymczasowa instrumentacja, którą <code>fixer</code> dodaje do kodu produkcyjnego.</p>
 
 <h3 class="sub" id="hw-gate"><span lang="en">The plan-mode gate</span><span lang="pl">Bramka trybu planowania</span><a class="self" href="#hw-gate">#</a></h3>
 <p lang="en">The <a href="#term-plan-gate">plan gate</a> is a hook that holds Claude inside plan mode until a
@@ -2701,10 +2701,15 @@ z nich mówi, jak nim sterować.</p>
   <h4><code>/viber:fixer</code></h4>
   <p lang="en">Traces a reported bug through the code, step by step, to its root cause and proves it with a
   failing test, then hands the diagnosis to <a href="#skill-planner"><code>planner</code></a>. It applies no fix:
-  the fix is built from the plan.</p>
+  the fix is built from the plan. Where reading the code cannot state a value, it adds temporary instrumentation
+  to production code and reverts it before the handoff. The diagnosis lists each other place repeating the
+  cause in a <code>Same defect elsewhere</code> field, and you pick which of those places enter the plan.</p>
   <p lang="pl">Śledzi zgłoszony błąd w kodzie krok po kroku aż do przyczyny źródłowej i udowadnia ją
   testem, który nie przechodzi, a potem przekazuje diagnozę do <a href="#skill-planner"><code>planner</code></a>.
-  Niczego nie naprawia: poprawka powstaje z planu.</p>
+  Niczego nie naprawia: poprawka powstaje z planu. Gdy lektura kodu nie podaje wartości, dodaje do kodu
+  produkcyjnego tymczasową instrumentację i cofa ją przed przekazaniem. Diagnoza wylicza w polu
+  <code>Same defect elsewhere</code> każde inne miejsce powtarzające przyczynę, a ty wybierasz, które z nich
+  trafią do planu.</p>
   <dl>
     <div>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
@@ -3000,15 +3005,17 @@ z nich mówi, jak nim sterować.</p>
   <a href="#agent-rules-writer"><code>rules-writer</code></a>, the same writer the build close uses. It also
   reads the <code>failures.md</code> of your archived runs and learns a rule from a failure that repeats across
   runs, removing the convention entries it has handled and every entry of another cause. The build close suggests
-  <code>/viber:rules extend</code> once convention failures stand in two runs. A rule stays within 4000 bytes and
-  the directory within 40000.</p>
+  <code>/viber:rules extend</code> once convention failures stand in two runs. A convention a check could enforce
+  (a lint rule, a type or a test) comes back as an <code>ENFORCE:</code> proposal and no rule. A rule stays
+  within 4000 bytes and the directory within 40000.</p>
   <p lang="pl">Mapuje <code>.claude/rules/</code>, zleca <a href="#agent-rules-auditor"><code>rules-auditor</code></a>
   sprawdzenie każdej reguły względem plików, do których pasują jej ścieżki, i przekazuje konieczne zmiany do
   <a href="#agent-rules-writer"><code>rules-writer</code></a>, tego samego autora, którego używa zamknięcie
   buildu. Czyta też <code>failures.md</code> z zarchiwizowanych przebiegów i uczy się reguły z porażki, która
   powtarza się w kolejnych przebiegach, usuwając obsłużone wpisy o zasadach oraz każdy wpis innej przyczyny.
   Zamknięcie buildu podpowiada <code>/viber:rules extend</code>, gdy porażki dotyczące zasad występują w dwóch
-  przebiegach. Reguła mieści się w 4000 bajtów, a cały katalog w 40000.</p>
+  przebiegach. Konwencja, którą mogłaby egzekwować kontrola (reguła lintera, typ albo test), wraca jako
+  propozycja <code>ENFORCE:</code>, a nie jako reguła. Reguła mieści się w 4000 bajtów, a cały katalog w 40000.</p>
   <dl>
     <div>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>

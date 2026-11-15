@@ -215,7 +215,7 @@
   <rect x="40" y="1088" width="1560" height="64" rx="32" class="ring-a"/>
   <rect x="44" y="1092" width="1552" height="56" rx="28" fill="var(--amber-bg)" stroke="var(--amber)" stroke-width="1.5"/>
   <text x="820" y="1116" class="title" text-anchor="middle" style="font-size:14.5px">BRAMKA - zatwierdzasz plan</text>
-  <text x="820" y="1136" class="desc-s" text-anchor="middle">przed nią nie powstaje żaden kod poza testem reprodukcji fixera · plan, który nie przeszedł przeglądu, nie wyjdzie z trybu planowania · plan napisany poza plannerem jest tylko recenzowany (planning.outside-plan-review)</text>
+  <text x="820" y="1136" class="desc-s" text-anchor="middle">przed nią nie powstaje żaden kod poza kodem fixera (test reprodukcji, tymczasowa instrumentacja) · plan, który nie przeszedł przeglądu, nie wyjdzie z trybu planowania · plan napisany poza plannerem jest tylko recenzowany (planning.outside-plan-review)</text>
 
   <!-- ============ BUILD ============ -->
   <path d="M740 1152 L740 1186" class="link l-b" marker-end="url(#ar-b)"/>
