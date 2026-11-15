@@ -217,6 +217,19 @@ test("plan-rules TDD lists a behaviour-preserving restructuring as TDD none, pin
   assert.ok(has(rule("TDD"), "restructures code keeping every observable behaviour (a refactor), its `Verification` running the existing tests that pin that behaviour and, where none pins it, its first done clause writing a characterization test run green before the structure moves;"));
 });
 
+test("plan-rules Ordered makes the last task carrying one mechanical change over more than five files depend on every other task carrying it, in its own sentence", () => {
+  const sentences = rule("Ordered").split(". ");
+  assert.ok(sentences.some((sentence) => has(sentence, "The last task carrying one mechanical change (a rename, a moved path, a changed call) across more than five files depends on every other task carrying it")));
+});
+
+test("plan-rules Provable gives the task completing a mechanical change over more than five files a grep for the old form over every tracked file outside the run and archive directories, an exception to its own Files", () => {
+  assert.ok(has(rule("Provable"), "The task completing a mechanical change over more than five files holds in its `Verification` a grep for the old form over every tracked file outside the run and archive directories under `docs/` that finds nothing, an exception to the scope of its own `Files`;"));
+});
+
+test("plan-rules Provable leaves every CLAUDE.md out of that grep with build.memory on", () => {
+  assert.ok(has(rule("Provable"), "with `build.memory` on, that grep leaves out every `CLAUDE.md` too."));
+});
+
 test("plan-rules stays within 19800 bytes", () => {
   assert.ok(Buffer.byteLength(PLAN_RULES, "utf8") <= 19800);
 });
