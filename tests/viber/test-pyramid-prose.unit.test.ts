@@ -213,6 +213,10 @@ test("plan-rules Shared harness gives the harness task the shared fixtures holdi
   assert.ok(has(rule("Shared harness"), "The harness task also owns the shared test fixtures holding the fakes, and makes a test with no layer marker fail and the fast tests unable to open a network connection, each by the test framework's own mechanism."));
 });
 
+test("plan-rules TDD lists a behaviour-preserving restructuring as TDD none, pinned by the existing tests in Verification or by a characterization test run green first", () => {
+  assert.ok(has(rule("TDD"), "restructures code keeping every observable behaviour (a refactor), its `Verification` running the existing tests that pin that behaviour and, where none pins it, its first done clause writing a characterization test run green before the structure moves;"));
+});
+
 test("plan-rules stays within 19800 bytes", () => {
   assert.ok(Buffer.byteLength(PLAN_RULES, "utf8") <= 19800);
 });
