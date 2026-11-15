@@ -1,0 +1,2 @@
+- The brake extends the `Maximum 5 rounds` sentence of `## Prove it green` in place (one sentence, ~240 bytes): task-coder's read set has 793 bytes of headroom under its 25975 cap, now about 550.
+- DoD.2 is proven by the sentence opening on `a dispatch carrying `reason``, and by "premise" appearing nowhere else in task-coder.md.

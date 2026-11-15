@@ -431,3 +431,29 @@ test("the commit outside a task rule still retries then rules through the commit
 test("the step 5 no-change rule keeps routing a round of repair commits all exiting 4 to the arbiter", () => {
   assert.ok(CLOSE.includes("every repair commit call of the round exiting 4 (no changes) -> the tree is the one that failed: no next round, the arbiter as on round 6"));
 });
+
+const PROVE = CODER.slice(CODER.indexOf("## Prove it green"), CODER.indexOf("## Leave your notes"));
+const BRAKE_OPENING = "On a dispatch carrying `reason`, when a red round";
+const BRAKE_START = PROVE.indexOf(BRAKE_OPENING);
+const BRAKE = BRAKE_START < 0 ? "" : PROVE.slice(BRAKE_START, PROVE.indexOf(". ", BRAKE_START) + 1);
+
+test("the coder's Prove it green section carries the premise brake on a dispatch carrying reason", () => {
+  assert.ok(BRAKE.startsWith(BRAKE_OPENING));
+});
+
+test("the premise brake fires when a red round fails on the check the reason names after a fix resting on the failed attempt's premise", () => {
+  assert.ok(BRAKE.includes("fails on the same check the `reason` names after a fix resting on the premise of the failed attempt"));
+});
+
+test("the premise brake has the coder write that premise as one line of its notes", () => {
+  assert.ok(BRAKE.includes("write that premise as one line of your notes"));
+});
+
+test("the premise brake has the coder check the premise directly before the next fix", () => {
+  assert.ok(BRAKE.includes("check it directly before the next fix"));
+});
+
+test("the premise brake is the only place the coder prose speaks of a premise, so a dispatch without reason carries none", () => {
+  assert.ok(BRAKE.length > 0);
+  assert.ok(!CODER.replace(BRAKE, "").includes("premise"));
+});
