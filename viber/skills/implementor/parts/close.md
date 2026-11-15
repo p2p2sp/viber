@@ -17,6 +17,8 @@ Repair commit, every path on the coder's `FILES:` line through the form that own
 - A path the index's `files` column claims -> `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>" "<round>" "<file>" ["<file>"...]`, one call per task.
 - A path no column claims -> one `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --repair "<plan>" "<round>" "<file>" ["<file>"...]` for all of them. Never borrow a task id for such a file.
 
+Returns:
+
 - Test-runner `VERDICT: PASS` or `VERDICT: SKIP` -> `TaskUpdate` -> completed.
 - Test-runner `VERDICT: FAIL`, round 1 to 5 -> repair dispatch.
 - Test-runner `VERDICT: FAIL`, round 6 -> the arbiter with `case: tests`, `options: accept`, `report:` that run's `REPORT` path. Record its ruling with subject `tests`, then go to step 6, that failing run named in the final summary.

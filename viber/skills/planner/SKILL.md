@@ -32,7 +32,7 @@ Never propose, write or show a mockup or prototype: plan mode writes the plan fi
 
 Before writing a task, decide which files get created, modified or deleted and what each one owns: locked-in boundaries are what lets tasks run in parallel.
 
-- One responsibility per file, and each new file hides more than its interface exposes: a file that only forwards to another (deleting it would move no complexity, only remove a hop) is folded into its caller. Files that change together live together.
+- One responsibility per file; files that change together live together (`Lean` decides what a new file may be).
 - Read the codebase for everything `plan-rules.md`'s Reach and Owned rules force into the file map, not only what the change introduces.
 - A file you have to touch that has grown unwieldy may be split, as a task.
 
@@ -129,7 +129,12 @@ A reply with no `VERDICT:` line gets one more dispatch with the same input, that
 The verdict of a round of the review set is `VERDICT: DENIED` when any member returned it, else `VERDICT: FAIL` when any returned it, else `VERDICT: PASS`. The verdicts below read the single reviewer's or the round's.
 
 - `VERDICT: PASS` - go to step 4 without writing the plan again; its Minor findings stay unapplied, except one showing the plan changes a behaviour today's code has that neither the input nor an `Answered:` line asks for: handle the round as `VERDICT: FAIL` with that finding as Blocking.
-- `VERDICT: FAIL` - show the findings, every member's of a review set round, fix every Blocking finding, and every Minor one showing such an unasked change of today's behaviour, across its whole class in the plan, not only at the cited place, checking each fix against the input requirement it serves, and a Minor one only where a Blocking fix already rewrites its text, re-run `plan-index.sh` after every fix, then dispatch again. A finding that needs a decision only the user can make gets asked first through one `AskUserQuestion`, and the answer, kept as an `Answered:` line, starts a fresh round 1.
+- `VERDICT: FAIL`:
+  - Show the findings, every member's of a review set round.
+  - Fix every Blocking finding, and every Minor one showing such an unasked change of today's behaviour, across its whole class in the plan, not only at the cited place, checking each fix against the input requirement it serves.
+  - Fix any other Minor one only where a Blocking fix already rewrites its text.
+  - Re-run `plan-index.sh` after every fix, then dispatch again.
+  - A finding that needs a decision only the user can make gets asked first through one `AskUserQuestion`, and the answer, kept as an `Answered:` line, starts a fresh round 1.
 - `VERDICT: DENIED` - one `AskUserQuestion` naming the refused call from its `REASON:` line: permission added and retry, dispatching again in the same round (in a review set round only the members that returned `DENIED`, the others keeping their verdicts), or stop with the plan unreviewed and no hand-off.
 
 ```!

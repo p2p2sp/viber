@@ -37,7 +37,7 @@ One `AskUserQuestion`: post the ready replies, or cancel. Cancel -> stop, nothin
 
 For each ready reply in section order run `"${CLAUDE_PLUGIN_ROOT}/scripts/pr-reply.sh" "<pull request>" "<key>" "<reply file>"` once, `<key>` being the section's `Comment:` value, and report its result:
 
-- Exit 0, `STATUS=posted` -> `REPLY_URL=`, of a thread or a remark alike (a remark's reply is a pull request comment, its link ending in `#issuecomment-<digits>`).
+- Exit 0, `STATUS=posted` -> `REPLY_URL=`, of a thread or a remark alike.
 - Exit 0, `STATUS=skip` -> `REASON=exists`: the item already holds a viber reply.
 - Exit 1 or 2 -> its `ERROR` line; go on to the next reply.
 

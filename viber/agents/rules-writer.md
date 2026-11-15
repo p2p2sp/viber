@@ -52,7 +52,7 @@ Measure before you write: `wc -c` on the file you are changing, and `wc -c` on e
 - Under the spec shape, never compact, split or move: report a corrected file left over a cap on `OVER:`.
 - Under the map shape, over a cap, in this order:
   1. Compact: drop a second example where one carries the rule, a bullet failing the admission gate, a bullet the build contradicted.
-  2. Split into one file per convention, each in its own area's directory with its own narrower `paths:`. A file carrying ONE convention and still over is too wordy rather than too broad - compact it further instead.
+  2. Split into one file per convention, each in its own area's directory with its own narrower `paths:`. A file carrying one convention and still over is too wordy rather than too broad - compact it further instead.
   3. Write it over budget and report it.
 
 ## Output

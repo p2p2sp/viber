@@ -1,6 +1,6 @@
 ---
 name: fixer
-description: Traces a reported bug to its root cause and proves it with a failing test, then hands the diagnosis to the planner - it applies no fix itself. Use whenever user reports a bug and wants to fix it. Not for a fix the user asked to apply directly, without a plan.
+description: Traces a reported bug to its root cause and proves it with a failing test, then hands the diagnosis to the planner - it applies no fix itself. Use whenever the user reports a bug and wants to fix it. Not for a fix the user asked to apply directly, without a plan.
 argument-hint: "[bug report, or an issue number/URL when github.issues is on]"
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash, Skill
 user-invocable: true
@@ -55,9 +55,12 @@ Apply these around every edit.
 - Write it in the layer `Proof` gives the diverging behaviour, never an end-to-end run of the symptom: it reaches the real dependency only where the diverging code has no port.
 - **Actually run it - never simulate it mentally.**
 - It must fail because the defect is present - not from a syntax error, missing import, typo, harness misconfig, or wrong fixture path.
-- Passes immediately? The diagnosis is wrong or the test misses it. Return to step 2 - never weaken the assertion to force a failure.
+- Passes immediately? The diagnosis is wrong or the test misses it. Return to step 2 - never weaken the assertion to force a failure. Reproduction genuinely infeasible -> Bypass authorization below.
 - The test stays in the repo, RED, as the handoff evidence and the regression guard afterwards.
 - It opens with a header comment of at most 5 lines: root cause as file + symbol, actual vs expected at the diverging step, fix direction. Nothing else goes in.
+
+## Bypass authorization
+The reproduction test is unconditional. When reproduction is genuinely infeasible (hard race, rendering artifact, unreachable third-party state), stop and ask the user through one `AskUserQuestion` for explicit authorization to hand off without it, stating what blocks reproduction: `Authorize` or `Keep trying`. `Keep trying` -> return to step 3. Never decide this alone; "hard to test" is not infeasible.
 
 ## The diagnosis
 The handoff payload - state it in context, in this order. No report file: the part worth keeping already rides in the reproduction test's header.
@@ -84,6 +87,3 @@ The handoff payload - state it in context, in this order. No report file: the pa
 
 ## Handoff [GATE]
 Run `git status` again: stop, naming the path, on any path changed since the record other than the reproduction test, leaving every path already changed in the record untouched. Otherwise invoke the `viber:planner` skill, restating every part of the diagnosis verbatim in that invocation. Stop there.
-
-## Bypass authorization
-The reproduction test is unconditional. When reproduction is genuinely infeasible (hard race, rendering artifact, unreachable third-party state), stop and ask the user through one `AskUserQuestion` for explicit authorization to hand off without it, stating what blocks reproduction: `Authorize` or `Keep trying`. `Keep trying` -> return to step 3. Never decide this alone; "hard to test" is not infeasible.

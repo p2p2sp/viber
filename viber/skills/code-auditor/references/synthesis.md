@@ -1,7 +1,5 @@
 # Synthesis - run file, verify, dedupe, score
 
-Turns the hunters' reports of mixed quality into a trustworthy, severity-ranked findings list.
-
 ## Contents
 
 - Run file
@@ -12,11 +10,11 @@ Turns the hunters' reports of mixed quality into a trustworthy, severity-ranked 
 - Severity
 - findings.md (final output)
 - Variant wave
-- What the moderator reads
+- What the skill reads
 
 ## Run file
 
-The one description of a run, at `.temp/viber/code-auditor/<run-id>/run.md`. The skill writes it in Frame and appends the `## Map` section after the map gate; every agent of the run reads it, so all of them judge by the same frame. Each line starts at column 0:
+The one description of a run, at `.temp/viber/code-auditor/<run-id>/run.md`. The skill writes it in Frame and appends the `## Map` section after the map gate. Each line starts at column 0:
 
 ```
 Lens: <lens>
@@ -31,8 +29,6 @@ Base: <BASE value from diff-files.sh>
 ## Map
 <map.md verbatim>
 ```
-
-A directory whose root-relative path is `diff` or `repo` is written `./diff` or `./repo`, so the bare keywords always mean the scope. `Base:` and `## Changed files` are written on the diff scope only.
 
 ## Hunter report schema
 
@@ -76,7 +72,7 @@ Each critic returns `VERDICT`, `COMMAND`, `OBSERVED` and a 0-10 `SEVERITY` in it
 - PARTIALLY VERIFIED - keep only the sub-claims the critic's `OBSERVED` confirms, drop the rest; `CONFIDENCE` stays as filed. Adopt the critic's `SEVERITY` as for VERIFIED.
 - REFUTED - drop the finding entirely. It does not appear in `findings.md`, not even at low severity and not in the further-findings list.
 - INCONCLUSIVE - keep the finding; `SEVERITY` stays as filed. Lower `CONFIDENCE` by one step (high -> medium, medium -> low); an entry already at low stays low. Name the missing oracle alongside the entry so the gap reads as honest coverage.
-- No `VERDICT:` line at all (an empty final message, a crash, a timeout) is not a verdict, and it never silently drops the finding. Dispatch that critic once more, with a fresh worktree path of its own when the lens reserves one. If the second run also comes back without a `VERDICT:` line, file the finding as `INCONCLUSIVE` under the rule above, carrying the reason `critic returned no verdict` in place of a missing-oracle name.
+- No `VERDICT:` line after the retry: `INCONCLUSIVE` under the rule above, reason `critic returned no verdict` in place of a missing-oracle name.
 
 A finding is confirmed when its verdict is `VERIFIED` or `PARTIALLY VERIFIED`.
 
@@ -88,7 +84,7 @@ A merged group is one finding everywhere downstream: it takes one slot against t
 
 ## Severity
 
-Every surviving finding carries a `SEVERITY: N.N` on its own line (0-10), and the pool is emitted in descending severity order. The number is a rough internal ranking signal, not a published CVSS, but it must be consistent enough to sort by.
+Every surviving finding carries a `SEVERITY: N.N` on its own line (0-10), and the pool is emitted in descending severity order.
 
 The bands come from the run file's `## Map` -> `## Severity calibration`: what a 9-10 or a 4-6 means in this repository for this lens. Only when that section holds no band line do the lens's own `## Severity` bands decide.
 
@@ -140,7 +136,7 @@ SEVERITY · LOCATION · CLASS · <title> · <report path>
 
 After a variant wave, rebuild `findings.md` from the first wave's and the variant wave's findings together, every report and verdict of the run, not just the new wave's. The cap, the ordering, the further-findings list and every count are properties of the run, so a late high-severity finding pushes an earlier one down into the list instead of being appended below it.
 
-## What the moderator reads
+## What the skill reads
 
 Ranking a pool of reports must not cost one report read per report. Build the ranking from two inputs only:
 

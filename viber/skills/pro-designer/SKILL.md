@@ -11,9 +11,8 @@ allowed-tools: Read, Grep, Glob, Bash(sh:*), Bash(node:*)
 FIRST ACTION of every invocation, no exceptions: read `${CLAUDE_SKILL_DIR}/references/anti-slop.md` in full. Nothing else in this skill starts until it is in context.
 
 - Applies to every job size - a whole page, one component, a color question, a code review, a one-line fix - and applies even when a design system, brief, or token set already exists.
-- Load it BEFORE proposing anything. The tells it names are your own statistical defaults; they have to leave the candidate set before the first decision, not get scrubbed out of a finished draft.
+- Load it before proposing anything. The tells it names are your own statistical defaults; they have to leave the candidate set before the first decision, not get scrubbed out of a finished draft.
 - Keep it active for the rest of the run: every palette, layout family, section sequence, icon, headline and demo value is checked against it at the moment it is chosen, not at the end.
-- A tell nobody asked for is out. A tell the user's brief explicitly pinned stays ("Scope discipline") - the brief is the only override.
 
 ## The bar
 
@@ -22,7 +21,7 @@ FIRST ACTION of every invocation, no exceptions: read `${CLAUDE_SKILL_DIR}/refer
 
 ## Surface mode - name the visitor's success first
 
-Before any design decision, name what the visitor's success looks like on THIS surface. Choose from the requested surface, not the product: a tool's landing page is still Persuade; a fashion brand's docs are still Read.
+Before any design decision, name what the visitor's success looks like on this surface. Choose from the requested surface, not the product: a tool's landing page is still Persuade; a fashion brand's docs are still Read.
 
 - **Persuade** - the visitor decides and acts: landing pages, marketing, pricing. Design earns attention and action.
 - **Operate** - the visitor completes a task: app UI, dashboards, forms, settings, admin. Scanability, consistency and platform expectations outrank expression; brand lives in precise details.
@@ -31,7 +30,7 @@ Before any design decision, name what the visitor's success looks like on THIS s
 
 ## Design pass - apply in this order
 
-1. **Aesthetic direction** - for a new Persuade/Experience surface, FIRST write the mandatory concept brief and show it to the user, even when a design system already exists -> `${CLAUDE_SKILL_DIR}/references/concepting.md`; then ground the direction in the subject, refuse every AI-default look `anti-slop.md` catalogs, and pick one signature element -> `${CLAUDE_SKILL_DIR}/references/distinctiveness.md`
+1. **Aesthetic direction** - for a new Persuade/Experience surface, first write the mandatory concept brief and show it to the user -> `${CLAUDE_SKILL_DIR}/references/concepting.md`; then ground the direction in the subject, refuse every AI-default look `anti-slop.md` catalogs, and pick one signature element -> `${CLAUDE_SKILL_DIR}/references/distinctiveness.md`
 2. **Layout skeleton** - spacing scale, grouping, grid, max-width -> `${CLAUDE_SKILL_DIR}/references/layout-spacing.md`
 3. **Hierarchy & type** - one focal point per screen, fixed type ramp, mute labels / amplify values, on Persuade surfaces section headings from the display scale -> `${CLAUDE_SKILL_DIR}/references/typography.md`
 4. **Color** - neutral foundation + elevation, a scarce 100-900 accent scale, dark mode by physiology, OKLCH theming -> `${CLAUDE_SKILL_DIR}/references/color.md`
@@ -55,7 +54,7 @@ Before any design decision, name what the visitor's success looks like on THIS s
 - Motion: animate only `transform`/`opacity`, UI durations under 300ms (modals and drawers up to 500ms), `ease-out` for enter/exit (never `ease-in`), never from `scale(0)`, no animation on keyboard-initiated or 100+/day actions, and `prefers-reduced-motion` handled (gentler, not zero). Never `transition: all`; never a cursor-tracking beam, spotlight, or tilt.
 - Demo content is real content: no Acme/John Doe/Lorem Ipsum, no fake round numbers (47.2%, not 50%), no cliche marketing verbs (Elevate, Seamless, Unleash). Full catalog: the `anti-slop.md` file.
 - No dark patterns: no fake urgency, scarcity, progress, or anchors; defaults never work against the user. Full rules in `${CLAUDE_SKILL_DIR}/references/ux-psychology.md`.
-- HARD RULE: never output an em dash (U+2014) or an en dash (U+2013) anywhere - not in UI copy, microcopy, code, comments, or reports. Always use a plain hyphen (-).
+- Never output an em dash (U+2014) or an en dash (U+2013) anywhere - not in UI copy, microcopy, code, comments, or reports. Always use a plain hyphen (-).
 
 ## Design-system precedence
 
@@ -70,11 +69,7 @@ A token set binds palette, typography, radii and spacing - it is not a compositi
 
 ## Reference routing
 
-`anti-slop.md` is not on this list - it is already loaded unconditionally. Everything below is routed on demand, on top of it.
-
-- New Persuade/Experience surface, before any layout - concept brief, section sequence, skeleton critique -> `${CLAUDE_SKILL_DIR}/references/concepting.md`
 - Aesthetic direction for a new surface, signature elements, UI copy/microcopy voice, consistency locks (radius/gray/theme/accent/register) -> `${CLAUDE_SKILL_DIR}/references/distinctiveness.md`
-- Onboarding, signup, upgrade, pricing, paywalls, conversion flows -> `${CLAUDE_SKILL_DIR}/references/ux-psychology.md`
 - Choosing/using colors, palettes, dark mode -> `${CLAUDE_SKILL_DIR}/references/color.md`
 - Building or reviewing a token system - CSS variables, primitive/semantic/component layering, theming mechanism, dark-mode switching, z-index layers -> `${CLAUDE_SKILL_DIR}/references/tokens.md`
 - Headings, body text, data/number display, form text conventions -> `${CLAUDE_SKILL_DIR}/references/typography.md`
@@ -90,7 +85,7 @@ A token set binds palette, typography, radii and spacing - it is not a compositi
 ## Final QA
 
 - **Squint test**: blur your eyes - the primary CTA must be the only element that pops.
-- **Contrast**: resolve the `node` command via `sh "${CLAUDE_SKILL_DIR}/scripts/check_node.sh"` first (`NODE_MISSING` -> skip with a note that Node.js >= 22.6 is required), then run `<resolved node cmd> "${CLAUDE_SKILL_DIR}/scripts/check_contrast.ts" FG BG [TYPE] [FG BG [TYPE] ...]` for every text/background and component/background pair. TYPE = `normal` (default, 4.5:1) | `large` (3:1) | `ui` (borders/icons/focus, 3:1) - exit 1 means a pair failed the AA threshold for its own type; exit 2 means bad input or usage (an out-of-range color, a malformed JSON record, or no args).
+- **Contrast**: resolve the `node` command via `sh "${CLAUDE_SKILL_DIR}/scripts/check_node.sh"` first (`NODE_MISSING` -> skip with a note that Node.js >= 22.6 is required), then run `<resolved node cmd> "${CLAUDE_SKILL_DIR}/scripts/check_contrast.ts" FG BG [TYPE] [FG BG [TYPE] ...]` for every text/background and component/background pair. TYPE = `normal` (default, 4.5:1) | `large` (3:1) | `ui` (borders/icons/focus, 3:1) - exit 1 means a pair failed the AA threshold for its own type; exit 2 means bad input or usage.
 - **States inventory**: hover, focus, disabled, loading, empty, error - all present?
 - **Detail rule**: if a detail is too small or too faint to notice, delete it instead of keeping it faint.
 - **Template test** (new surfaces only): would this exact palette + type + hero combination ship for any similar brief? If yes, it is a default, not a decision - revise the generic part (`${CLAUDE_SKILL_DIR}/references/distinctiveness.md`).

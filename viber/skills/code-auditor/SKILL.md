@@ -2,7 +2,6 @@
 name: code-auditor
 description: Multi-agent code audit through one lens (bugs, security, web-performance, runtime-performance, tests or design) over one scope (the current diff, one directory or the whole repository), every finding verified by an independent agent. Use when the user asks to audit, review or hunt defects in code for one of those lenses or scopes, such as "audit security of my branch" or "check the tests in src/api".
 user-invocable: true
-disable-model-invocation: false
 argument-hint: "[<lens>] [diff | diff:<sha> | <directory> | repo]"
 allowed-tools: Agent, Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
 ---
@@ -26,7 +25,7 @@ A run audits one scope through one lens in five phases: Frame, Map, Hunt, Verify
 No agent is dispatched before Map, and every stop below prints its one line and ends the run.
 
 1. Settle what is missing, the lens first:
-   - No lens given: print this numbered list in the conversation's language, never through `AskUserQuestion`, and end the turn to wait for the user's number. A group token prints only its two lines with their numbers (`performance`: 3 and 4, `quality`: 5 and 6).
+   - No lens given: print this numbered list in the conversation's language, never through `AskUserQuestion` (six lenses exceed its four options), and end the turn to wait for the user's number. A group token prints only its two lines with their numbers (`performance`: 3 and 4, `quality`: 5 and 6).
      1. `bugs`: wrong results, lost failures, crashes and hangs, races, producer and consumer mismatches.
      2. `security`: injection, access control, authentication, untrusted input, secrets and supply chain, LLM agents.
      3. `web-performance`: entry JS weight, LCP, layout shifts, hydration, asset delivery.
@@ -37,7 +36,7 @@ No agent is dispatched before Map, and every stop below prints its one line and 
    - No scope given: once the lens is settled, ask How much through `AskUserQuestion`: Changes -> `diff`, Directory -> a directory, Whole repository -> `repo`. After a Directory answer, ask in prose for its path.
 2. `<root>`: the output of `git rev-parse --show-toplevel` in the current directory, else the current directory.
 3. A directory is read against `<root>`; an absolute one is accepted only under `<root>` and rewritten root-relative, and a leading `./` is dropped; a result of `diff` or `repo` is recorded as `./diff` or `./repo`, however it was given. One that does not exist, lies outside `<root>` or carries a `..` segment or an apostrophe -> stop with `code-auditor: area directory not found under <root>: <value> (lenses: bugs, security, web-performance, runtime-performance, tests, design)`.
-4. `<lens-file>` is the absolute path of the selected one of `${CLAUDE_SKILL_DIR}/references/lenses/bugs.md`, `references/lenses/security.md`, `references/lenses/web-performance.md`, `references/lenses/runtime-performance.md`, `references/lenses/tests.md` and `references/lenses/design.md`. Read only the selected lens file, never the other five. Its `## Hunts` gives the angle slugs, its `## Verify` the `Worktree:` line. `<signals-file>` is the same path ending in `.signals.md` in place of `.md`, read only by the mapper. On a directory or repo scope under a lens reading `Worktree: required`, `git -C "<root>" rev-parse --verify -q HEAD` printing no hash -> stop with `code-auditor: <lens> verifies on a clean checkout and <root> holds no git commit: commit first, or pick the design lens`.
+4. `<lens-file>` is the absolute path `${CLAUDE_SKILL_DIR}/` followed by the selected one of `references/lenses/bugs.md`, `references/lenses/security.md`, `references/lenses/web-performance.md`, `references/lenses/runtime-performance.md`, `references/lenses/tests.md` and `references/lenses/design.md`. Read only the selected lens file, never the other five. Its `## Hunts` gives the angle slugs, its `## Verify` the `Worktree:` line. `<signals-file>` is the same path ending in `.signals.md` in place of `.md`, read only by the mapper. On a directory or repo scope under a lens reading `Worktree: required`, `git -C "<root>" rev-parse --verify -q HEAD` printing no hash -> stop with `code-auditor: <lens> verifies on a clean checkout and <root> holds no git commit: commit first, or pick the design lens`.
 5. Diff scope only: run `sh "${CLAUDE_SKILL_DIR}/scripts/diff-files.sh" "<root>"`, with `<sha>` appended as its base argument for `diff:<sha>`. Then, in this order:
    - `BAD_BASE` -> stop with `code-auditor: diff base not found: <sha>`;
    - `NOT_A_REPO` -> stop: the diff scope needs a git repository;
@@ -76,7 +75,7 @@ A critic whose final message carries no `VERDICT:` line is dispatched once more 
 
 ## Synthesize
 
-Start only when no hunter or critic is running or queued. Read `${CLAUDE_SKILL_DIR}/references/synthesis.md` and write `<ws>/findings.md` exactly as it specifies, reading only what its `## What the moderator reads` allows. It is the sole authority on folding verdicts, deduplication, severity and the shape of `findings.md`: never restate or reinterpret its rules.
+Start only when no hunter or critic is running or queued. Read `${CLAUDE_SKILL_DIR}/references/synthesis.md` and write `<ws>/findings.md` exactly as it specifies, reading only what its `## What the skill reads` allows. It is the sole authority on folding verdicts, deduplication, severity and the shape of `findings.md`: never restate or reinterpret its rules.
 
 Show the user the path of `findings.md` and one short summary: units mapped, hunts dispatched, confirmed findings, units not investigated. With at least one confirmed finding, the run's last message, after any variant wave, ends on the line `/viber:intent <absolute path of findings.md>`.
 

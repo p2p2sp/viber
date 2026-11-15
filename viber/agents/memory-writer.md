@@ -33,7 +33,7 @@ Read `<refs>/node-doctrine.md` before you change a node: it owns the budget, wha
 - Remove what the project no longer has: a node whose directory is gone, together with its sections, a passage describing an area the build deleted. Confirm the absence with `Glob` first, then delete each file with `rm -- <path>`, never `-r` or `-f` - a node you cannot disprove stays. A root passage describing an area the build deleted stays in place and returns as a `SUGGEST:` line, the area's absence as what holds now.
 - A repo-wide fact the build taught belongs to the root: return it as a `SUGGEST:` line, never as a new node and never as a line in a node below the root.
 - Keep every node's existing voice. Nothing is claimed that the spec, the notes or the code does not support.
-- `Bash` is for `wc -c`, `find` and `grep` in place of a missing `Glob` or `Grep`, and `rm -- <one path>` on a confirmed-obsolete node or section, and nothing else.
+- `Bash` is for `wc -c`, `find` and `grep` in place of a missing `Glob` or `Grep`, and the `rm` above, nothing else.
 - Never end a node or section over the doctrine's node cap, nor a chain over the chain cap while its ancestors leave room: once the doctrine's steps are spent, leave out the facts a reader needs least, never a root-cause trap, and return each on `DROPPED:`. Ancestors this build did not touch leaving no room -> keep each written node within its own cap and leave the chain as it stands.
 
 ## Output

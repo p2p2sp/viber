@@ -23,7 +23,7 @@ Your whole tool set is `AskUserQuestion`, `Agent` and the two map lines of step 
 
 Before any question, one line per fact worth deciding on:
 
-- each `rule:` line with its size, its globs and its match count. `OVER-FILE` is past 4000 bytes, and `total:` closes on `OVER-DIR` past 40000 over the directory. A rule already over a budget is reported here and compacted or split by the writer, never by you.
+- each `rule:` line with its size, its globs and its match count. `OVER-FILE` on a rule and `OVER-DIR` on `total:` are the map's budget flags. A rule already over a budget is reported here and compacted or split by the writer, never by you.
 - each `frozen:` line, named as a file this command reports and never scores, audits, resets or rewrites.
 - each `dead:` line, named as a rule whose declared scope matches no tracked file.
 - each `dirty:` line with its `modified` or `untracked` word.
@@ -108,7 +108,17 @@ A call returning `VERDICT: DENIED` instead -> one `AskUserQuestion` naming the t
 
 ## 6. Confirm, then the writer
 
-Every returned line carrying five zero counters, a trail line carrying its three zero counters (`miss`, `ignored`, `rejected`), or `-> none`, with no kept rule named in step 1 as misplaced, no kept rule flagged `OVER-FILE` and no `OVER-DIR` on `total:`, means the layer is already true and no scope earned a new rule. With no kept `trail:` line carrying an `other` count above 0, say so in one line, dispatch no writer, and stop. An `ENFORCE:` line is no counter: it never dispatches the writer alone, and the writer's `map:` carries none.
+The layer is already true when every condition holds:
+
+- Every returned line carries five zero counters, or reads `-> none`.
+- Every trail line has its three counters (`miss`, `ignored`, `rejected`) at 0.
+- No kept rule is named in step 1 as misplaced.
+- No kept rule is flagged `OVER-FILE`, and `total:` carries no `OVER-DIR`.
+- No kept `trail:` line carries an `other` count above 0.
+
+All hold -> say so in one line, dispatch no writer, and stop.
+
+An `ENFORCE:` line is no counter: it never dispatches the writer alone, and the writer's `map:` carries none.
 
 Otherwise one `AskUserQuestion` over the counters just reported, the over-budget flags, the moves named in step 1 and the `other` entries of each kept trail: fold them in, or stop. A kept `trail:` line with an `other` count above 0 reaches the writer even with every audit counter at 0. Only on approval, one `Agent` call, `subagent_type: viber:rules-writer`, no `model:` line, three labelled lines and nothing else:
 

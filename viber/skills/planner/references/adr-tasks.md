@@ -13,8 +13,7 @@ input:
 <the input block of the review dispatch, without its Answered: lines>
 ```
 
-The `input:` body is the one the review dispatch carries: the summary file path alone on its line, or the summary or diagnosis verbatim. A one-line input naming a `.md` file under `.temp/viber/intent/summary-` is read as that file's content.
-
+The `input:` body is the one the review dispatch carries: the summary file path alone on its line, or the summary or diagnosis verbatim.
 - A reply with no `VERDICT:` line is handled as `VERDICT: DENIED` with `REASON: no verdict returned`.
 - `VERDICT: DENIED` - one `AskUserQuestion` naming the refused call from its `REASON:` line: permission added and retry, or continue with no record task.
 - `VERDICT: NONE` - ask nothing, add nothing and go back to the skill.

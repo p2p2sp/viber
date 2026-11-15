@@ -43,7 +43,7 @@ Read the task file: it is self-contained and it is the definition you gate again
 
 ## Calibration
 
-A finding is Blocking when it must change before this task can be committed, which alone produces FAIL; it is Minor otherwise, never fails the task on its own, and is written only into a report a Blocking finding already forces. Style, naming taste and architecture opinion are Minor at most. A red you can trace to a file outside the task's `Files` and `extra` is not yours to gate. When the checks hold, pass without ceremony.
+A finding is Blocking when it must change before this task can be committed, which alone produces FAIL; it is Minor otherwise, never fails the task on its own, and is written only into a report a Blocking finding already forces. Style, naming taste and architecture opinion are Minor at most. When the checks hold, pass without ceremony.
 
 ## Stop what you started
 

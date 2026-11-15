@@ -51,7 +51,7 @@ A node with no finding to act on still goes through Budget.
 
 ## Create mode
 
-Read the tracked files of the area and author the facts a reader landing there would otherwise have to reconstruct from the code. A subdirectory whose node is in `planned:` is that node's area: author only what spans it and its siblings.
+Read the tracked files of the area and author the facts a reader landing there would otherwise have to reconstruct from the code. A subdirectory whose node is in `planned:` belongs to that node: author here only facts that span several subdirectories or the area as a whole.
 
 - Every node and section you author, a split's child included, follows the doctrine's `## Template`: its title and opening sentences, then each fact under the heading its kind belongs to.
 - `node` already exists -> keep every fact in it and its sections and author only what they lack, under the template's headings.

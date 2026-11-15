@@ -1,4 +1,4 @@
-Red check: a coder `PASS` of a `TDD: required` task that is no coder failure gets one call before its review or commit, Bash timeout 600000, never in the background:
+Red check: a coder `PASS` of a `TDD: required` task that is no coder failure gets one call before its review or commit, Bash timeout 600000, never in the background (returning agents wait queued meanwhile, nothing lost; a timeout counts as `UNRUNNABLE`):
 
 ```
 "${CLAUDE_PLUGIN_ROOT}/scripts/red-check.sh" "<plan>" "<id>"

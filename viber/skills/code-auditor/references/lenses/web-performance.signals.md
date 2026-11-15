@@ -1,5 +1,5 @@
 # Web performance lens map signals
-Rank units by route reach (root layout first, then the landing page), then by the signals below and by churn. Only when blocks 0 to 2 all find nothing, no frontend framework and no HTML or template file: `## Units` reads `none: <reason>`.
+Rank units by route reach (root layout first, then the landing page), then by the signals below and by churn. Only when the first three blocks (framework config files, framework dependencies, HTML and template files) all find nothing: `## Units` reads `none: <reason>`.
 
 Framework config files:
 ```bash

@@ -513,7 +513,7 @@ test("step 5 reports the trail AUDIT line verbatim", () => {
 test("step 6 reads a trail line with three zero counters as five zero counters", () => {
   assert.ok(
     CONFIRM.some((line) =>
-      line.includes("a trail line carrying its three zero counters (`miss`, `ignored`, `rejected`)"),
+      line.includes("Every trail line has its three counters (`miss`, `ignored`, `rejected`) at 0"),
     ),
   );
 });
@@ -529,11 +529,8 @@ test("step 6 dispatches the writer for a kept trail line with an other count abo
 });
 
 test("step 6 stops without a writer on zero counters only when no kept trail line has an other count above 0", () => {
-  assert.ok(
-    CONFIRM.some((line) =>
-      line.includes("With no kept `trail:` line carrying an `other` count above 0, say so in one line, dispatch no writer, and stop"),
-    ),
-  );
+  assert.ok(CONFIRM.some((line) => line.includes("No kept `trail:` line carries an `other` count above 0.")));
+  assert.ok(CONFIRM.some((line) => line.includes("All hold -> say so in one line, dispatch no writer, and stop")));
 });
 
 test("step 6 passes every trail line of a kept trail target in the writer's map", () => {

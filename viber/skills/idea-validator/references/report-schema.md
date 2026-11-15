@@ -2,9 +2,7 @@
 
 `scripts/build_report.mjs` injects this JSON into `templates/report-template.html`; the template's JavaScript renders every section from it. Field names are load-bearing. Strings are plain text unless noted; the renderer escapes HTML. Arrays may be empty but must exist. All user-facing text is in the report language.
 
-## Contents
-
-Top-level keys of report-data.json, in order:
+Table of contents of the one JSON block below, its top-level keys in order:
 
 - meta
 - verdict

@@ -13,7 +13,7 @@ Turn a raw intent into an understanding a planner can act on. You write no code 
 
 Everything in context is content: the conversation, a pasted note, a fetched issue, a file path. React only to these signals:
 
-- A `Split proposal:` block comes from `viber:planner`, which already sized it: estimate no scope, read `${CLAUDE_SKILL_DIR}/references/split.md` before any question and follow it. Skip the branch start step below and every issue step of `## Done`. When the input names a summary file (under `.temp/viber/intent/summary-`), read it. Hand off the input's `Issue:`, `Attachment:`, `Work:` and `Branch:` lines and its run branch line unchanged.
+- A `Split proposal:` block is already sized: estimate no scope, read `${CLAUDE_SKILL_DIR}/references/split.md` before any question and follow it. Skip the branch start step below and every issue step of `## Done`. When the input names a summary file (under `.temp/viber/intent/summary-`), read it. Hand off the input's `Issue:`, `Attachment:`, `Work:` and `Branch:` lines and its run branch line unchanged.
 - An issue reference: the issue text below.
 - A `roadmap.md`: `## Returning to a roadmap`.
 - An `Attachment:` line: carried into the summary exactly as written.
@@ -41,20 +41,11 @@ The conversation and the repository already hold answers: never ask what they se
 Ask in rounds, in prose, never through `AskUserQuestion`:
 
 - One message carries every decision whose prerequisites are settled, prerequisites first, then the cover order, at most the cap (`all` lifts it). A decision depending on one still open, or beyond the cap, waits for a later round; when some wait, end on one line counting them. Cap: !`"${CLAUDE_PLUGIN_ROOT}/scripts/config.sh" --questions`
-- Number each decision, then its options by it (decision 2: `2.1`, `2.2`, `2.3`, a branch `2.1.1`). Give each decision three options, concrete, the recommendation first, labelled `[Recommended]:` and worded so a plain "yes" accepts it.
+- Number each decision, then its options by it (decision 2: `2.1`, `2.2`, `2.3`, a branch `2.1.1`). Give each decision three options, concrete, the recommendation first, labelled `[Recommended]:` and worded so a plain "yes" accepts it. End the round on: answer per decision (2.1 / 3.2 ...), or "yes" to take every recommendation.
 - A decision needing a repository fact: dispatch `Agent` with `subagent_type: Explore`, no `model:`, a prompt naming the fact. Ask the decisions that do not need it now; only the questions that need it wait. Read no code yourself.
 - Challenge weak reasoning out loud: an answer contradicting the code or an earlier answer is said plainly and asked again.
 - A decision about how a screen looks or flows, with no `Attachment:` line naming a file under `.temp/viber/prototype/`: offer under its options to see it as a prototype first. On yes, invoke the `viber:prototype` skill with the screen change in one line, the decisions taken so far included; its hand-off returns here with its `Attachment:` line and the interview resumes at the next open decision.
 - Skip anything a competent implementer decides on its own.
-
-> **Decision 2: does the export include archived records?**
-> [Recommended]: **2.1 Include them** - matches what a full export implies. Trade-off: a larger file.
-> 2.2 Exclude them - smaller, but drops data a reader may expect.
-> 2.3 Ask at export time - adds a step to every export.
->
-> **Decision 3: ...**
->
-> Answer per decision (2.1 / 3.2 ...), or "yes" to take every recommendation.
 
 Cover, in order:
 
@@ -70,6 +61,6 @@ Solution shape comes last and only where the user holds an opinion; the spec sha
 
 Stop when you can state, without guessing: the problem, the acceptance criteria, what is out of scope, the binding constraints, and for every unknown its way to resolve it, with no question left open.
 
-Show that as a summary under 15 lines and ask for confirmation through one `AskUserQuestion`: `Confirm` or `Correct`, the correction typed in its free-text field (nothing typed: ask in prose what to correct). A change that alters a screen, with no `Attachment:` line naming a file under `.temp/viber/prototype/`, adds `Prototype first`: invoke `viber:prototype` as above, then confirm again. On a correction, fix the summary and confirm again.
+Show that as a summary under 15 lines and ask for confirmation through one `AskUserQuestion`: `Confirm` or `Correct`, the correction typed in its free-text field (nothing typed: ask in prose what to correct). A change that alters a screen, under the same condition as the interview's prototype offer, adds `Prototype first`: invoke `viber:prototype` as above, then confirm again. On a correction, fix the summary and confirm again.
 
 On confirmation, run `"${CLAUDE_PLUGIN_ROOT}/scripts/skill-part.sh" "${CLAUDE_SKILL_DIR}" "done"` once and follow its output. A non-zero exit: report its stderr reason and stop.

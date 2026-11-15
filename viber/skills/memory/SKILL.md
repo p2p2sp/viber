@@ -23,7 +23,7 @@ Your whole tool set is `AskUserQuestion`, `Agent`, the two map lines of step 3 a
 
 Before any question, one line per fact worth deciding on:
 
-- each `node:` line with its two sizes and its flag. `OVER-NODE` is past 12000 bytes, past 4000 for the root `CLAUDE.md`; `OVER-CHAIN` past 32000 over the chain. A node below the root already over a budget is reported here and brought within it by its writer, never by you; the root belongs to the user, so its writer only suggests what to trim.
+- each `node:` line with its two sizes and its flag. `OVER-NODE` and `OVER-CHAIN` are the map's budget flags. A node below the root already over a budget is reported here and brought within it by its writer, never by you; the root belongs to the user, so its writer only suggests what to trim.
 - each `section:` line with its size and flag, under its node when one exists. A section never counts toward a chain.
 - each `unlinked:` line, named as a section no reader can reach.
 - each `orphan:` line, named as a node left alone in a directory whose other files are gone.
@@ -67,7 +67,11 @@ Nothing is dispatched before the user has seen the target list and kept what bel
 
 Then one `AskUserQuestion` over that list: all of them, or the ones the user picks. Offer the targets themselves as options while the list is short enough to show; past that, offer all of them, none of them, and take the paths a free answer names verbatim. A target the user dropped reaches no auditor and no writer. Nothing kept -> stop, having dispatched nothing and written nothing.
 
-A `node:` target is a fix target. Every other target - a candidate, an emptied directory, the directory of a section with no node, the root of an empty layer - is a create target, its node being `CLAUDE.md` inside that directory. A directory holding a section on a `dirty:` line is never a create target: that section is the user's uncommitted work. An orphan is offered like any other node: the auditor decides whether its area really went, and the writer is what removes the file. A section is never a target of its own: it travels with the node beside it.
+- A `node:` target is a fix target.
+- Every other target - a candidate, an emptied directory, the directory of a section with no node, the root of an empty layer - is a create target, its node being `CLAUDE.md` inside that directory.
+- A directory holding a section on a `dirty:` line is never a create target: that section is the user's uncommitted work.
+- An orphan is offered like any other node: the auditor decides whether its area really went, and the writer is what removes the file.
+- A section is never a target of its own: it travels with the node beside it.
 
 The planned set is every `node:` line of the map in use plus the node of every kept create target, root first, then by depth. It stays whole to the end of the run: a target dropped or confirmed later still counts in it, its node still being there.
 
@@ -128,7 +132,14 @@ Keep account while the waves return, counting only paths whose file name is `CLA
 
 ## 8. Reconcile the lists of nodes
 
-After the last wave, a node that exists, the root never counted as off (it carries no list of nodes), is off when the nodes that now exist below its directory differ from the part of `planned:` below it plus the nodes its own dispatch created, or, when no dispatch wrote it, when any dispatch created or deleted a node below its directory; the root's directory covers the whole repository. Each node off gets one more `viber:memory-node-writer`: `mode: fix`, `node:` its path, `findings: none`, `planned:` the nodes that now exist, `refs:` as above. One wave per depth, the deepest first, sent in batches as in step 5, each wave's `planned:` counting what the waves before it created or deleted. No node off -> dispatch nothing here.
+After the last wave, check every node that exists:
+
+- The root is never off: it carries no list of nodes.
+- A node one dispatch wrote is off when the nodes that now exist below its directory differ from the part of `planned:` below it plus the nodes that dispatch created.
+- A node no dispatch wrote is off when any dispatch created or deleted a node below its directory.
+- Each node off gets one more `viber:memory-node-writer`: `mode: fix`, `node:` its path, `findings: none`, `planned:` the nodes that now exist, `refs:` as above.
+- One wave per depth, the deepest first, sent in batches as in step 5, each wave's `planned:` counting what the waves before it created or deleted.
+- No node off -> dispatch nothing here.
 
 ## 9. Report
 

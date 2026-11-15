@@ -53,9 +53,6 @@ Brand color is a continuous scale (100-900), not one hex. Each step maps to an o
 
 Semantic colors (error / warning / success) outrank brand absolutely: the system must signal an error regardless of brand aesthetics. Even a monochrome system (e.g. Vercel) overrides itself with a hard red for a failed state.
 
-- Reserve red strictly for errors/destructive outcomes, green strictly for success. Never decorative, never a red logout.
-- Never make color the only signal - pair it with icon, text, or shape.
-
 Data visualization - use OKLCH, not RGB/HSL:
 - RGB/HSL carry a perceptual bias: at identical L, a green reads brighter than a blue, so a chart's categories get unequal visual weight.
 - OKLCH (Lightness, Chroma, Hue) is perceptually uniform - equal L reads as equal brightness.

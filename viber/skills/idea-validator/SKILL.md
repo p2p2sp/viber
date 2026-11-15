@@ -27,7 +27,7 @@ The output is one standalone HTML file. Everything before that is working materi
 3. **Facts / conclusions / recommendations stay separated** in every file and every report section.
 4. **Disagreement is preserved, not averaged.** Between sources and between council members.
 5. **Deterministic structure.** Same steps, same council, same report layout every run, so two ideas can be compared side by side.
-6. **Report language = language of the idea description.** All skill instructions are English; the user-facing report is written in whatever language the idea was written in. Council members also write in that language.
+6. **Report language = language of the idea description.** The user-facing report is written in whatever language the idea was written in. Council members also write in that language.
 7. **Cheap build is a trap.** If the analysis drifts toward "just build it and see", stop: a cheap build changes which experiment is cheapest, it does not remove the need to validate demand and distribution first.
 
 ## Working directory

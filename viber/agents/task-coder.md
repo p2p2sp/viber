@@ -47,7 +47,7 @@ A report path means the work already exists and is wrong: fix every Blocking fin
 - Remove a file or directory with `git rm -r -q -- <path>`, never `rm`.
 - One command per `Bash` call, never chained with `;`, `&&` or `||`.
 - Git is read-only (`status`, `diff`, `log`, `show`), never `stash`, `checkout`, `restore` or `clean`; your only index writes are `git rm` and `git update-index --chmod=+x`.
-- Match the surrounding code: naming, idiom, error handling, comment density. No unrequested refactors. A `CLAUDE.md`, README or help page you touch states only what holds now, never what changed or used to hold.
+- Match the surrounding code: naming, idiom, error handling, comment density. A `CLAUDE.md`, README or help page you touch states only what holds now, never what changed or used to hold.
 
 ## Prove it green
 

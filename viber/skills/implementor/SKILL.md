@@ -19,14 +19,14 @@ Carry the preloaded `started:` mark unchanged to step 7.
 
 # implementor
 
-You orchestrate and delegate: every piece of work runs inside a subagent. Open no file, write no file and no code, run no build and no test, except `red-check.sh` running a task's `Verification` in a worktree: a blocking foreground call during which returning agents wait queued, nothing lost; a timeout counts as `UNRUNNABLE`.
+You orchestrate and delegate: every piece of work runs inside a subagent. Open no file, write no file and no code, run no build and no test, except the scripts this skill names.
 
 - One status line per event. No prose, never restate what an agent returned.
-- Only coder, reviewer and repair-coder dispatches, and a dispatch its step names a `model` for, carry `model`; every other dispatch carries none.
+- Only a dispatch whose step names a `model` carries one.
 - Every bundled-script run is one literal Bash line, `"${CLAUDE_PLUGIN_ROOT}/scripts/<name>.sh" "<arg>" ...`, every argument double-quoted: never prefixed with an interpreter, never assigned to a variable, never preceded by `cd`, never chained with `;`.
 - Every dispatch or call that starts or ends a task-list entry carries that entry's `TaskUpdate` in the same message.
 - Never two `commit-task.sh` calls in one message: each rewrites the git index and `status.md`.
-- A `commit-task.sh` call exiting non-zero committed nothing. Except a task's own commit, a commit outside a task, a `--rule` call, a `--skip` or `--decide` call made after an arbiter ruling (step 4 owns these four) and an `--extension` call (step 6's extension text owns it): `AskUserQuestion`: retry / abort, on abort one `left uncommitted: <path> | commit refused, the build was aborted` line per path in the final summary.
+- A `commit-task.sh` call exiting non-zero committed nothing. A `--drop` call, or a `--skip` call made on the user's `skip` answer, exiting non-zero -> `AskUserQuestion`: retry / abort, on abort one `left uncommitted: <path> | commit refused, the build was aborted` line per path in the final summary. Every other `commit-task.sh` form is handled by the step that makes it.
 - Scratch return: a `task-coder` return carrying `SCRATCH:`, in any step, is answered first, before any other dispatch or commit for that return, with one `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --drop "<plan>" "<path>" ["<path>"...]` call naming every path of the line, never a `--with` path; each `warning: kept <path> - <reason>` line it prints becomes `left uncommitted: <path> | <reason>` in the final summary.
 - An agent's completion notice saying it "stopped with background work of its own still running": hold its verdict and `SendMessage` that agent, once: `Stop every process you started that is still running, then return your output lines again.` Act on what it returns then. The same notice again -> act on the verdict and name that agent's task in the final summary.
 - An agent returning no `VERDICT:` line -> act as on its `VERDICT: FAIL` when its output defines one, else on its `VERDICT: DENIED`, with `REASON: no verdict returned`.
@@ -54,7 +54,7 @@ A `VERDICT: DENIED` question names the refused call from its `REASON:` line and 
 2. The `source:` line of the approved plan's frontmatter, or an older plan's `<!-- source: <path> -->` comment. Never offer to save plan text you are holding: the script copies the file.
 3. `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh"` with no argument returns the run most recently worked on. Exit 3 -> `AskUserQuestion` for the approved plan's full path, then land that.
 
-Exit 5 - the run branch could not be set -> report the stderr reason and stop: nothing landed, and the build does not proceed to step 2. Any other non-zero exit this step does not name by number (2, 4, 6) -> the same: report the stderr reason and stop.
+Any non-zero exit but 3 -> report its stderr reason and stop: nothing landed.
 
 A `target:` line following `branch:` and differing from the branch makes the run a pull request branch: carry both values to step 7.
 
@@ -94,7 +94,7 @@ Tier:
 - Every other task -> `sonnet`.
 - A floor the host's instructions declare for a kind of task (a minimum tier, a mandatory review) raises both decisions to it.
 
-Review: the reviewer is waived only on a `sonnet` task whose `verify:` line runs the project's build or its tests, never on `haiku` or `opus`, nor on a load-bearing task: a `feeds` entry counting 3 or more, nor on a `TDD: required` task. A `verify:` line running `grep`, `test -f` or any other content check is reviewed whatever its tier. Its review tier is the task's tier, raised to `sonnet` from `haiku`, and to `opus` on a load-bearing task.
+Review: the reviewer is waived only on a `sonnet` task whose `verify:` line runs the project's build or its tests, never on `haiku` or `opus`, nor on a load-bearing task: a `feeds` entry counting 3 or more, nor on a `TDD: required` task. Its review tier is the task's tier, raised to `sonnet` from `haiku`, and to `opus` on a load-bearing task.
 
 Then clamp both tiers into the config block's `tiers.min` to `tiers.max` range (`haiku` < `sonnet` < `opus` < `fable`). The review waiver is decided before the clamp.
 

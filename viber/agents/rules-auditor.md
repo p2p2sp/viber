@@ -34,9 +34,9 @@ A rule file whose basename starts with `_` is frozen: never open it as `target`,
 Read the rule. `matches` already carries the tracked-file count the map measured for this rule: never re-run `Glob` to decide whether the scope is dead. When `matches` reads `0`, classify every checkable line `GONE` and skip straight to the findings file. Otherwise `Grep`/`Glob` for the tracked files `scope`'s globs match, and classify every checkable line of the rule:
 
 - `OK` when the matched files still bear it out.
-- `STALE` when the matched files do something else now.
+- `STALE` when the matched files do something else now, or the line is a true convention carrying a clause of history, its `->` naming the line without it.
 - `UNVERIFIABLE` when the matched files neither follow nor break the line, a claim about intent, a decision with no trace in the code.
-- `DROP` when the line is true but fails the gate: name the criterion or the `Never a rule` entry it fails. A line failing as a fact about one place also names the `CLAUDE.md` path of the directory it belongs to, whether that node exists yet or not. A false line stays `STALE`, and so does a true convention carrying a clause of history, its `->` naming the line without it; a line the code neither follows nor breaks stays `UNVERIFIABLE`.
+- `DROP` when the line is true but fails the gate: name the criterion or the `Never a rule` entry it fails. A line failing as a fact about one place also names the `CLAUDE.md` path of the directory it belongs to, whether that node exists yet or not.
 
 Add one `MISS` line per convention the matched files show that the rule is silent on and that passes the gate. Write the findings file always, one line per rule line checked plus every admitted `MISS`, even when every line reads `OK` and no `MISS` follows.
 
