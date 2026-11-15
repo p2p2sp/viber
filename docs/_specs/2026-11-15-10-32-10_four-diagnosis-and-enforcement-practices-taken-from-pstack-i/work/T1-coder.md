@@ -1,0 +1,2 @@
+- The Source rule of test-strategy.md (blocking) forbids reading source text; the task's Files and Delivers require the prose test, and viber's own tests/viber/CLAUDE.md treats shipped markdown as the product whose text is the behaviour (the exception), so the test follows the sibling *-prose tests.
+- The three checks sit in a new `## Tracing checks` section between The Process and Resolving the report, so Law 1 and every pinned sentence stay word for word; the diagnosis `Root cause` line gained the introducing commit.

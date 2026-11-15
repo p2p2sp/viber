@@ -30,6 +30,12 @@ Three laws, in this order. None substitutes for another.
 5. When more than one fix approach is defensible, settle the choice with the user through one `AskUserQuestion` before handing off.
 6. Hand off (below).
 
+## Tracing checks
+Apply these inside Law 1.
+- **Shared premise** - two hypotheses refuted by the same check share a premise: write it in one sentence and check it directly before a third hypothesis.
+- **Legitimate state** - at the divergence, decide whether the state reaching it is legitimate. Legitimate: the code breaking on it is the root cause. A state that should never exist: the root cause is the place producing it, and a guard at the symptom is no fix direction.
+- **Used to work** - when the report says the behaviour used to work, find the commit that introduced the divergence through `git log -L` over the diverging symbol, or `git bisect` only on a tree with no uncommitted change, ended on `git bisect reset`. The diagnosis names that commit.
+
 ## Resolving the report
 ```!
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" github.issues "${CLAUDE_SKILL_DIR}" issues-report
@@ -50,7 +56,7 @@ Three laws, in this order. None substitutes for another.
 
 ## The diagnosis
 The handoff payload - state it in context, in this order. No report file: the part worth keeping already rides in the reproduction test's header.
-- **Root cause** - file + symbol, the diverging step, actual vs expected state at that step.
+- **Root cause** - file + symbol, the diverging step, actual vs expected state at that step, and the introducing commit when the behaviour used to work.
 - **Symptom link** - how that divergence produces what the user reported.
 - **Reproduction test** - its path, the exact command that runs it, and the RED output observed. It is already in the tree; the fix must turn it GREEN, not rewrite it.
 - **Fix direction** - which symbol changes and to what behavior. Name symbols, never line numbers.
