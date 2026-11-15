@@ -1,4 +1,0 @@
-- The ENFORCE line lives in a new `## Enforce lines` section of `rules-auditor.md`; each direction points to it rather than repeating it (the trail `REJECTED:` bullet carries one pointer sentence).
-- The new auditor Output wording ("Exactly one `AUDIT:` line, then the `ENFORCE:` lines") replaces "Exactly one line"; no existing test pinned the old one.
-- The new tests read `## Enforce lines` through a guard (`includes` check) so a missing section fails on assertions, not at load.
-- The `/viber:rules` step 6 writer `map:` carries no ENFORCE line, so `rules-writer.md` needed no edit.
