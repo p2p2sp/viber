@@ -1,0 +1,3 @@
+- The Source rule of test-strategy.md (blocking) forbids reading source text; as in T1/T2, the prose test reads fixer/SKILL.md as the shipped product whose text is the behaviour (tests/viber/CLAUDE.md exception).
+- Step 4 carries the search, step 5 the place question (extended in place, not a new bullet); the step 5 sentence that T-earlier tests did not pin was reworded, no other test reads it.
+- The marks are written after the step 5 answer, so the diagnosis text restated to the planner carries only `picked`/`not picked` places.

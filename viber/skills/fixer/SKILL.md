@@ -26,8 +26,8 @@ Three laws, in this order. None substitutes for another.
 1. Resolve the report (below).
 2. Trace per Law 1 to the confirmed divergence.
 3. Write the reproduction test and see it RED (below).
-4. Write up the diagnosis (below) from the confirmed root cause.
-5. When more than one fix approach is defensible, settle the choice with the user through one `AskUserQuestion` before handing off.
+4. Write up the diagnosis (below) from the confirmed root cause, after you search the repository for each other place repeating the root cause's pattern beyond the reported one.
+5. Settle the open choices with the user through one `AskUserQuestion` before handing off: the fix approach when more than one is defensible, and which listed `Same defect elsewhere` places enter the plan - inside that `AskUserQuestion` when the fix-approach one is asked, as its own `AskUserQuestion` otherwise; past four places it offers all of them or none and takes the places a free answer names; no place question when the field reads `none`. Then write each place's `picked` or `not picked` mark from the answer.
 6. Hand off (below).
 
 ## Tracing checks
@@ -66,6 +66,7 @@ The handoff payload - state it in context, in this order. No report file: the pa
 - **Reproduction test** - its path, the exact command that runs it, and the RED output observed. It is already in the tree; the fix must turn it GREEN, not rewrite it.
 - **Fix direction** - which symbol changes and to what behavior. Name symbols, never line numbers.
 - **Blast radius** - other callers or behavior that depend on the current (wrong) behavior.
+- **Same defect elsewhere** - each other place repeating the root cause's pattern, one `<repo-relative path> | <symbol> | picked` or `<repo-relative path> | <symbol> | not picked` per place; `none` when no place repeats it. Only a `picked` place enters the plan.
 - **Done condition** - repro test GREEN, every previously-passing test still green.
 - **Spec shape** - `spec-lite`, always: a fixer diagnosis never proposes `spec-full`.
 - **Attachments** - one line `Attachment: <absolute path, forward slashes, a Windows drive as C:/>` per path under the repository's `.temp/` that the input names; none when it names none.

@@ -2,7 +2,8 @@
  * fixer-prose.unit.test.ts - pins the three tracing checks of `fixer` (the premise two refuted
  * hypotheses share, the legitimacy of the state at the divergence, the commit that broke a
  * behaviour that used to work) and its temporary instrumentation (Law 3, the `git status` record
- * and the handoff gate comparing against it, the session manifest's exception).
+ * and the handoff gate comparing against it, the session manifest's exception), and its `Same
+ * defect elsewhere` field (the search, the field after `Blast radius`, the user's pick in step 5).
  *
  * `fixer/SKILL.md` and `hooks/content/manifest.md` are shipped prompts whose text is the
  * behaviour. Each check is one bullet of its `## Tracing checks` or `## Instrumentation` section,
@@ -77,6 +78,39 @@ test("the session manifest's plan-approval exception names fixer's reproduction 
   const manifest = fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/hooks/content/manifest.md"), "utf8");
   const rule = manifest.split(/\r?\n/).find((l) => l.startsWith("- Write or edit no code")) ?? "";
   assert.ok(rule.includes("Exception: `viber:fixer`'s reproduction test and its temporary instrumentation."), rule);
+});
+
+function step(n: number): string {
+  return LINES.find((l) => l.startsWith(`${n}. `)) ?? "";
+}
+
+test("fixer searches for the root cause's pattern beyond the reported place, and the diagnosis carries the Same defect elsewhere field right after Blast radius, none when no other place repeats it", () => {
+  const search = step(4);
+  assert.ok(search.includes("search the repository for each other place repeating the root cause's pattern"), search);
+  const at = LINES.findIndex((l) => l.startsWith("- **Blast radius**"));
+  const field = LINES[at + 1] ?? "";
+  assert.ok(field.startsWith("- **Same defect elsewhere**"), field);
+  assert.ok(field.includes("`<repo-relative path> | <symbol> | picked`"), field);
+  assert.ok(field.includes("`<repo-relative path> | <symbol> | not picked`"), field);
+  assert.ok(field.includes("`none` when no place repeats it"), field);
+  assert.ok(field.includes("Only a `picked` place enters the plan."), field);
+});
+
+test("fixer asks which listed places enter the plan inside the fix-approach question when that one is asked and as its own AskUserQuestion otherwise, and writes each place's picked or not picked mark from the answer", () => {
+  const ask = step(5);
+  assert.ok(ask.includes("which listed `Same defect elsewhere` places enter the plan"), ask);
+  assert.ok(ask.includes("inside that `AskUserQuestion` when the fix-approach one is asked, as its own `AskUserQuestion` otherwise"), ask);
+  assert.ok(ask.includes("write each place's `picked` or `not picked` mark from the answer"), ask);
+});
+
+test("fixer's place question past four places offers all of them or none and takes the places a free answer names", () => {
+  const ask = step(5);
+  assert.ok(ask.includes("past four places it offers all of them or none and takes the places a free answer names"), ask);
+});
+
+test("fixer asks no place question when the Same defect elsewhere field reads none", () => {
+  const ask = step(5);
+  assert.ok(ask.includes("no place question when the field reads `none`"), ask);
 });
 
 test("fixer runs git bisect only on a tree with no uncommitted change and ends it on git bisect reset (a bisect would move files the handoff must leave untouched)", () => {
