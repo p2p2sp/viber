@@ -37,6 +37,7 @@ This area owns `hooks.json`, the six hook scripts under `scripts/`, the two text
 - The `json_str` helper: `plan-gate.sh`, `plan-hints.sh`, `session-start.sh`.
 - The verdict regex in `plan-gate.sh`: the review set awk, the `pair_raw` awk and the `verdict_value` awk must stay identical, or a quoted `VERDICT: PASS is not...` ahead of the real FAIL reads as a pass.
 - `plan-gate.sh`'s `dispatch_with` text, the set dispatch text of its deny messages and the input each reviewer expects: `../agents/planner-review.md` (plan path, `refs:`, `memory:`, `input:` as a summary file path, the summary text or a bug diagnosis), `../agents/planner-spec-review.md`, `../agents/planner-graph-review.md`, `../agents/planner-task-review.md` (`tasks:`) and `../agents/outside-plan-review.md` (plan path, the user's goal).
+- The code allowed before a plan is approved: the first rule of `content/manifest.md` and Law 3 of `../skills/fixer/SKILL.md` (the reproduction test and its temporary instrumentation).
 - A hook's behavior and the `description` string of `hooks.json`; the outside plan review rule also in `content/plan-hints.md`.
 
 ## Traps
