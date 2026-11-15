@@ -44,7 +44,7 @@ Read a hit only as far as needed to confirm it refers to the target and to note 
 
 - `REF: <repo-relative path>:<line>[,<line>...] | <kind> | <target as written>`
 
-- `<kind>` is one of `call`, `test`, `mock`, `fixture`, `documentation`, `rule`.
+- `<kind>` is one of `call`, `string`, `test`, `mock`, `fixture`, `documentation`, `rule`.
 - One `REF:` line per referring file and target: a file referring to two targets gets two lines, a file referring to one target several times gets one line listing its lines.
 - Never a `REF:` line for a target's own file.
 - `<target as written>` repeats the target line of the dispatch byte for byte.

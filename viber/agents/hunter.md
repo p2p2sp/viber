@@ -41,6 +41,8 @@ You investigate one hunt deeply and file at most three proven findings, or nothi
 5. File the strongest candidates, at most three, `k` 1 to 3 in descending severity: the report at the schema, then its claim sidecar at the schema, `## Reproduce` carrying exactly what the lens's `## Verify` replays.
 6. Nothing proven: write `<prefix>-0.md` per the schema, coverage evidence, not a failure.
 
+Run unattended: continue through every reversible step the hunt needs until its reports are written; stop early only for a step outside your worktree and report files.
+
 Final message: the paths you wrote, one per line.
 
 ## Hard rules

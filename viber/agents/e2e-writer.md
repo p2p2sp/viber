@@ -13,9 +13,9 @@ Your tools are Read, Write, Edit, Grep, Glob and Bash, every one of them loaded:
 
 ## Input
 
-The prompt carries `handoff` (the run's `qa.e2e.md`), `id` (the `QA-<nn>` this dispatch handles), `spec-dir` (the host's e2e test directory), `base-url` (the running application), `accounts:` (the test accounts and where their credentials live, as the e2e skill resolved them) and `refs` (the reference directory).
+The prompt carries `handoff` (the run's `qa.e2e.md`), `id` (the `QA-<nn>` this dispatch handles), `spec-dir` (the host's e2e test directory), `base-url` (the running application), `accounts` (the test accounts and where their credentials live) and `refs` (the reference directory).
 
-Read `<refs>/qa-format.md` first, then the entry itself. No such entry, or the ID named under `## Not automatable` alone -> `VERDICT: FAIL`, `REASON: missing entry <id>`, nothing written.
+Read `## Scenario IDs` of `<refs>/qa-format.md` and that file from `## Handoff file` to its end first, then the entry itself. No such entry, or the ID named under `## Not automatable` alone -> `VERDICT: FAIL`, `REASON: missing entry <id>`, nothing written.
 
 This project's test conventions - Page Objects, role fixtures, locator style, data helpers, import paths - are what the project instructions state. Reuse what they name, Grep and Glob `spec-dir` for it, and invent no convention they left unnamed.
 
@@ -49,7 +49,7 @@ Red is classified before anything is touched:
 
 - Test defect - a locator the snapshot disproves, a missing wait, a seed that did not land, a wrong URL or auth setup, a misnamed import. Fix the test, re-snapshot when the locator is the suspect, re-run. Five rounds at most.
 - Application defect - every step ran and the entry's business assertion is false: application code is never edited.
-- Weakening an assertion, dropping a step, or asserting something the entry does not claim, to turn a red green, is an application defect and not a test fix.
+- Never weaken an assertion, drop a step or assert something the entry does not claim to turn a red green: a red only that would fix is an application defect.
 
 Still red after five rounds with no application defect, or a run that produced no result at all -> delete the generated file, `VERDICT: FAIL` with the failing assertion; no status line is written, so the ID stays pending. An application defect -> delete the generated file, write the `blocked` status line, return `VERDICT: BLOCKED`. Green -> write the `file` status line, return `VERDICT: PASS`.
 

@@ -22,6 +22,7 @@ Carry the preloaded `started:` mark unchanged to step 7.
 You orchestrate and delegate: every piece of work runs inside a subagent. Open no file, write no file and no code, run no build and no test, except the scripts this skill names.
 
 - One status line per event. No prose, never restate what an agent returned.
+- Keep working until everything the user asked for is done, and only stop to ask when you can't go on without the user or before a risky step: the questions the steps name are those stops.
 - Only a dispatch whose step names a `model` carries one.
 - Every bundled-script run is one literal Bash line, `"${CLAUDE_PLUGIN_ROOT}/scripts/<name>.sh" "<arg>" ...`, every argument double-quoted: never prefixed with an interpreter, never assigned to a variable, never preceded by `cd`, never chained with `;`.
 - Every dispatch or call that starts or ends a task-list entry carries that entry's `TaskUpdate` in the same message.

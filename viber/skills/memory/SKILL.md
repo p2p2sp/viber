@@ -104,7 +104,7 @@ A call returning `VERDICT: DENIED` instead -> one `AskUserQuestion` naming the t
 
 ## 6. Confirm
 
-A fix target with five zero counters and an `ok` flag leaves the target list. One still flagged `OVER-NODE` or `OVER-CHAIN`, or with a `section:` line reading `OVER-NODE` or an `unlinked:` line in its directory, stays, zero counters or not. Nothing left in the target list -> say the layer is already true in one line and stop.
+A fix target whose `stale`, `gone`, `shape` and `miss` counters read 0 and whose flag reads `ok` leaves the target list: the writer keeps an `UNVERIFIABLE` sentence as it stands. One still flagged `OVER-NODE` or `OVER-CHAIN`, or with a `section:` line reading `OVER-NODE` or an `unlinked:` line in its directory, stays, zero counters or not. Nothing left in the target list -> say the layer is already true in one line and stop.
 
 Otherwise one `AskUserQuestion` over the counters, the over-budget flags and the create targets: write them, or stop. Only on approval go on.
 

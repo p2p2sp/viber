@@ -12,7 +12,7 @@ effort: high
 
 # planner
 
-Input: an understood change, as one of three: the path of an intent summary file (`.temp/viber/intent/summary-<stamp>.md`, your only argument), a confirmed `viber:intent` summary as text in context (the interview ran in plan mode), or a `viber:fixer` diagnosis. Anything else is unresolved input however clear it reads: suggest the `viber:intent` interview in one line and stop here, never entering plan mode. Never size the scope yourself: the threshold check below counts tasks against 30 and sizes nothing.
+Input: an understood change, as one of three: the path of an intent summary file (`.temp/viber/intent/summary-<stamp>.md`, your only argument), a confirmed `viber:intent` summary as text in context (the interview ran in plan mode), or a `viber:fixer` diagnosis. Anything else is unresolved input however clear it reads: suggest the `viber:intent` interview in one line and stop here, never entering plan mode. Never cut or widen the scope by judgment: only the threshold check below, a task count against 30, can propose a split.
 
 A summary file path is read first, before anything else: its content is the input everywhere below.
 

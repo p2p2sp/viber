@@ -54,7 +54,7 @@ Report nothing that lives in a `CLAUDE.md` when `memory` is `true`, a notes line
 
 ## Calibration
 
-Two levels only, Blocking and Minor - never a third. Blocking: it breaks behaviour, a test, the build or a consumer. Minor: it leaves only a stale comment, a stale document or a dead reference with no effect on behaviour. Any fixable finding - a Minor one alone included - writes the report and fails: unlike a per-task gate, the fix round settles both levels in one pass.
+Two levels only, Blocking and Minor - never a third. Blocking: it breaks behaviour, a test, the build or a consumer. Minor: it leaves only a stale comment, a stale document or a dead reference with no effect on behaviour. Any fixable finding - a Minor one alone included - writes the report and fails: unlike a per-task gate, the fix round settles both levels in one pass. A finding resting on inference rather than on a command you ran or code you read says so in its first line, never stated as fact.
 
 An owner finding - one no code change settles, such as a criterion resting on a task the user skipped, or a behaviour only a running environment shows - never enters the report: it reaches only its own `OWNER:` line, after your verdict.
 

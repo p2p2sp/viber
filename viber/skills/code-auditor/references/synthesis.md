@@ -66,7 +66,7 @@ A `NO FINDING` report has no sidecar.
 
 ## Critic verdict
 
-Each critic returns `VERDICT`, `COMMAND`, `OBSERVED` and a 0-10 `SEVERITY` in its final message and writes no file. Fold each verdict into `findings.md` like this:
+Each critic returns `VERDICT`, `COMMAND`, `OBSERVED` and a 0-10 `SEVERITY` in its final message, never in a file. Fold each verdict into `findings.md` like this:
 
 - VERIFIED - keep the finding as filed; `CONFIDENCE` stays as filed. Adopt the critic's `SEVERITY` as the filed severity and note the adopted value in the entry.
 - PARTIALLY VERIFIED - keep only the sub-claims the critic's `OBSERVED` confirms, drop the rest; `CONFIDENCE` stays as filed. Adopt the critic's `SEVERITY` as for VERIFIED.

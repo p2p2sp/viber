@@ -1,4 +1,4 @@
-Settle the run branch before reading any code. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh" --start` as one literal Bash line with the flags the input carries and no others: `--pr` for an input naming a `review.md` under `.temp/viber/pr-feedback/`, `--roadmap` for a `roadmap.md` the user points at, and `"<issue URL>"` last when the run is tied to an issue. The report decides; this step only shows or asks what it says.
+Settle the run branch first, before any question. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh" --start` as one literal Bash line with the flags the input carries and no others: `--pr` for an input naming a `review.md` under `.temp/viber/pr-feedback/`, `--roadmap` for a `roadmap.md` the user points at, and `"<issue URL>"` last when the run is tied to an issue. The report decides; this step only shows or asks what it says.
 
 - `mode: off` -> say nothing about branches; hand off no branch line.
 - Show every `error:` and `note:` line, in the conversation's language.

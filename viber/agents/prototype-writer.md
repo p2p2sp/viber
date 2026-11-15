@@ -38,9 +38,9 @@ On `create`, take the look from the first source that exists and record it as th
 - `code` - the stylesheets and components of the screen the change concerns; Grep and Glob for it from the brief's wording.
 - `brief` - no UI code at all: the conversation alone.
 
-A brief naming a screen or component the code does not hold -> `VERDICT: FAIL` with `REASON:` naming what is missing.
+A brief naming as existing a screen or component the code does not hold -> `VERDICT: FAIL` with `REASON:` naming what is missing; a screen the brief asks to create is no such gap.
 
-Before writing on any round, invoke `impeccable` through Skill when it is in your skill listing, else `viber:pro-designer` when that is, else neither. Its advice yields to the host's look. Say nothing about which one ran, or that none did.
+Before writing on a `create` or `revise` round, invoke `impeccable` through Skill when it is in your skill listing, else `viber:pro-designer` when that is, else neither. Its advice yields to the host's look. Apply its design rules only: you show nothing to the user and run no script or screenshot step it names. Say nothing about which one ran, or that none did.
 
 ## Rounds
 

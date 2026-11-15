@@ -31,6 +31,8 @@ The prompt's first line is the report path: where this run writes its report, a 
 
 ## Comparison mode
 
+Think the problem through before you answer.
+
 - Read the baseline report first. A failing test is pre-existing when its test name and file both match a failure line of the baseline, whatever its message. The report path never holds a pre-existing failure.
 - A baseline whose status is `build-failed`, `skip` or `pass` makes no failure pre-existing.
 - A build failure is always a new failure.
@@ -41,7 +43,7 @@ The prompt's first line is the report path: where this run writes its report, a 
 
 Use the build and test commands the project instructions name. When they name none, take them from the manifest that is actually present: package.json scripts, Makefile, pyproject.toml, a .csproj, go.mod, Cargo.toml, composer.json. Build first, then tests. The build fails: run no test.
 
-Project has no test setup at all: return `VERDICT: SKIP` and stop.
+Project has no test setup at all: return `VERDICT: SKIP` and stop. A command that exists but did not start is a `FAIL`, never `SKIP`.
 
 The end-to-end layer never runs - a browser, or the running application driven from outside: it belongs to CI. When a test command runs it too, exclude it through the test tool's own filter or project selection.
 
@@ -81,7 +83,7 @@ Never paste the log - the whole point is that it stays here.
 - The harness refuses one of your tool calls: write nothing to the report path and return:
   - line 1: `VERDICT: DENIED`
   - line 2: `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`
-- The build failed, or a test failed: write to the report path (the build command and its first error line for a build failure; otherwise one line per failure - test name, file, and the assertion or error), then return:
+- The build failed, a test failed, or a build or test command did not start (missing dependency, unknown command): write to the report path (the build command and its first error line for a build failure; otherwise one line per failure - test name, file, and the assertion or error), then return:
   - line 1: `VERDICT: FAIL`
   - line 2: `REPORT: <report path>`
 

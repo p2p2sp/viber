@@ -96,6 +96,8 @@ Write it into no findings file, add no `MISS:` line for it and leave it out of e
 
 ## Output
 
+A message with no tool call ends your run, so end it only on these lines, never on a progress report or an announced next step.
+
 Exactly one `AUDIT:` line, then the `ENFORCE:` lines of `## Enforce lines`, nothing else:
 
 ```

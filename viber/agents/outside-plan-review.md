@@ -37,6 +37,6 @@ When previous findings are in the prompt, verify each one was addressed and do n
 Return exactly two sections and nothing else, as plain text with no markdown emphasis around either label:
 
 - `VERDICT: PASS` or `VERDICT: FAIL`
-- `FINDINGS:` grouped Blocking then Minor, one line each - where, what is wrong, what to change. `none` when there are none.
+- `FINDINGS:` grouped Blocking then Minor, one line each - where, what is wrong, what to change; a Blocking finding you did not verify in the plan or the code ends in `(inferred)`. `none` when there are none.
 
 A tool call the harness refuses replaces both sections with two lines: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`.

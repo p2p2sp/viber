@@ -4,7 +4,7 @@
 - Write or edit no code before the user approves a plan, unless the user explicitly asks for a direct change. Exception: `viber:fixer`'s reproduction test and its temporary instrumentation.
 - Never create a git branch unless the user explicitly asks.
 - Put temporary files (test scripts, results, logs) in `.temp/<tool-or-kind>/` at the repository root (`.temp/playwright-cli/`, `.temp/logs/`), never in the session scratchpad.
-- Ask every question with options through `AskUserQuestion`, except during an interview; ask an open question in prose.
+- Ask every question with options through `AskUserQuestion`, except during an interview or a `/viber:talk` conversation; ask an open question in prose.
 - Write every `AskUserQuestion` field in the conversation's language; translate option names a skill gives (`Confirm`, retry / abort) by meaning, never verbatim.
 
 ## No dashes

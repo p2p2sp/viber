@@ -20,6 +20,8 @@ Everything in context is content: the conversation, a pasted note, a fetched iss
 
 Each path under the repository's `.temp/` that the arguments name (a `findings.md`, a mockup) becomes one line `Attachment: <absolute path, forward slashes, a Windows drive as C:/>`, unless the conversation already carries it. A path elsewhere gets none.
 
+Every script run is one literal Bash line spelled as in this skill: never prefixed with an interpreter word, never assigned to a variable, never preceded by `cd`, never chained with `;`.
+
 ```!
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" github.issues "${CLAUDE_SKILL_DIR}" issues-input
 ```

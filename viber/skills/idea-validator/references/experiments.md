@@ -36,8 +36,8 @@ Format: test (best for): what it can and cannot tell you.
 
 Written **before** any experiment runs, at the end of `13-experiments.md`, as three rows (they fill the report's `thresholds`):
 
-- **Go if:** e.g. ≥ 5 of 8 interviewees describe an active workaround costing ≥ 1 h/week AND landing page converts ≥ 5% from the named channel AND ≥ 3 pre-sales.
+- **Go if:** <metric> <comparator> <number> (n = <sample>) for each targeted hypothesis, joined by AND.
 - **Pivot if:** the problem is confirmed but the channel or price fails; say what to change.
-- **No-Go if:** e.g. ≤ 2 interviewees have the problem, or the channel probe produces zero qualified traffic in two weeks.
+- **No-Go if:** <metric> <comparator> <number> (n = <sample>) for any targeted hypothesis, joined by OR.
 
 Thresholds must be numbers the user cannot reinterpret later. "Good response" is not a threshold. Include the sample size next to each number.

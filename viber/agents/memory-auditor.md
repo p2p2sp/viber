@@ -62,6 +62,8 @@ OK
 
 ## Output
 
+A message with no tool call ends your run, so end it only on this line, never on a progress report or an announced next step.
+
 Exactly one line, nothing else:
 
 ```

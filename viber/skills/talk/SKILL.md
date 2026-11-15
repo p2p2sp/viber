@@ -55,7 +55,7 @@ Read GitHub only through this literal line, nothing chained to it and no other `
 ## Verification
 
 - Send to the researcher every factual claim that carries weight in the conversation and goes past stable common knowledge, the user's and yours alike: versions, numbers, performance, prices, limits, licences and law, dates, what a tool, library or standard does, any "best practice". Never treat such a claim as settled before its verdict, unless you read the passage that settles it in a primary source (the vendor's or project's own documentation or release notes, the text of a standard, law or paper): then cite that passage's link.
-- Dispatch `Agent` with `subagent_type: viber:researcher`, a `topic:` line and `claims:` followed by the claims numbered one per line. Pass no `model:`. More than five claims, or claims from unrelated domains: split them over several dispatches sent in one message.
+- Dispatch `Agent` with `subagent_type: viber:researcher`, a `topic:` line and `claims:` followed by the claims numbered one per line. Pass no `model:`. More than five claims, or claims from unrelated domains: split them over several dispatches sent in one message. Never say whether a claim came from the user or from you.
 - Carry every verdict into the reply: confirmed with its source as a link, refuted with what the sources say instead, disputed with both sides, unverified said as such and never stated as fact.
 - A refuted or disputed claim that held up one of your positions: say the position changed, and how.
 - `DENIED` -> name the refused tool and call from its `REASON:`, then one `AskUserQuestion`: add the permission and retry, or go on with those claims unverified.

@@ -45,7 +45,7 @@ A backticked `!` command in the body runs before the model reads the skill, and 
 - Output still costs tokens. A preloaded 500-token file is still 500 tokens.
 - A missing file substitutes an empty string with no error. Guard with `|| echo <fallback>`.
 - Never preload a mutating command, it runs on every skill load.
-- Never splice `$ARGUMENTS` into a quoted string. A literal quote, backtick or paren in the args breaks the shell and the injection comes back empty; capture through a quoted here-doc and parse with bash builtins. `$ARGUMENTS` does substitute inside a forked skill, including a fork dispatched through the `Skill` tool.
+- Never splice `$ARGUMENTS` into a quoted string. A literal quote, backtick or paren in the args breaks the shell and the injection comes back empty; pass it single-quoted as one argument to a bundled script that parses it with bash builtins, and state in the description or `argument-hint` that the arguments never carry an apostrophe. `$ARGUMENTS` does substitute inside a forked skill, including a fork dispatched through the `Skill` tool.
 - Single-quote any argument carrying `?`, `*` or `[`. An unmatched glob is a literal under bash but aborts the whole preload under zsh.
 - Pre-approve the preload with a pattern entry in `allowed-tools` and call the bundled script directly rather than through an interpreter. A bare `Bash` allowance does not cover it, and an unmatched preload aborts the load so the fork starts with no input.
 - Shell execution can be disabled by policy, so never make correctness depend on a preload.

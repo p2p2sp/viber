@@ -47,7 +47,7 @@ Otherwise one `AskUserQuestion`, the four modes in that single call:
 
 An argument naming one of the four is that answer already: take it and ask nothing. On `state: complete` lead with the flags and the dead rules, every rule declaring a scope; on `state: partial` lead with how many rules declare no scope at all.
 
-`reset` goes to step 3. Every other mode goes to step 4, its target list being the `rule:` lines on `review`, the scopes to propose for on `extend`, and both on `both`. The map lists no candidate scope, a rule's reach being its globs rather than where its file sits: on `extend` ask the user which directories to propose for, the repository root standing in when they name none.
+`reset` goes to step 3. Every other mode goes to step 4, its target list being the `rule:` lines on `review`, the scopes to propose for on `extend`, and both on `both`. The map lists no candidate scope, a rule's reach being its globs rather than where its file sits: on `extend`, on `both` and after a reset, ask the user which directories to propose for, the repository root standing in when they name none.
 
 On `extend`, on `both` and on `state: none`, a map with at least one `trail:` line adds one more target to the list: the trail, standing for every `trail:` path at once. `review` and `reset` never carry it.
 
@@ -110,7 +110,7 @@ A call returning `VERDICT: DENIED` instead -> one `AskUserQuestion` naming the t
 
 The layer is already true when every condition holds:
 
-- Every returned line carries five zero counters, or reads `-> none`.
+- Every returned `AUDIT:` line has its `stale`, `gone`, `drop` and `miss` counters at 0, or reads `-> none`; the writer keeps an `UNVERIFIABLE` line as it stands.
 - Every trail line has its three counters (`miss`, `ignored`, `rejected`) at 0.
 - No kept rule is named in step 1 as misplaced.
 - No kept rule is flagged `OVER-FILE`, and `total:` carries no `OVER-DIR`.

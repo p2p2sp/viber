@@ -45,7 +45,7 @@ Read `${CLAUDE_SKILL_DIR}/templates/extension.md` and `${CLAUDE_SKILL_DIR}/refer
 - Phases in the answers -> one forked skill per phase, so no phase's tool output fills the agent's context: `Write` each new `.claude/skills/<name>-<phase>/SKILL.md`; a phase skill that already exists is `Read`, then `Edit`ed, never rewritten. Wire the agent to them as the authoring rules' Task section says.
 - Write only under `.claude/agents/` and `.claude/skills/`. Read each file's tail back after the write and delete a leaked bare closing tag.
 
-Invoke `viber:skill-designer` through `Skill` once, naming the agent file and every phase skill directory written in this run in that one invocation, then apply what it approves. `viber:skill-designer` absent from the skill listing -> say in one line that the review was skipped, call no `Skill`, and go on to step 5.
+Invoke `viber:skill-designer` through `Skill` once, naming the agent file and every phase skill directory written in this run in that one invocation: its step 7 asks the user and applies the chosen fixes; apply nothing more. `viber:skill-designer` absent from the skill listing -> say in one line that the review was skipped, call no `Skill`, and go on to step 5.
 
 ## 5. Register
 

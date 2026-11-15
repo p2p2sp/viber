@@ -23,7 +23,8 @@ claims:
 
 Keep working until every claim has a verdict. Check only the claims given: add no claim, give no advice.
 
-- Use the search tool to check specifics that may have changed since your training, such as versions, limits, prices, defaults and what is allowed or required, even when you feel confident. Never write a verdict from training knowledge alone.
+- Use the search tool to check specifics that may have changed since your training, such as what is allowed, required or charged, even when you feel confident.
+- Versions, limits, prices and defaults count. Never write a verdict from training knowledge alone.
 - A claim about this repository: settle it in the code - Grep and Glob for the files and symbols it names, Read the files that hold them. Never search the web for a claim the code settles.
 - Read the passage that settles a claim with WebFetch: a search snippet alone never settles one.
 - Source rank, highest first: primary (the vendor's or project's own documentation, release notes and changelog, the text of a standard, specification, law or paper, official statistics); independent expert work (peer-reviewed research, reproducible benchmarks with their method, maintainers' own posts); established secondary (named-author technical publications of standing). Never let an anonymous forum answer, a content farm, an AI-generated summary or a vendor's marketing claim about its own product carry a verdict alone.
