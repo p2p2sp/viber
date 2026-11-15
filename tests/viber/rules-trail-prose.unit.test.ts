@@ -547,3 +547,74 @@ test("step 7 names the failures.md files the writer changed or deleted on the FI
     skillLine(FINAL_REPORT, "- `FILES:`").includes("every `failures.md` it changed or deleted"),
   );
 });
+
+const CRITERION_3 = lines(section(ADMISSION, "The three criteria")).filter((line) => line.startsWith("3. "));
+const ENFORCE_LINES = AUDITOR.includes("\n## Enforce lines") ? section(AUDITOR, "Enforce lines") : "";
+
+test("criterion 3 makes a new candidate a check could fail on, with no such check yet, a proposal for that check and no rule", () => {
+  assert.equal(CRITERION_3.length, 1);
+  assert.ok(
+    CRITERION_3[0].includes(
+      "A new candidate that a lint rule, a type or a test could fail on, with no such check yet, is no rule but a proposal for that check",
+    ),
+  );
+});
+
+test("criterion 3 keeps the verdict of an audited existing line", () => {
+  assert.ok(CRITERION_3[0].includes("an audited existing line keeps its verdict"));
+});
+
+test("the silent drop names the proposal of a check as an exception in the paragraph of the others", () => {
+  assert.ok(
+    SILENT_DROP.some(
+      (line) =>
+        line.startsWith("An existing line failing the gate is the exception") &&
+        line.includes("A proposal for an enforcing check (criterion 3) is a third exception: it is reported on an `ENFORCE:` line"),
+    ),
+  );
+});
+
+test("the calibration counts an ENFORCE line toward neither the two conventions nor the two MISS lines", () => {
+  assert.ok(CALIBRATION.some((line) => line.includes("An `ENFORCE:` line counts toward neither the two new conventions nor the two `MISS:` lines")));
+});
+
+test("the auditor returns the C2 line after its AUDIT line for each candidate in every direction", () => {
+  assert.ok(
+    ENFORCE_LINES.includes("ENFORCE: <the convention> -> <the check that would fail on its violation: a lint rule, a type or a test> | <file>:<line> where the code does it right"),
+  );
+  assert.ok(ENFORCE_LINES.includes("In every direction, return one line for each such candidate after the `AUDIT:` line"));
+});
+
+test("the auditor writes an ENFORCE line into no findings file and adds no MISS line for it", () => {
+  assert.ok(ENFORCE_LINES.includes("Write it into no findings file, add no `MISS:` line for it"));
+});
+
+test("in the trail direction an ENFORCE line comes with no USED or REJECTED line for the entries it rests on", () => {
+  assert.ok(ENFORCE_LINES.includes("In the trail direction, write no `USED:` or `REJECTED:` line for the entries it rests on"));
+});
+
+test("a trail entry whose gap fails criterion 3 only for want of a check gets the ENFORCE line, never REJECTED", () => {
+  assert.ok(ENFORCE_LINES.includes("a gap failing criterion 3 only for want of a check gets the `ENFORCE:` line, never `REJECTED:`"));
+  assert.ok(
+    trailBullet("Write one `REJECTED:` line per entry").includes(
+      "A gap failing criterion 3 only for want of a check is no such entry: it gets an `ENFORCE:` line",
+    ),
+  );
+});
+
+test("the auditor output is the AUDIT line then the ENFORCE lines", () => {
+  assert.ok(AUDITOR_OUTPUT.some((line) => line.startsWith("Exactly one `AUDIT:` line, then the `ENFORCE:` lines of `## Enforce lines`")));
+});
+
+test("step 5 reports every ENFORCE line verbatim after its AUDIT line, saying no rule and no code is written for it", () => {
+  assert.ok(
+    AUDIT.some(
+      (line) =>
+        line.includes("every `ENFORCE:` line after it verbatim") && line.includes("saying no rule and no code is written for it"),
+    ),
+  );
+});
+
+test("step 6 never dispatches the writer for an ENFORCE line alone", () => {
+  assert.ok(CONFIRM.some((line) => line.includes("An `ENFORCE:` line is no counter: it never dispatches the writer alone")));
+});

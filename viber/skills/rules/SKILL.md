@@ -91,7 +91,7 @@ refs: ${CLAUDE_PLUGIN_ROOT}/references
 
 A kept trail target gets one `viber:rules-auditor` call only when a kept `trail:` line has a `convention` count above 0, the same five lines with `target: trail`, `scope` being those `trail:` paths, comma-separated, and `matches: none`.
 
-Each call returns one line:
+Each call returns one `AUDIT:` line, then its `ENFORCE:` lines, if any:
 
 ```
 AUDIT: <area> stale <n> gone <n> unverifiable <n> drop <n> miss <n> -> <findings file> | none
@@ -100,7 +100,7 @@ AUDIT: trail miss <n> ignored <n> rejected <n> -> <findings file> | none
 
 The second form answers the trail target alone.
 
-Report the `AUDIT:` line for each target verbatim. Read none of those files - the writer does.
+Report the `AUDIT:` line for each target verbatim, and every `ENFORCE:` line after it verbatim, saying no rule and no code is written for it. Read none of those files - the writer does.
 
 An `Agent` call here or in step 6 that returns none of its output lines (no `AUDIT:` line from an auditor, no `VERDICT:` line from the writer) is that step's `VERDICT: DENIED` with `REASON: no verdict returned`.
 
@@ -108,7 +108,7 @@ A call returning `VERDICT: DENIED` instead -> one `AskUserQuestion` naming the t
 
 ## 6. Confirm, then the writer
 
-Every returned line carrying five zero counters, a trail line carrying its three zero counters (`miss`, `ignored`, `rejected`), or `-> none`, with no kept rule named in step 1 as misplaced, no kept rule flagged `OVER-FILE` and no `OVER-DIR` on `total:`, means the layer is already true and no scope earned a new rule. With no kept `trail:` line carrying an `other` count above 0, say so in one line, dispatch no writer, and stop.
+Every returned line carrying five zero counters, a trail line carrying its three zero counters (`miss`, `ignored`, `rejected`), or `-> none`, with no kept rule named in step 1 as misplaced, no kept rule flagged `OVER-FILE` and no `OVER-DIR` on `total:`, means the layer is already true and no scope earned a new rule. With no kept `trail:` line carrying an `other` count above 0, say so in one line, dispatch no writer, and stop. An `ENFORCE:` line is no counter: it never dispatches the writer alone, and the writer's `map:` carries none.
 
 Otherwise one `AskUserQuestion` over the counters just reported, the over-budget flags, the moves named in step 1 and the `other` entries of each kept trail: fold them in, or stop. A kept `trail:` line with an `other` count above 0 reaches the writer even with every audit counter at 0. Only on approval, one `Agent` call, `subagent_type: viber:rules-writer`, no `model:` line, three labelled lines and nothing else:
 

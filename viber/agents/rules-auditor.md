@@ -52,7 +52,7 @@ When nothing passes the gate, write no findings file at all: the scope earns no 
 
 - Read only the `convention` entries of the `scope` files, the lines starting `- convention | `; skip every other cause unread. The run key of an entry is the name of the directory holding its `failures.md`.
 - Check each entry against the code as it stands, with `Grep` and `Glob`.
-- Write one `REJECTED:` line per entry that names no convention, whose code is gone, or whose gap fails criterion 2 or 3 of the gate, however many runs it stands in.
+- Write one `REJECTED:` line per entry that names no convention, whose code is gone, or whose gap fails criterion 2 or 3 of the gate, however many runs it stands in. A gap failing criterion 3 only for want of a check is no such entry: it gets an `ENFORCE:` line (`## Enforce lines`).
 - An entry in a file an existing rule's `paths:` cover, for the convention that rule states, yields an `IGNORED:` line, never a `MISS:`: the rule is what needs correcting, by the reworded line or the narrower `paths:` globs. A frozen `_` rule is never read and never named on a line; this direction does not read it.
 - Group the remaining entries by gap. A gap standing in at least two different runs, each entry holding against the code as it stands and the candidate passing criteria 2 and 3 of the gate, yields a `MISS:` line naming those runs after `| runs `, carrying as its example a place where the code does it right.
 - At most two `MISS:` lines, the gaps standing in the most runs first. The entries of a gap left past the two get no line.
@@ -84,9 +84,19 @@ IGNORED: <rule path> | <quoted line of the rule> -> <the correction: the reworde
 REJECTED: <failures.md path> | <the entry line, verbatim>
 ```
 
+## Enforce lines
+
+A new candidate that a lint rule, a type or a test could fail on, with no such check yet, is no rule: criterion 3 of the gate makes it a proposal for that check. In every direction, return one line for each such candidate after the `AUDIT:` line:
+
+```
+ENFORCE: <the convention> -> <the check that would fail on its violation: a lint rule, a type or a test> | <file>:<line> where the code does it right
+```
+
+Write it into no findings file, add no `MISS:` line for it and leave it out of every `AUDIT:` counter. In the trail direction, write no `USED:` or `REJECTED:` line for the entries it rests on: a gap failing criterion 3 only for want of a check gets the `ENFORCE:` line, never `REJECTED:`. An existing line of a rule keeps its verdict.
+
 ## Output
 
-Exactly one line, nothing else:
+Exactly one `AUDIT:` line, then the `ENFORCE:` lines of `## Enforce lines`, nothing else:
 
 ```
 AUDIT: <target|scope> stale <n> gone <n> unverifiable <n> drop <n> miss <n> -> <path of the findings file> | none
