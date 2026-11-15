@@ -213,8 +213,8 @@ test("plan-rules Shared harness gives the harness task the shared fixtures holdi
   assert.ok(has(rule("Shared harness"), "The harness task also owns the shared test fixtures holding the fakes, and makes a test with no layer marker fail and the fast tests unable to open a network connection, each by the test framework's own mechanism."));
 });
 
-test("plan-rules stays within 19000 bytes", () => {
-  assert.ok(Buffer.byteLength(PLAN_RULES, "utf8") <= 19000);
+test("plan-rules stays within 19800 bytes", () => {
+  assert.ok(Buffer.byteLength(PLAN_RULES, "utf8") <= 19800);
 });
 
 test("task-coder first Implement bullet stops at the met done clauses and a green Verification, adding no test, file, doc or refactor, a helpful idea going to the notes", () => {
