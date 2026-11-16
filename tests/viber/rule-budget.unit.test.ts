@@ -72,7 +72,7 @@ const READ_SETS: ReadSet[] = [
   },
   {
     role: "task-reviewer",
-    cap: 16721,
+    cap: 17206,
     entries: [
       { file: "viber/agents/task-reviewer.md" },
       { file: TEST_STRATEGY, sections: ["Layers", "Proves", "Writing"] },

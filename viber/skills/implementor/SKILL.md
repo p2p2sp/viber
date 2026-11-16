@@ -139,6 +139,7 @@ decision: <task-id>: <text>
 Reviewer dispatch: `viber:task-reviewer` (Agent tool, `model` = the review tier) carrying the task's `task:`, `notes:`, `out:`, `refs:`, `deferred:` and `decision:` lines, any line a fragment of this step adds, and:
 
 - `report: <dir>/work/review-<id>-<round>.md`, round starting at 1 and rising with every review of that task.
+- `previous: <dir>/work/review-<id>-<round>.md`: the `REVIEW` path the task's last failed review returned in this session, on every review of the task after one of its reviews failed, omitted before.
 - `extras: <dir>/work/<id>-extra-review.md`: the same path on every round of the task.
 - `scope: "${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh" "<plan>" --extra "<id>"`: the command the reviewer runs for the task's extra paths and rechecks.
 - `red: <path>`: the path on the coder's last `RED:` line, when it returned one.
