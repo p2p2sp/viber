@@ -1,4 +1,0 @@
-- `readRuns` walks the root for directories named `subagents` and starts from each `agent-<id>.meta.json`; a transcript with no meta file is never seen, a meta with no transcript is skipped.
-- Entry guard is `import.meta.main` (Node 24.2+; Node 26 is in use), with `process.argv.slice(2)`.
-- DoD.4 has no test of its own: the entry guard can only be proven by spawning the file, and the Verification's last command exercises it.
-- Integration tests were type-checked/loaded only (empty `--test-name-pattern` run), not executed, per integration-tests.md.

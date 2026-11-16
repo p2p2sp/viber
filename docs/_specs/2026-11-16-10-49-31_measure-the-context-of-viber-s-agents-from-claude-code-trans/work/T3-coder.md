@@ -1,6 +1,0 @@
-- `main`'s `argv` is the user arguments (`process.argv.slice(2)`): `projectsDir` takes `argv[0]` as the directory. T4's entry must pass the sliced list.
-- `main` reads `process.env` and `os.homedir()` itself, since its C2 signature carries no env or home.
-- Fixture exports `FakeRuns` (seed per root, `read` port), `readerContract(label, withReader)` and `usageLine`. `withReader(seeds, check)` is callback-shaped so T4's disk adapter can seed a `withTempDir` and run `check` inside it; the contract orders runs by agent because disk order is unspecified.
-- `projectsDir` joins with `path.join`, so on Windows the result carries backslashes; tests compare through `slash`.
-- `readRuns` is left to T4 (only the `ReadRuns` type is exported here).
-- Red run: 7 assertion failures; the two negative `agentOf` cases and the three contract cases pass against the skeleton by construction (the fake needs no new production code).
