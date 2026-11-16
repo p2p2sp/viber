@@ -205,7 +205,7 @@ whether `outcome.md` records a problem, plus, when a further roadmap part is lef
 you to continue the work and then the command that starts that part. The full summary is in
 `outcome.md` in the archive, along with every file the build left uncommitted and the reason, and one
 `tokens:` line per agent role and model with its input, output, cache read and cache write counts. The
-main session and the `closeout` agent are not counted. The archive also keeps `failures.md`, the failure trail of the run,
+main session and the `closeout` agent are not counted. The summary also names the `rounds:` line (the plan review rounds), the `attempts:` line (every task that needed more than one attempt, with its count) and the `arbiter:` line (the number of rulings). The archive also keeps `failures.md`, the failure trail of the run,
 which `/viber:rules` turns into rules when a failure repeats across runs. The close suggests
 `/viber:rules extend` once convention failures stand in two runs, and `/viber:rules` removes the
 convention entries it handled and every entry of another cause.

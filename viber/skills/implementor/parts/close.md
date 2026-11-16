@@ -79,6 +79,8 @@ Right after the 7 lines, in both forms: `red-check: <n> sealed, <n> rejected, un
 
 Right after the `red-check:` line, in both forms, outside the 7 lines: every stdout line of the token call, verbatim. A non-zero exit of the token call -> the one line `tokens: unavailable` there; it asks nothing and goes on. These lines reach `closeout`'s `summary:` and `outcome.md` with the rest of the summary, and the archived close prints no token line on screen.
 
+Right after the token lines, in both forms, outside the 7 lines: `attempts: <id> <n>[, <id> <n>...]` listing every task that needed more than one attempt this session with its count, `attempts: none` when no task did. Then `arbiter: <n>`: the number of index `ruling:` lines plus every ruling this session recorded that is not already one. Both lines reach `closeout`'s `summary:` and `outcome.md` with the rest of the summary.
+
 After the summary and outside its 7 lines, list every `FIXED:` line the final review carried, then every `OWNER:` line it carried, each verbatim. Every `left uncommitted:` line also stands outside the 7 lines, in both forms, verbatim, so it reaches `closeout`'s `summary:`.
 
 After those, also outside its 7 lines, list the rulings: each index `ruling:` line, then each ruling this session recorded that is not already one, every one with its ruling, `why:` and `cost if wrong:`.

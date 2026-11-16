@@ -1741,14 +1741,14 @@ tasks committed, the test verdict and the time, then the path of <code>outcome.m
 whether <code>outcome.md</code> records a problem, plus, when a further roadmap part is left, a sentence telling you
 to continue the work and then the <code>/viber:intent</code> command for that part, and the full summary sits
 in <code>outcome.md</code> in the archive, with one <code>tokens:</code> line per agent role and model (input, output,
-cache read and cache write counts); the main session and the <code>closeout</code> agent are not counted. When nothing is archived, the full summary prints on screen.</p>
+cache read and cache write counts); the main session and the <code>closeout</code> agent are not counted. The summary also names the <code>rounds:</code> line (the plan review rounds), the <code>attempts:</code> line (every task that needed more than one attempt, with its count) and the <code>arbiter:</code> line (the number of rulings). When nothing is archived, the full summary prints on screen.</p>
 <p lang="pl">Build składa krótkie podsumowanie: zacommitowane zadania, zużyte rundy recenzji, wynik testów,
 czas trwania, to, co zapisały pamięć, reguły i QA, ścieżka archiwum, gdy przebieg trafia do archiwum, oraz wszystko, co zostaje dla ciebie, na
 przykład zadanie bez recenzji albo zmienione pliki, do których nie przyznało się żadne zadanie. Gdy przebieg trafia
 do archiwum, ekran pokazuje tylko krótki wynik (zacommitowane zadania, wynik testów i czas, potem ścieżkę
 <code>outcome.md</code>) i jedno zdanie, czy <code>outcome.md</code> zapisuje problem, a gdy zostaje kolejna część roadmapy, także zdanie każące kontynuować pracę i polecenie <code>/viber:intent</code>, które ją
 zaczyna; pełne podsumowanie leży w <code>outcome.md</code> w archiwum, z jedną linią <code>tokens:</code> na rolę agenta i model
-(liczby tokenów wejścia, wyjścia, odczytu i zapisu cache); sesja główna i agent <code>closeout</code> nie są liczone. Gdy nic nie trafia do
+(liczby tokenów wejścia, wyjścia, odczytu i zapisu cache); sesja główna i agent <code>closeout</code> nie są liczone. Podsumowanie wskazuje też linię <code>rounds:</code> (rundy recenzji planu), linię <code>attempts:</code> (każde zadanie, które potrzebowało więcej niż jednej próby, z jej liczbą) i linię <code>arbiter:</code> (liczbę rozstrzygnięć). Gdy nic nie trafia do
 archiwum, pełne podsumowanie pojawia się na ekranie.</p>
 <p lang="en">With <a href="#key-build-final-review"><code>build.final-review</code></a> on, the summary lists each finding
 of the final review with what was wrong and what the fix changed, followed by any findings left for you, the

@@ -312,6 +312,55 @@ test("the archived close bullet names no token line, so none prints on screen th
   assert.ok(paragraph.includes("the archived close prints no token line on screen"));
 });
 
+/** The step 7 paragraph carrying the C5 effort lines that follow the token lines. */
+function effortParagraph(): string {
+  return stepSevenParagraph("Right after the token lines");
+}
+
+test("right after the token lines, in both forms and outside the 7 lines, the attempts line lists every task needing more than one attempt this session with its count, none otherwise", () => {
+  const paragraph = effortParagraph();
+  assert.ok(paragraph.includes("in both forms, outside the 7 lines"));
+  assert.ok(paragraph.includes("`attempts: <id> <n>[, <id> <n>...]` listing every task that needed more than one attempt this session with its count"));
+  assert.ok(paragraph.includes("`attempts: none` when no task did"));
+});
+
+test("the arbiter line follows the attempts line and counts the index ruling lines plus every ruling this session recorded that is not already one", () => {
+  const paragraph = effortParagraph();
+  assert.ok(paragraph.indexOf("`arbiter: <n>`") > paragraph.indexOf("`attempts: none`"));
+  assert.ok(paragraph.includes("`arbiter: <n>`: the number of index `ruling:` lines plus every ruling this session recorded that is not already one"));
+});
+
+test("the attempts and arbiter lines reach closeout's summary and outcome.md", () => {
+  assert.ok(effortParagraph().includes("Both lines reach `closeout`'s `summary:` and `outcome.md` with the rest of the summary."));
+});
+
+test("the effort lines come after the red-check line and before the FIXED and ruling lists", () => {
+  const text = stepSeven();
+  assert.ok(text.indexOf("Right after the token lines") > text.indexOf("Right after the `red-check:` line"));
+  assert.ok(text.indexOf("Right after the token lines") < text.indexOf("After the summary and outside its 7 lines, list every `FIXED:` line"));
+});
+
+/** A shipped guide's text with every run of whitespace folded to one space. */
+function guide(relative: string): string {
+  return fs.readFileSync(path.resolve(import.meta.dirname, "../../viber", relative), "utf8").replace(/\s+/g, " ");
+}
+
+const EFFORT_EN = "the `rounds:` line (the plan review rounds), the `attempts:` line (every task that needed more than one attempt, with its count) and the `arbiter:` line (the number of rulings)";
+const EFFORT_EN_HTML = EFFORT_EN.replace(/`([^`]+)`/g, "<code>$1</code>");
+const EFFORT_PL_HTML = "linię <code>rounds:</code> (rundy recenzji planu), linię <code>attempts:</code> (każde zadanie, które potrzebowało więcej niż jednej próby, z jej liczbą) i linię <code>arbiter:</code> (liczbę rozstrzygnięć)";
+
+test("README names the rounds, attempts and arbiter lines of the summary", () => {
+  assert.ok(guide("README.md").includes(EFFORT_EN));
+});
+
+test("help.html names the rounds, attempts and arbiter lines of the summary in English", () => {
+  assert.ok(guide("skills/setup/assets/help.html").includes(EFFORT_EN_HTML));
+});
+
+test("help.html names the rounds, attempts and arbiter lines of the summary in Polish", () => {
+  assert.ok(guide("skills/setup/assets/help.html").includes(EFFORT_PL_HTML));
+});
+
 test("the both-forms paragraph after the rulings keeps only the not-written line", () => {
   const paragraph = stepSevenParagraph("After those, also outside its 7 lines, in both forms");
   assert.equal(lines(paragraph).filter((line) => line.startsWith("- ")).length, 1);
