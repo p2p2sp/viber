@@ -1,3 +1,0 @@
-- The token lines are carried by a new paragraph after the `red-check:` paragraph of step 7, so the pinned sentence "Right after the 7 lines, in both forms: `red-check: ...`" and the "First `...run-clock.sh`" paragraph opening stay as they were.
-- The paragraph says the lines reach `closeout`'s `summary:` and so `outcome.md`; the archived bullet itself names no token line (a test holds that).
-- The close part states the token call needs no timeout and no ask: a non-zero exit only swaps in `tokens: unavailable`.

@@ -1,1 +1,0 @@
-- The help page and README say "continue the work" in plain words; the help page's `en` and `pl` spans both carry the token line and the continuation sentence in the existing summary paragraph, not a new one.

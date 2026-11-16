@@ -1,0 +1,7 @@
+# Failures
+
+- test | tests-1 | mode paths with a bracketed path: the status lists 'app/[id]/page.tsx' only, not the sibling 'app/i/page.tsx' a glob would also match | tests/viber/commit-context.test.ts | input did not match /^ M app\/\[id\]\/page\.tsx$/m
+- test | tests-1 | mode paths with a bracketed path: 'app/[id]/page.tsx' commits that file only, the sibling 'app/i/page.tsx' a glob would also match stays modified (the selector is a literal path, not a pathspec glob) | tests/viber/commit.test.ts | Expected values to be strictly equal
+- test | tests-1 | mode paths with a glob-looking selector and no file of that literal name: nothing is selected, exit 3 and the tracked files the glob would match stay modified | tests/viber/commit.test.ts | Expected values to be strictly equal
+- test | tests-1 | mode paths: an exec bit staged with 'git update-index --chmod=+x' over a 0644 file under core.fileMode=true is committed at 100755 (git add -u read the mode back from the tree and dropped it) | tests/viber/commit.test.ts | input did not match /^100755 /
+- test | tests-1 | mode 'all': an exec bit staged with 'git update-index --chmod=+x' over a 0644 file under core.fileMode=true is committed at 100755 (git add -A read the mode back from the tree and dropped it) | tests/viber/commit.test.ts | input did not match /^100755 /
