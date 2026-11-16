@@ -3,6 +3,9 @@
  * transcripts Claude Code keeps on disk. Ships with no plugin.
  */
 
+import os from "node:os";
+import path from "node:path";
+
 export type Kind = "read-plugin" | "read-project" | "search" | "bash" | "other";
 
 export interface RunStats {
@@ -27,6 +30,8 @@ export interface AgentSummary {
   nestedMemory: number;
   files: number;
 }
+
+export type ReadRuns = (root: string) => RunStats[];
 
 type Json = Record<string, any>;
 
@@ -179,4 +184,26 @@ export function render(rows: AgentSummary[]): string[] {
       ].join(" | "),
     ),
   ];
+}
+
+export function agentOf(metaText: string): string | undefined {
+  const agentType = parse(metaText)?.agentType;
+  return typeof agentType === "string" ? agentType : undefined;
+}
+
+export function projectsDir(argv: string[], env: Record<string, string | undefined>, home: string): string {
+  if (argv.length > 0) return argv[0];
+  const config = env.CLAUDE_CONFIG_DIR;
+  return config ? path.join(config, "projects") : path.join(home, ".claude", "projects");
+}
+
+export function main(argv: string[], log: (line: string) => void, read: ReadRuns): number {
+  const directory = projectsDir(argv, process.env, os.homedir());
+  const rows = summarize(read(directory));
+  if (rows.length === 0) {
+    log(`no viber agent runs found under ${directory}`);
+    return 0;
+  }
+  for (const line of render(rows)) log(line);
+  return 0;
 }

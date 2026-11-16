@@ -1,10 +1,12 @@
 /*
  * agent-context.unit.test.ts - proves `runStats`, `summarize` and `render` of tools/agent-context.ts:
  * the transcript lines of one Claude Code subagent run turned into its context statistics, the runs
- * grouped into one summary per viber agent and the summaries printed as the two tables.
+ * grouped into one summary per viber agent and the summaries printed as the two tables, plus
+ * `projectsDir`, `agentOf` and `main`.
  * Transcript lines are JS objects serialized with JSON.stringify, shaped as the C1 contract of the
  * task names them (assistant usage, tool_use and tool_result items, instructions and nested_memory
- * attachments). Nothing here touches the disk.
+ * attachments). Nothing here touches the disk: `main` reads its runs through the in-memory fake of the
+ * `ReadRuns` port, which also passes the reader contract here.
  *
  * Run directly by Node's type stripping:
  *   node --test tests/tools/agent-context.unit.test.ts
@@ -12,8 +14,10 @@
 
 import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
-import { render, runStats, summarize } from "../../tools/agent-context.ts";
+import { agentOf, main, projectsDir, render, runStats, summarize } from "../../tools/agent-context.ts";
 import type { AgentSummary, RunStats } from "../../tools/agent-context.ts";
+import { slash } from "../harness/paths.ts";
+import { FakeRuns, readerContract, usageLine } from "./agent-context-fixture.ts";
 
 type Item = Record<string, unknown>;
 
@@ -223,4 +227,62 @@ test("render prints the context table, one empty line and the breakdown table, t
     "viber:task-coder | 2 | 2 | 0 | 0 | 10 | 4 | 1 | 4.3",
     "viber:reviewer | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2.0",
   ]);
+});
+
+test("projectsDir returns the first argument when one is given, whatever the environment holds", () => {
+  assert.equal(projectsDir(["/data/projects", "/other"], { CLAUDE_CONFIG_DIR: "/cfg" }, "/home/u"), "/data/projects");
+});
+
+test("projectsDir returns the projects directory of CLAUDE_CONFIG_DIR when no argument is given and the variable is set", () => {
+  assert.equal(slash(projectsDir([], { CLAUDE_CONFIG_DIR: "/cfg" }, "/home/u")), "/cfg/projects");
+});
+
+test("projectsDir returns the projects directory of the home when no argument is given and CLAUDE_CONFIG_DIR is unset", () => {
+  assert.equal(slash(projectsDir([], {}, "/home/u")), "/home/u/.claude/projects");
+});
+
+test("projectsDir returns the projects directory of the home when CLAUDE_CONFIG_DIR is empty", () => {
+  assert.equal(slash(projectsDir([], { CLAUDE_CONFIG_DIR: "" }, "/home/u")), "/home/u/.claude/projects");
+});
+
+test("agentOf returns the agentType string of a meta file", () => {
+  assert.equal(agentOf('{"agentType":"viber:task-coder","description":"x"}'), "viber:task-coder");
+});
+
+test("agentOf gives undefined for text that is not JSON", () => {
+  assert.equal(agentOf("{not json"), undefined);
+});
+
+test("agentOf gives undefined for an agentType that is not a string", () => {
+  assert.equal(agentOf('{"agentType":7}'), undefined);
+});
+
+test("main logs the lines of the summary of the viber runs the reader returns for the directory argument and returns 0", () => {
+  const runs = new FakeRuns();
+  runs.seed("/projects", [{ agent: "viber:task-coder", lines: [usageLine(12000), usageLine(30000)] }]);
+  const logged: string[] = [];
+  const status = main(["/projects"], (line) => logged.push(line), runs.read);
+  assert.equal(status, 0);
+  assert.deepEqual(logged, [
+    "agent | runs | start p50 | peak p50 | peak p90 | peak max",
+    "viber:task-coder | 1 | 12k | 30k | 30k | 30k",
+    "",
+    "agent | read-plugin KB | read-project KB | search KB | bash KB | other KB | start memory KB | nested memory KB | files",
+    "viber:task-coder | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0.0",
+  ]);
+});
+
+test("main logs that no viber agent run was found under the directory when the reader returns no viber run and returns 0", () => {
+  const runs = new FakeRuns();
+  runs.seed("/projects", [{ agent: "general-purpose", lines: [usageLine(5000)] }]);
+  const logged: string[] = [];
+  const status = main(["/projects"], (line) => logged.push(line), runs.read);
+  assert.equal(status, 0);
+  assert.deepEqual(logged, ["no viber agent runs found under /projects"]);
+});
+
+readerContract("the in-memory reader", async (seeds, check) => {
+  const runs = new FakeRuns();
+  runs.seed("/projects", seeds);
+  await check("/projects", runs.read);
 });
