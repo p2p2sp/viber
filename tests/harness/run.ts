@@ -26,7 +26,10 @@
  * argument carrying a newline or carriage return - a control character no
  * CreateProcess command line survives. Those arguments are carried in the
  * environment and restored to argv by a shell preamble, so a test can exercise
- * a multi-line argument on every OS. See the `P2P2_ARGV` block below.
+ * a multi-line argument on every OS. See the `P2P2_ARGV` block below. On win32
+ * an argv holding a glob character (`*`, `?`, `[`) runs under `MSYS=noglob`, and
+ * one holding a double quote as well takes the environment route too, so both
+ * reach the script verbatim.
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
@@ -166,8 +169,14 @@ export function runScript(script: string, args: string[] = [], opts: RunOpts = {
   // the script runs, byte for byte. Only a shell can do that, so a script
   // invoked any other way is left alone (its caller must skip the case).
   // POSIX hands argv over as a real array and is never rewritten.
-  const controlCharArg = process.platform === "win32" && args.some((arg) => /[\r\n]/.test(arg));
-  const viaEnv = controlCharArg ? shellInterpreter(script, opts) : null;
+  // The same route carries an argv holding both a glob character and a double
+  // quote: MSYS expands the first unless `noglob` is set, and under `noglob` it
+  // no longer reads the `\"` node writes for the second (see the else branch).
+  const globArg = args.some((arg) => /[*?[]/.test(arg));
+  const quoteArg = args.some((arg) => arg.includes('"'));
+  const controlCharArg = args.some((arg) => /[\r\n]/.test(arg));
+  const needsEnvRoute = process.platform === "win32" && (controlCharArg || (globArg && quoteArg));
+  const viaEnv = needsEnvRoute ? shellInterpreter(script, opts) : null;
   let cmd: string;
   let fullArgs: string[];
   if (viaEnv) {
@@ -200,11 +209,10 @@ export function runScript(script: string, args: string[] = [], opts: RunOpts = {
     // Windows only: the MSYS runtime of a bash.exe expands "*", "?" and "[...]" in
     // an argument its native parent (node) hands it, so 'app/[id]/page.tsx' would
     // reach the script as 'app/i/page.tsx'. noglob keeps argv verbatim, as on POSIX.
-    // Set only for an argument that holds such a character and no double quote:
-    // noglob also changes how the runtime splits a quoted command line (the -c
-    // string of the preamble route above breaks under it).
-    const globbed = args.some((arg) => /[*?[]/.test(arg)) && !args.some((arg) => arg.includes('"'));
-    if (process.platform === "win32" && globbed && env.MSYS === undefined) env.MSYS = "noglob";
+    // Set only when no argument holds a double quote: noglob also changes how the
+    // runtime splits a quoted command line, so an argv holding both travels by the
+    // preamble route above, and reaches here only for a script no shell runs.
+    if (process.platform === "win32" && globArg && !quoteArg && env.MSYS === undefined) env.MSYS = "noglob";
   }
   return spawnCollect(cmd, fullArgs, { cwd: opts.cwd, env, input: opts.input, timeout: opts.timeout ?? 60000 });
 }

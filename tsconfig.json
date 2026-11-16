@@ -12,5 +12,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["tests/**/*.ts", "viber/**/*.ts"]
+  "include": ["tests/**/*.ts", "tools/**/*.ts", "viber/**/*.ts"]
 }

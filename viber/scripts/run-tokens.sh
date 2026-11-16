@@ -14,14 +14,22 @@
 #
 # What counts:
 #   - a transcript is counted when its first line (the prompt that started the
-#     agent) contains `<runs>/<key>/`, the last two segments of the run directory
-#     followed by `/` (a JSON-escaped backslash spelling counts too), so the agents
-#     of another run never leak in, whichever session they ran in.
+#     agent) contains `<runs>/<key>`, the last two segments of the run directory,
+#     followed by `/`, a backslash, a double quote or a space (a JSON-escaped
+#     backslash spelling counts too), so a prompt naming the bare directory counts
+#     like one naming a file in it, and the agents of another run never leak in,
+#     whichever session they ran in.
+#   - a transcript last written before the day the run key names is never opened:
+#     the key opens with the local date the run was created on, and opening the
+#     first line of every transcript on the machine is the cost of this script.
+#     A key opening with no date, or a find without `-newermt`, opens them all.
 #   - the role is the `agentType` of the meta file beside the transcript, `unknown`
-#     when that file is missing or holds none.
+#     when that file is missing or holds none. The `closeout` agent is never
+#     counted, whatever its prompt names: the last report line says so.
 #   - every assistant line carries `message.model` and `message.usage`; a message id
 #     written on several lines is one message and counts once, with the usage of its
-#     last line (files read in byte order of their path, lines in order).
+#     last line (files read in byte order of their path, lines in order). A line of
+#     the model `<synthetic>` is the record of an API error, no message: skipped.
 #   - `in` is `input_tokens`, `out` `output_tokens`, `cache-read`
 #     `cache_read_input_tokens`, `cache-write` `cache_creation_input_tokens`.
 #
@@ -46,8 +54,9 @@
 #              tokens: unavailable - <reason>
 #            with <reason> `no projects directory`, `no agent transcript names this
 #            run` or `a transcript holds no readable usage` (a counted transcript
-#            with assistant lines and no usage on any of them, or counted
-#            transcripts with no assistant line at all).
+#            with assistant lines and no usage on any of them, one that could not
+#            be read through, or counted transcripts with no assistant line at
+#            all): never a partial sum.
 #   exit   : 0 always once the argument is usable, the report being `unavailable`
 #            when the transcripts cannot be read.
 #            2 unusable argv: no argument, more than one, or a directory that does
@@ -87,8 +96,8 @@ abs="$(CDPATH= cd -- "$dir" 2>/dev/null && pwd)"
 key="${abs##*/}"
 parent="${abs%/*}"
 runs="${parent##*/}"
-needle="$runs/$key/"
-needle_escaped="$runs\\\\$key\\\\"
+needle="$runs/$key"
+needle_escaped="$runs\\\\$key"
 
 unavailable() {
   echo "tokens: unavailable - $1"
@@ -120,22 +129,40 @@ function txt(str, name) {
 BEGIN { role = ENVIRON["RT_ROLE"]; a = 0; u = 0 }
 index($0, "\"type\":\"assistant\"") == 0 { next }
 {
-  a++
   p = index($0, "\"message\":{")
+  s = p == 0 ? "" : substr($0, p)
+  model = txt(s, "model")
+  if (model == "<synthetic>") next
+  a++
   if (p == 0) next
-  s = substr($0, p)
   q = index(s, "\"usage\":{")
   if (q == 0) next
   us = substr(s, q)
   id = txt(s, "id")
   if (id == "") id = FILENAME ":" NR
-  model = txt(s, "model")
   if (model == "") model = "unknown"
   u++
   printf "U\t%s\t%s\t%s\t%d\t%d\t%d\t%d\n", id, role, model, num(us, "input_tokens"), num(us, "output_tokens"), num(us, "cache_read_input_tokens"), num(us, "cache_creation_input_tokens")
 }
 END { printf "N\t%d\t%d\n", a, u }
 '
+
+# The transcripts to open. A find refusing `-newermt`, or failing on any directory,
+# is run again with no date: the full list is slower, never wrong.
+transcripts() {
+  find "$projects" -type f -name 'agent-*.jsonl' -path '*/subagents/agent-*.jsonl' "$@" 2>/dev/null
+}
+files=""
+listed=0
+date_re='^([0-9]{4}-[0-9]{2}-[0-9]{2})-'
+if [[ "$key" =~ $date_re ]]; then
+  if files="$(transcripts -newermt "${BASH_REMATCH[1]} 00:00:00")"; then
+    listed=1
+  fi
+fi
+if [[ $listed -eq 0 ]]; then
+  files="$(transcripts || true)"
+fi
 
 rows=""
 counted=0
@@ -146,10 +173,9 @@ while IFS= read -r file <&3; do
   [[ -n "$file" ]] || continue
   first=""
   IFS= read -r first <"$file" || [[ -n "$first" ]] || continue
-  if [[ "$first" != *"$needle"* && "$first" != *"$needle_escaped"* ]]; then
+  if [[ "$first" != *"$needle"[/\\\"[:space:]]* && "$first" != *"$needle_escaped"[/\\\"[:space:]]* ]]; then
     continue
   fi
-  counted=$((counted + 1))
 
   role="unknown"
   meta="${file%.jsonl}.meta.json"
@@ -159,7 +185,13 @@ while IFS= read -r file <&3; do
       role="${BASH_REMATCH[1]}"
     fi
   fi
+  case "$role" in
+    closeout | *:closeout) continue ;;
+  esac
+  counted=$((counted + 1))
 
+  # No `N` row means awk did not read the file through: its rows would be a
+  # partial sum, so the whole report turns unavailable.
   result="$(RT_ROLE="$role" awk "$read_transcript" "$file" 2>/dev/null || true)"
   n_line="$(printf '%s\n' "$result" | grep '^N' || true)"
   u_rows="$(printf '%s\n' "$result" | grep '^U' || true)"
@@ -170,11 +202,13 @@ while IFS= read -r file <&3; do
     if [[ $n_assistant -gt 0 && $n_usage -eq 0 ]]; then
       unreadable=1
     fi
+  else
+    unreadable=1
   fi
   if [[ -n "$u_rows" ]]; then
     rows+="$u_rows"$'\n'
   fi
-done 3< <(find "$projects" -type f -name 'agent-*.jsonl' -path '*/subagents/agent-*.jsonl' 2>/dev/null | sort)
+done 3< <(printf '%s\n' "$files" | sort)
 
 [[ $counted -gt 0 ]] || unavailable "no agent transcript names this run"
 [[ $unreadable -eq 0 && -n "$rows" ]] || unavailable "a transcript holds no readable usage"

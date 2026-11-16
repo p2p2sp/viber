@@ -52,8 +52,38 @@ test("runScript delivers an argument containing a newline and a CR to the script
   });
 });
 
+/** A script printing each argument in brackets, in a directory holding files a glob would match. */
+function globFixture(dir: string): string {
+  const scriptPath = path.join(dir, "echo-args.sh");
+  fs.writeFileSync(scriptPath, '#!/bin/sh\nfor a in "$@"; do printf "[%s]" "$a"; done\n', { mode: 0o755 });
+  fs.chmodSync(scriptPath, 0o755);
+  fs.mkdirSync(path.join(dir, "src"));
+  fs.writeFileSync(path.join(dir, "src", "a.ts"), "");
+  fs.mkdirSync(path.join(dir, "app", "i"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "app", "i", "page.tsx"), "");
+  return scriptPath;
+}
+
+test("runScript delivers a glob-shaped argument verbatim, even when a file matches it (the MSYS runtime of a win32 bash expands argv against the working directory)", async () => {
+  await withTempDir("p2p2-harness-glob-", async (dir) => {
+    const result = await runScript(globFixture(dir), ["src/*.ts", "app/[id]/page.tsx", "a?c"], { cwd: dir });
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "[src/*.ts][app/[id]/page.tsx][a?c]");
+  });
+});
+
+test("runScript delivers a glob-shaped argument and a double-quoted one verbatim together (noglob alone would split the quoted one)", async () => {
+  await withTempDir("p2p2-harness-glob-quote-", async (dir) => {
+    const result = await runScript(globFixture(dir), ['fix: handle "x"', "app/[id]/page.tsx", "src/*.ts"], { cwd: dir });
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, '[fix: handle "x"][app/[id]/page.tsx][src/*.ts]');
+  });
+});
+
 test(
-  "denyRead makes a file unreadable for this account and restoreRead hands it back",
+"denyRead makes a file unreadable for this account and restoreRead hands it back",
   { skip: canDenyRead() ? false : "this machine cannot deny its own account read access" },
   async () => {
     await withTempDir("p2p2-harness-perms-", (dir) => {

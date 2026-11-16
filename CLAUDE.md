@@ -26,6 +26,7 @@ Source of the `viber` Claude Code plugin, listed as the `p2p2` marketplace by `.
 ## Traps
 
 - Nothing builds and nothing lints: editing markdown or JSON is shipping. There is no `package.json`; `node --test` runs the `.ts` tests directly through Node's type stripping.
+- `tsconfig.json` serves the editor's type checker only: no command and no CI step runs `tsc`. Its `"types": ["node"]` resolves from a local, git-ignored `node_modules/@types/node`, so a fresh clone shows TS2688 until that package is installed by hand. `viber/hooks/register.tsx` stays out of `include`: its `claude-code` types exist only in the host.
 - Editing a file here does not change the plugins loaded in the current session: they change only after a release is published and reinstalled.
 - Every plugin script must work on Windows (Git Bash) and macOS: `tests/portability.unit.test.ts` sweeps shebangs, CRLF, exec bits and bash-only syntax in `#!/bin/sh` scripts.
 - `docs/archive/superdev/` is a retired plugin kept for reference: not listed, not released, not tested.

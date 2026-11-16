@@ -6,9 +6,11 @@
  * `REVIEW` path the failed one returned, and omits the line before any failure. `task-reviewer`
  * given that line checks each Blocking item of the report against the code before any other
  * check: an item still standing ends the round on `VERDICT: FAIL` with a report holding those
- * items alone and no `## Must Check` run, with every item fixed or the file missing it gates
- * the task in full as on a first round, and a Minor item is never rechecked. The files read
- * here are shipped prompts, whose text is the behaviour. Nothing is spawned.
+ * items alone and no `## Must Check` run, an item a `decision:` line overrules or the code
+ * proves wrong is dropped (a wrong finding must not fail every later round), with every item
+ * fixed or dropped, or the file missing, it gates the task in full as on a first round, and a
+ * Minor item is never rechecked. Each case is its own sub-bullet of the `previous` bullet. The
+ * files read here are shipped prompts, whose text is the behaviour. Nothing is spawned.
  *
  * Run directly by Node's type stripping:
  *   node --test tests/viber/previous-review-prose.unit.test.ts
@@ -37,6 +39,23 @@ const DISPATCH_LINE = bulletsOpening(STEP_4, "- `previous: ")[0] ?? "";
 const INPUT = REVIEWER.slice(REVIEWER.indexOf("\n## Input\n"), REVIEWER.indexOf("\n## Must Check\n"));
 const PREVIOUS = bulletsOpening(INPUT, "- A `previous` line")[0] ?? "";
 
+/** The sub-bullets right under the `previous` bullet: one case each. */
+function casesOfPrevious(): string[] {
+  const all = lines(INPUT);
+  const cases: string[] = [];
+  for (let i = all.indexOf(PREVIOUS) + 1; i > 0 && i < all.length && all[i].startsWith("  - "); i++) cases.push(all[i]);
+  return cases;
+}
+
+const CASES = casesOfPrevious();
+
+function caseOpening(opening: string): string {
+  return CASES.find((line) => line.startsWith(`  - ${opening}`)) ?? "";
+}
+
+const STANDING = caseOpening("An item still standing");
+const DROPPED = caseOpening("An item a `decision:` line overrules");
+
 test("the reviewer dispatch of implementor carries one previous line in the C2 shape", () => {
   assert.equal(bulletsOpening(STEP_4, "- `previous: ").length, 1);
   assert.ok(DISPATCH_LINE.startsWith("- `previous: <dir>/work/review-<id>-<round>.md`"));
@@ -64,22 +83,36 @@ test("the reviewer checks each Blocking item of the previous report against the 
   assert.ok(PREVIOUS.includes("before any other check, check each Blocking item of it against the code"));
 });
 
+test("the previous bullet holds its four cases as four sub-bullets, one case a line", () => {
+  assert.equal(CASES.length, 4);
+  assert.ok(!PREVIOUS.includes("An item still standing"));
+});
+
 test("an item still standing ends the round on FAIL with a report holding those items alone", () => {
-  assert.ok(PREVIOUS.includes("An item still standing ends your round on `VERDICT: FAIL` with a report holding those items alone"));
+  assert.ok(STANDING.includes("An item still standing ends your round on `VERDICT: FAIL` with a report holding those items alone"));
 });
 
 test("the report of a round ended by a standing item copies each first line character for character", () => {
-  assert.ok(PREVIOUS.includes("each first line copied character for character"));
+  assert.ok(STANDING.includes("each first line copied character for character"));
 });
 
 test("a round ended by a standing item runs no Must Check", () => {
-  assert.ok(PREVIOUS.includes("run no `## Must Check`"));
+  assert.ok(STANDING.includes("run no `## Must Check`"));
 });
 
-test("with every item fixed, or the file missing, the reviewer gates the task in full as on a first round", () => {
-  assert.ok(PREVIOUS.includes("With every item fixed, or the file missing, gate the task in full as on a first round"));
+test("an item a decision line overrules, or one the reviewer proves wrong, is dropped and never standing (a wrong finding must not fail every later round)", () => {
+  assert.ok(DROPPED.includes("or one a command you ran or code you read proves wrong, is dropped, never standing"));
+});
+
+test("a dropped item is named once as a Minor item of a report written in that round", () => {
+  assert.ok(DROPPED.includes("a report you write this round adds one Minor item for it"));
+  assert.ok(DROPPED.includes("`earlier finding dropped: <why>`"));
+});
+
+test("with every item fixed or dropped, or the file missing, the reviewer gates the task in full as on a first round", () => {
+  assert.ok(CASES.includes("  - With every item fixed or dropped, or the file missing, gate the task in full as on a first round."));
 });
 
 test("a Minor item of the previous report is never rechecked", () => {
-  assert.ok(PREVIOUS.includes("A Minor item is never rechecked"));
+  assert.ok(CASES.includes("  - A Minor item is never rechecked."));
 });

@@ -9,7 +9,12 @@
  * message id written on several lines is one message: the last line's usage
  * counts. The role comes from the meta file beside the transcript, `unknown` when
  * it cannot be read. Unreadable transcripts never fail the build: the script says
- * `unavailable` and exits 0, and only an unusable argument exits 2.
+ * `unavailable` and exits 0, and only an unusable argument exits 2. The closeout
+ * agent and the `<synthetic>` lines of an API error never reach a row, and a
+ * transcript last written before the day the run key names is never opened.
+ *
+ * The run key opens with a date long past, so every fixture written now is newer
+ * than it on any machine clock.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:
@@ -27,7 +32,7 @@ import { withTempDir } from "../harness/tmp.ts";
 
 const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/run-tokens.sh");
 
-const KEY = "2026-11-16-11-25-26_token-report";
+const KEY = "2020-01-02-11-25-26_token-report";
 const OPUS = "claude-opus-4";
 const SONNET = "claude-sonnet-4";
 const NOT_COUNTED = "tokens: agents only - the main session and the closeout agent are not counted";
@@ -154,6 +159,90 @@ test("a transcript whose first line names another run directory adds nothing to 
       assistant("m3", SONNET, { in: 1000, out: 2000, cacheRead: 3000, cacheWrite: 4000 }),
       JSON.stringify({ type: "user", message: { content: `later mention of ${fx.runPrompt}/` } }),
     ]);
+    const result = await report(tmp, fx);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(stdoutLines(result.stdout), [
+      "tokens: viber:task-coder claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
+      NOT_COUNTED,
+    ]);
+  });
+});
+
+test("a prompt naming the bare run directory counts, and one naming a directory whose name only starts with the run key does not (a dispatch line `run: <dir>` carries no trailing slash)", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    transcript(fx, "s1", "a1", "viber:test-runner", [
+      JSON.stringify({ type: "user", message: { role: "user", content: `run: ${fx.runPrompt}\nreport: elsewhere` } }),
+      assistant("m1", SONNET, { in: 1, out: 2, cacheRead: 3, cacheWrite: 4 }),
+    ]);
+    transcript(fx, "s1", "a2", "viber:test-runner", [
+      JSON.stringify({ type: "user", message: { role: "user", content: `run: ${fx.runPrompt}` } }),
+      assistant("m2", SONNET, { in: 10, out: 20, cacheRead: 30, cacheWrite: 40 }),
+    ]);
+    transcript(fx, "s1", "a3", "viber:test-runner", [
+      prompt(`${fx.runPrompt}-two`),
+      assistant("m3", SONNET, { in: 100, out: 200, cacheRead: 300, cacheWrite: 400 }),
+    ]);
+    const result = await report(tmp, fx);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(stdoutLines(result.stdout), [
+      "tokens: viber:test-runner claude-sonnet-4 in 11 out 22 cache-read 33 cache-write 44",
+      NOT_COUNTED,
+    ]);
+  });
+});
+
+test("a transcript of the closeout agent naming the run adds no row (the last line says it is not counted, so an earlier refused closeout of a resumed build must not appear above it)", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    transcript(fx, "s1", "a1", "viber:task-coder", [
+      prompt(fx.runPrompt),
+      assistant("m1", SONNET, { in: 1, out: 2, cacheRead: 3, cacheWrite: 4 }),
+    ]);
+    transcript(fx, "s1", "a2", "viber:closeout", [
+      prompt(fx.runPrompt),
+      assistant("m2", SONNET, { in: 100, out: 200, cacheRead: 300, cacheWrite: 400 }),
+    ]);
+    const result = await report(tmp, fx);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(stdoutLines(result.stdout), [
+      "tokens: viber:task-coder claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
+      NOT_COUNTED,
+    ]);
+  });
+});
+
+test("an assistant line of the model <synthetic> adds no row and no count (Claude Code writes one for an API error, with every usage number zero)", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    transcript(fx, "s1", "a1", "viber:task-coder", [
+      prompt(fx.runPrompt),
+      assistant("m1", SONNET, { in: 1, out: 2, cacheRead: 3, cacheWrite: 4 }),
+      assistant("m2", "<synthetic>", { in: 0, out: 0, cacheRead: 0, cacheWrite: 0 }),
+    ]);
+    transcript(fx, "s1", "a2", "viber:task-coder", [prompt(fx.runPrompt), assistantWithoutUsage("m3", "<synthetic>")]);
+    const result = await report(tmp, fx);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(stdoutLines(result.stdout), [
+      "tokens: viber:task-coder claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
+      NOT_COUNTED,
+    ]);
+  });
+});
+
+test("a transcript last written before the day the run key names is not counted, even when it names the run (it is never opened)", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    transcript(fx, "s1", "a1", "viber:task-coder", [
+      prompt(fx.runPrompt),
+      assistant("m1", SONNET, { in: 1, out: 2, cacheRead: 3, cacheWrite: 4 }),
+    ]);
+    transcript(fx, "s0", "a2", "viber:task-coder", [
+      prompt(fx.runPrompt),
+      assistant("m2", SONNET, { in: 100, out: 200, cacheRead: 300, cacheWrite: 400 }),
+    ]);
+    const old = new Date("2019-06-01T00:00:00Z");
+    fs.utimesSync(path.join(fx.config, "projects", "proj", "s0", "subagents", "agent-a2.jsonl"), old, old);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(stdoutLines(result.stdout), [
