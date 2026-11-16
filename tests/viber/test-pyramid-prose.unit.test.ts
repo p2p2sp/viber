@@ -120,6 +120,13 @@ test("plan-rules carries the integration test check as a second Layered rule tag
   assert.ok(has(lines[lines.length - 1],"`plan-index.sh` rejects one without it, with `error: task <id>: Files writes <path> under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`. (script)"));
 });
 
+test("plan-rules carries the git grep check as a second Provable rule tagged script, after the review half that stays the first Provable line", () => {
+  const lines = rules("Provable").split("\n");
+  assert.ok(lines[0].endsWith("(review)"));
+  assert.equal(lines.length, 2);
+  assert.ok(has(lines[lines.length - 1], "`plan-index.sh` rejects it, with `error: task <id>: Verification runs git grep without --untracked over <path>, which this task creates and git grep never reads - add --untracked or use grep (Provable)`. (script)"));
+});
+
 test("plan-rules Layered closes with an integration test written in its adapter's task and never run there, a Repro test excepted, and names no Exclusive leaf task", () => {
   const text = rule("Layered");
   assert.ok(has(text, "An integration test is written in the task that creates or changes its adapter and never run there, a `Repro:` test excepted: that task's `Verification` runs the test tool's own listing or type-check step plus a grep of one identifier on both sides, the test and the adapter declaring it, and the build's final test run runs the test once. (review)"));
@@ -240,8 +247,8 @@ test("plan-rules Provable leaves every CLAUDE.md out of that grep with build.mem
   assert.ok(has(rule("Provable"), "with `build.memory` on, that grep leaves out every `CLAUDE.md` too."));
 });
 
-test("plan-rules stays within 20500 bytes", () => {
-  assert.ok(Buffer.byteLength(PLAN_RULES, "utf8") <= 20500);
+test("plan-rules stays within 20900 bytes", () => {
+  assert.ok(Buffer.byteLength(PLAN_RULES, "utf8") <= 20900);
 });
 
 test("task-coder first Implement bullet stops at the met done clauses and a green Verification, adding no test, file, doc or refactor, a helpful idea going to the notes", () => {

@@ -251,8 +251,13 @@
 #       that test directory, or a file inside such a directory (stderr: "error:
 #       task <id>: Files writes <path> under an integration test directory, which
 #       no Verification command names - list or type-check that file or its test
-#       project there (Layered)"). The last eight cases and the
-#       parenthetical one above are exempted under --split
+#       project there (Layered)"), or a git grep: a command of its "Verification:"
+#       text before the first " -> " (cut at ";", "&&", "||" and "|") that runs
+#       git grep with no --untracked and names, as a token, a "Files:" path the
+#       tree does not hold (stderr: "error: task <id>: Verification runs git grep
+#       without --untracked over <path>, which this task creates and git grep
+#       never reads - add --untracked or use grep (Provable)"). The last nine
+#       cases and the parenthetical one above are exempted under --split
 #       and under --extra, and on a plain call whose plan has status.md beside
 #       it (a landed run plan): a plan that landed before the rule is frozen,
 #       and a run resumed after the upgrade must still validate and decompose.
@@ -561,6 +566,32 @@ function namesinteg(vtext, p, floor,   nv, vcmds, vc, vtk, nt, vk, vt, vd, vg, v
   return 0
 }
 
+# 1 when a command of the Verification text, cut at && || ; and |, is a git grep
+# without --untracked that names the path p as one of its tokens: git grep reads
+# tracked files only, so it never sees a file the task is about to create
+function gitgrepblind(vtext, p,   nv, vcmds, vc, vtk, nt, vk, vg, vu, vt, vq) {
+  vq = "[`\"\047()]"
+  gsub(/&&|[|][|]|[;|]/, "\n", vtext)
+  nv = split(vtext, vcmds, "\n")
+  for (vc = 1; vc <= nv; vc++) {
+    nt = split(trim(vcmds[vc]), vtk, /[[:space:]]+/)
+    for (vk = 1; vk <= nt; vk++) gsub(vq, "", vtk[vk])
+    if (vtk[1] != "git") continue
+    vg = 0; vu = 0
+    for (vk = 2; vk <= nt; vk++) {
+      if (vtk[vk] == "grep" && !vg) vg = vk
+      if (vtk[vk] == "--untracked") vu = 1
+    }
+    if (!vg || vu) continue
+    for (vk = vg + 1; vk <= nt; vk++) {
+      vt = vtk[vk]
+      sub(/^\.\//, "", vt)
+      if (vt == p) return 1
+    }
+  }
+  return 0
+}
+
 # the length of the run of one repeated first character that opens t
 function frun(t,   c, n) {
   c = substr(t, 1, 1); n = 0
@@ -856,6 +887,15 @@ END {
         if (ifloor != "" && !namesinteg(verifycmd(verif[i]), fpath[i, k], ifloor))
           fail("task " id[i] ": Files writes " fpath[i, k] " under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)")
       }
+
+    # Provable: a git grep over a file this task creates reads nothing, so the
+    # proof would find no match whatever the code holds. A path the tree already
+    # holds is read. Skipped under --split, like the other checks added after
+    # plans were frozen.
+    if (mode != "--split" && verif[i] != "")
+      for (k = 1; k <= nf[i]; k++)
+        if (!present(fpath[i, k]) && gitgrepblind(verifycmd(verif[i]), fpath[i, k]))
+          fail("task " id[i] ": Verification runs git grep without --untracked over " fpath[i, k] ", which this task creates and git grep never reads - add --untracked or use grep (Provable)")
 
     # Size:a task past either cap bundles several behaviours, and a coder
     # holding that many files and clauses at once drifts. Skipped under --split,

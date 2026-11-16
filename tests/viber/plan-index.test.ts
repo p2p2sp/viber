@@ -1671,6 +1671,89 @@ test("integration check: a plain call with status.md beside the plan does not ru
   });
 });
 
+const NEW_TOOL = "tools/new.ts";
+const GIT_GREP_MESSAGE = `error: task T1: Verification runs git grep without --untracked over ${NEW_TOOL}, which this task creates and git grep never reads - add --untracked or use grep (Provable)`;
+
+for (const [label, verification] of [
+  ["a git grep with a pathspec after --", `git grep -c readRuns -- ${NEW_TOOL} -> 1`],
+  ["a git grep with the path as a plain argument", `git grep -c readRuns ${NEW_TOOL} -> 1`],
+  ["a git grep chained after &&", `npm test && git grep -c readRuns -- ${NEW_TOOL} -> 1`],
+  ["a git grep after a pipe", `npm test | git grep -c readRuns -- ${NEW_TOOL} -> 1`],
+] as const) {
+  test(`git grep check: ${label} over a file the tree lacks exits 4 with the Provable error`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, planBody([{ id: "T1", files: NEW_TOOL, verification }], 1));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, "");
+      assert.ok(result.stderr.includes(GIT_GREP_MESSAGE), result.stderr);
+    });
+  });
+}
+
+for (const [label, verification] of [
+  ["git grep with --untracked", `git grep --untracked -c readRuns -- ${NEW_TOOL} -> 1`],
+  ["git grep with --untracked after the pattern", `git grep -c readRuns --untracked -- ${NEW_TOOL} -> 1`],
+  ["plain grep", `grep -c readRuns ${NEW_TOOL} -> 1`],
+] as const) {
+  test(`git grep check: ${label} over a file the tree lacks validates`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, planBody([{ id: "T1", files: NEW_TOOL, verification }], 1));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    });
+  });
+}
+
+test("git grep check: a git grep over a path the tree already holds validates", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    write(dir, NEW_TOOL, "export const readRuns = 1;\n");
+    seed(dir, planBody([{ id: "T1", files: NEW_TOOL, verification: `git grep -c readRuns -- ${NEW_TOOL} -> 1` }], 1));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("git grep check: a git grep naming no path of the task's Files is not checked", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody([{ id: "T1", files: "src/a.ts", verification: `git grep -c readRuns -- ${NEW_TOOL} -> 1` }], 1));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("git grep check: under --split the check does not run", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody([{ id: "T1", files: NEW_TOOL, verification: `git grep -c readRuns -- ${NEW_TOOL} -> 1` }], 1));
+
+    const result = await run(dir, {}, [PLAN_REL, "--split"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("git grep check: under --extra the check does not run", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody([{ id: "T1", files: NEW_TOOL, verification: `git grep -c readRuns -- ${NEW_TOOL} -> 1` }], 1));
+
+    const result = await run(dir, {}, [PLAN_REL, "--extra", "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("git grep check: a plain call with status.md beside the plan does not run it (a landed plan is frozen)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody([{ id: "T1", files: NEW_TOOL, verification: `git grep -c readRuns -- ${NEW_TOOL} -> 1` }], 1));
+    seedStatus(dir, { done: "none" });
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
 test("a File entry whose bracket wraps a whole segment is a path, not a glob - like a Files entry", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     const route = "src/app/api/sites/[siteId]/route.ts";

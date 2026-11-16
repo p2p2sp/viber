@@ -1,0 +1,5 @@
+- The git grep check cuts commands at `&&`, `||`, `;` and `|` only, never at a comma (a comma can sit inside a grep pattern), unlike the T1 integration check; a token must equal the Files path exactly (a leading "./" stripped), so a directory token or a path glued to a comma is not seen.
+- "Absent from the tree" is `present()` (file readable on disk), so an untracked file already on disk is treated as present even though git grep stays blind to it; spec DoD.3 says "the tree already holds".
+- `--no-index` is not treated as `--untracked`: only the literal `--untracked` token exempts a git grep.
+- plan-rules.md is 20812 bytes; caps raised to 20900 (plan-rules), 44774 (planner), 31223 (planner-review), each by the rule's 380 bytes.
+- viber/references/CLAUDE.md still says plan-rules sits at 19900: left for the memory close.
