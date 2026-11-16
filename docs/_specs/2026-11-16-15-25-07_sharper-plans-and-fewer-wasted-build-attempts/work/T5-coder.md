@@ -1,0 +1,4 @@
+- The three reviewer sentences sit mid-line in the `Tested:` bullet, after "never ask for such a test.", so the existing pinned phrases stay contiguous.
+- task-reviewer read-set cap raised 17499 -> 17777 (exact new size).
+- The README/help.html test lives in test-pyramid-prose (the only test file in `Files` that fits); no help.unit.test.ts change was needed.
+- Still open for other tasks: the `run-lessons:` dispatch line in implementor/task-coder.

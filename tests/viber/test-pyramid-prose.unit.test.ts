@@ -483,6 +483,26 @@ test("task-reviewer raises a forbidden test as Blocking naming the rule, with th
   assert.ok(has(bullet(REVIEWER, "Tested:"), "raise every rule they tag `(blocking)` as a Blocking finding naming the rule, with the cause `plan` when a `DoD` clause asked for the test, and never ask for such a test."));
 });
 
+test("task-reviewer Tested spells a breached test-strategy rule as test-strategy followed by its label in backticks", () => {
+  assert.ok(has(bullet(REVIEWER, "Tested:"), "Spell a breached rule of `test-strategy.md` in the first line of its finding as test-strategy `<Name>`, `<Name>` being the label the rule opens with (`Single`, `Act`, `Earned`)."));
+});
+
+test("task-reviewer Tested lists in one finding every test the task wrote or changed that breaks the same rule", () => {
+  assert.ok(has(bullet(REVIEWER, "Tested:"), "One finding per rule lists every test the task wrote or changed that breaks it, never one finding per test."));
+});
+
+test("task-reviewer Tested never has a fix tell the coder to keep a test that breaks a rule the report raises", () => {
+  assert.ok(has(bullet(REVIEWER, "Tested:"), "A fix never tells the coder to keep a test that breaks a rule the report raises."));
+});
+
+test("README and both languages of help.html say a test-rule finding covers every test of the task breaking that rule", () => {
+  const readme = read("README.md");
+  const help = read("skills/setup/assets/help.html");
+  assert.ok(has(readme, "A review finding on a test rule names the rule and covers every test of the task that breaks it, so one round of fixes clears the whole class."));
+  assert.ok(has(help, "A review finding on a test rule names the rule and covers every test of the task that breaks it, so one round of fixes clears the whole class.</p>"));
+  assert.ok(has(help, "Uwaga recenzji o regule testów wskazuje regułę i obejmuje każdy test zadania, który ją łamie, więc jedna runda poprawek usuwa całą klasę.</p>"));
+});
+
 test("fixer reads Layers, Proves and Writing by range before writing the reproduction test", () => {
   assert.ok(has(bullet(section(FIXER, "The reproduction test"), "Read"), "Read `## Layers`, `## Proves` and `## Writing` of `${CLAUDE_PLUGIN_ROOT}/references/test-strategy.md` by range before writing it (`Grep` the file for its `## ` lines, then `Read` each section): every rule it marks `(blocking)` binds this test, and no later stage may change it."));
 });
