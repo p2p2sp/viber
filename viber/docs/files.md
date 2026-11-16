@@ -47,7 +47,9 @@ With `build.cleanup` on, the build ends by moving what is worth keeping to `docs
   a final test run, each labelled with its cause (`convention`, `place`, `plan`, `task`, `test` or
   `unknown`). It exists only when the run had a failure, and `/viber:rules` removes the convention
   entries it has handled from it, and every entry of another cause
-- the build summary, `outcome.md`, with the list of files left uncommitted and the reason for each
+- the build summary, `outcome.md`, with the list of files left uncommitted and the reason for each,
+  and the token report: one `tokens:` line per agent role and model (input, output, cache read and
+  cache write counts), the main session and the `closeout` agent not counted
 
 It drops the plan, the progress file and the working notes. They stay in git, so nothing is lost.
 The archive is the half you would want to read a year later.

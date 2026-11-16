@@ -200,9 +200,11 @@ claims gets one too; the arbiter rules on a stalled task only after its repair p
 
 Every ruling goes into `rulings.md` with its reason and its cost if wrong, and the final summary
 lists them. When the run is archived, the screen shows a short result and one closing sentence saying
-whether `outcome.md` records a problem, plus the command that starts the next roadmap part when one
-is left, and the full summary is in `outcome.md` in the archive, along with every file the build
-left uncommitted and the reason. The archive also keeps `failures.md`, the failure trail of the run,
+whether `outcome.md` records a problem, plus, when a further roadmap part is left, a sentence telling
+you to continue the work and then the command that starts that part. The full summary is in
+`outcome.md` in the archive, along with every file the build left uncommitted and the reason, and one
+`tokens:` line per agent role and model with its input, output, cache read and cache write counts. The
+main session and the `closeout` agent are not counted. The archive also keeps `failures.md`, the failure trail of the run,
 which `/viber:rules` turns into rules when a failure repeats across runs. The close suggests
 `/viber:rules extend` once convention failures stand in two runs, and `/viber:rules` removes the
 convention entries it handled and every entry of another cause.
