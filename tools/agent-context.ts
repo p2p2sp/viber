@@ -15,6 +15,19 @@ export interface RunStats {
   files: number;
 }
 
+export interface AgentSummary {
+  agent: string;
+  runs: number;
+  startP50: number;
+  peakP50: number;
+  peakP90: number;
+  peakMax: number;
+  bytes: Record<Kind, number>;
+  startMemory: number;
+  nestedMemory: number;
+  files: number;
+}
+
 type Json = Record<string, any>;
 
 function parse(line: string): Json | undefined {
@@ -96,4 +109,74 @@ export function runStats(agent: string, lines: string[]): RunStats | undefined {
 
   if (start === undefined) return undefined;
   return { agent, start, peak, bytes, startMemory, nestedMemory, files: opened.size };
+}
+
+const KINDS: Kind[] = ["read-plugin", "read-project", "search", "bash", "other"];
+
+function percentile(sorted: number[], fraction: number): number {
+  return sorted[Math.min(sorted.length - 1, Math.floor(fraction * sorted.length))];
+}
+
+function mean(values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function ascending(values: number[]): number[] {
+  return [...values].sort((a, b) => a - b);
+}
+
+function summaryOf(agent: string, runs: RunStats[]): AgentSummary {
+  const starts = ascending(runs.map((run) => run.start));
+  const peaks = ascending(runs.map((run) => run.peak));
+  const bytes = {} as Record<Kind, number>;
+  for (const kind of KINDS) bytes[kind] = mean(runs.map((run) => run.bytes[kind]));
+  return {
+    agent,
+    runs: runs.length,
+    startP50: percentile(starts, 0.5),
+    peakP50: percentile(peaks, 0.5),
+    peakP90: percentile(peaks, 0.9),
+    peakMax: peaks[peaks.length - 1],
+    bytes,
+    startMemory: mean(runs.map((run) => run.startMemory)),
+    nestedMemory: mean(runs.map((run) => run.nestedMemory)),
+    files: mean(runs.map((run) => run.files)),
+  };
+}
+
+export function summarize(runs: RunStats[]): AgentSummary[] {
+  const byAgent = new Map<string, RunStats[]>();
+  for (const run of runs) {
+    if (!run.agent.startsWith("viber:")) continue;
+    byAgent.set(run.agent, [...(byAgent.get(run.agent) ?? []), run]);
+  }
+  return [...byAgent].map(([agent, group]) => summaryOf(agent, group)).sort((a, b) => b.peakP50 - a.peakP50);
+}
+
+function tokens(value: number): string {
+  return `${Math.round(value / 1000)}k`;
+}
+
+function kilobytes(value: number): string {
+  return String(Math.round(value / 1024));
+}
+
+export function render(rows: AgentSummary[]): string[] {
+  return [
+    "agent | runs | start p50 | peak p50 | peak p90 | peak max",
+    ...rows.map((row) =>
+      [row.agent, row.runs, tokens(row.startP50), tokens(row.peakP50), tokens(row.peakP90), tokens(row.peakMax)].join(" | "),
+    ),
+    "",
+    "agent | read-plugin KB | read-project KB | search KB | bash KB | other KB | start memory KB | nested memory KB | files",
+    ...rows.map((row) =>
+      [
+        row.agent,
+        ...KINDS.map((kind) => kilobytes(row.bytes[kind])),
+        kilobytes(row.startMemory),
+        kilobytes(row.nestedMemory),
+        row.files.toFixed(1),
+      ].join(" | "),
+    ),
+  ];
 }

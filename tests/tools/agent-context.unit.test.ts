@@ -1,6 +1,7 @@
 /*
- * agent-context.unit.test.ts - proves `runStats` of tools/agent-context.ts, the function turning the
- * transcript lines of one Claude Code subagent run into its context statistics.
+ * agent-context.unit.test.ts - proves `runStats`, `summarize` and `render` of tools/agent-context.ts:
+ * the transcript lines of one Claude Code subagent run turned into its context statistics, the runs
+ * grouped into one summary per viber agent and the summaries printed as the two tables.
  * Transcript lines are JS objects serialized with JSON.stringify, shaped as the C1 contract of the
  * task names them (assistant usage, tool_use and tool_result items, instructions and nested_memory
  * attachments). Nothing here touches the disk.
@@ -11,7 +12,8 @@
 
 import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
-import { runStats } from "../../tools/agent-context.ts";
+import { render, runStats, summarize } from "../../tools/agent-context.ts";
+import type { AgentSummary, RunStats } from "../../tools/agent-context.ts";
 
 type Item = Record<string, unknown>;
 
@@ -102,4 +104,123 @@ test("a line that is not JSON is skipped without losing the lines around it", ()
 test("lines carrying no assistant usage give undefined", () => {
   const stats = runStats(AGENT, [assistant(undefined), result("a", "abc")]);
   assert.equal(stats, undefined);
+});
+
+function run(agent: string, peak: number, extra: Partial<RunStats> = {}): RunStats {
+  return {
+    agent,
+    start: 0,
+    peak,
+    bytes: { "read-plugin": 0, "read-project": 0, search: 0, bash: 0, other: 0 },
+    startMemory: 0,
+    nestedMemory: 0,
+    files: 0,
+    ...extra,
+  };
+}
+
+function summary(agent: string, extra: Partial<AgentSummary> = {}): AgentSummary {
+  return {
+    agent,
+    runs: 1,
+    startP50: 0,
+    peakP50: 0,
+    peakP90: 0,
+    peakMax: 0,
+    bytes: { "read-plugin": 0, "read-project": 0, search: 0, bash: 0, other: 0 },
+    startMemory: 0,
+    nestedMemory: 0,
+    files: 0,
+    ...extra,
+  };
+}
+
+test("summarize leaves out every run whose agent does not start with viber: and counts the runs of each remaining agent", () => {
+  const rows = summarize([
+    run("viber:task-coder", 10),
+    run("general-purpose", 99),
+    run("viber:task-coder", 20),
+    run("Explore", 98),
+    run("viber:reviewer", 5),
+  ]);
+  assert.deepEqual(
+    rows.map((row) => [row.agent, row.runs]),
+    [
+      ["viber:task-coder", 2],
+      ["viber:reviewer", 1],
+    ],
+  );
+});
+
+test("summarize takes the percentiles of start and peak at index min(n - 1, floor(f * n)) of the ascending values", () => {
+  const peaks = [50, 10, 110, 30, 90, 70, 100, 20, 80, 60, 40];
+  const rows = summarize(peaks.map((peak) => run(AGENT, peak * 1000, { start: peak })));
+  assert.equal(rows[0].startP50, 60);
+  assert.equal(rows[0].peakP50, 60000);
+  assert.equal(rows[0].peakP90, 100000);
+  assert.equal(rows[0].peakMax, 110000);
+});
+
+test("summarize takes the upper middle value as the median of an even number of runs", () => {
+  const rows = summarize([run(AGENT, 100), run(AGENT, 300)]);
+  assert.equal(rows[0].peakP50, 300);
+});
+
+test("summarize averages each byte kind, the start memory, the nested memory and the files over the runs of an agent", () => {
+  const rows = summarize([
+    run(AGENT, 1, {
+      bytes: { "read-plugin": 10, "read-project": 20, search: 30, bash: 40, other: 50 },
+      startMemory: 100,
+      nestedMemory: 6,
+      files: 3,
+    }),
+    run(AGENT, 1, {
+      bytes: { "read-plugin": 30, "read-project": 0, search: 10, bash: 0, other: 51 },
+      startMemory: 300,
+      nestedMemory: 0,
+      files: 4,
+    }),
+  ]);
+  assert.deepEqual(rows[0].bytes, { "read-plugin": 20, "read-project": 10, search: 20, bash: 20, other: 50.5 });
+  assert.equal(rows[0].startMemory, 200);
+  assert.equal(rows[0].nestedMemory, 3);
+  assert.equal(rows[0].files, 3.5);
+});
+
+test("summarize orders the agents by median peak, largest first", () => {
+  const rows = summarize([run("viber:small", 100), run("viber:large", 900), run("viber:middle", 500)]);
+  assert.deepEqual(
+    rows.map((row) => row.agent),
+    ["viber:large", "viber:middle", "viber:small"],
+  );
+});
+
+test("summarize of no runs is an empty list", () => {
+  assert.deepEqual(summarize([]), []);
+});
+
+test("render prints the context table, one empty line and the breakdown table, tokens in rounded thousands, bytes in rounded kilobytes and files with one decimal", () => {
+  const lines = render([
+    summary("viber:task-coder", {
+      runs: 3,
+      startP50: 12499,
+      peakP50: 80500,
+      peakP90: 99999,
+      peakMax: 150000,
+      bytes: { "read-plugin": 2048, "read-project": 1536, search: 511, bash: 0, other: 10240 },
+      startMemory: 4096,
+      nestedMemory: 1024,
+      files: 4.25,
+    }),
+    summary("viber:reviewer", { runs: 1, startP50: 1000, peakP50: 2000, peakP90: 3000, peakMax: 4000, files: 2 }),
+  ]);
+  assert.deepEqual(lines, [
+    "agent | runs | start p50 | peak p50 | peak p90 | peak max",
+    "viber:task-coder | 3 | 12k | 81k | 100k | 150k",
+    "viber:reviewer | 1 | 1k | 2k | 3k | 4k",
+    "",
+    "agent | read-plugin KB | read-project KB | search KB | bash KB | other KB | start memory KB | nested memory KB | files",
+    "viber:task-coder | 2 | 2 | 0 | 0 | 10 | 4 | 1 | 4.3",
+    "viber:reviewer | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2.0",
+  ]);
 });
