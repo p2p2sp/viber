@@ -191,13 +191,15 @@ fixed even when it is only Minor.
 A task gets up to 5 attempts, each one model tier up. Where the build would otherwise stop and ask,
 an arbiter agent picks one way forward from a closed list. That happens when:
 
+- a coder stalls on attempts 1 to 4 and returns a `DECIDE:` line with its own ways forward
 - a task is past its 5 attempts and its repair pass
 - a baseline or final test run is red
 - a recheck of the final review fails
 - a commit is refused
 
 A task past its 5 attempts gets a repair pass before the final review, and a deferred path no task
-claims gets one too; the arbiter rules on a stalled task only after its repair pass fails.
+claims gets one too; the arbiter rules on a task past its attempts only after its repair pass fails.
+A coder finishes every clause its dispute does not touch before it returns `DECIDE:`, the arbiter rules on a coder's first `DECIDE:` and the same coder continues with the ruling in the same attempt.
 
 Every ruling goes into `rulings.md` with its reason and its cost if wrong, and the final summary
 lists them. When the run is archived, the screen shows a short result and one closing sentence saying

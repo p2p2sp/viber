@@ -1815,12 +1815,14 @@ linie co w <code>rulings.md</code>.</p>
 </details>
 <details id="ts-task-fails">
   <summary><span lang="en">What happens when a task keeps failing?</span><span lang="pl">Co się dzieje, gdy zadanie ciągle się nie udaje?</span></summary>
-  <p lang="en">Each failure is retried without asking, one tier up, up to 5 attempts. From the second, when the
-  coder proposed a way out, the arbiter picks one of the coder's proposals, the build records it as a decision and
-  runs a fresh coder.</p>
-  <p lang="pl">Każda porażka jest ponawiana bez pytania, poziom modelu wyżej, do 5 prób. Od drugiej, gdy wykonawca
-  zaproponował wyjście, arbiter wybiera jedną z propozycji wykonawcy, build zapisuje ją jako decyzję
-  i uruchamia nowego wykonawcę.</p>
+  <p lang="en">Each failure is retried without asking, one tier up, up to 5 attempts. On the first four, when the
+  coder finished what it could and proposed a way out, the arbiter picks one of the coder's proposals, the build
+  records it as a decision and the same coder continues with the ruling in the same attempt. A refused message or
+  a failed continuation goes to the next attempt.</p>
+  <p lang="pl">Każda porażka jest ponawiana bez pytania, poziom modelu wyżej, do 5 prób. W pierwszych czterech, gdy
+  wykonawca skończył, co mógł, i zaproponował wyjście, arbiter wybiera jedną z propozycji wykonawcy, build zapisuje
+  ją jako decyzję, a ten sam wykonawca kontynuuje z orzeczeniem w tej samej próbie. Odmowa wiadomości albo
+  nieudana kontynuacja prowadzi do następnej próby.</p>
   <p lang="en">After the fifth failed attempt the task is held, and a repair pass runs before the final review,
   at the highest tier, a deferred path no task claims getting one too. When the repair pass fails as well, the
   arbiter rules to skip the task or, after a failed review, to

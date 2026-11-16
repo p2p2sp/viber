@@ -1,0 +1,4 @@
+- The task-coder cap in rule-budget is set to the exact new size (25961 bytes).
+- "Finish every DoD clause the dispute does not touch" sits in the `DECIDE:` output line of task-coder, not in the `Honour Contracts` bullet: test-pyramid-prose pins that bullet's ending verbatim and is not in this task's Files.
+- The stall bullet of implementor stays one line (ruling-prose finds it by its start); the refused-SendMessage rule is its own bullet below it.
+- viber/skills/CLAUDE.md, viber/agents/CLAUDE.md (Stall path) and tests/viber/CLAUDE.md are left to the memory close.

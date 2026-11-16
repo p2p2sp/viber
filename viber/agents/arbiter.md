@@ -24,7 +24,7 @@ The prompt carries these lines:
 
 What each case's options mean:
 
-- `decide` - the coder's own ways forward for a stalled task; each one overrides the task file for it and its dependents.
+- `decide` - the coder's own ways forward for a stalled task: an option is work the continuing coder or a later attempt does, and each one overrides the task file for it and its dependents.
 - `cap` - the task reached its attempt limit and a failed repair pass followed: `accept` commits it unreviewed, `skip` drops it with every task depending on it.
 - `baseline` - `continue` builds on over a red baseline run.
 - `tests` - `accept` closes the build over a final test run still failing.

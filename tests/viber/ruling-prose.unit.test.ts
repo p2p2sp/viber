@@ -189,6 +189,69 @@ test("an accepted refused arbiter on case decide is recorded through the --first
   assert.ok(bullet.includes("a `decide` ruling naming no listed option"));
 });
 
+const C4_CLOSING = "Continue the task under these decisions, then return your output lines again.";
+const FLAT = (text: string): string => text.replace(/\s+/g, " ");
+const README = FLAT(read("README.md"));
+const HELP_FAILING_TASK = FLAT(between(read("skills/setup/assets/help.html"), 'id="ts-task-fails"', 'id="ts-denied"'));
+
+function stallBullet(): string {
+  return lines(SKILL).find((line) => line.startsWith("- Coder failure on attempt 1 to 4")) ?? "";
+}
+
+test("a DECIDE line of attempts 1 to 4 goes to the arbiter at once, with no attempt number left to wait for", () => {
+  const stall = stallBullet();
+  assert.ok(stall.includes("a `DECIDE:` line"));
+  assert.ok(stall.includes("`case: decide`"));
+  assert.ok(!stall.includes("From attempt 2 on"));
+});
+
+test("the arbiter's ruling is followed by a SendMessage of the C4 message to the same coder, the attempt count and tier unchanged", () => {
+  const stall = stallBullet();
+  assert.ok(stall.includes("`SendMessage` that same coder"));
+  assert.ok(stall.includes(`\`${C4_CLOSING}\``));
+  assert.ok(stall.includes("one `decision:` line per `decision:` line of its dispatch, the new one among them"));
+  assert.ok(stall.includes("the attempt count and tier unchanged"));
+});
+
+test("a refused SendMessage or a failed resumed coder leads to the next attempt with every decision line", () => {
+  const bullet = lines(SKILL).find((line) => line.startsWith("- A refused `SendMessage`")) ?? "";
+  assert.ok(bullet.includes("a failure of the resumed coder"));
+  assert.ok(bullet.includes("the next attempt with every `decision:` line"));
+});
+
+test("a second DECIDE line of the resumed coder goes to the arbiter again", () => {
+  const bullet = lines(SKILL).find((line) => line.startsWith("- A refused `SendMessage`")) ?? "";
+  assert.ok(bullet.includes("a second `DECIDE:` line of the resumed coder goes to the arbiter again"));
+});
+
+test("task-coder finishes every DoD clause the dispute does not touch before returning DECIDE", () => {
+  assert.ok(CODER.includes("Finish every `DoD` clause the dispute does not touch before you return `DECIDE:`"));
+});
+
+test("task-coder applies the decision lines of a C4 message and returns its output lines again", () => {
+  const bullet = lines(CODER).find((line) => line.includes(C4_CLOSING)) ?? "";
+  assert.ok(bullet.startsWith("- A message of `decision:` lines"));
+  assert.ok(bullet.includes("apply every `decision:` line"));
+  assert.ok(bullet.includes("return your output lines again"));
+});
+
+test("arbiter states a decide option is work the continuing coder or a later attempt does", () => {
+  const bullet = lines(ARBITER).find((line) => line.startsWith("- `decide`")) ?? "";
+  assert.ok(bullet.includes("an option is work the continuing coder or a later attempt does"));
+});
+
+test("README says the arbiter rules on a coder's first DECIDE and the same coder continues", () => {
+  assert.ok(README.includes("the arbiter rules on a coder's first `DECIDE:` and the same coder continues with the ruling"));
+});
+
+test("the failing-task help entry says in English that the same coder continues with the ruling", () => {
+  assert.ok(HELP_FAILING_TASK.includes("the same coder continues with the ruling"));
+});
+
+test("the failing-task help entry says in Polish that the same coder continues with the ruling", () => {
+  assert.ok(HELP_FAILING_TASK.includes("ten sam wykonawca kontynuuje z orzeczeniem"));
+});
+
 test("a ruling naming no listed option is carried out as the first option with the mismatch in the final summary", () => {
   assert.ok(
     lines(ARBITER_DISPATCH).includes(
