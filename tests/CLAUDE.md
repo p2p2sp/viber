@@ -13,6 +13,7 @@ Owns every automated check in the repository: the per-plugin suites, the `releas
 - Which suite a change reaches:
   - a viber script, hook, `.ts` or `.mjs` module -> its file under `tests/viber/`;
   - `.github/scripts/release.sh` -> `tests/github/release.test.ts`;
+  - `tools/agent-context.ts` (a dev command that ships with no plugin) -> `tests/tools/`: `agent-context.unit.test.ts` runs on the fake reader of `agent-context-fixture.ts`, `agent-context.test.ts` runs the disk adapter `readRuns` on a temp directory;
   - any tracked `*.sh` / `*.ts` outside `tests/` and `docs/`, and every `!` preload in a `SKILL.md` -> `tests/portability.unit.test.ts` (shebang, no CRLF, `100755` exec bit when invoked without an interpreter word, quoted glob arguments in preloads, no bash-only syntax in `#!/bin/sh`, no unguarded GNU-only tools);
   - any tracked file outside `docs/` -> `tests/orphan-tags.unit.test.ts` (a line that is only `</name>` with no `<name` opener in the same file);
   - anything under `tests/harness/` -> `tests/harness.test.ts`, then every suite, since all of them import it.
@@ -23,6 +24,7 @@ Owns every automated check in the repository: the per-plugin suites, the `releas
 - Tier by filename: `*.unit.test.ts` runs no shipped script (at most a read-only git query); a test that spawns a SUT is integration and takes plain `*.test.ts`.
 - Every sweep rule is a pure function with a self-check that proves it fires on a synthetic bad sample; a new rule comes with its self-check, so a green run is never vacuous.
 - No test reaches the network or touches this repo's working tree: a `gh` is always a `withStub`, every push goes to a local `--bare` remote, every write lands in a temp dir.
+- `readerContract` in `tests/tools/agent-context-fixture.ts` is the one contract both the fake reader and the disk adapter pass: a change to the transcript reading port changes the fixture, the fake and the adapter together.
 - A test whose tool is missing on `PATH` skips, never fails (`release.test.ts` skips wholesale without `jq` or `bash`).
 
 ## Commands
