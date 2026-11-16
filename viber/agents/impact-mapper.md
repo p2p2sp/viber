@@ -1,6 +1,6 @@
 ---
 name: impact-mapper
-description: Maps the reach of a change - every file referring to the files and symbols a plan modifies, moves or deletes - and returns one line per referring file. Invoked only by the planner skill, never directly.
+description: Maps the reach of a change - every file referring to the files and symbols a plan modifies, moves or deletes, and every file listing, counting or linking the files it adds - and returns one line per referring file. Invoked only by the planner skill, never directly.
 tools: Read, Grep, Glob
 model: sonnet
 effort: high
@@ -19,14 +19,16 @@ The prompt carries one block, running to the end of the prompt:
 targets:
 <repo-relative path>
 <repo-relative path> | <symbol>
+<repo-relative path> | new
 ```
 
 - A bare path is a whole file the change modifies, moves or deletes.
 - A path with a symbol is one symbol of that file.
+- A path with `new` is a file the change adds: it exists nowhere yet.
 
 ## Steps
 
-For each target, search the whole repository for every file referring to it. Search for:
+For each target other than a `| new` one, search the whole repository for every file referring to it. Search for:
 
 1. Every import spelling of the path, relative ones included (`./x`, `../x`, with and without the extension, an index file reached through its directory).
 2. Calls and uses of the file's exports, or of the symbol.
@@ -35,6 +37,9 @@ For each target, search the whole repository for every file referring to it. Sea
 5. Fixtures and snapshots naming the path or the symbol.
 6. String references: selectors, configuration keys, route names, script and command names, manifest entries.
 7. Documents and `.claude/rules/` files naming the path or the symbol.
+8. For a type symbol, search every class implementing or deriving from it, test doubles included, with kind `implementation`, and every place constructing it, with kind `call`.
+
+For a `| new` target, search for the existing files that enumerate, count, glob or link the set the new file joins, and the tests asserting a count or a list over such a file, each with kind `collection`.
 
 Read a hit only as far as needed to confirm it refers to the target and to note its line numbers. A name shared with an unrelated symbol is no reference.
 
@@ -44,7 +49,7 @@ Read a hit only as far as needed to confirm it refers to the target and to note 
 
 - `REF: <repo-relative path>:<line>[,<line>...] | <kind> | <target as written>`
 
-- `<kind>` is one of `call`, `string`, `test`, `mock`, `fixture`, `documentation`, `rule`.
+- `<kind>` is one of `call`, `string`, `test`, `mock`, `fixture`, `documentation`, `rule`, `implementation`, `collection`.
 - One `REF:` line per referring file and target: a file referring to two targets gets two lines, a file referring to one target several times gets one line listing its lines.
 - Never a `REF:` line for a target's own file.
 - `<target as written>` repeats the target line of the dispatch byte for byte.

@@ -38,13 +38,14 @@ Before writing a task, decide which files get created, modified or deleted and w
 
 Then map the reach of the change:
 
-- Skip it only when the change modifies, moves or deletes no existing file or symbol.
-- Otherwise dispatch `viber:impact-mapper` with the prompt ending on a `targets:` block: one repo-relative path per line for a whole file the change modifies, moves or deletes, or `<path> | <symbol>` for one symbol of it, a symbol only where its name, signature, type or observable behaviour changes for its callers.
+- Skip it only when the change adds, modifies, moves or deletes no file or symbol.
+- Otherwise dispatch `viber:impact-mapper` with the prompt ending on a `targets:` block: one repo-relative path per line for a whole file the change modifies, moves or deletes, `<path> | <symbol>` for one symbol of it, a symbol only where its name, signature, type or observable behaviour changes for its callers, or `<path> | new` for each file the change adds.
 
   ```
   targets:
   <repo-relative path>
   <repo-relative path> | <symbol>
+  <repo-relative path> | new
   ```
 
 - Every `REF:` line it returns lands in a task's `Files`, through the file map, or under `### Out of scope` naming the behaviour that reference keeps.
