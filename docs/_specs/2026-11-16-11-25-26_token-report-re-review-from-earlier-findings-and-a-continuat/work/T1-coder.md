@@ -1,0 +1,6 @@
+- run-tokens.sh reads JSON with bash and awk only (no jq, no node): it takes the first `"id":"`, `"model":"` and `"usage":{` after `"message":{` on a `"type":"assistant"` line, so a transcript writer must keep content after those keys.
+- A message id is deduplicated across all counted transcripts, not per file (last line in path byte order wins).
+- Counted transcripts holding no assistant usage row at all report `unavailable - a transcript holds no readable usage` (the contract names no reason for an empty report).
+- The needle also matches the JSON-escaped backslash spelling (`runs\\key\\`) for Windows-written prompts.
+- awk trap: `sin` is a builtin, so a sums array of that name silently prints nothing.
+- Mode 100755 is set in the index with `git update-index --add --chmod=+x`.
