@@ -13,6 +13,11 @@
  * agent and the `<synthetic>` lines of an API error never reach a row, and a
  * transcript last written before the day the run key names is never opened.
  *
+ * Every report ends on a `rounds:` line: the plan review transcripts (planner-review
+ * and planner-graph-review) naming the path of the `planned:` line of the run's
+ * plan.md, counted whenever they were written, or the reason that count is unavailable.
+ * The token tests read the `tokens:` lines alone.
+ *
  * The run key opens with a date long past, so every fixture written now is newer
  * than it on any machine clock.
  *
@@ -110,6 +115,28 @@ function stdoutLines(stdout: string): string[] {
   return stdout.split("\n").filter((line) => line !== "");
 }
 
+/** The `tokens:` lines of a report, whatever lines follow them. */
+function tokenLines(stdout: string): string[] {
+  return stdoutLines(stdout).filter((line) => line.startsWith("tokens:"));
+}
+
+const PLANNED = "C:/plans/p.md";
+
+/** Writes the run's `plan.md`, with a `planned:` line when `planned` is given. */
+function writePlan(fx: Fixture, planned: string | null): void {
+  const lines = ["---", "source: docs/_specs/x/plan.md"];
+  if (planned !== null) lines.push(`planned: ${planned}`);
+  lines.push("---", "# Plan");
+  fs.writeFileSync(path.join(fx.runDir, "plan.md"), lines.join("\n") + "\n");
+}
+
+/** A transcript of a plan reviewer: only its first line, the prompt, matters. */
+function review(fx: Fixture, id: string, role: string, namedPath: string): void {
+  transcript(fx, "plan", id, role, [
+    JSON.stringify({ type: "user", message: { role: "user", content: `Review the plan at ${namedPath} now` } }),
+  ]);
+}
+
 // --- DoD.1: one line per role and model, summed over sessions, a message id once ---
 
 test("a run whose agents left transcripts in two sessions on two models prints one line per role and model, sorted, each message id counted once with its last usage", async () => {
@@ -132,7 +159,7 @@ test("a run whose agents left transcripts in two sessions on two models prints o
     ]);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(stdoutLines(result.stdout), [
+    assert.deepEqual(tokenLines(result.stdout), [
       "tokens: viber:task-coder claude-opus-4 in 7 out 8 cache-read 9 cache-write 10",
       "tokens: viber:task-coder claude-sonnet-4 in 13 out 25 cache-read 107 cache-write 14",
       "tokens: viber:task-reviewer claude-opus-4 in 1 out 1 cache-read 1 cache-write 1",
@@ -161,7 +188,7 @@ test("a transcript whose first line names another run directory adds nothing to 
     ]);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(stdoutLines(result.stdout), [
+    assert.deepEqual(tokenLines(result.stdout), [
       "tokens: viber:task-coder claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
       NOT_COUNTED,
     ]);
@@ -185,7 +212,7 @@ test("a prompt naming the bare run directory counts, and one naming a directory 
     ]);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(stdoutLines(result.stdout), [
+    assert.deepEqual(tokenLines(result.stdout), [
       "tokens: viber:test-runner claude-sonnet-4 in 11 out 22 cache-read 33 cache-write 44",
       NOT_COUNTED,
     ]);
@@ -205,7 +232,7 @@ test("a transcript of the closeout agent naming the run adds no row (the last li
     ]);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(stdoutLines(result.stdout), [
+    assert.deepEqual(tokenLines(result.stdout), [
       "tokens: viber:task-coder claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
       NOT_COUNTED,
     ]);
@@ -223,7 +250,7 @@ test("an assistant line of the model <synthetic> adds no row and no count (Claud
     transcript(fx, "s1", "a2", "viber:task-coder", [prompt(fx.runPrompt), assistantWithoutUsage("m3", "<synthetic>")]);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(stdoutLines(result.stdout), [
+    assert.deepEqual(tokenLines(result.stdout), [
       "tokens: viber:task-coder claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
       NOT_COUNTED,
     ]);
@@ -245,7 +272,7 @@ test("a transcript last written before the day the run key names is not counted,
     fs.utimesSync(path.join(fx.config, "projects", "proj", "s0", "subagents", "agent-a2.jsonl"), old, old);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(stdoutLines(result.stdout), [
+    assert.deepEqual(tokenLines(result.stdout), [
       "tokens: viber:task-coder claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
       NOT_COUNTED,
     ]);
@@ -263,7 +290,7 @@ test("a counted transcript with no meta file beside it is summed under the role 
     ]);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(stdoutLines(result.stdout), [
+    assert.deepEqual(tokenLines(result.stdout), [
       "tokens: unknown claude-sonnet-4 in 5 out 6 cache-read 7 cache-write 8",
       NOT_COUNTED,
     ]);
@@ -272,7 +299,7 @@ test("a counted transcript with no meta file beside it is summed under the role 
 
 // --- DoD.4: the not-counted line closes the report ---
 
-test("the last stdout line of a report is the not-counted line", async () => {
+test("the last tokens line of a report is the not-counted line", async () => {
   await withTempDir("p2p2-viber-", async (tmp) => {
     const fx = seed(tmp);
     transcript(fx, "s1", "a1", "viber:task-coder", [
@@ -281,7 +308,7 @@ test("the last stdout line of a report is the not-counted line", async () => {
     ]);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(stdoutLines(result.stdout).at(-1), NOT_COUNTED);
+    assert.equal(tokenLines(result.stdout).at(-1), NOT_COUNTED);
   });
 });
 
@@ -292,7 +319,7 @@ test("with no projects directory the report is the single unavailable line and t
     const fx = seed(tmp);
     const result = await run(tmp, [slash(fx.runDir)], { CLAUDE_CONFIG_DIR: slash(path.join(tmp, "missing-config")) });
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, "tokens: unavailable - no projects directory\n");
+    assert.deepEqual(tokenLines(result.stdout), ["tokens: unavailable - no projects directory"]);
   });
 });
 
@@ -305,7 +332,7 @@ test("with no transcript naming the run the report is the single unavailable lin
     ]);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, "tokens: unavailable - no agent transcript names this run\n");
+    assert.deepEqual(tokenLines(result.stdout), ["tokens: unavailable - no agent transcript names this run"]);
   });
 });
 
@@ -319,7 +346,7 @@ test("a counted transcript holding assistant lines but no readable usage makes t
     transcript(fx, "s1", "a2", "viber:task-coder", [prompt(fx.runPrompt), assistantWithoutUsage("m2", SONNET)]);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, "tokens: unavailable - a transcript holds no readable usage\n");
+    assert.deepEqual(tokenLines(result.stdout), ["tokens: unavailable - a transcript holds no readable usage"]);
   });
 });
 
@@ -350,5 +377,114 @@ test("with a run directory that does not exist the exit is 2, one error line on 
     assert.equal(result.status, 2);
     assert.equal(result.stdout, "");
     assert.match(result.stderr, /^error: [^\n]*\n$/);
+  });
+});
+
+// --- the plan review rounds line closes the report ---
+
+test("every planner-review and planner-graph-review transcript naming the planned path counts once, the backslash form, a retried dispatch and a transcript older than the run day included, and the rounds line follows the token lines", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    writePlan(fx, PLANNED);
+    transcript(fx, "s1", "a0", "viber:task-coder", [
+      prompt(fx.runPrompt),
+      assistant("m1", SONNET, { in: 1, out: 2, cacheRead: 3, cacheWrite: 4 }),
+    ]);
+    review(fx, "r1", "viber:planner-review", PLANNED);
+    review(fx, "r2", "viber:planner-review", "C:\\plans\\p.md");
+    review(fx, "r3", "viber:planner-review", PLANNED);
+    review(fx, "r4", "viber:planner-graph-review", PLANNED);
+    const old = new Date("2019-06-01T00:00:00Z");
+    fs.utimesSync(path.join(fx.config, "projects", "proj", "plan", "subagents", "agent-r3.jsonl"), old, old);
+    const result = await report(tmp, fx);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(stdoutLines(result.stdout), [
+      "tokens: viber:task-coder claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
+      NOT_COUNTED,
+      "rounds: plan review 4",
+    ]);
+  });
+});
+
+test("a transcript of another review agent type, of a non-review agent or naming another plan path adds no round", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    writePlan(fx, PLANNED);
+    review(fx, "r1", "viber:planner-review", PLANNED);
+    review(fx, "r2", "viber:planner-spec-review", PLANNED);
+    review(fx, "r3", "viber:planner-task-review", PLANNED);
+    review(fx, "r4", "viber:task-coder", PLANNED);
+    review(fx, "r5", "viber:planner-review", "C:/plans/other.md");
+    review(fx, "r6", "viber:planner-review", "C:/plans/p.md.bak");
+    const result = await report(tmp, fx);
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(stdoutLines(result.stdout).includes("rounds: plan review 1"), result.stdout);
+  });
+});
+
+test("a plan.md with no planned line makes the rounds line unavailable", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    writePlan(fx, null);
+    review(fx, "r1", "viber:planner-review", PLANNED);
+    const result = await report(tmp, fx);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(stdoutLines(result.stdout).at(-1), "rounds: plan review unavailable - no planned line in plan.md");
+  });
+});
+
+test("a planned line with no review transcript naming the path makes the rounds line unavailable", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    writePlan(fx, PLANNED);
+    review(fx, "r1", "viber:planner-review", "C:/plans/other.md");
+    const result = await report(tmp, fx);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      stdoutLines(result.stdout).at(-1),
+      "rounds: plan review unavailable - no review transcript names the plan",
+    );
+  });
+});
+
+test("with no projects directory the unavailable token line is followed by the no projects directory rounds line", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    writePlan(fx, PLANNED);
+    const result = await run(tmp, [slash(fx.runDir)], { CLAUDE_CONFIG_DIR: slash(path.join(tmp, "missing-config")) });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(stdoutLines(result.stdout), [
+      "tokens: unavailable - no projects directory",
+      "rounds: plan review unavailable - no projects directory",
+    ]);
+  });
+});
+
+test("with no transcript naming the run the unavailable token line is followed by the rounds line", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    writePlan(fx, PLANNED);
+    review(fx, "r1", "viber:planner-review", PLANNED);
+    const result = await report(tmp, fx);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(stdoutLines(result.stdout), [
+      "tokens: unavailable - no agent transcript names this run",
+      "rounds: plan review 1",
+    ]);
+  });
+});
+
+test("with a counted transcript holding no readable usage the unavailable token line is followed by the rounds line", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    writePlan(fx, PLANNED);
+    transcript(fx, "s1", "a1", "viber:task-coder", [prompt(fx.runPrompt), assistantWithoutUsage("m1", SONNET)]);
+    review(fx, "r1", "viber:planner-review", PLANNED);
+    const result = await report(tmp, fx);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(stdoutLines(result.stdout), [
+      "tokens: unavailable - a transcript holds no readable usage",
+      "rounds: plan review 1",
+    ]);
   });
 });

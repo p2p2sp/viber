@@ -57,6 +57,17 @@
 #            with assistant lines and no usage on any of them, one that could not
 #            be read through, or counted transcripts with no assistant line at
 #            all): never a partial sum.
+#            Either form ends on one rounds line, read from `<run-dir>/plan.md`:
+#              rounds: plan review <n>
+#              rounds: plan review unavailable - <reason>
+#            <n> counts the transcripts, wherever and whenever written (the plan is
+#            reviewed before the run key exists), whose `agentType` ends in
+#            `:planner-review` or `:planner-graph-review` and whose first line names
+#            the path of the `planned:` line of plan.md (forward slashes, or its
+#            backslash spelling, JSON-escaped or not, followed by a character that
+#            cannot continue a path). <reason> is `no projects directory`, `no planned
+#            line in plan.md` (plan.md missing included) or `no review transcript names
+#            the plan`.
 #   exit   : 0 always once the argument is usable, the report being `unavailable`
 #            when the transcripts cannot be read.
 #            2 unusable argv: no argument, more than one, or a directory that does
@@ -99,14 +110,71 @@ runs="${parent##*/}"
 needle="$runs/$key"
 needle_escaped="$runs\\\\$key"
 
-unavailable() {
-  echo "tokens: unavailable - $1"
-  exit 0
-}
-
 config="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 config="${config//\\//}"
 projects="$config/projects"
+
+# The plan review rounds line: the review transcripts naming the plan this run was
+# landed from (the `planned:` line of its plan.md). The plan is reviewed before the
+# run exists, so no date cut here: every transcript with a review role is opened.
+planned_re='^planned:[[:space:]]*(.*[^[:space:]])[[:space:]]*$'
+rounds() {
+  local reason="" planned="" line="" file="" meta="" meta_text="" role="" first="" p="" p_escaped="" p_back="" n=0
+  if [[ ! -d "$projects" ]]; then
+    reason="no projects directory"
+  else
+    if [[ -r "$abs/plan.md" ]]; then
+      while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        if [[ "$line" =~ $planned_re ]]; then
+          planned="${BASH_REMATCH[1]//\\//}"
+          break
+        fi
+      done <"$abs/plan.md"
+    fi
+    if [[ -z "$planned" ]]; then
+      reason="no planned line in plan.md"
+    fi
+  fi
+  if [[ -z "$reason" ]]; then
+    p="$planned"
+    p_back="${planned//\//\\}"
+    p_escaped="${planned//\//\\\\}"
+    while IFS= read -r file <&4; do
+      [[ -n "$file" ]] || continue
+      meta="${file%.jsonl}.meta.json"
+      [[ -r "$meta" ]] || continue
+      meta_text="$(<"$meta")"
+      [[ "$meta_text" =~ $role_re && -n "${BASH_REMATCH[1]}" ]] || continue
+      role="${BASH_REMATCH[1]}"
+      case "$role" in
+        *:planner-review | *:planner-graph-review) ;;
+        *) continue ;;
+      esac
+      first=""
+      IFS= read -r first <"$file" || [[ -n "$first" ]] || continue
+      if [[ "$first" == *"$p"[!A-Za-z0-9._-]* || "$first" == *"$p_escaped"[!A-Za-z0-9._-]* || "$first" == *"$p_back"[!A-Za-z0-9._-]* ]]; then
+        n=$((n + 1))
+      fi
+    done 4< <(find "$projects" -type f -name 'agent-*.jsonl' -path '*/subagents/agent-*.jsonl' 2>/dev/null | sort)
+    if [[ $n -eq 0 ]]; then
+      reason="no review transcript names the plan"
+    fi
+  fi
+  if [[ -n "$reason" ]]; then
+    echo "rounds: plan review unavailable - $reason"
+  else
+    echo "rounds: plan review $n"
+  fi
+}
+
+unavailable() {
+  echo "tokens: unavailable - $1"
+  rounds
+  exit 0
+}
+
+role_re='"agentType"[[:space:]]*:[[:space:]]*"([^"]*)"'
 [[ -d "$projects" ]] || unavailable "no projects directory"
 
 # One call per counted transcript: a `U` row per assistant line with a usage block
@@ -167,7 +235,6 @@ fi
 rows=""
 counted=0
 unreadable=0
-role_re='"agentType"[[:space:]]*:[[:space:]]*"([^"]*)"'
 
 while IFS= read -r file <&3; do
   [[ -n "$file" ]] || continue
@@ -240,4 +307,5 @@ END {
 }
 ' | sort
 echo "tokens: agents only - the main session and the closeout agent are not counted"
+rounds
 exit 0
