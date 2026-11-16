@@ -1,4 +1,0 @@
-- The task-coder cap in rule-budget is set to the exact new size (25650 bytes), the old 25975 having left 325 bytes of headroom.
-- The two "no reviewer dispatch carries run-lessons" tests pass on a tree without the change (the absence is the DoD.3 behaviour); the other 12 cases of lessons-prose fail without it.
-- The final-review fix coder and step 5 repair coder lines read `run-lessons: <list of the last lessons: line>`; step 4 owns the call and the `lessons: none` omission.
-- viber/skills/CLAUDE.md, viber/agents/CLAUDE.md and tests/viber/CLAUDE.md (new prose test, cap) are left to the memory close.

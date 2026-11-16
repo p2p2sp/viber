@@ -1,4 +1,0 @@
-- `--lessons` reuses the trail parser: entries are deduped by (task id, cause, text), so a verbatim copy into a later round counts once, but the same line twice in one report counts twice, as in `failures.md`.
-- Only `review-*.md` is read in this mode (not `final-review-*`, not `tests-*`); a rule named twice on one Blocking line counts once.
-- `--lessons` does not require `status.md` in the run directory, only the directory.
-- Not done here (other tasks): the `run-lessons:` dispatch line in implementor/task-coder and the reviewer spelling in task-reviewer.

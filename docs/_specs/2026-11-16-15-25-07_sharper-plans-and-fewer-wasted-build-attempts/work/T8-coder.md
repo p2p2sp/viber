@@ -1,3 +1,0 @@
-- The README/help.html test sits in close-part-prose (the only listed test file fitting it); each guide file keeps the one sentence "the `rounds:` line ..., the `attempts:` line ... and the `arbiter:` line ...", pinned whole in English (README, help) and Polish (help).
-- The `rounds:` line needs no new close.md text: it is already carried by "every stdout line of the token call, verbatim"; only `attempts:` and `arbiter:` were added, in one paragraph after the token paragraph.
-- viber/skills/CLAUDE.md and tests/viber/CLAUDE.md (close-part-prose description) are left to the memory close.

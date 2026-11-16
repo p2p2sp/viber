@@ -1,5 +1,0 @@
-- Existing token tests now read only the `tokens:` lines (`tokenLines`), because every report gains a trailing `rounds:` line; the token lines themselves are unchanged.
-- Rounds scan ignores the run-day date cut (the plan is reviewed before the run key exists) and opens the meta file before the first line, so only review-role transcripts are opened.
-- A transcript counts once per file: a retried dispatch is its own transcript and its own round.
-- The planned path must be followed by a char outside `[A-Za-z0-9._-]` (so `p.md.bak` does not match `p.md`); `no projects directory` wins over `no planned line` when both hold.
-- viber/scripts/CLAUDE.md (`run-tokens.sh` contract) and `parts/close.md` (C5 attempts/arbiter lines) are left to the memory close / other tasks.

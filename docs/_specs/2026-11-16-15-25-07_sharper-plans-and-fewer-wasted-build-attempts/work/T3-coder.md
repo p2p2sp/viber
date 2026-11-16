@@ -1,4 +1,0 @@
-- Planner cap left at the committed 44774: the read set measures 43130, so this task outgrew nothing and DoD.6 is proven by the existing `the planner read set stays within its cap` test, with no cap edit.
-- red-2.log (cap at the pre-task 43058 failing on 43130) is now only evidence that the read set grew; red.log holds the 7 failing prose cases.
-- No pending task (T5, T8, T9, T10) touches a planner read-set file.
-- viber/agents/CLAUDE.md and viber/skills/CLAUDE.md describe impact-mapper without the new kinds; left for the memory close.

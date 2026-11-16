@@ -1,6 +1,0 @@
-- Blocking [task] tests/viber/rule-budget.unit.test.ts:46 - DoD.6 asks for the planner cap "raised to the new size", and the plan rule says a cap "is raised only by the task whose text outgrows it". This change lowers the cap from 44774 to 43130 instead. The measured read set (43130 bytes) is still below the committed cap of 44774, so this task's text outgrew nothing and no cap change was needed. Lowering the cap removes the 1644 bytes of headroom the committed budget carries, so the next byte added to any planner read-set file (planner/SKILL.md, plan-rules.md, the templates, the test-strategy sections) fails the suite. Nothing asked for that change.
-  Restore `cap: 44774` for the planner read set. The existing `the planner read set stays within its cap` test already proves DoD.6 against the tree.
-- Minor viber/README.md:184 - the edited sentence runs to about 170 characters on one line, while the rest of the paragraph wraps at about 105. The same happens on the edited help.html lines (2523, 2536, 3306-3307).
-  Rewrap the edited lines to the width of the surrounding lines.
-- Minor tests/viber/impact-mapper-prose.unit.test.ts:57 - `assert.ok(has(MAPPER, "`collection`"))` is true by construction once the sentence asserted just above it passes.
-  Drop the second assertion.
