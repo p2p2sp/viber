@@ -1,7 +1,0 @@
-- `<file>` is the absolute path of `.temp/viber/triage/<N>.md` under the project root, `<N>` being the `NUMBER=` value. Use that same absolute path in both calls below.
-- `Write` the filled report, without the next-step line and with no Claude or Claude Code attribution, to `<file>`.
-- Close with one `AskUserQuestion`: publish the report as a comment on the issue, or do not publish.
-- Publish -> in the same turn run `"${CLAUDE_PLUGIN_ROOT}/scripts/post-comment.sh" "<URL>" "<file>"`, `<URL>` being the `URL=` value. Any other answer -> name the file and stop.
-  - exit 0 -> report the `COMMENT_URL=` value.
-  - exit 1 -> report its `ERROR` line and say whether a comment landed is unknown. Never retry.
-  - exit 2 -> report its `ERROR` line.

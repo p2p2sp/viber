@@ -39,7 +39,6 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
 | `/viber:talk` | Talks a topic through with you, researches it on the web, checks the claims against trusted sources and ends on conclusions, never on code. |
 | `/viber:intent` | Interviews you about an idea, in rounds, and hands the planner the confirmed summary as a file. |
 | `/viber:fixer` | Traces a bug to its root cause, proves it with a failing test and hands it to the planner. |
-| `/viber:triage` | Checks a reported issue against your code: can it be done, how, what it affects, how big. |
 | `/viber:prototype` | Turns a UI change into one HTML mockup in your project's own look, or three to choose from. |
 | `/viber:pro-designer` | Holds an interface Claude builds or reviews to professional design standards. Starts on its own when the look is the goal (a new screen or page, a redesign, a UI review), not for a small functional change. |
 | `/viber:idea-validator` | Checks whether a side-project idea is worth building, with sourced research and a Go / Pivot / No-Go report. |
@@ -93,8 +92,6 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
   `/viber:issue-create` turns them into a task as an issue.
 - **`/viber:intent`**: if you ask for a plan without an interview, viber suggests the interview
   first, and you decide.
-- **`/viber:triage`**: takes an issue number, a link or pasted text. It names the next step and can
-  post its report on the issue.
 - **`/viber:prototype`**: takes an issue reference or a plain description, and asks first whether
   you want one proposal or three. You refine it in conversation, then it goes on to `/viber:intent`,
   to the issue it started from, or both.

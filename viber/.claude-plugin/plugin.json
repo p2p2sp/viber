@@ -9,7 +9,6 @@
   "skills": [
     "./skills/setup/",
     "./skills/talk/",
-    "./skills/triage/",
     "./skills/issue-create/",
     "./skills/prototype/",
     "./skills/intent/",

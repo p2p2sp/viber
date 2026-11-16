@@ -892,11 +892,6 @@ oknie<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="current
     i przekazuje planiście.</span></dd>
   </div>
   <div>
-    <dt><a href="#skill-triage"><code data-copy>/viber:triage</code></a></dt>
-    <dd><span lang="en">Checks one issue against your code and names the next step.</span><span lang="pl">Sprawdza
-    jedno issue względem kodu i wskazuje następny krok.</span></dd>
-  </div>
-  <div>
     <dt><a href="#skill-issue-create"><code data-copy>/viber:issue-create</code></a></dt>
     <dd><span lang="en">Files a GitHub issue from your project's issue form templates.</span><span lang="pl">Zakłada
     issue na GitHubie z formularzy issue twojego projektu.</span></dd>
@@ -1138,43 +1133,32 @@ udowodniona, zanim powstanie jakakolwiek poprawka.</p>
 <section class="guide" data-search id="guide-issue">
 <h3 class="sub" id="guide-issue-title"><span lang="en">Start from a GitHub issue</span><span lang="pl">Zacznij od issue na GitHubie</span><a class="self" href="#guide-issue-title">#</a></h3>
 <p lang="en">Set <a href="#key-github-issues"><code>github.issues</code></a> to <code>true</code> in <code>.claude/viber.yml</code>
-first (the template ships it off) and install the GitHub CLI (<code>gh</code>). With the switch off,
-<code>/viber:triage</code> assesses pasted issue text only.</p>
+first (the template ships it off) and install the GitHub CLI (<code>gh</code>).</p>
 <p lang="pl">Najpierw ustaw <a href="#key-github-issues"><code>github.issues</code></a> na <code>true</code> w
-<code>.claude/viber.yml</code> (szablon ma go wyłączonego) i zainstaluj GitHub CLI (<code>gh</code>). Przy
-wyłączonym przełączniku <code>/viber:triage</code> ocenia tylko wklejony tekst issue.</p>
+<code>.claude/viber.yml</code> (szablon ma go wyłączonego) i zainstaluj GitHub CLI (<code>gh</code>).</p>
 <ol class="steps">
   <li>
     <span class="label"><span lang="en">You type</span><span lang="pl">Wpisujesz</span></span>
-    <p><code>/viber:triage #42</code></p>
+    <p><code>/viber:fixer #42</code></p>
   </li>
   <li>
     <span class="label"><span lang="en">viber does</span><span lang="pl">viber robi</span></span>
-    <p lang="en"><a href="#skill-triage"><code>triage</code></a> reads the issue with its comments, checks it
-    against your code and classifies it as a bug, a feature request or other. Its report covers whether the
-    change can be done, how, what it affects and how big it is. Then it asks whether to post the report on
-    the issue.</p>
-    <p lang="pl"><a href="#skill-triage"><code>triage</code></a> czyta issue razem z komentarzami, sprawdza je
-    względem twojego kodu i klasyfikuje jako błąd, prośbę o funkcję albo coś innego. Raport mówi, czy
-    zmianę da się zrobić, jak, na co wpłynie i jak jest duża. Na koniec pyta, czy opublikować raport
-    w issue.</p>
+    <p lang="en"><a href="#skill-fixer"><code>fixer</code></a> reads the issue as the bug report, traces it to
+    its root cause and proves it with a failing test, then hands the diagnosis to the planner.</p>
+    <p lang="pl"><a href="#skill-fixer"><code>fixer</code></a> czyta issue jako opis błędu, śledzi go aż do
+    przyczyny źródłowej i udowadnia ją testem, który nie przechodzi, a potem przekazuje diagnozę planiście.</p>
   </li>
   <li>
     <span class="label"><span lang="en">What is left</span><span lang="pl">Co zostaje</span></span>
-    <p lang="en">The report in <code>.temp/viber/triage/42.md</code>, posted as a comment only on your yes, and
-    the next step for you to run: <code>/viber:fixer #42</code> for a bug, <code>/viber:intent #42</code> for a
-    feature request, or none, with the reason.</p>
-    <p lang="pl">Raport w <code>.temp/viber/triage/42.md</code>, opublikowany jako komentarz tylko za twoją
-    zgodą, i następny krok do uruchomienia przez ciebie: <code>/viber:fixer #42</code> dla błędu,
-    <code>/viber:intent #42</code> dla prośby o funkcję albo żaden, z podanym powodem.</p>
+    <p lang="en">A plan that keeps the link to issue #42, waiting for your approval. For a feature request,
+    start with <code>/viber:intent #42</code> instead.</p>
+    <p lang="pl">Plan zachowujący powiązanie z issue #42, czekający na twoją akceptację. Dla prośby
+    o funkcję zacznij zamiast tego od <code>/viber:intent #42</code>.</p>
   </li>
 </ol>
 <details>
   <summary><span lang="en">One issue from report to commit</span><span lang="pl">Jedno issue od zgłoszenia do commita</span></summary>
 <ol class="thread">
-  <li><span lang="en"><code>/viber:triage #42</code> checks the issue against the code and names the next
-  step.</span><span lang="pl"><code>/viber:triage #42</code> sprawdza issue względem kodu i nazywa następny
-  krok.</span></li>
   <li><span lang="en"><code>/viber:intent</code>, <code>/viber:fixer</code> or <code>/viber:prototype</code>, given <code>#42</code>, a
   link or the bare number, reads that issue instead of you restating it, then keeps working on the
   same issue. An interview that did not start from one can, once confirmed, save its summary as a
@@ -1911,13 +1895,6 @@ linie co w <code>rulings.md</code>.</p>
   Jeśli plik przekazania należy do innego przebiegu, wskaż ten przebieg:
   <code>/viber:e2e docs/specs/&lt;run&gt;</code>.</p>
 </details>
-<details id="ts-triage">
-  <summary><span lang="en">Why does <code>/viber:triage</code> ask for the issue text when I give it a number?</span><span lang="pl">Dlaczego <code>/viber:triage</code> prosi o tekst issue, gdy podaję jego numer?</span></summary>
-  <p lang="en"><a href="#key-github-issues"><code>github.issues</code></a> is off, and then viber never reads GitHub. Paste
-  the issue text, or set <code>github.issues: true</code> and install <code>gh</code>.</p>
-  <p lang="pl">Przełącznik <a href="#key-github-issues"><code>github.issues</code></a> jest wyłączony, a wtedy viber nie czyta
-  GitHuba. Wklej tekst issue albo ustaw <code>github.issues: true</code> i zainstaluj <code>gh</code>.</p>
-</details>
 <details id="ts-reset">
   <summary><span lang="en">Why does a <code>reset</code> of <code>/viber:memory</code> or <code>/viber:rules</code> refuse to run?</span><span lang="pl">Dlaczego <code>reset</code> w <code>/viber:memory</code> albo <code>/viber:rules</code> odmawia działania?</span></summary>
   <p lang="en">A file on its list holds uncommitted work, which a reset would delete. Nothing was deleted.
@@ -2262,46 +2239,6 @@ z nich mówi, jak nim sterować.</p>
     <div>
       <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
       <dd><span lang="en">Nothing.</span><span lang="pl">Nic.</span></dd>
-    </div>
-  </dl>
-</article>
-
-<article class="card" id="skill-triage">
-  <h4><code>/viber:triage</code></h4>
-  <p lang="en">Checks one reported issue against the current code: whether it can be done, how, what it
-  affects and how big the change is. It classifies the issue as a bug, a feature request or other, and
-  names the next step without taking it.</p>
-  <p lang="pl">Sprawdza jedno zgłoszone issue względem obecnego kodu: czy da się to zrobić, jak, na co
-  wpłynie i jak duża będzie zmiana. Klasyfikuje je jako błąd, prośbę o funkcję albo coś innego i wskazuje
-  następny krok, ale sam go nie wykonuje.</p>
-  <dl>
-    <div>
-      <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
-      <dd><span lang="en">Only by typing the command. It never starts another skill: you run the step it
-      names, <a href="#skill-fixer"><code>/viber:fixer</code></a>, <a href="#skill-intent"><code>/viber:intent</code></a>
-      or none.</span><span lang="pl">Tylko przez wpisanie polecenia. Nigdy nie uruchamia innego skilla: krok,
-      który wskaże (<a href="#skill-fixer"><code>/viber:fixer</code></a>, <a href="#skill-intent"><code>/viber:intent</code></a>
-      albo żaden), uruchamiasz sam.</span></dd>
-    </div>
-    <div>
-      <dt><span lang="en">Arguments</span><span lang="pl">Argumenty</span></dt>
-      <dd><span lang="en">An issue number, an issue link, or the pasted issue text:
-      <code>/viber:triage #42</code>.</span><span lang="pl">Numer issue, link do issue albo wklejony tekst
-      zgłoszenia: <code>/viber:triage #42</code>.</span></dd>
-    </div>
-    <div>
-      <dt><span lang="en">Switches</span><span lang="pl">Przełączniki</span></dt>
-      <dd><span lang="en"><a href="#key-github-issues"><code>github.issues</code></a> on: it reads the issue from GitHub and,
-      only when you agree, posts its report there as a comment. Off: it assesses pasted text only, and a
-      number or link gets a request for the text instead.</span><span lang="pl"><a href="#key-github-issues"><code>github.issues</code></a>
-      włączony: czyta issue z GitHuba i tylko za twoją zgodą publikuje tam raport jako komentarz.
-      Wyłączony: ocenia wyłącznie wklejony tekst, a na numer lub link odpowiada prośbą o ten tekst.</span></dd>
-    </div>
-    <div>
-      <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
-      <dd><span lang="en">No code. For a GitHub issue, the report it offers to post goes to
-      <code>.temp/viber/triage/&lt;N&gt;.md</code>.</span><span lang="pl">Żadnego kodu. Dla issue z GitHuba
-      raport do opublikowania trafia do <code>.temp/viber/triage/&lt;N&gt;.md</code>.</span></dd>
     </div>
   </dl>
 </article>
@@ -3711,16 +3648,14 @@ wartość.</p>
 <dl>
   <div id="key-github-issues">
     <dt><code>github.issues</code> <span class="tag"><span lang="en">off</span><span lang="pl">wył.</span></span></dt>
-    <dd><span lang="en"><a href="#skill-intent"><code>intent</code></a>, <a href="#skill-fixer"><code>fixer</code></a>,
-    <a href="#skill-prototype"><code>prototype</code></a> and <a href="#skill-triage"><code>triage</code></a> can start
+    <dd><span lang="en"><a href="#skill-intent"><code>intent</code></a>, <a href="#skill-fixer"><code>fixer</code></a> and
+    <a href="#skill-prototype"><code>prototype</code></a> can start
     from a GitHub issue by number or link, an interview that did not start from one can save its conclusions as
-    a new issue, and a build tied to an issue ends every commit with <code>Refs: #&lt;N&gt;</code>. Off,
-    <code>triage</code> only assesses pasted issue text.</span><span lang="pl"><a href="#skill-intent"><code>intent</code></a>,
-    <a href="#skill-fixer"><code>fixer</code></a>, <a href="#skill-prototype"><code>prototype</code></a>
-    i <a href="#skill-triage"><code>triage</code></a> mogą zacząć od issue na GitHubie, podanego numerem lub
+    a new issue, and a build tied to an issue ends every commit with <code>Refs: #&lt;N&gt;</code>.</span><span lang="pl"><a href="#skill-intent"><code>intent</code></a>,
+    <a href="#skill-fixer"><code>fixer</code></a>
+    i <a href="#skill-prototype"><code>prototype</code></a> mogą zacząć od issue na GitHubie, podanego numerem lub
     linkiem; wywiad, który nie zaczął się od issue, może zapisać swoje wnioski jako nowe issue, a build powiązany
-    z issue kończy każdy commit linią <code>Refs: #&lt;N&gt;</code>. Przy wyłączonym przełączniku
-    <code>triage</code> ocenia tylko wklejony tekst issue.</span></dd>
+    z issue kończy każdy commit linią <code>Refs: #&lt;N&gt;</code>.</span></dd>
   </div>
   <div id="key-github-issue-title">
     <dt><code>github.issue-title</code> <span class="tag">{summary}</span></dt>

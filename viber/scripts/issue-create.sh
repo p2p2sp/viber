@@ -6,7 +6,7 @@
 # printed URL -> REST PATCH the type (no `--type` flag exists on `gh issue
 # create`). Ported from the retired supergh `create-issue` skill's
 # `scripts/create.sh` (git history before commit 6e9b1004) so an intent
-# interview or a triage diagnosis that did not start from an issue can save
+# interview or a fixer diagnosis that did not start from an issue can save
 # its conclusion as a new one, built from the project's own issue templates.
 # Self-verifying: ISSUE_URL is printed only after gh returned a well-formed
 # issue URL - the caller trusts the block without re-checking. Generalized

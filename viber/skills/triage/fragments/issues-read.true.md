@@ -1,1 +1,0 @@
-- The argument is a single token that is a number, `#<N>` or an issue URL -> run `"${CLAUDE_PLUGIN_ROOT}/scripts/issue-facts.sh" "<argument>"`. Exit 0 -> its block is the issue, body and comments included: trust it, never fetch it again. Exit 1 or 2 -> report its `ERROR` line and stop.

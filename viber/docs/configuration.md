@@ -75,7 +75,6 @@ older version is ignored.
   `/viber:extension` creates an agent and its entry for you.
 - **`github.issues`**: `/viber:intent`, `/viber:fixer` and `/viber:prototype` can start from an
   issue's number or link. `/viber:prototype` can post its conclusions to the issue it started from.
-  `/viber:triage` can fetch from and publish to an issue, not only work on pasted text.
 
 ## Questions per round
 

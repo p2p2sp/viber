@@ -1,4 +1,0 @@
-- Print the filled report, then one line naming the next step with a one-line summary of the issue.
-  - `bug`, anything but `not feasible` -> `/viber:fixer <one-line summary of the issue>`
-  - `feature request`, anything but `not feasible` -> `/viber:intent <one-line summary of the issue>`
-  - anything else -> `none` and the reason: a duplicate, already done, too little data, not feasible.

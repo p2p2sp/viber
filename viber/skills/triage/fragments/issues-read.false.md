@@ -1,1 +1,0 @@
-- The argument is a single token that is a number, `#<N>` or an issue URL -> say issue handling is off and ask for the pasted issue text, then stop: never fetch it.

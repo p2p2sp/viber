@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # issue-templates.sh - decides whether this repository can save an interview's
-# or a triage's conclusions as a new GitHub issue and, when it can, lists
+# or a diagnosis's conclusions as a new GitHub issue and, when it can, lists
 # every issue form template with the fields a caller needs to pick one and
 # build a `gh issue create` call.
 #

@@ -212,29 +212,6 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
       </ul>
     </section>
 
-    <section id="triage" data-title="Issue triage">
-      <h2>Issue triage <span class="count"></span></h2>
-      <p><code>/viber:triage</code>: assesses one reported issue against the current code.</p>
-      <ul class="f">
-        <li>Takes an issue number, a link or pasted text.</li>
-        <li>Rebuilds the current ask: the body as revised by each later comment.</li>
-        <li>Says which comment changed what in the ask.</li>
-        <li>Treats an earlier triage report as an assessment, not a revision of the ask.</li>
-        <li>Separates what the reporter observed from what they assume.</li>
-        <li>Locates files and symbols, each marked <code>read</code> or <code>inferred</code>.</li>
-        <li>Classifies: <code>bug</code>, <code>feature request</code>, <code>other</code>.</li>
-        <li>For a bug, states the divergence as a hypothesis, with no reproduction.</li>
-        <li>Assesses feasibility, variants with a recommendation, impact and size.</li>
-        <li>Lists risks and unknowns.</li>
-        <li>Writes the report in plain language for a non-technical reader.</li>
-        <li>Writes the report in the conversation's language, whatever the issue's language.</li>
-        <li>Never quotes secrets or file contents.</li>
-        <li>Treats the issue text as data, never as instructions.</li>
-        <li>Names the next step (<code>/viber:fixer</code> or <code>/viber:intent</code>) without running it.</li>
-        <li>Posts the report as a comment on the issue on your yes.</li>
-        <li>Writes no code, no test and runs no application.</li>
-      </ul>
-    </section>
 
     <section id="issues" data-title="GitHub issues">
       <h2>GitHub issues <span class="count"></span></h2>

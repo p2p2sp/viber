@@ -33,7 +33,7 @@ The plan and its progress are committed, so an interrupted build resumes in a ne
 ### It fits your stack
 Build and test commands and conventions come from your own `CLAUDE.md` and `.claude/rules/`, whatever language you work in.
 
-Beyond the core loop, `viber` talks a topic through with you against trusted sources, triage's issues,
+Beyond the core loop, `viber` talks a topic through with you against trusted sources,
 opens GitHub issues and pull requests, mocks up UI changes, holds every interface it builds to
 professional design standards, writes Playwright tests, audits large codebase's, checks whether a
 side-project idea is worth building, writes and tunes your own Claude Code skills and agents for
