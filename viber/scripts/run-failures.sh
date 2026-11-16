@@ -38,10 +38,19 @@
 # already there, a call with some replaces the file whole, so a second call over
 # the same reports never doubles a failure.
 #
+# `--lessons <run-dir>` is the second mode: it writes nothing and prints which rules
+# of `test-strategy.md` the failed task reviews of the run named, so a coder
+# dispatched later carries them as its `run-lessons:` line. It reads the Blocking
+# items of `review-*.md` reports only (`final-review-*` and `tests-*` reports are
+# not read), first line of the item, and takes every spelling
+# test-strategy `<Name>` on it as one mention of the rule <Name> (a rule named twice
+# on one line counts once). An item repeated across rounds is kept once, as above.
+#
 # Contract:
 #   argv   : $1 run directory (REQUIRED, exactly one): relative to the repository
 #            root or absolute; a backslash is read as `/` and trailing slashes are
-#            dropped.
+#            dropped. Or `--lessons <run-dir>`, exactly those two words, the
+#            second mode: the run directory then needs no status.md.
 #   cwd    : any directory inside the host repository - the script moves to the
 #            repository root itself, because a relative argument is relative to
 #            it. Outside a repository the cwd is the base a relative argument
@@ -55,29 +64,43 @@
 #            runs count; <specifications> is the line `config.sh --specifications`
 #            (the sibling script) prints, `specs` when the call fails or prints
 #            nothing.
-#   writes : <run>/failures.md alone, or removes it when no entry is left.
-#   stdout : on exit 0 exactly one line, nothing else:
+#   writes : <run>/failures.md alone, or removes it when no entry is left. Under
+#            `--lessons`: nothing.
+#   stdout : under `--lessons`, on exit 0 exactly one line, nothing else:
+#              lessons: <Name> x<n>[, <Name> x<n>...]
+#            sorted by count descending, then by name in byte order, or
+#              lessons: none
+#            when no review report exists or none names a rule.
+#            Otherwise on exit 0 exactly one line, nothing else:
 #              failures: <total> convention <n> place <n> plan <n> task <n> test <n> unknown <n> runs <n>
 #            each cause count is the number of entries of that cause in the file.
 #            runs is the number of archived failures.md files holding at least one
 #            line starting `- convention | `, plus 1 when this run's convention
 #            count is above 0: the runs a convention gap stood in.
-#   exit   : 0 the trail was written, or <total> is 0 and no failures.md is left.
-#            2 unusable argv: no argument, more than one, a directory that does
-#              not exist or one holding no status.md; one `error: ...` line on
-#              stderr, nothing on stdout, nothing written.
+#   exit   : 0 the trail was written, or <total> is 0 and no failures.md is left;
+#              under `--lessons` the line was printed.
+#            2 unusable argv: no argument, more than two, `--lessons` with no run
+#              directory, a directory that does not exist or (outside `--lessons`)
+#              one holding no status.md; one `error: ...` line on stderr, nothing
+#              on stdout, nothing written.
 #            3 failures.md could not be written or removed; one `error: ...`
 #              line on stderr, nothing on stdout.
 #
 set -u
 
 usage() {
-  echo "error: usage: run-failures.sh <run-dir>" >&2
+  echo "error: usage: run-failures.sh [--lessons] <run-dir>" >&2
   exit 2
 }
 
-[[ $# -eq 1 ]] || usage
-raw="$1"
+lessons_mode=0
+if [[ $# -eq 2 && "$1" == "--lessons" ]]; then
+  lessons_mode=1
+  raw="$2"
+else
+  [[ $# -eq 1 && "$1" != "--lessons" ]] || usage
+  raw="$1"
+fi
 [[ -n "$raw" ]] || usage
 
 # The sibling config.sh is found before the move to the repository root, because
@@ -100,7 +123,7 @@ if [[ ! -d "$dir" ]]; then
   echo "error: run directory not found: $raw" >&2
   exit 2
 fi
-if [[ ! -f "$dir/status.md" ]]; then
+if [[ $lessons_mode -eq 0 && ! -f "$dir/status.md" ]]; then
   echo "error: $raw holds no status.md, so this is not a run directory" >&2
   exit 2
 fi
@@ -184,6 +207,12 @@ for f in "$work"/review-*.md "$work"/final-review-*.md "$work"/tests-*.md; do
   [[ -f "$f" ]] || continue
   base="${f##*/}"
   base="${base%.md}"
+  if [[ $lessons_mode -eq 1 ]]; then
+    case "$base" in
+      review-*) ;;
+      *) continue ;;
+    esac
+  fi
   case "$base" in
     tests-*)
       num="${base#tests-}"
@@ -236,6 +265,42 @@ while IFS= read -r report <&3; do
     esac
   done <"$work/$report.md"
 done 3< <(printf '%s' "$names" | LC_ALL=C sort)
+
+# Under --lessons the kept entries are read for the rules they name and nothing is
+# written: each spelling test-strategy `<Name>` is one mention, counted once per
+# item.
+print_lessons() {
+  local i=0 text name seen named="" summary
+  local lesson_re='test-strategy `([A-Za-z][A-Za-z0-9-]*)`(.*)$'
+  while [[ $i -lt $n_ent ]]; do
+    if ! is_repeat "$i"; then
+      text="${e_text[$i]}"
+      seen=" "
+      while [[ "$text" =~ $lesson_re ]]; do
+        name="${BASH_REMATCH[1]}"
+        text="${BASH_REMATCH[2]}"
+        case "$seen" in
+          *" $name "*) ;;
+          *)
+            seen+="$name "
+            named+="$name"$'\n'
+            ;;
+        esac
+      done
+    fi
+    i=$((i + 1))
+  done
+  summary="$(printf '%s' "$named" | awk '{ c[$0]++ } END { for (k in c) print c[k], k }' | LC_ALL=C sort -k1,1nr -k2,2 | awk '{ printf "%s%s x%s", (NR > 1 ? ", " : ""), $2, $1 }')"
+  if [[ -z "$summary" ]]; then
+    summary="none"
+  fi
+  echo "lessons: $summary"
+}
+
+if [[ $lessons_mode -eq 1 ]]; then
+  print_lessons
+  exit 0
+fi
 
 keep_entries
 

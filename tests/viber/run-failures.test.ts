@@ -626,6 +626,110 @@ test("a failures.md that cannot be removed exits 3 with one error line and nothi
   });
 });
 
+// --- --lessons: the test-strategy rules the reviews of a run named ---
+
+/** A Blocking first line naming a test-strategy rule, as the task reviewer spells it. */
+function ruleItem(name: string, where = "tests/a.test.ts:1"): string {
+  return `- Blocking [task] ${where} - breaks test-strategy \`${name}\``;
+}
+
+test("two failed reviews naming Act and one naming Single print 'lessons: Act x2, Single x1'", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, {
+      "review-T1-1.md": lines(ruleItem("Act")),
+      "review-T2-1.md": lines(ruleItem("Single"), "  merge the two tests"),
+      "review-T3-1.md": lines(ruleItem("Act", "tests/b.test.ts:2")),
+    });
+    const result = await run(tmp, ["--lessons", dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "lessons: Act x2, Single x1\n");
+  });
+});
+
+test("rules with the same count are ordered by name", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, {
+      "review-T1-1.md": lines(ruleItem("Single")),
+      "review-T2-1.md": lines(ruleItem("Act")),
+    });
+    const result = await run(tmp, ["--lessons", dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "lessons: Act x1, Single x1\n");
+  });
+});
+
+test("an item copied verbatim from round 1 into round 2 of the same task counts once", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, {
+      "review-T1-1.md": lines(ruleItem("Act")),
+      "review-T1-2.md": lines(ruleItem("Act")),
+    });
+    const result = await run(tmp, ["--lessons", dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "lessons: Act x1\n");
+  });
+});
+
+test("a run with no review report prints 'lessons: none'", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "tests-1.md": lines("status: fail", "a case | f.test.ts | boom") });
+    const result = await run(tmp, ["--lessons", dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "lessons: none\n");
+  });
+});
+
+test("review reports whose Blocking items name no rule print 'lessons: none'", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "review-T1-1.md": lines("- Blocking [task] src/a.ts:3 - reads the file twice") });
+    const result = await run(tmp, ["--lessons", dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "lessons: none\n");
+  });
+});
+
+test("a Minor item and an indented continuation naming a rule count for nothing", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, {
+      "review-T1-1.md": lines("- Minor src/a.ts:3 - test-strategy `Act`", "- Blocking [task] src/a.ts:4 - reads twice", "  test-strategy `Single`"),
+    });
+    const result = await run(tmp, ["--lessons", dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "lessons: none\n");
+  });
+});
+
+test("a final review report is not read for lessons", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "final-review-1.md": lines(ruleItem("Act")) });
+    const result = await run(tmp, ["--lessons", dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "lessons: none\n");
+  });
+});
+
+test("--lessons writes no file: no failures.md appears and the run directory is unchanged", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const dir = seedRun(tmp, { "review-T1-1.md": lines(ruleItem("Act")) });
+    const result = await run(tmp, ["--lessons", dir]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(fs.readdirSync(dir).sort(), ["status.md", "work"]);
+    assert.deepEqual(fs.readdirSync(path.join(dir, "work")), ["review-T1-1.md"]);
+  });
+});
+
+test("--lessons on a run directory that does not exist exits 2 with one error line", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    assertRefused(await run(tmp, ["--lessons", path.join(tmp, "nowhere")]), 2);
+  });
+});
+
+test("--lessons with no run directory exits 2 with one error line", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    assertRefused(await run(tmp, ["--lessons"]), 2);
+  });
+});
+
 // --- DoD.6: the file as shipped ---
 
 function indexLine(args: string[]): string {
