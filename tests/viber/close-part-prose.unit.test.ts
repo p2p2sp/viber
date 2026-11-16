@@ -268,6 +268,50 @@ test("a non-zero exit of the trail call puts the not-written line in the final s
   assert.ok(paragraph.includes("goes on to the cleanup close part"));
 });
 
+const TOKEN_CALL = '"${CLAUDE_PLUGIN_ROOT}/scripts/run-tokens.sh" "<dir>"';
+const CLOCK_CALL = '"${CLAUDE_PLUGIN_ROOT}/scripts/run-clock.sh" "<started>"';
+
+test("allowed-tools lists the run-tokens script", () => {
+  assert.ok(allowedTools().includes("Bash(${CLAUDE_PLUGIN_ROOT}/scripts/run-tokens.sh:*)"));
+});
+
+test("step 7 makes the one token call with the run directory right after the clock call, in every close, with no config key", () => {
+  const paragraph = stepSevenParagraph("First `");
+  assert.equal(stepSeven().split(TOKEN_CALL).length, 2);
+  assert.ok(paragraph.includes(CLOCK_CALL));
+  assert.ok(paragraph.indexOf(TOKEN_CALL) > paragraph.indexOf(CLOCK_CALL));
+  assert.ok(paragraph.includes("right after it, in every close"));
+  assert.ok(paragraph.includes("no config key turning it on or off"));
+  assert.ok(!/`build\.[a-z-]+/.test(paragraph));
+});
+
+test("the token call comes before the trail call and before the final summary is composed", () => {
+  const text = stepSeven();
+  assert.ok(text.indexOf(TOKEN_CALL) < text.indexOf(TRAIL_CALL));
+  assert.ok(text.indexOf(TOKEN_CALL) < text.indexOf("compose the final summary"));
+});
+
+test("both forms of the final summary carry every stdout line of the token call verbatim, outside the 7 lines, right after the red-check line", () => {
+  const paragraph = stepSevenParagraph("Right after the `red-check:` line");
+  assert.ok(paragraph.includes("in both forms"));
+  assert.ok(paragraph.includes("every stdout line of the token call, verbatim"));
+  assert.ok(paragraph.includes("outside the 7 lines"));
+});
+
+test("a non-zero exit of the token call puts the one line tokens: unavailable in the summary, asks nothing and goes on", () => {
+  const paragraph = stepSevenParagraph("Right after the `red-check:` line");
+  assert.ok(paragraph.includes("A non-zero exit of the token call -> the one line `tokens: unavailable`"));
+  assert.ok(paragraph.includes("asks nothing"));
+  assert.ok(paragraph.includes("goes on"));
+});
+
+test("the archived close bullet names no token line, so none prints on screen there", () => {
+  const bullet = stepSevenLine("- `closeout` returned `VERDICT: ARCHIVED` ->");
+  const paragraph = stepSevenParagraph("Right after the `red-check:` line");
+  assert.ok(!bullet.includes("tokens"));
+  assert.ok(paragraph.includes("the archived close prints no token line on screen"));
+});
+
 test("the both-forms paragraph after the rulings keeps only the not-written line", () => {
   const paragraph = stepSevenParagraph("After those, also outside its 7 lines, in both forms");
   assert.equal(lines(paragraph).filter((line) => line.startsWith("- ")).length, 1);
