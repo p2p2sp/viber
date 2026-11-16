@@ -197,6 +197,14 @@ export function runScript(script: string, args: string[] = [], opts: RunOpts = {
     ];
   } else {
     ({ cmd, args: fullArgs } = resolveCommand(script, args, opts));
+    // Windows only: the MSYS runtime of a bash.exe expands "*", "?" and "[...]" in
+    // an argument its native parent (node) hands it, so 'app/[id]/page.tsx' would
+    // reach the script as 'app/i/page.tsx'. noglob keeps argv verbatim, as on POSIX.
+    // Set only for an argument that holds such a character and no double quote:
+    // noglob also changes how the runtime splits a quoted command line (the -c
+    // string of the preamble route above breaks under it).
+    const globbed = args.some((arg) => /[*?[]/.test(arg)) && !args.some((arg) => arg.includes('"'));
+    if (process.platform === "win32" && globbed && env.MSYS === undefined) env.MSYS = "noglob";
   }
   return spawnCollect(cmd, fullArgs, { cwd: opts.cwd, env, input: opts.input, timeout: opts.timeout ?? 60000 });
 }
