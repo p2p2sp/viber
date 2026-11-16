@@ -113,7 +113,7 @@ Then clamp both tiers into the config block's `tiers.min` to `tiers.max` range (
 - A task whose `excl` column says `yes` is held back while any task without `excl` is ready to dispatch or anything else is in flight; several ready `excl` tasks go out one after another as their turn comes, and each still runs alone until committed - nothing else in flight when it goes out, nothing new out until it is committed. Never infer or override it.
 - At most 10 tasks in flight at once, a task counting from its coder dispatch until it is committed, skipped or held: parallel coders running tests saturate the CPU. A ready task past the cap waits for the next slot.
 
-Coder dispatch: `viber:task-coder` (Agent tool, `model` = the task's tier), carrying these labelled lines, plus any line a fragment of this step adds, and nothing else, the last three omitted when empty:
+Coder dispatch: `viber:task-coder` (Agent tool, `model` = the task's tier), carrying these labelled lines, plus any line a fragment of this step adds, and nothing else, the last four omitted when empty:
 
 ```
 task: <dir>/tasks/<id>.md
@@ -125,6 +125,7 @@ decide-file: <dir>/work/<id>-options.md
 deferred: <paths>
 prior: <dir>/work/<dep-id>-coder.md, ...
 decision: <task-id>: <text>
+run-lessons: <Name> x<n>[, <Name> x<n>...]
 ```
 
 - `out`: per task, shared by its reviewer.
@@ -133,6 +134,8 @@ decision: <task-id>: <text>
 - `deferred`: the index entries naming this id plus every `--defer` this build passed naming it.
 - `prior`: the notes of the tasks its `deps` names.
 - `decision:`: one line per index `decision:` line plus one per `--decide` this build recorded, whose `<task-id>` is this task or one it depends on, directly or through another.
+- `run-lessons`: `"${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh" --lessons "<dir>"` runs once before the session's first coder dispatch and again after every reviewer `VERDICT: FAIL` of a task, keeping the last `lessons:` line; its list is the value, and `lessons: none` omits the line.
+- Every coder dispatch carries it, the final-review fix coder's and the step 5 repair coder's included; a reviewer dispatch never does.
 - Tier: the attempt's tier (below).
 - Every coder re-run - a next attempt, a `WAIT:` hold, `retry` - is this same fresh dispatch, every labelled line above plus the `report:`, `reason:` or `decision:` line its answer names.
 

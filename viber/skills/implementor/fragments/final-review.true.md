@@ -23,7 +23,10 @@ notes: <dir>/work/final-fix-coder-1.md
 out: .temp/viber/final-fix/
 refs: ${CLAUDE_PLUGIN_ROOT}/references
 memory: <the config block's build.memory value>
+run-lessons: <list of the last lessons: line>
 ```
+
+The `run-lessons:` line is left out when the last `lessons:` line reads `lessons: none`.
 
 - Fix coder `VERDICT: DENIED` -> `AskUserQuestion`: retry / accept / abort; `accept` commits the fix, its refused call named in the final summary.
 - The fix is every `FILES:` path this step's fix coder returned. None -> no recheck and no commit.
