@@ -224,7 +224,7 @@ test("--project <owner>/<number> is resolved to the project's title by gh projec
 for (const stub of [
   { PROJECT_EXIT: "1", PROJECT_STDERR: "could not resolve to a ProjectV2" },
   { PROJECT_EXIT: "0", PROJECT_STDOUT: "" },
-]) {
+] as Record<string, string>[]) {
   test(`--project <owner>/<number> whose lookup fails (${JSON.stringify(stub)}): exit 1, the ERROR line on stderr, nothing on stdout and no gh issue create`, async () => {
     await assertPosix(async (shell) => {
       const { result, calls, bodyKept } = await runStubbed(shell, ["<body>", "A title", "--project", "octo-org/44"], {

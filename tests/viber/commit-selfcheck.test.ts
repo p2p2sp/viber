@@ -18,15 +18,15 @@ import path from "node:path";
 
 import { runScript, type RunResult } from "../harness/run.ts";
 import { withGitRepo, type GitRepo } from "../harness/tmp.ts";
-import { forEachShell } from "../harness/shells.ts";
+import { forEachShell, type Shell } from "../harness/shells.ts";
 
 const SUT = path.resolve(import.meta.dirname, "../../viber/skills/commit/scripts/commit-selfcheck.sh");
 
-async function runSelfcheck(bash: string, repo: GitRepo, args: string[]): Promise<RunResult> {
+async function runSelfcheck(bash: Shell, repo: GitRepo, args: string[]): Promise<RunResult> {
   return await runScript(SUT, args, { shell: bash, cwd: repo.dir, env: repo.env });
 }
 
-async function assertBash(fn: (bash: string) => void | Promise<void>) {
+async function assertBash(fn: (bash: Shell) => void | Promise<void>) {
   const skips = await forEachShell("bash", fn);
   for (const skip of skips) {
     assert.equal(skip.kind, "bash");

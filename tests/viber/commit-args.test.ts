@@ -19,7 +19,7 @@ import path from "node:path";
 
 import { runScript, type RunResult } from "../harness/run.ts";
 import { withGitRepo, withTempDir } from "../harness/tmp.ts";
-import { forEachShell } from "../harness/shells.ts";
+import { forEachShell, type Shell } from "../harness/shells.ts";
 import { slash } from "../harness/paths.ts";
 
 const SUT = path.resolve(import.meta.dirname, "../../viber/skills/commit/scripts/commit-args.sh");
@@ -46,7 +46,7 @@ interface Selector {
  *  `resolve_commit_selector <raw>` with `cwd` as the working directory
  *  (so relative-path existence checks resolve against it), and returns the
  *  three resulting variables. */
-async function resolve(bash: string, cwd: string, raw: string): Promise<Selector> {
+async function resolve(bash: Shell, cwd: string, raw: string): Promise<Selector> {
   return await withTempDir("p2p2-commit-args-wrapper-", async (wrapperDir) => {
     const wrapper = path.join(wrapperDir, "wrapper.sh");
     fs.writeFileSync(wrapper, wrapperScript(SUT), { mode: 0o755 });
@@ -58,7 +58,7 @@ async function resolve(bash: string, cwd: string, raw: string): Promise<Selector
   });
 }
 
-async function assertBash(fn: (bash: string) => void | Promise<void>) {
+async function assertBash(fn: (bash: Shell) => void | Promise<void>) {
   const skips = await forEachShell("bash", fn);
   for (const skip of skips) {
     assert.equal(skip.kind, "bash");

@@ -24,19 +24,19 @@ import path from "node:path";
 import { runScript, type RunResult } from "../harness/run.ts";
 import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
 import { withStub } from "../harness/stub.ts";
-import { forEachShell } from "../harness/shells.ts";
+import { forEachShell, type Shell } from "../harness/shells.ts";
 import { writePng } from "../harness/png.ts";
 
 const SUT = path.resolve(import.meta.dirname, "../../viber/skills/commit/scripts/commit-context.sh");
 const PLUGIN_ROOT = path.resolve(import.meta.dirname, "../../viber");
 const SKILL = path.join(PLUGIN_ROOT, "skills", "commit", "SKILL.md");
 
-async function runContext(bash: string, repo: GitRepo, selector?: string): Promise<RunResult> {
+async function runContext(bash: Shell, repo: GitRepo, selector?: string): Promise<RunResult> {
   const args = selector === undefined ? [] : [selector];
   return await runScript(SUT, args, { shell: bash, cwd: repo.dir, env: repo.env });
 }
 
-async function assertBash(fn: (bash: string) => void | Promise<void>) {
+async function assertBash(fn: (bash: Shell) => void | Promise<void>) {
   const skips = await forEachShell("bash", fn);
   for (const skip of skips) {
     assert.equal(skip.kind, "bash");
