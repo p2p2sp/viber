@@ -130,7 +130,7 @@ function Resolve-Session([string]$ref, [switch]$AnyLive) {
   $all = @(Get-Sessions | Where-Object { $AnyLive -or $_.client -or $_.self })
   $hit = @($all | Where-Object { $_.name -eq $ref -or "$($_.pid)" -eq $ref })
   if ($hit.Count -eq 0) { $hit = @($all | Where-Object { $_.name -like "$ref*" }) }
-  if ($hit.Count -eq 0) { Fail "no enrolled session '$ref'; run list (a session enrolls by running /factoryclient)" }
+  if ($hit.Count -eq 0) { Fail "no enrolled session '$ref'; run list (a session enrolls by running /viber:factoryclient)" }
   if ($hit.Count -gt 1) { Fail "'$ref' matches several sessions: $(($hit | ForEach-Object { $_.name }) -join ', ')" }
   if ($hit[0].self) { Fail "'$ref' is this factory session itself" }
   return $hit[0]
@@ -269,7 +269,7 @@ switch ($Command) {
     $s = Resolve-Session $argv[0] -AnyLive
     if ($s.client) { Write-Output "ALREADY ENROLLED pid $($s.pid) ($($s.name))"; break }
     if ($s.status -ne 'idle') { Fail "pid $($s.pid) is $($s.status); enroll only an idle session, its input line must be free" }
-    $g = New-Object 'System.Collections.Generic.List[Con+REC[]]'; $g.Add([Con]::Text('/factoryclient')); $g.Add([Con]::Key(0x0D, [char]13, 0))
+    $g = New-Object 'System.Collections.Generic.List[Con+REC[]]'; $g.Add([Con]::Text('/viber:factoryclient')); $g.Add([Con]::Key(0x0D, [char]13, 0))
     [Con]::Write([uint32]$s.pid, $g, $KeyPauseMs)
     $deadline = (Get-Date).AddSeconds(60)  # the session needs one model turn to run the skill
     while ((Get-Date) -lt $deadline) {

@@ -72,6 +72,8 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
 | `/viber:setup` | Once per project, and again after an upgrade: config, ignore rules, permissions, `CLAUDE.md` check. |
 | `/viber:help` | Opens this guide in your browser. |
 | `/viber:handoff` | Saves the conversation as one file, so a fresh session picks up where this one stopped. |
+| `/viber:factory` | Supervises your other Claude Code sessions on this machine: shows what each waits for, answers its dialogs, approves its plans and sends it prompts, toward a goal you set. Acts only on sessions enrolled with `/viber:factoryclient`. Starts on its own. Windows only for now. |
+| `/viber:factoryclient` | Enrolls this session so `/viber:factory`, running in another session, may read and answer it. |
 
 ### Command details
 

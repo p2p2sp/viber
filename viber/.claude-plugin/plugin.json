@@ -29,7 +29,9 @@
     "./skills/commit/",
     "./skills/pro-designer/",
     "./skills/idea-validator/",
-    "./skills/skill-designer/"
+    "./skills/skill-designer/",
+    "./skills/factory/",
+    "./skills/factoryclient/"
   ],
   "agents": [
     "./agents/planner-review.md",

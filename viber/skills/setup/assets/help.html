@@ -979,6 +979,17 @@ oknie<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="current
     pracę wykonaną poza buildem. Wystarczy też powiedzieć <q>zacommituj</q>.</span></dd>
   </div>
   <div>
+    <dt><a href="#skill-factory"><code data-copy>/viber:factory</code></a></dt>
+    <dd><span lang="en">Supervises your other Claude Code sessions and answers their dialogs toward a goal. Windows
+    only for now.</span><span lang="pl">Nadzoruje twoje pozostałe sesje Claude Code i odpowiada na ich dialogi
+    zgodnie z celem. Na razie tylko Windows.</span></dd>
+  </div>
+  <div>
+    <dt><a href="#skill-factoryclient"><code data-copy>/viber:factoryclient</code></a></dt>
+    <dd><span lang="en">Enrolls this session for the factory.</span><span lang="pl">Rejestruje tę sesję dla
+    factory.</span></dd>
+  </div>
+  <div>
     <dt><a href="#skill-help"><code data-copy>/viber:help</code></a></dt>
     <dd><span lang="en">Opens this page.</span><span lang="pl">Otwiera tę stronę.</span></dd>
   </div>
@@ -3237,6 +3248,71 @@ z nich mówi, jak nim sterować.</p>
       <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
       <dd><span lang="en">One commit. It never pushes.</span><span lang="pl">Jeden commit. Nigdy nie
       wypycha.</span></dd>
+    </div>
+  </dl>
+</article>
+
+<article class="card" id="skill-factory">
+  <h4><code>/viber:factory</code></h4>
+  <p lang="en">Supervises your other interactive Claude Code sessions on this machine without taking the
+  window focus: lists them with their status, shows what one waits for, answers its questions, approves its
+  plans and sends it prompts or slash commands, all toward the goal you give. It acts only on sessions
+  enrolled with <code>/viber:factoryclient</code>, and a dialog the goal does not settle comes back to you.
+  Windows only for now.</p>
+  <p lang="pl">Nadzoruje twoje pozostałe interaktywne sesje Claude Code na tym komputerze bez przejmowania
+  fokusu okna: wypisuje je z ich stanem, pokazuje, na co sesja czeka, odpowiada na jej pytania, zatwierdza
+  jej plany i wysyła jej prompty albo polecenia slash, wszystko zgodnie z celem, który podasz. Działa tylko na
+  sesjach zarejestrowanych przez <code>/viber:factoryclient</code>, a dialog, którego cel nie rozstrzyga,
+  wraca do ciebie. Na razie tylko Windows.</p>
+  <dl>
+    <div>
+      <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
+      <dd><span lang="en">Type the command, or ask to drive, watch or answer for another session.</span><span lang="pl">Wpisz
+      polecenie albo poproś o sterowanie inną sesją, jej obserwowanie lub odpowiadanie za nią.</span></dd>
+    </div>
+    <div>
+      <dt><span lang="en">Arguments</span><span lang="pl">Argumenty</span></dt>
+      <dd><span lang="en">The sessions (name or pid, none for every enrolled one) and the goal they work
+      toward.</span><span lang="pl">Sesje (nazwa albo pid, bez nich każda zarejestrowana) i cel, do którego
+      zmierzają.</span></dd>
+    </div>
+    <div>
+      <dt><span lang="en">Switches</span><span lang="pl">Przełączniki</span></dt>
+      <dd><span lang="en">None.</span><span lang="pl">Brak.</span></dd>
+    </div>
+    <div>
+      <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
+      <dd><span lang="en">Nothing. It types keys into the enrolled sessions.</span><span lang="pl">Nic. Wpisuje
+      klawisze do zarejestrowanych sesji.</span></dd>
+    </div>
+  </dl>
+</article>
+
+<article class="card" id="skill-factoryclient">
+  <h4><code>/viber:factoryclient</code></h4>
+  <p lang="en">Enrolls this session as a client of <code>/viber:factory</code> running in another session,
+  so the factory may read this console and answer its dialogs.</p>
+  <p lang="pl">Rejestruje tę sesję jako klienta <code>/viber:factory</code> działającego w innej sesji, żeby
+  factory mogła czytać tę konsolę i odpowiadać na jej dialogi.</p>
+  <dl>
+    <div>
+      <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
+      <dd><span lang="en">Only by typing the command, or by the factory's <code>enroll</code>.</span><span lang="pl">Tylko
+      przez wpisanie polecenia albo przez <code>enroll</code> w factory.</span></dd>
+    </div>
+    <div>
+      <dt><span lang="en">Arguments</span><span lang="pl">Argumenty</span></dt>
+      <dd><span lang="en">None.</span><span lang="pl">Brak.</span></dd>
+    </div>
+    <div>
+      <dt><span lang="en">Switches</span><span lang="pl">Przełączniki</span></dt>
+      <dd><span lang="en">None.</span><span lang="pl">Brak.</span></dd>
+    </div>
+    <div>
+      <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
+      <dd><span lang="en"><code>factory/clients/&lt;pid&gt;.json</code> in your Claude Code config directory,
+      outside the project.</span><span lang="pl"><code>factory/clients/&lt;pid&gt;.json</code> w katalogu
+      konfiguracji Claude Code, poza projektem.</span></dd>
     </div>
   </dl>
 </article>

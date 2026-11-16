@@ -84,7 +84,7 @@ in all your projects; drop it to install for the current repository only.
 
 | Plugin | Needs |
 | --- | --- |
-| viber | the `gh` CLI for its GitHub steps; optional: `node` for `/viber:setup`'s settings merge, Node.js 22.6 or newer for `pro-designer`'s contrast check, Node.js 18 or newer and web access for `/viber:idea-validator`, Playwright for `/viber:e2e` |
+| viber | the `gh` CLI for its GitHub steps; optional: `node` for `/viber:setup`'s settings merge, Node.js 22.6 or newer for `pro-designer`'s contrast check, Node.js 18 or newer and web access for `/viber:idea-validator`, Playwright for `/viber:e2e`, Windows with `powershell.exe` for `/viber:factory` |
 
 ## Contributing
 

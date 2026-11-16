@@ -1,6 +1,6 @@
 ---
 name: factoryclient
-description: Enrolls this Claude Code session as a client of the factory skill running in another session, so the factory may read this console and answer its dialogs. Use when the user runs /factoryclient or asks to register, enroll or hand this session over to the factory.
+description: Enrolls this Claude Code session as a client of the factory skill running in another session, so the factory may read this console and answer its dialogs. Use when the user runs /viber:factoryclient or asks to register, enroll or hand this session over to the factory.
 disable-model-invocation: true
 ---
 

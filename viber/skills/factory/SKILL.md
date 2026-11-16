@@ -14,13 +14,13 @@ description: Supervises other interactive Claude Code sessions running on this W
 
 Run every action through `bash "${CLAUDE_SKILL_DIR}/scripts/factory.sh" <command> [args]`; never call the Win32 APIs, `SendKeys`, `SendInput` or window activation yourself. Windows and `powershell.exe` only.
 
-- `list`: live sessions as name, pid, status (`idle`, `busy`, `waiting` plus what it waits for), cwd; `[client]` marks a session enrolled through `/factoryclient`, `[self]` this session. Every other command accepts only `[client]` sessions.
+- `list`: live sessions as name, pid, status (`idle`, `busy`, `waiting` plus what it waits for), cwd; `[client]` marks a session enrolled through `/viber:factoryclient`, `[self]` this session. Every other command accepts only `[client]` sessions.
 - `pending <session>`: the unanswered tool call from the transcript, with AskUserQuestion questions and options numbered, or the plan text.
 - `screen <session> [lines]`: the console screen as text, last 40 lines by default.
 - `keys <session> K1,K2,...`: keys one by one, 150 ms apart, then prints the screen. Keys: `UP DOWN LEFT RIGHT ENTER TAB SHIFT+TAB ESC SPACE BACKSPACE HOME END` or a single ASCII character.
 - `type <session> <text>`: types text without Enter, then prints the screen.
 - `send <session> <text>`: types text plus Enter (a prompt or a slash command), then prints the screen; newlines become spaces.
-- `enroll <session>`: types `/factoryclient` into an idle session that is not enrolled and waits up to 60 s for the enrollment. Run it only when the user names that session and asks to enroll it.
+- `enroll <session>`: types `/viber:factoryclient` into an idle session that is not enrolled and waits up to 60 s for the enrollment. Run it only when the user names that session and asks to enroll it.
 - `watch [session...] [--timeout s]`: blocks until a session is `waiting` or turns from `busy` to `idle`, prints `WAITING ...`, `IDLE ...` or `TIMEOUT ...`; default and maximum 540 s.
 
 ## Rules
@@ -34,7 +34,7 @@ Run every action through `bash "${CLAUDE_SKILL_DIR}/scripts/factory.sh" <command
 
 ## Workflow
 
-1. Run `list`. Resolve the targets to pids; with no target, take every `[client]` session. A wanted session without `[client]` is not enrolled: tell the user to run `/factoryclient` in it or to ask you to `enroll` it, and never act on it meanwhile.
+1. Run `list`. Resolve the targets to pids; with no target, take every `[client]` session. A wanted session without `[client]` is not enrolled: tell the user to run `/viber:factoryclient` in it or to ask you to `enroll` it, and never act on it meanwhile.
 2. For each target in `waiting` state, run `pending` and `screen`, then answer the dialog: read `${CLAUDE_SKILL_DIR}/references/dialogs.md` for the keys of each dialog type.
 3. To give a session new work, run `send` while it is `idle`; a slash command goes the same way (`send 64780 /context`).
 4. When the user asked to keep watching, run `watch <pids>` with `run_in_background: true` and wait for its notification; never poll `list` or `screen` in a loop. On `WAITING`, go to step 2; on `IDLE`, read `screen`, decide by the goal whether the session needs a next prompt (step 3) or is done; on `TIMEOUT`, rerun `watch`. Stop watching when the goal is met or the user says so.
