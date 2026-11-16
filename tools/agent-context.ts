@@ -3,6 +3,7 @@
  * transcripts Claude Code keeps on disk. Ships with no plugin.
  */
 
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -207,3 +208,51 @@ export function main(argv: string[], log: (line: string) => void, read: ReadRuns
   for (const line of render(rows)) log(line);
   return 0;
 }
+
+const META_SUFFIX = ".meta.json";
+
+function entriesOf(directory: string): fs.Dirent[] {
+  try {
+    return fs.readdirSync(directory, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+
+function textOf(file: string): string | undefined {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+function runsIn(directory: string, entries: fs.Dirent[]): RunStats[] {
+  const runs: RunStats[] = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.startsWith("agent-") || !entry.name.endsWith(META_SUFFIX)) continue;
+    const base = entry.name.slice(0, -META_SUFFIX.length);
+    const meta = textOf(path.join(directory, entry.name));
+    const transcript = textOf(path.join(directory, `${base}.jsonl`));
+    if (meta === undefined || transcript === undefined) continue;
+    const agent = agentOf(meta);
+    if (agent === undefined) continue;
+    const stats = runStats(agent, transcript.split("\n"));
+    if (stats) runs.push(stats);
+  }
+  return runs;
+}
+
+export const readRuns: ReadRuns = (root) => {
+  const runs: RunStats[] = [];
+  const pending = [root];
+  while (pending.length > 0) {
+    const directory = pending.pop() as string;
+    const entries = entriesOf(directory);
+    if (path.basename(directory) === "subagents") runs.push(...runsIn(directory, entries));
+    for (const entry of entries) if (entry.isDirectory()) pending.push(path.join(directory, entry.name));
+  }
+  return runs;
+};
+
+if (import.meta.main) process.exitCode = main(process.argv.slice(2), console.log, readRuns);
