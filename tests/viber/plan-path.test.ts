@@ -706,12 +706,71 @@ test("--land keeps the frontmatter and points its source: at the landed copy, si
     assert.match(parsed.key!, /_add-login$/);
 
     const landed = fs.readFileSync(path.join(dir, parsed.path), "utf-8");
-    assert.match(landed, /^---\nsource: [^\n]+\n---\n/);
+    assert.match(landed, /^---\nsource: [^\n]+\nplanned: [^\n]+\n---\n/);
     const source = sourceLine(landed);
     assert.ok(path.isAbsolute(source), source);
     assert.ok(sameFile(source, path.join(dir, parsed.path)), source);
     assert.doesNotMatch(landed, /guidance that has done its work/);
     assert.doesNotMatch(landed, /\n\n\n/);
+  });
+});
+
+/** The landed copy's frontmatter `planned:` value, the line right after `source:`. */
+function plannedLine(text: string): string {
+  const match = /^---\r?\nsource: [^\n]*\r?\nplanned: (.*)\r?\n/.exec(text);
+  assert.ok(match, `no planned: line right after source: in\n${text}`);
+  return match[1];
+}
+
+/** A plan-mode file the way the planner leaves one: a frontmatter, then a titled body. */
+function frontmatterPlan(lines: string[]): string {
+  return ["---", ...lines, "---", "", "# Add Login", "", "## Tasks", "", "<!-- TASK -->", "### T1 - do the thing", "- Files: src/a.ts", "<!-- /TASK -->", ""].join("\n");
+}
+
+test("--land records the plan-mode file it was landed from as planned:, absolute with forward slashes, right after the copy's own source:", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const src = sourcePlan(dir, "outside/drifting-dolphin.md", frontmatterPlan(["source: /elsewhere/plans/drifting-dolphin.md", "work: main"]));
+
+    const result = await run(dir, ["--land", src]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+
+    const parsed = parse(result.stdout);
+    const landed = fs.readFileSync(path.join(dir, parsed.path), "utf-8");
+    const planned = plannedLine(landed);
+    assert.ok(path.isAbsolute(planned), planned);
+    assert.doesNotMatch(planned, /\\/);
+    assert.ok(sameFile(planned, src), planned);
+    assert.ok(sameFile(sourceLine(landed), path.join(dir, parsed.path)), landed);
+    assert.match(landed, /^---\nsource: [^\n]+\nplanned: [^\n]+\nwork: main\n---\n/);
+  });
+});
+
+test("--land keeps a planned: line the plan already carries, unchanged and not repeated (a later landing never repoints it at the copy's own source)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const src = sourcePlan(
+      dir,
+      "outside/drifting-dolphin.md",
+      frontmatterPlan(["source: /elsewhere/plans/drifting-dolphin.md", "planned: C:/plans/earlier.md", "work: main"]),
+    );
+
+    const result = await run(dir, ["--land", src]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+
+    const landed = fs.readFileSync(path.join(dir, parse(result.stdout).path), "utf-8");
+    assert.match(landed, /^---\nsource: [^\n]+\nplanned: C:\/plans\/earlier\.md\nwork: main\n---\n/);
+    assert.equal(landed.match(/^planned:/gm)?.length, 1);
+  });
+});
+
+test("--land gives a frontmatter with no source: line no planned: line either, the plan landing as it was", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const body = frontmatterPlan(["work: main"]);
+    const src = sourcePlan(dir, "outside/drifting-dolphin.md", body);
+
+    const result = await run(dir, ["--land", src]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+
+    assert.equal(fs.readFileSync(path.join(dir, parse(result.stdout).path), "utf-8"), body);
   });
 });
 

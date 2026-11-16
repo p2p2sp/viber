@@ -44,7 +44,9 @@
 # a closing fence of the same character at least as long as the opening one) is content, not guidance: every line
 # of it, comments and blank lines included, is copied through untouched. The
 # frontmatter is not a comment and survives whole but for its "source:" line,
-# which the copy rewrites to its own absolute path.
+# which the copy rewrites to its own absolute path, and the "planned:" line added
+# right after it: the absolute path of <src>, in the same form, unless the
+# frontmatter already holds one (a frontmatter with no "source:" gets neither).
 #
 # The run branch. Under a branching.mode other than off (config.sh --branching,
 # read by the sourced run-branch.sh; outside a git repository it acts as off), a
@@ -386,17 +388,35 @@ function runlen(s, c,  n) { n = 0; while (substr(s, n + 1, 1) == c) n++; return 
 # plan-mode file it named is gone by the next round, and a context cleared on
 # approval finds the landed plan through that line alone. Absolute, and in the
 # mixed C:/ form where cygpath exists, so a Windows reader opens it as written.
-# Only the frontmatter is touched; a plan without one is left as it is.
+# The "planned:" line right after it keeps the plan-mode file the copy was landed
+# from ($2, resolved the same way), so a later reader can find the plan the
+# planner wrote; a "planned:" line the frontmatter already holds stays as it is
+# and none is added. Only the frontmatter is touched: a frontmatter with no
+# "source:" line gets no "planned:" line, and a plan without one is left as it is.
 set_source() {
   abs="$(cd -- "${1%/*}" && pwd -P)/${1##*/}"
-  if command -v cygpath >/dev/null 2>&1; then abs="$(cygpath -m "$abs")"; fi
+  planned="$(cd -- "$(dirname -- "$2")" && pwd -P)/$(basename -- "$2")"
+  if command -v cygpath >/dev/null 2>&1; then
+    abs="$(cygpath -m "$abs")"
+    planned="$(cygpath -m "$planned")"
+  fi
   tmp="$1.tmp.$$"
-  abs="$abs" awk '
-NR == 1 { infm = ($0 ~ /^---[[:space:]]*\r?$/); print; next }
+  abs="$abs" planned="$planned" awk '
+NR == FNR {
+  if (FNR == 1) { fm1 = ($0 ~ /^---[[:space:]]*\r?$/); next }
+  if (fm1 && /^---[[:space:]]*\r?$/) fm1 = 0
+  if (fm1 && /^planned:/) has = 1
+  next
+}
+FNR == 1 { infm = ($0 ~ /^---[[:space:]]*\r?$/); print; next }
 infm && /^---[[:space:]]*\r?$/ { infm = 0 }
-infm && /^source:/ { print "source: " ENVIRON["abs"]; next }
+infm && /^source:/ {
+  print "source: " ENVIRON["abs"]
+  if (!has) print "planned: " ENVIRON["planned"]
+  next
+}
 { print }
-' "$1" > "$tmp" && mv -f "$tmp" "$1"
+' "$1" "$1" > "$tmp" && mv -f "$tmp" "$1"
   rm -f "$tmp"
 }
 
@@ -682,6 +702,6 @@ if ! mkdir -p -- "${dest%/*}" || ! cp -- "$src" "$dest"; then
   exit 4
 fi
 strip_guidance "$dest"
-set_source "$dest"
+set_source "$dest" "$src"
 land_attachments "$dest"
 emit "$dest" new

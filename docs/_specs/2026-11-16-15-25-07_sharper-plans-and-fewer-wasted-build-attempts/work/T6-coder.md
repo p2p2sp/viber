@@ -1,0 +1,5 @@
+- Red came from the revert route (red-2.log): set_source temporarily printed `planned:` unconditionally at the frontmatter's closing `---`, which failed all three new cases on assertions; the script was then restored byte for byte.
+- The existing frontmatter case asserted `source:` followed directly by `---`; it now expects the `planned:` line between them (the behaviour changed on purpose).
+- set_source reads the copy twice (first pass finds an existing `planned:`, second rewrites): a one-pass awk cannot know a later `planned:` line exists when it meets `source:`.
+- Contract header of plan-path.sh updated for the planned: line; viber/scripts/CLAUDE.md and the planner templates naming the frontmatter are left to the memory close.
+- The Bash guard only accepts a redirect under `.temp/` spelled as a relative path from the repo root; an absolute `C:/.../.temp/` target is refused.
