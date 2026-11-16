@@ -110,6 +110,16 @@ test("plan-rules Observable sends a shape the change must fix to a Contracts blo
   assert.ok(has(rule("Observable"), "a shape the change must fix goes to a `## Contracts` block, and no clause under either value asks a test for a block's shape."));
 });
 
+test("plan-rules Observable makes a ruled-out test listed in Files or run by Verification a finding over any host convention (a plan can ask for a forbidden test without a done clause naming it)", () => {
+  assert.ok(has(rule("Observable"), "A test in `Files` or run by `Verification` that `## Proves` rules out is the same finding, whatever the host's `CLAUDE.md`, rules or existing tests ask."));
+});
+
+test("plan-rules carries the integration test check as a second Layered rule tagged script, after the review half that stays the first Layered line", () => {
+  const lines = rules("Layered").split("\n");
+  assert.ok(lines[0].endsWith("(review)"));
+  assert.ok(has(lines[lines.length - 1],"`plan-index.sh` rejects one without it, with `error: task <id>: Files writes <path> under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`. (script)"));
+});
+
 test("plan-rules Layered closes with an integration test written in its adapter's task and never run there, a Repro test excepted, and names no Exclusive leaf task", () => {
   const text = rule("Layered");
   assert.ok(has(text, "An integration test is written in the task that creates or changes its adapter and never run there, a `Repro:` test excepted: that task's `Verification` runs the test tool's own listing or type-check step plus a grep of one identifier on both sides, the test and the adapter declaring it, and the build's final test run runs the test once. (review)"));
@@ -230,8 +240,8 @@ test("plan-rules Provable leaves every CLAUDE.md out of that grep with build.mem
   assert.ok(has(rule("Provable"), "with `build.memory` on, that grep leaves out every `CLAUDE.md` too."));
 });
 
-test("plan-rules stays within 19800 bytes", () => {
-  assert.ok(Buffer.byteLength(PLAN_RULES, "utf8") <= 19800);
+test("plan-rules stays within 20500 bytes", () => {
+  assert.ok(Buffer.byteLength(PLAN_RULES, "utf8") <= 20500);
 });
 
 test("task-coder first Implement bullet stops at the met done clauses and a green Verification, adding no test, file, doc or refactor, a helpful idea going to the notes", () => {

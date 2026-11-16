@@ -242,8 +242,16 @@
 #       bounds it, a longer path or a bare file name inside one does not), a
 #       file a lower-numbered task lists in its "Files:" while no dependency
 #       path, direct or transitive, joins the two (the reader would run beside
-#       the writer; the error names the reader, the path and the writer). The
-#       last seven cases and the
+#       the writer; the error names the reader, the path and the writer), or an
+#       integration test: a "Files:" path under a directory segment "integration"
+#       or one holding integration[-_.]?tests? (case folded), or whose file name
+#       holds ".integration.", while no command of its "Verification:" text before
+#       the first " -> " (cut at ";", ",", "&&", "||" and "|", a grep, git grep or
+#       rg command never counting) names the path, a directory of it at or below
+#       that test directory, or a file inside such a directory (stderr: "error:
+#       task <id>: Files writes <path> under an integration test directory, which
+#       no Verification command names - list or type-check that file or its test
+#       project there (Layered)"). The last eight cases and the
 #       parenthetical one above are exempted under --split
 #       and under --extra, and on a plain call whose plan has status.md beside
 #       it (a landed run plan): a plan that landed before the rule is frozen,
@@ -497,6 +505,58 @@ function pathtok(text, p,   t, pl, off, pos, s, b, a, a2, lc, rc) {
     if (b !~ lc || (b == "/" && substr(t, s - 2, 1) == "." && substr(t, s - 3, 1) !~ lc))
       if (a !~ rc && (a != "." || a2 !~ /[A-Za-z0-9_]/)) return 1
     off = s
+  }
+  return 0
+}
+
+# the integration test directory of a Files path: the shallowest directory prefix
+# whose last segment is "integration" or holds integration[-_.]?tests? (case
+# folded), or the path itself when its file name holds ".integration.", "" when
+# the path is neither. The file name alone matching the segment pattern does not
+# count (integration-tests.md is a document, not a test).
+function integfloor(p,   isg, ins, ik, ipre, ilow) {
+  ins = split(p, isg, "/")
+  ipre = ""
+  for (ik = 1; ik < ins; ik++) {
+    ipre = (ik == 1 ? isg[ik] : ipre "/" isg[ik])
+    ilow = tolower(isg[ik])
+    if (ilow == "integration" || ilow ~ /integration[-_.]?tests?/) return ipre
+  }
+  if (index(tolower(isg[ins]), ".integration.") > 0) return p
+  return ""
+}
+
+# t is the path p itself, or a directory of p that ends at or below floor
+function inchain(t, p, floor) {
+  if (t == p) return 1
+  return (length(t) >= length(floor) && substr(p, 1, length(t) + 1) == t "/")
+}
+
+# 1 when a command of the Verification text, cut at ; , && || and |, names the
+# file p or a directory of it at or below floor, or a file directly inside such a
+# directory (the test project); a grep, git grep or rg command names nothing
+function namesinteg(vtext, p, floor,   nv, vcmds, vc, vtk, nt, vk, vt, vd, vg, vq) {
+  vq = "[`\"\047()]"
+  gsub(/&&|[|][|]|[;,|]/, "\n", vtext)
+  nv = split(vtext, vcmds, "\n")
+  for (vc = 1; vc <= nv; vc++) {
+    nt = split(trim(vcmds[vc]), vtk, /[[:space:]]+/)
+    for (vk = 1; vk <= nt; vk++) gsub(vq, "", vtk[vk])
+    if (vtk[1] ~ /^(grep|egrep|fgrep|rg)$/) continue
+    if (vtk[1] == "git") {
+      vg = 0
+      for (vk = 2; vk <= nt; vk++) if (vtk[vk] == "grep") vg = 1
+      if (vg) continue
+    }
+    for (vk = 1; vk <= nt; vk++) {
+      vt = vtk[vk]
+      sub(/^\.\//, "", vt)
+      sub("/+$", "", vt)
+      if (vt == "") continue
+      if (inchain(vt, p, floor)) return 1
+      vd = vt
+      if (sub("/[^/]*$", "", vd) && inchain(vd, p, floor)) return 1
+    }
   }
   return 0
 }
@@ -786,7 +846,18 @@ END {
       fpath[i, ++nf[i]] = p
     }
 
-    # Size: a task past either cap bundles several behaviours, and a coder
+    # Layered: an integration test is written in its own task and never run there,
+    # so the Verification of a task writing one names it, or a directory of it at
+    # or below its test directory, in a command that is no grep. Skipped under
+    # --split, like the other checks added after plans were frozen.
+    if (mode != "--split" && verif[i] != "")
+      for (k = 1; k <= nf[i]; k++) {
+        ifloor = integfloor(fpath[i, k])
+        if (ifloor != "" && !namesinteg(verifycmd(verif[i]), fpath[i, k], ifloor))
+          fail("task " id[i] ": Files writes " fpath[i, k] " under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)")
+      }
+
+    # Size:a task past either cap bundles several behaviours, and a coder
     # holding that many files and clauses at once drifts. Skipped under --split,
     # like the other checks added after plans were frozen.
     if (mode != "--split" && (tdd[i] in maxfiles)) {

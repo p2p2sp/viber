@@ -1518,6 +1518,159 @@ test("read-after: the header's exit-4 list names the case", () => {
   assert.match(source, /read-after: a "Verification:" or "DoD:" line naming/);
 });
 
+/** One task writing `files`, whose Verification is `verification`: the shape the
+ *  integration test check reads. */
+function integrationPlan(files: string, verification: string): string {
+  return planBody([{ id: "T1", files, verification }], 1);
+}
+
+const STORE_TEST = "backend/A.IntegrationTests/StoreTests.cs";
+const STORE_PROJECT = "backend/A.IntegrationTests/A.IntegrationTests.csproj";
+const INTEGRATION_MESSAGE = `error: task T1: Files writes ${STORE_TEST} under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`;
+
+test("integration check: a task writing a file under an integration test directory whose Verification names neither it nor a directory of it exits 4 with the Layered error", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, integrationPlan(STORE_TEST, "dotnet test backend/Other/Other.csproj -> green"));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.ok(result.stderr.includes(INTEGRATION_MESSAGE), result.stderr);
+  });
+});
+
+test("integration check: a Verification building the test project under that directory validates", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, integrationPlan(STORE_TEST, `dotnet build ${STORE_PROJECT} -> green`));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("integration check: a Verification naming the file itself validates", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, integrationPlan(STORE_TEST, `dotnet test ${STORE_TEST} --list-tests -> lists them`));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("integration check: a Verification naming the test directory itself validates", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, integrationPlan(STORE_TEST, "dotnet test backend/A.IntegrationTests/ --list-tests -> lists them"));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("integration check: a Verification naming only a directory above the test directory exits 4", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, integrationPlan(STORE_TEST, "dotnet test backend -> green"));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.ok(result.stderr.includes(INTEGRATION_MESSAGE), result.stderr);
+  });
+});
+
+for (const [label, verification] of [
+  ["grep", `grep -c Store ${STORE_TEST} src/Store.cs -> 2`],
+  ["git grep", `git grep -c Store -- ${STORE_TEST} -> 1`],
+  ["rg", `rg -c Store ${STORE_TEST} -> 1`],
+  ["a grep after a pipe", `dotnet test src/Store.csproj | grep Store ${STORE_TEST} -> 1`],
+  ["a grep after a semicolon", `dotnet test src/Store.csproj ; grep -c Store ${STORE_TEST} -> 1`],
+  ["a grep after a comma", `dotnet test src/Store.csproj, grep -c Store ${STORE_TEST} -> 1`],
+  ["a grep after &&", `dotnet test src/Store.csproj && grep -c Store ${STORE_TEST} -> 1`],
+  ["a grep after ||", `dotnet test src/Store.csproj || grep -c Store ${STORE_TEST} -> 1`],
+] as const) {
+  test(`integration check: ${label} naming the file never counts as naming it, so the task exits 4`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, integrationPlan(STORE_TEST, verification));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+      assert.ok(result.stderr.includes(INTEGRATION_MESSAGE), result.stderr);
+    });
+  });
+}
+
+test("integration check: a build command after a grep, split at &&, still names the file", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, integrationPlan(STORE_TEST, `grep -c Store src/Store.cs && dotnet build ${STORE_PROJECT} -> green`));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+for (const file of [
+  "tests/integration/store.test.ts",
+  "backend/Store.Integration_Tests/store.cs",
+  "backend/store-integrationtest/store.cs",
+  "src/store.integration.test.ts",
+]) {
+  test(`integration check: ${file} is checked, and a Verification not naming it exits 4`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, integrationPlan(file, "npm test -> green"));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+      assert.ok(result.stderr.includes(`error: task T1: Files writes ${file} under an integration test directory`), result.stderr);
+    });
+  });
+}
+
+test("integration check: a Verification naming a file of an integration directory by its path validates", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, integrationPlan("tests/integration/store.test.ts", "node --test tests/integration/store.test.ts -> lists"));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+for (const file of ["docs/third-party-integrations.md", "viber/references/integration-tests.md"]) {
+  test(`integration check: ${file}, whose file name alone matches, is not checked`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, integrationPlan(file, "npm test -> green"));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    });
+  });
+}
+
+test("integration check: under --split the check does not run", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, integrationPlan(STORE_TEST, "npm test -> green"));
+
+    const result = await run(dir, {}, [PLAN_REL, "--split"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("integration check: under --extra the check does not run", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, integrationPlan(STORE_TEST, "npm test -> green"));
+
+    const result = await run(dir, {}, [PLAN_REL, "--extra", "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("integration check: a plain call with status.md beside the plan does not run it (a landed plan is frozen)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, integrationPlan(STORE_TEST, "npm test -> green"));
+    seedStatus(dir, { done: "none" });
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
 test("a File entry whose bracket wraps a whole segment is a path, not a glob - like a Files entry", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     const route = "src/app/api/sites/[siteId]/route.ts";

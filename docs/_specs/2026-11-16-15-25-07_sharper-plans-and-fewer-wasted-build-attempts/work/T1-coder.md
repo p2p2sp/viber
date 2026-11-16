@@ -1,0 +1,5 @@
+- Floor of the check: the shallowest directory segment that is `integration` or holds `integration[-_.]?tests?` (case folded); for a `.integration.` file name the floor is the file itself, so only the file path names it.
+- A token counts when it is the path, a directory of it at or below the floor, or a file directly inside such a directory (the csproj of DoD.2). Only the command part before the first ` -> ` is read.
+- The second C1 error (git grep without --untracked) is T2's; not implemented here.
+- plan-rules.md carried an uncommitted Observable sentence and a 19900 cap from before this task; caps are now 20500 (plan-rules), 44394 (planner), 30843 (planner-review), each raised by the new rule's 568 bytes.
+- viber/references/CLAUDE.md still says plan-rules sits at 19900: left for the memory close.
