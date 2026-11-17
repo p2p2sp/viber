@@ -14,7 +14,7 @@ Owns `skill-designer/`: authoring, audit and model tuning doctrine in `SKILL.md`
 - The skill obeys its own doctrine and lints clean (`FAIL=0 WARN=0`) under `lint_skill.sh` on its directory: no tables, italics, emoji or em/en dashes, no hedges, at most five all-caps directives per file.
 - Every bundled file is named from the `SKILL.md` body at the step that reads it, as `${CLAUDE_SKILL_DIR}/references/<file>.md`; the linter warns on a reference whose basename neither the `SKILL.md` nor a `fragments/*.md` beside it contains, since a fragment is preloaded into the body.
 - Profiles are named `<family>-<major>-<minor>.md`. Step 4 states "Model knowledge is as of <date>" and refuses to extrapolate to a model with no profile.
-- Quoted snippets in the profiles are measured wording: step 4 and Audit mode forbid rephrasing them, and a sentence a profile marks verbatim (the first sentence of the Fable 5.1 autonomy block) stays verbatim in the profile too.
+- Quoted snippets in the profiles are measured wording: step 4 and Audit mode forbid rephrasing them, and a sentence a profile marks verbatim (the Fable 5.2 code ownership sentence) stays verbatim in the profile too.
 - `lint_skill.sh`: a directory target lints every `.md` under it plus its `scripts/` and `references/`; a file target lints that file alone unless it is named `SKILL.md`. Prints `FAIL`/`WARN` lines, then `FAIL=<n> WARN=<m>`; exit 1 on any FAIL, 2 on missing argument, else 0. It skips itself in the `scripts/` sweep. A reference over 100 lines needs a table of contents matching its `##` headings both ways: WARN up to 300 lines, FAIL past.
 
 ## Commands
