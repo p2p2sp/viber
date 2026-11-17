@@ -1,0 +1,5 @@
+- `hits: <n> lines in <m> files` counts the hit lines kept in the whole file (after the 200 cap), files distinct across all targets.
+- Hit text has its leading whitespace stripped before the 200-character cut; a `| new` target at the repository top level has terms `.` (skipped, so no hits).
+- DoD.5's header-documents-the-contract clause and the `files.md` row are not testable without a Source-rule breach: the header carries argv, cwd, env, reads, writes, stdout, stderr and exit; the row names `.temp/viber/planner/`.
+- The exec-bit case reads `git ls-files -s` of the real repo (read-only); the portability sweep only enforces the bit once a SKILL.md calls the script bare.
+- A first draft of reach.sh was written before its tests; it was replaced by a skeleton, then rewritten after the red run (red.log).
