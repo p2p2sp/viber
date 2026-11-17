@@ -1,0 +1,5 @@
+- The graph reviewer's check of a proposed CLAUDE.md-free fix is relabelled `Fix` (was `Memory-owned`) so no reviewer names the script rule; its text is unchanged.
+- The `memory:` line of planner-review and planner-task-review now names only the `Provable` grep exclusion, as DoD.4 asks, though the task reviewer reads `## Task` where that rule lives and the graph reviewer does not.
+- Filled keeps slots inside fences, backtick spans, HTML comments and contract blocks; the test pins the phrase "inside a fenced block, a backtick span, an HTML comment or a contract block".
+- Red: .temp/viber/T9/red.log (23 failing before the agent edits).
+- agents/CLAUDE.md and references/CLAUDE.md still describe the old `Memory-owned` reading of `memory:`; build.memory owns that.

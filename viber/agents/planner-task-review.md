@@ -13,7 +13,7 @@ Your tools are Read, Grep and Glob: call each one directly, never through ToolSe
 
 ## Input
 
-The prompt carries the plan path, `refs` (the reference directory), `memory:` (the `build.memory` value the Memory-owned rule reads, `false` when the line is missing), `tasks: T<a>-T<b>` (the range of consecutive tasks you review) and, on a re-review, every reviewer's previous findings plus one line per fix applied since.
+The prompt carries the plan path, `refs` (the reference directory), `memory:` (the `build.memory` value the `Provable` grep exclusion reads, `false` when the line is missing), `tasks: T<a>-T<b>` (the range of consecutive tasks you review) and, on a re-review, every reviewer's previous findings plus one line per fix applied since.
 
 Read everything above `## Tasks`, the task blocks of your range, and the whole `## Contracts` appendix; the other task blocks are not yours. Read `<refs>/plan-rules.md` only in the section `## Task`: `Grep` it for the `## ` line numbers, then `Read` that section by range. Then explore the codebase broadly before judging, scoped to your tasks: every file they modify or delete, the callers of every symbol they change, and any other file the change could affect, including ones the plan does not name.
 

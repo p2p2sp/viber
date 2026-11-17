@@ -27,13 +27,13 @@ Read the whole plan. Read `<refs>/plan-rules.md` only in the sections `## Spec` 
 Gate every `(review)` rule of the `## Spec` and `## Contracts` sections, each clause of it, and report a breach under the rule's name. Then:
 
 - Complete: no TODOs, no placeholders, no part of the specification that trails off mid-thought.
-- Faithful: when `input:` is present, a criterion, boundary or constraint of it missing from the plan, or one the plan adds beyond it, is a Blocking finding, and what an `Answered:` line settles counts as part of the input; so is a scenario or edge case whose outcome neither the input nor an `Answered:` line settles, nor follows from them; so is an `Attachment:` line of it with no entry in the frontmatter `attachments:` map, a name repeated within that map, a name not matching `^[A-Za-z0-9][A-Za-z0-9_.-]*$`, and an `attachments/<name>` reference in a `DoD` to a name the map does not hold.
+- Faithful: when `input:` is present, a criterion, boundary or constraint of it missing from the plan, or one the plan adds beyond it, is a Blocking finding, and what an `Answered:` line settles counts as part of the input; so is a scenario or edge case whose outcome neither the input nor an `Answered:` line settles, nor follows from them; so is an `Attachment:` line of it with no entry in the frontmatter `attachments:` map.
 
 ## Check the big spec shape
 
 Check when the specification carries `## Behaviour` and `## Glossary`.
 
-- Filled: not one template slot survives - an angle-bracket placeholder, an `S<n>` left unnumbered, an example line nobody replaced.
+- Filled: no template slot survives inside a fenced block, a backtick span, an HTML comment or a contract block, and neither does an example line nobody replaced; a slot anywhere else and an unnumbered scenario are left to `plan-index.sh`.
 - Anchored: every `### S<n>` scenario traces to an acceptance criterion, and every criterion is reachable from some scenario. A scenario proving nothing the criteria claim is either a missing criterion or a scenario that does not belong.
 - Behavioural: `## Behaviour`, `### Edge cases`, `## Glossary` and `## Solution requirements` describe what a person observes, never the mechanism. A glossary entry naming a key, a field or a type instead of the concept is a finding: the shape belongs to a `## Contracts` block.
 

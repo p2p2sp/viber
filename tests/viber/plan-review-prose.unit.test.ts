@@ -2,7 +2,9 @@
  * plan-review-prose.unit.test.ts - pins where the scripted plan rules live: every rule `plan-index.sh`
  * rejects, tagged `(script)`, sits in `references/plan-rules-script.md`, which `planner` reads
  * beside `plan-rules.md` and no planner reviewer reads. `plan-rules.md` keeps the `(review)` rules in
- * its four sections and says where the scripted ones went. The files read here are shipped prompts,
+ * its four sections and says where the scripted ones went. The planner reviewers also carry no
+ * check `plan-index.sh` decides (attachment names, template slots outside fences, whole-path
+ * reads) and keep the part no script can make. The files read here are shipped prompts,
  * whose text is the behaviour. Nothing is spawned. Each check is a pure function proven on a
  * synthetic bad sample before it is held to the tree.
  *
@@ -164,3 +166,78 @@ for (const name of REVIEWERS) {
     assert.ok(!namesScriptRules(read(`agents/${name}.md`)));
   });
 }
+
+function bulletOf(text: string, label: string): string {
+  return lines(text).find((line) => line.startsWith(`- ${label}:`)) ?? "";
+}
+
+function memoryLine(text: string): string {
+  return lines(text).find((line) => line.includes("`memory:` (")) ?? "";
+}
+
+test("a check bullet is found by its label and a missing one reads empty", () => {
+  const sample = "- Faithful: a.\n- Filled: b.\n";
+  assert.deepEqual([bulletOf(sample, "Filled"), bulletOf(sample, "Wired")], ["- Filled: b.", ""]);
+});
+
+test("the memory line is the one naming the memory: input with its reading", () => {
+  assert.equal(memoryLine("The prompt carries `memory:` (the value x), a path.\nOther.\n"), "The prompt carries `memory:` (the value x), a path.");
+});
+
+const REVIEWS_ATTACHMENTS = ["planner-review", "planner-spec-review"];
+const REVIEWS_WIRED = ["planner-review", "planner-graph-review"];
+const MEMORY_READERS = ["planner-review", "planner-graph-review", "planner-task-review"];
+
+// [reviewer, check label, phrase]: a phrase of a check `plan-index.sh` now decides, which no reviewer carries.
+const DROPPED_PHRASES: [string, string, string][] = [
+  ...REVIEWS_ATTACHMENTS.flatMap((name): [string, string, string][] => [
+    [name, "Faithful", "a name repeated within that map"],
+    [name, "Faithful", "^[A-Za-z0-9][A-Za-z0-9_.-]*$"],
+    [name, "Faithful", "`attachments/<name>` reference in a `DoD`"],
+    [name, "Filled", "not one template slot survives"],
+    [name, "Filled", "an `S<n>` left unnumbered"],
+  ]),
+  ...REVIEWS_WIRED.map((name): [string, string, string] => [name, "Wired", "every file, route or symbol"]),
+];
+
+// [reviewer, check label, phrase]: a phrase of a check no script can make, which the reviewer keeps.
+const KEPT_PHRASES: [string, string, string][] = [
+  ...REVIEWS_ATTACHMENTS.flatMap((name): [string, string, string][] => [
+    [name, "Faithful", "an `Attachment:` line of it with no entry in the frontmatter `attachments:` map"],
+    [name, "Filled", "inside a fenced block, a backtick span, an HTML comment or a contract block"],
+    [name, "Filled", "an example line nobody replaced"],
+  ]),
+  ...REVIEWS_WIRED.flatMap((name): [string, string, string][] => [
+    [name, "Wired", "every route, symbol and file not named by its whole repo-relative path (a bare file name, a file read without its path)"],
+    [name, "Wired", "a file named by its whole repo-relative path being left to `plan-index.sh`"],
+    [name, "Wired", "an edge whose dependent consumes nothing from its target as Minor"],
+  ]),
+];
+
+for (const [name, label, phrase] of DROPPED_PHRASES) {
+  test(`${name} drops from its ${label} check the part plan-index.sh decides: ${phrase}`, () => {
+    assert.ok(!bulletOf(read(`agents/${name}.md`), label).includes(phrase));
+  });
+}
+
+for (const [name, label, phrase] of KEPT_PHRASES) {
+  test(`${name} keeps in its ${label} check the part no script can make: ${phrase}`, () => {
+    assert.ok(bulletOf(read(`agents/${name}.md`), label).includes(phrase));
+  });
+}
+
+for (const name of MEMORY_READERS) {
+  test(`the memory: line of ${name} names the Provable grep exclusion and never the Memory-owned rule`, () => {
+    const line = memoryLine(read(`agents/${name}.md`));
+    assert.deepEqual([line.includes("the `Provable` grep exclusion"), line.includes("Memory-owned")], [true, false]);
+  });
+}
+
+test("the memory: line of planner-graph-review also names its check of a fix it proposes", () => {
+  assert.ok(memoryLine(read("agents/planner-graph-review.md")).includes("the check of a fix you propose"));
+});
+
+test("planner-graph-review keeps its check that a proposed fix never adds a CLAUDE.md to Files while memory is on", () => {
+  const check = bulletOf(read("agents/planner-graph-review.md"), "Fix");
+  assert.ok(check.includes("with `memory: true`, a fix you propose never adds any `CLAUDE.md` file to a task's `Files`"));
+});
