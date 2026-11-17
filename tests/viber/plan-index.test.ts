@@ -1920,6 +1920,111 @@ test("Memory-owned check: the switch is read in the caller's cwd, so a plan file
   });
 });
 
+/** `body` under a frontmatter carrying an `attachments:` map of the given entry lines. */
+function withMap(body: string, entries: string[]): string {
+  return ["---", "source: .temp/plan.md", "attachments:", ...entries, "---", body].join("\n");
+}
+
+for (const name of ["my file.png", "-a.png"]) {
+  test(`Attachments check: a map entry named "${name}" on a fresh plan exits 4 with the C1 invalid name error naming it and nothing on stdout`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, withMap(planBody([{ id: "T1" }], 1), [`  ${name}: .temp/x.png`]));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, "");
+      assert.ok(
+        result.stderr.includes(
+          `error: attachments: name "${name}" is not one path component of letters, digits, _, . and - opening on a letter or digit - rename it (Attachments)`,
+        ),
+        result.stderr,
+      );
+    });
+  });
+}
+
+test("Attachments check: entries a.png and A.png exit 4 with the C1 repeat error naming A.png", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, withMap(planBody([{ id: "T1" }], 1), ["  a.png: .temp/a.png", "  A.png: .temp/b.png"]));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.ok(
+      result.stderr.includes('error: attachments: name "A.png" repeats an earlier one - rename one of them (Attachments)'),
+      result.stderr,
+    );
+  });
+});
+
+test("Attachments check: a DoD naming attachments/b.png with no b.png entry exits 4 with the C1 DoD error", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, withMap(planBody([{ id: "T1", dod: "the page matches attachments/b.png" }], 1), ["  a.png: .temp/a.png"]));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.ok(
+      result.stderr.includes(
+        "error: task T1: DoD names attachments/b.png, absent from the attachments map - add a b.png entry or drop the reference (Attachments)",
+      ),
+      result.stderr,
+    );
+  });
+});
+
+for (const [label, dod] of [
+  ["a file entry", "the page matches `attachments/a.png`."],
+  ["a directory entry named with its trailing slash", "the page matches attachments/mock/ closely"],
+  ["a file inside a directory entry", "the page matches attachments/mock/home.png"],
+] as const) {
+  test(`Attachments check: a DoD naming ${label} the map holds exits 0`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, withMap(planBody([{ id: "T1", dod }], 1), ["  a.png: .temp/a.png", "  mock: .temp/mock"]));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    });
+  });
+}
+
+test("Attachments check: a plan with no frontmatter exits 0", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody([{ id: "T1", dod: "the page matches attachments/b.png" }], 1));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("Attachments check: a frontmatter with no attachments key exits 0", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, ["---", "source: .temp/plan.md", "---", planBody([{ id: "T1", dod: "the page matches attachments/b.png" }], 1)].join("\n"));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("Attachments check: a landed plan with status.md beside it and a bad map exits 0", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, withMap(planBody([{ id: "T1" }], 1), ["  -a.png: .temp/a.png"]));
+    seedStatus(dir, { done: "none" });
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("Attachments check: a bad map exits 0 under --split", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, withMap(planBody([{ id: "T1" }], 1), ["  -a.png: .temp/a.png"]));
+
+    const result = await run(dir, {}, [PLAN_REL, "--split"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
 test("a File entry whose bracket wraps a whole segment is a path, not a glob - like a Files entry", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     const route = "src/app/api/sites/[siteId]/route.ts";

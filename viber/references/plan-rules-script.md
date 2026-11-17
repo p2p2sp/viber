@@ -2,6 +2,10 @@
 
 Every rule `plan-index.sh` rejects, under the section of `plan-rules.md` it belongs to. Only `planner` reads this file: it holds the plan to these beside `plan-rules.md`, and no reviewer reads it.
 
+## Spec
+
+- Attachments: each name of the frontmatter `attachments:` map is one path component of letters, digits, `_`, `.` and `-` opening on a letter or digit (`^[A-Za-z0-9][A-Za-z0-9_.-]*$`) and unique once case folded, and a `DoD` naming `attachments/<name>` has a `<name>` entry in the map; `plan-index.sh` rejects each, with `error: attachments: name "<name>" is not one path component of letters, digits, _, . and - opening on a letter or digit - rename it (Attachments)`, `error: attachments: name "<name>" repeats an earlier one - rename one of them (Attachments)` or `error: task <id>: DoD names attachments/<name>, absent from the attachments map - add a <name> entry or drop the reference (Attachments)`. (script)
+
 ## Graph
 
 - Ids: task ids are `T1`, `T2`, … in order; `plan-index.sh` rejects any other, with `error: task <id>: id must be T<k>, the <k>th task block in order - renumber the tasks (Ids)`. (script)

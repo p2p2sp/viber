@@ -276,8 +276,21 @@
 #       off or no .claude/viber.yml the case never fires, and a CLAUDE-notes.md
 #       or CLAUDE.run-scripts.md is none (stderr: "error: task <id>: Files lists
 #       <path> while build.memory is on - drop it, the build close updates every
-#       CLAUDE.md (Memory-owned)").
-#       The last sixteen cases and the parenthetical one above are exempted under --split
+#       CLAUDE.md (Memory-owned)"), or a frontmatter "attachments:" map (the
+#       indented entry lines up to the first line that is not indented, a blank
+#       line skipped, a name being what precedes the first ":" of an entry) holding
+#       a name that is not one path component matching
+#       ^[A-Za-z0-9][A-Za-z0-9_.-]*$ (stderr: "error: attachments: name "<name>" is
+#       not one path component of letters, digits, _, . and - opening on a letter
+#       or digit - rename it (Attachments)") or repeating an earlier one, case
+#       folded ("error: attachments: name "<name>" repeats an earlier one - rename
+#       one of them (Attachments)"), or a "DoD:" line naming attachments/<name>, the
+#       first path component after the prefix a sentence period does not close, with
+#       no <name> entry in a map the plan carries (a plan with no frontmatter or no
+#       "attachments:" key has none to check; "error: task <id>: DoD names
+#       attachments/<name>, absent from the attachments map - add a <name> entry or
+#       drop the reference (Attachments)").
+#       The last seventeen cases and the parenthetical one above are exempted under --split
 #       and under --extra, and on a plain call whose plan has status.md beside
 #       it (a landed run plan): a plan that landed before the rule is frozen,
 #       and a run resumed after the upgrade must still validate and decompose.
@@ -757,6 +770,26 @@ function patterned(p,   m, seg, k) {
   return 0
 }
 
+# Attachments: every attachments/<name> a DoD text names, <name> being the first
+# path component after the prefix (a sentence period closing it is dropped), must
+# be an entry of the map amap. A prefix glued to a longer path (docs/attachments/)
+# names none. One error per task and name.
+function attdod(text, own,   t, off, pos, s, rest, nm) {
+  t = " " text; off = 0
+  while ((pos = index(substr(t, off + 1), "attachments/")) > 0) {
+    s = off + pos
+    off = s
+    if (substr(t, s - 1, 1) ~ "[A-Za-z0-9_./-]") continue
+    rest = substr(t, s + 12)
+    if (!match(rest, /^[A-Za-z0-9_.-]+/)) continue
+    nm = substr(rest, 1, RLENGTH)
+    if (!(nm in amap)) sub(/[.]+$/, "", nm)
+    if (nm == "" || (nm in amap) || ((own, nm) in amiss)) continue
+    amiss[own, nm] = 1
+    fail("task " own ": DoD names attachments/" nm ", absent from the attachments map - add a " nm " entry or drop the reference (Attachments)")
+  }
+}
+
 # the --extra report for task "self": the paths of its coder extras file, in file
 # order, minus a blank line, a path under .temp/, a repeat, one the task itself
 # lists and one a task not yet done lists; then one recheck line per done task
@@ -807,6 +840,18 @@ BEGIN {
   if (rundir == ".") rundir = ""
   nch = split(ENVIRON["changed"], ch, /\n/)
   for (k = 1; k <= nch; k++) if (ch[k] != "") chg[ch[k]] = 1
+}
+
+# the frontmatter "attachments:" map (the one plan-path.sh lands): hasatt when the
+# key is there, attent[1..natt] its indented entry lines in file order, a blank
+# line skipped, the map ending at the first line that is not indented
+NR == 1 && /^---[ \t]*\r?$/ { infm = 1 }
+infm && NR > 1 {
+  fmline = $0; sub(/\r$/, "", fmline)
+  if (fmline ~ /^---[ \t]*$/) infm = 0
+  else if (attin && fmline ~ /^[ \t]*$/) { }
+  else if (attin && fmline ~ /^[ \t]/) attent[++natt] = fmline
+  else { attin = 0; if (fmline ~ /^attachments:[ \t]*$/) { hasatt = 1; attin = 1 } }
 }
 
 # infc: this line sits inside a code fence, so no heading rule below fires on it
@@ -930,6 +975,18 @@ END {
   for (i = 1; i <= n; i++)
     if (early[i]) fail("task " id[i] ": <!-- TASK --> block sits above the \"## Tasks\" heading")
 
+  # Attachments: a name of the map is one path component and unique once case
+  # folded. Fresh plan only, like the other checks added after plans were frozen.
+  if (mode != "--split")
+    for (ak = 1; ak <= natt; ak++) {
+      ae = trim(attent[ak]); ap = index(ae, ":")
+      if (ap) ae = trim(substr(ae, 1, ap - 1))
+      if (ae !~ /^[A-Za-z0-9][A-Za-z0-9_.-]*$/) { fail("attachments: name \"" ae "\" is not one path component of letters, digits, _, . and - opening on a letter or digit - rename it (Attachments)"); continue }
+      if (tolower(ae) in aseen) { fail("attachments: name \"" ae "\" repeats an earlier one - rename one of them (Attachments)"); continue }
+      aseen[tolower(ae)] = 1
+      amap[ae] = 1
+    }
+
   for (i = 1; i <= n; i++) {
     # Ids and Title: the ids run T1, T2, ... in block order and a title never opens
     # with a commit type prefix, since the commit subject is "<id> - <title>".
@@ -957,6 +1014,11 @@ END {
       other = selfproven(dod[i], id[i])
       if (other != "") fail("task " id[i] ": DoD names task " other " - prove each clause inside this task, naming a file or symbol instead")
     }
+
+    # Attachments: a DoD names only the attachments the map holds, once the plan
+    # carries the map. Skipped under --split, like the other checks added after
+    # plans were frozen.
+    if (mode != "--split" && hasatt && dod[i] != "") attdod(dod[i], id[i])
 
     # Files: bare repo-relative paths, so commit-task.sh can stage them and the
     # collision check below can compare them literally

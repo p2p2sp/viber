@@ -1,0 +1,6 @@
+- plan-review-prose.unit.test.ts (outside Files, carrying T3/T4 uncommitted edits) gains "## Spec", the ["Spec", ["Attachments"]] section row and an Attachments error-message row, as decided; commit it with T5.
+- The DoD attachments check applies only when the frontmatter carries an `attachments:` key (DoD.4: no frontmatter or no key exits 0), so a DoD naming attachments/x with no map is not refused.
+- A DoD name is the first path component after `attachments/`; a trailing sentence period is dropped when the dotted form is no map entry; `docs/attachments/x` names none. Lookup is exact-case.
+- Invalid and repeated map entries are all reported (plan-path.sh stops at the first); an invalid entry is left out of the lookup.
+- Header sentence "The last sixteen cases" became "seventeen". rule-budget planner cap raised 44774 -> 44970 (the new Spec section).
+- Red: .temp/viber/T5/red.log (4 failing plan-index cases, before the production edit); .temp/viber/T5/red-2.log (1 failing, revert route: the Attachments rule renamed temporarily, then restored).
