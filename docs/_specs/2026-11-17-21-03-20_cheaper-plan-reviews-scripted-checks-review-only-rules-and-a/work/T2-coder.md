@@ -1,0 +1,7 @@
+- DoD.6 (header lists the three cases) is edited in plan-index.sh and, by decision, proven by Verification alone: a header-text test would break the Source rule (blocking).
+- plan-review-prose.unit.test.ts (in Verification, not in Files) pins the script rule names and error wording; extended it for Ids, Title, Blocks (EXTRA).
+- Title prefix is printed as written (case kept, colon included), e.g. "Fix:"; the error text keeps the literal "<id> - <title>" of C1.
+- Red evidence: .temp/viber/T2/red.log, taken by temporarily reverting the script checks and the rule-file moves (all restored); only the feat( title case fails in it because that revert broke the pattern for feat alone.
+- Task row order: Title sits first in plan-rules-script.md ## Task.
+- DoD.1 "T1, T2 exits 0" half is proven by the existing index test ("the index carries one row per task ..."), plain call on planBody(TWO_TASKS).
+- Review Minor (plan-index.sh `id[i] != ""` guard) left as is: the `continue` at "has no id" sits in an earlier loop, so without the guard an id-less task gets a second, misleading "task : id must be T<k>" error.

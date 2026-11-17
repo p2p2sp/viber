@@ -3409,3 +3409,116 @@ test("the plain index and the --split index are the same lines as before the sco
     );
   });
 });
+
+// --- task ids, contract ids and a commit-typed title on a fresh plan ----------
+
+/** Tasks T1 and T3: the second block is the 2nd, so its id has to be T2. */
+function skippedTaskId(): string {
+  return planBody([
+    { id: "T1", title: "Add the login handler", files: "src/login.ts" },
+    { id: "T3", title: "Reject a bad password", covers: "AC2", uses: "none", deps: "T1", files: "src/reject.ts" },
+  ]);
+}
+
+/** Blocks C1 and C3: the second block is the 2nd, so its id has to be C2. */
+function skippedBlockId(): string {
+  return planBody(
+    [
+      { id: "T1", title: "Add the login handler", uses: "C1", files: "src/login.ts" },
+      { id: "T2", title: "Add the logout handler", covers: "AC2", uses: "C3", deps: "T1", files: "src/logout.ts" },
+    ],
+    2,
+    [...CONTRACT, "", "### C3 - Logout endpoint", "", "File: none", "", "POST /logout -> 204"],
+  );
+}
+
+function titledPlan(title: string): string {
+  return planBody([{ id: "T1", title }], 1);
+}
+
+test("a fresh plan whose tasks are T1 and T3 exits 4 with the Ids error naming T3 and nothing on stdout", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, skippedTaskId());
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.equal(
+      result.stderr,
+      "error: task T3: id must be T2, the 2th task block in order - renumber the tasks (Ids)\n",
+    );
+  });
+});
+
+test("a fresh plan whose contract blocks are C1 and C3 exits 4 with the Blocks error naming C3 and nothing on stdout", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, skippedBlockId());
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.equal(
+      result.stderr,
+      "error: contract C3: id must be C2, the 2th block in order - renumber the blocks (Blocks)\n",
+    );
+  });
+});
+
+const COMMIT_TYPED_TITLES: Array<[string, string]> = [
+  ["feat(viber): Add x", "feat(viber):"],
+  ["fix: Add x", "fix:"],
+  ["Fix: Add x", "Fix:"],
+  ["chore!: Add x", "chore!:"],
+];
+
+for (const [title, prefix] of COMMIT_TYPED_TITLES) {
+  test(`a fresh plan whose task is titled "${title}" exits 4 with the Title error naming the prefix ${prefix}`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, titledPlan(title));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, "");
+      assert.equal(
+        result.stderr,
+        `error: task T1: title opens with the commit type prefix "${prefix}" - drop it, the commit subject is "<id> - <title>" (Title)\n`,
+      );
+    });
+  });
+}
+
+test("a fresh plan whose task is titled \"Fix the parser\" exits 0 (a word that is no prefix, with no colon after it)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, titledPlan("Fix the parser"));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+const FRESH_PLAN_DEFECTS: Array<[string, () => string]> = [
+  ["a skipped task id", skippedTaskId],
+  ["a skipped contract id", skippedBlockId],
+  ["a commit-typed title", () => titledPlan("feat(viber): Add x")],
+];
+
+for (const [defect, build] of FRESH_PLAN_DEFECTS) {
+  test(`a plan with ${defect} still decomposes under --split (a frozen plan resumed after the rule lands)`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, build());
+
+      const result = await run(dir, {}, [PLAN_REL, "--split"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    });
+  });
+
+  test(`a plan with ${defect} still validates on a plain call with status.md beside it (a landed run plan)`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, build());
+      seedStatus(dir, { done: "none" });
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    });
+  });
+}

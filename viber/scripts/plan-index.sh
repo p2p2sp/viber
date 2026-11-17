@@ -256,8 +256,12 @@
 #       git grep with no --untracked and names, as a token, a "Files:" path the
 #       tree does not hold (stderr: "error: task <id>: Verification runs git grep
 #       without --untracked over <path>, which this task creates and git grep
-#       never reads - add --untracked or use grep (Provable)"). The last nine
-#       cases and the parenthetical one above are exempted under --split
+#       never reads - add --untracked or use grep (Provable)"), or a task id that is
+#       not T<k>, the <k>th task block in order (Ids), a contract id that is not C<k>,
+#       the <k>th block in order (Blocks), or a task title opening with a commit type
+#       prefix - feat, fix, docs, style, refactor, perf, test, build, ci, chore or
+#       revert, case folded, an optional (scope), an optional "!", then ":" (Title).
+#       The last twelve cases and the parenthetical one above are exempted under --split
 #       and under --extra, and on a plain call whose plan has status.md beside
 #       it (a landed run plan): a plan that landed before the rule is frozen,
 #       and a run resumed after the upgrade must still validate and decompose.
@@ -841,6 +845,14 @@ END {
     if (early[i]) fail("task " id[i] ": <!-- TASK --> block sits above the \"## Tasks\" heading")
 
   for (i = 1; i <= n; i++) {
+    # Ids and Title: the ids run T1, T2, ... in block order and a title never opens
+    # with a commit type prefix, since the commit subject is "<id> - <title>".
+    # Skipped under --split, like the other checks added after plans were frozen.
+    if (mode != "--split") {
+      if (id[i] != "" && id[i] != "T" i) fail("task " id[i] ": id must be T" i ", the " i "th task block in order - renumber the tasks (Ids)")
+      if (match(tolower(ttl[i]), /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)([(][^)]*[)])?!?:/))
+        fail("task " id[i] ": title opens with the commit type prefix \"" substr(ttl[i], 1, RLENGTH) "\" - drop it, the commit subject is \"<id> - <title>\" (Title)")
+    }
     if (tdd[i] != "required" && tdd[i] != "none") fail("task " id[i] ": TDD must be \"required\" or \"none\", got: \"" tdd[i] "\"")
     # Exclusive is optional: absent means an ordinary task. Two
     # states only - a third spelling would start the same drift the mandatory
@@ -1031,6 +1043,8 @@ END {
   # names sits in the plan unreachable, and the shape it describes is then
   # whatever each coder invents
   for (c = 1; c <= ncon; c++) {
+    # Blocks: the ids run C1, C2, ... in block order. Skipped under --split.
+    if (mode != "--split" && corder[c] != "C" c) fail("contract " corder[c] ": id must be C" c ", the " c "th block in order - renumber the blocks (Blocks)")
     if (!(corder[c] in usedcon)) fail("contract " corder[c] " is used by no task")
     # missing outright, or an appendix where NO block carries the line at all -
     # exempted under --split, under --extra and on a landed plan in plain mode

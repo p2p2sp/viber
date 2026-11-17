@@ -4,6 +4,7 @@ Every rule `plan-index.sh` rejects, under the section of `plan-rules.md` it belo
 
 ## Graph
 
+- Ids: task ids are `T1`, `T2`, … in order; `plan-index.sh` rejects any other, with `error: task <id>: id must be T<k>, the <k>th task block in order - renumber the tasks (Ids)`. (script)
 - Depends: `Depends-on` references lower-numbered tasks only, which keeps the graph acyclic. (script)
 - Minimal: no `Depends-on` entry names a task already reached through another entry of the same line. (script)
 - Read after: a task whose `Verification` or `DoD` names a file a lower-numbered task's `Files` lists depends on that task, directly or through another. (script)
@@ -13,6 +14,7 @@ Every rule `plan-index.sh` rejects, under the section of `plan-rules.md` it belo
 
 ## Task
 
+- Title: a task title never opens with a commit type prefix (`feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore` or `revert`, case folded, an optional `(scope)`, an optional `!`, then `:`); `plan-index.sh` rejects it, with `error: task <id>: title opens with the commit type prefix "<prefix>" - drop it, the commit subject is "<id> - <title>" (Title)`. (script)
 - Paths: `Files` is one comma-separated line of exact repo-relative file paths, no globs, no directories, no annotations, no quoting; a bracket wrapping a whole path segment (`[id]`, `[...slug]`, `[[...slug]]`) is part of the file's own name, written exactly as on disk. (script)
 - Exclusive: the `Exclusive:` line, when present, carries no value but `true`. (script)
 - Hard: the `Hard:` line, when present, names its reason. (script)
@@ -25,6 +27,7 @@ Every rule `plan-index.sh` rejects, under the section of `plan-rules.md` it belo
 
 ## Contracts
 
+- Blocks: contract block ids are `C1`, `C2`, … in order; `plan-index.sh` rejects any other, with `error: contract <id>: id must be C<k>, the <k>th block in order - renumber the blocks (Blocks)`. (script)
 - Block body: a block opens with a `File:` line. (script)
 - Named: every block is named by at least one task's `Uses`. (script)
 - Homed: every `File:` path is in some task's `Files` unless the tree already holds it. (script)

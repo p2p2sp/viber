@@ -139,6 +139,23 @@ test("plan-rules-script carries the git grep check as its one Provable rule, tag
   assert.ok(scriptLines.length === 1 && has(scriptLines[0], "`plan-index.sh` rejects it, with `error: task <id>: Verification runs git grep without --untracked over <path>, which this task creates and git grep never reads - add --untracked or use grep (Provable)`. (script)"));
 });
 
+test("plan-rules holds no Ids rule", () => {
+  assert.equal(rules("Ids"), "");
+});
+
+test("plan-rules keeps Blocks as one review line with no id order", () => {
+  const line = rules("Blocks");
+  assert.ok(line.endsWith("(review)") && !line.includes("\n"));
+  assert.ok(!line.includes("`C1`, `C2`"));
+});
+
+test("plan-rules keeps Title as one review line asking for one short imperative summary, with no word on a type prefix", () => {
+  const line = rules("Title");
+  assert.ok(line.endsWith("(review)") && !line.includes("\n"));
+  assert.ok(has(line, "so the title is one short imperative summary of what the task delivers."));
+  assert.ok(!line.includes("type prefix"));
+});
+
 test("plan-rules Layered closes with an integration test written in its adapter's task and never run there, a Repro test excepted, and names no Exclusive leaf task", () => {
   const text = rule("Layered");
   assert.ok(has(text, "An integration test is written in the task that creates or changes its adapter and never run there, a `Repro:` test excepted: that task's `Verification` runs the test tool's own listing or type-check step plus a grep of one identifier on both sides, the test and the adapter declaring it, and the build's final test run runs the test once. (review)"));
