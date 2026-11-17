@@ -1,6 +1,0 @@
-- Plans are the decompose-commit plan.md files, copied whole; plan-c drops the `attachments:` frontmatter map and the `(attachments/blocking.txt)` mention (no file ships, no DoD names it).
-- Planted defects for expected.md: plan-a lacks the Out of scope bullet covering the planner, intent and plan-hints references to `fixer` (a caller of the changed fixer diagnosis in no Files and no Out of scope: planner/SKILL.md reads the picked marks).
-- plan-b changes `viber/agents/task-reviewer.md` and `implementor/SKILL.md`; `.claude/rules/review-findings.md` and `docs/viber-functions.html` name them and sit in no Files and no Out of scope (missed reach files).
-- plan-c changes `plan-index.sh` and `plan-path.sh`; `.claude/rules/shell-path-strip.md` and `shell-awk-quoting.md` name them (missed reach), and callers of plan-path.sh (`archive-run.sh`, `red-check.sh`, `run-branch.sh`, `tests/viber/commit-task.test.ts`, `plan-gate.test.ts`) are uncovered (missed caller).
-- plan-c T7 has `Depends-on: none` and no `Uses: C6`, yet its DoD reads the `planned:` line that T6 writes (missing Depends-on); plan-index rejects the plan when T7 names C6 in Uses or Delivers, so the text avoids it.
-- plan-index only rejects a missing dependency when a Files overlap, a `Uses` contract or a Verification read shows it; a Depends-on defect must hide from those three.

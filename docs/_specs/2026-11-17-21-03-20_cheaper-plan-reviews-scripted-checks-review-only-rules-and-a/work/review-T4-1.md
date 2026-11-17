@@ -1,4 +1,0 @@
-- Blocking [task] tests/viber/plan-index.test.ts:1873 - test-strategy `Flat`: the test "memory: true at column 0 or under another group exits 0" loops (`for (const config of [...])`) inside its body over the two DoD.3 configs
-  Split the two configs into parameterised rows the way the file already does it (a top-level `for (const [label, config] of [...]) test(...)`, as the `src/CLAUDE.md` / `CLAUDE.md` cases above do), one config per test, with no loop inside the test body.
-- Blocking [task] tests/viber/plan-index.test.ts:1873 - test-strategy `Act`: the same test writes `.claude/viber.yml` and runs `plan-index.sh` twice in one body (column-0 `memory: true`, then `memory: true` under `planning:`), so it carries two acts
-  Give each config its own parameterised test, each writing its config once and running `plan-index.sh` once, then asserting exit 0.

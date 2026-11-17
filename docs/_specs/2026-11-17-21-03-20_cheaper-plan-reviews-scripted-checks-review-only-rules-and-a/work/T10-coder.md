@@ -1,4 +1,0 @@
-- The scoped-search sentence is the same text in the three agents (pinned as SCOPED_SEARCH); only the tail differs: planner-review and planner-task-review name the Grounded e2e search as the one search past it, planner-spec-review says "it runs no search past it".
-- rule-budget.unit.test.ts needed no cap change: the planner-review read set shrank or stayed under 31223 bytes.
-- Red: .temp/viber/T10/red.log (9 failing before the agent edits).
-- agents/CLAUDE.md still describes nothing of the old "explore broadly" wording; no CLAUDE.md touched (build.memory owns them).

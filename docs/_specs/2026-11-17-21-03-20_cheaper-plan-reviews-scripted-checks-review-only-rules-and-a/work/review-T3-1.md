@@ -1,2 +1,0 @@
-- Blocking [task] tests/viber/plan-review-prose.unit.test.ts:121 - the three new ERROR_MESSAGES rows (Ids, Blocks, Title) pin T2's error messages, prove none of T3's DoD clauses, and make the edit to this file (outside Files) wider than the change T3 had to make
-  The only change this file needed is the SCRIPT_SECTIONS update at lines 105-107 (adding "Ids", "Title" and "Blocks"). Without it the Verification fails, as the red-check control run log .temp/viber/T3/red-check.log shows. Drop the three ERROR_MESSAGES rows at lines 121-123 and keep the SCRIPT_SECTIONS update.

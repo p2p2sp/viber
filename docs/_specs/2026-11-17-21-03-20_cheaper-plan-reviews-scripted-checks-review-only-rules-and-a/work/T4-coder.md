@@ -1,6 +1,0 @@
-- config.sh runs through `bash <dir of plan-index.sh>/config.sh` in the caller's cwd, only when the awk mode is not --split (fresh plan); output captured whole (a grep -q pipe would trip pipefail).
-- The match is a last path segment of exactly CLAUDE.md, after the single leading "./" strip; the error prints the stripped path.
-- Header sentence "The last fifteen cases" became "sixteen" for the new case.
-- plan-review-prose.unit.test.ts (outside Files, carrying T3's uncommitted edit) gains "Memory-owned" in its SCRIPT_SECTIONS Task list, as decided; commit it with T4.
-- Red evidence: .temp/viber/T4/red.log (4 failing, taken with the condition temporarily neutralised after the production edit; no earlier red was taken).
-- agents/planner-graph-review.md and references/CLAUDE.md still describe the old Memory-owned review rule (out of Files; the close's memory step owns the node).

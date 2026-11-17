@@ -1,6 +1,0 @@
-- plan-review-prose.unit.test.ts (outside Files) still carries the uncommitted T3/T4/T5 edits plus this task's "Filled" rows; commit it with T6.
-- Slots are the `<[^<>]+>` spans outside HTML comments of spec-full.md, spec-lite.md and tasks.md beside the script (../skills/planner/templates), extracted by a small awk in the shell part; `<...>` itself is therefore a slot.
-- The scan runs before the heading and title rules (their `next` would skip `# <change title>` and `### S<n>`), after `fstep`; frontmatter lines are scanned too. A `## ` heading line decides its own Contracts exemption.
-- Backtick spans are cut per line only; a comment opening mid-line is tracked by its own state (`scm`), a fence line never reaches it.
-- Header: "last seventeen cases" became "eighteen". rule-budget planner cap 44970 -> 45311 (the new Filled rule).
-- Red: .temp/viber/T6/red.log (5 failing before the production edit); red-2.log is the revert-route red of the template-comment case (comment stripping of the template awk removed: 1 failing).

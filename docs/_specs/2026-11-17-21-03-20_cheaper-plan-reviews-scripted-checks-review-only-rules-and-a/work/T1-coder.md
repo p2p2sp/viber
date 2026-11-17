@@ -1,5 +1,0 @@
-- plan-rules-script.md has no `## Spec` heading: no Spec rule was ever tagged `(script)`, so an empty section would cost tokens for nothing.
-- Red evidence comes from temporarily reverting the behaviours (a `(script)` line back in plan-rules.md, the script file named in planner-review.md, the planner read dropped), all restored: .temp/viber/T1/red.log (first attempt), .temp/viber/T1/red-2.log (5 failing, after the tests were split into one act per test and per-section rows to meet `Act` and `Flat`).
-- The two Layered/Provable cases of test-pyramid-prose were split the same way (one test per file read), so no test body reads two rule files.
-- Stale prose left for the build's close (out of scope here): viber/references/CLAUDE.md still says plan-rules.md tags `(script)` rules and lists readers without plan-rules-script.md; tests/viber/CLAUDE.md read-set note likewise.
-- Pre-existing working-tree changes in run-tokens.sh and run-tokens.test.ts belong to another task; untouched.

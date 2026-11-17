@@ -1,6 +1,0 @@
-- Archived runs keep no intent summary file: each `input:` in expected.md is rebuilt from the run's spec.md (Goal, acceptance criteria, Must not change); plan-c's omits the attachment mention.
-- References were taken with `git grep <parent commit>`, not from a worktree (git is read-only here); lines may drift by one or two.
-- plan-a's reach target is `viber/skills/fixer/SKILL.md | viber:fixer`: the referrers name the skill, never its path, so only a symbol term reaches them.
-- All three plans print `review: single`; the review set lines sit in the README for a later plan only.
-- `subagent_tokens` and `tool_uses` are the figures the host reports per dispatch; no script in the repo emits them.
-- Doubt: reach.sh's candidates file was not run against the parent trees; the README says the after run records its `hits:` line.

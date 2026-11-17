@@ -1,5 +1,0 @@
-- Red: .temp/viber/T12/red.log (11 failing before the prompt edits); green run in green.log.
-- The planner read set grew past its cap (46609 bytes now, was 45967): cap raised on purpose in rule-budget.unit.test.ts.
-- The reach step lists the targets first, runs reach.sh with them, then dispatches with `plan:`, `candidates:`, `targets:`; exit 2 drops only the `candidates:` line (`plan:` still carried).
-- impact-mapper's pinned `| new` and type-symbol sentences stay under the "Without a `candidates:` line" fallback.
-- Doubt: the plan-mode write of the reach file relies on plan mode permitting `.temp/` writes through an allowed Bash call; not exercised here.

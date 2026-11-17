@@ -1,5 +1,0 @@
-- The C2 lines are printed by the validating awk program (after the orphan lines), gated on mode != "--split": that mode is already "--split" for --split, --extra and a landed plan, so the exemption needs no new variable.
-- No blank line separates the review lines from the index above, and the threshold line follows the dispatch lines.
-- Two existing exact-stdout tests of a fresh plan (the one-row-per-task test and the Exclusive test) now end on the single review lines; every other exact test runs on a landed plan or --split.
-- DoD.4 (landed, --split, --extra print none) and DoD.5 (header) pass without a red: DoD.4 is a negative clause, DoD.5 is header text that Source forbids asserting.
-- Red: .temp/viber/T8/red.log (6 failing before the production edit).

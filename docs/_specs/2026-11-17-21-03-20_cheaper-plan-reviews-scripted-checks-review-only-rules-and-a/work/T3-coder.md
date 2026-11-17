@@ -1,8 +1,0 @@
-- DoD.6 (header lists the three cases and their exemption) is edited in plan-index.sh and, as decided for T2, proven by Verification alone.
-- The interpreter error names the word and its option ("node -e"); the option may follow other options (node --no-warnings -e), and the scan covers each command cut at ; | || && outside quotes, so a quoted argument never counts.
-- The `.temp/` error prints the path as written ("./.temp/run.sh" stays with its "./").
-- The one script Provable rule now opens with the backtick and interpreter sentences and keeps the git grep sentence last: plan-review-prose.unit.test.ts pins "(Provable)`. (script)" right after that message.
-- Both existing backtick-unwrapping cases seed a status.md (plan-index.test.ts through verifyLines, red-check.test.ts before its seed) so the plan is landed.
-- Red evidence: .temp/viber/T3/red.log (13 failing, taken before any production edit).
-- plan-review-prose.unit.test.ts (outside Files) changes only in SCRIPT_SECTIONS (Ids, Title, Blocks); no ERROR_MESSAGES rows for T2's messages.
-- Rule budgets needed no raise: the moved text keeps the planner read set within its cap and plan-rules.md shrank.
