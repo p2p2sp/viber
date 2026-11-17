@@ -1371,7 +1371,7 @@ test("a consumer numbered below its only writer raises nothing from the dependen
 
 /** T1 writes src/login.ts; T2 numbered above it names that path where `reader`
  *  sets it, and depends on T1 only through `deps`. */
-function readAfterPlan(reader: Pick<TaskFields, "verification" | "dod">, deps = "none"): string {
+function readAfterPlan(reader: Pick<TaskFields, "verification" | "delivers" | "dod">, deps = "none"): string {
   return planBody(
     [
       { id: "T1", files: "src/login.ts" },
@@ -1445,13 +1445,108 @@ test("read-after: the reader reaching the writer through another task validates"
   });
 });
 
-test("read-after: a path listed only by a higher-numbered task raises nothing", async () => {
+test("read-after: a Delivers naming a file a lower-numbered task lists, with no dependency path to it, exits 4 naming reader, path and writer", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, readAfterPlan({ delivers: "the handler in src/login.ts" }));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, READ_AFTER_MESSAGE);
+  });
+});
+
+test("read-after: the same Delivers with a Depends-on to the writer validates", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, readAfterPlan({ delivers: "the handler in src/login.ts" }, "T1"));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+/** T1 names `src/new.ts` where `reader` sets it; T2 and T3 list it, so only later
+ *  tasks create it. */
+function forwardPlan(reader: Pick<TaskFields, "verification" | "delivers" | "dod">, t1Files = "src/reject.ts"): string {
+  return planBody(
+    [
+      { id: "T1", files: t1Files, ...reader },
+      { id: "T2", covers: "AC2", uses: "none", files: "src/new.ts" },
+      { id: "T3", uses: "none", deps: "T2", files: "src/new.ts" },
+    ],
+    2,
+    CONTRACT,
+  );
+}
+
+const FORWARD_MESSAGE =
+  "error: task T1 reads src/new.ts, which only the later task T2 creates - move the reading after T2 (Read after)";
+
+const FORWARD_FIELDS: [string, Pick<TaskFields, "verification" | "delivers" | "dod">][] = [
+  ["Verification", { verification: "node --test src/new.ts -> green" }],
+  ["Delivers", { delivers: "the helper in src/new.ts" }],
+  ["DoD", { dod: "it reads `src/new.ts`" }],
+];
+
+for (const [field, reader] of FORWARD_FIELDS) {
+  test(`read-after: a ${field} naming a file absent from the tree that only later tasks list exits 4 naming the reader, the path and the lowest-numbered lister`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, forwardPlan(reader));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, "");
+      assert.ok(result.stderr.includes(FORWARD_MESSAGE), result.stderr);
+      assert.ok(!result.stderr.includes("src/new.ts, listed by"), result.stderr);
+    });
+  });
+}
+
+test("read-after: the forward case names a path once per task however many later tasks list it", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, forwardPlan({ dod: "it reads `src/new.ts` and src/new.ts again" }));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.equal(result.stderr.split(FORWARD_MESSAGE).length - 1, 1, result.stderr);
+  });
+});
+
+test("read-after: the forward case passes a path the tree already holds", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, forwardPlan({ dod: "it reads `src/new.ts`" }));
+    write(dir, "src/new.ts", "export {};\n");
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("read-after: the forward case passes a path the reading task lists itself", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     seed(
       dir,
       planBody(
         [
-          { id: "T1", files: "src/reject.ts", dod: "it reads `src/login.ts`" },
+          { id: "T1", files: "src/reject.ts,src/new.ts", dod: "it reads `src/new.ts`" },
+          { id: "T2", covers: "AC2", uses: "none", deps: "T1", files: "src/new.ts" },
+        ],
+        2,
+        CONTRACT,
+      ),
+    );
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("read-after: a decision record task, every Files path under docs/adr/, may name in Delivers paths other tasks list", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(
+      dir,
+      planBody(
+        [
+          { id: "T1", files: "docs/adr/0001-login.md", delivers: "the record of the handler in src/login.ts" },
           { id: "T2", covers: "AC2", uses: "none", files: "src/login.ts" },
         ],
         2,
@@ -1463,6 +1558,43 @@ test("read-after: a path listed only by a higher-numbered task raises nothing", 
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
   });
 });
+
+test("read-after: a Delivers naming a listed file is still caught when one Files path lies outside docs/adr/", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(
+      dir,
+      planBody(
+        [
+          { id: "T1", files: "docs/adr/0001-login.md,src/record.ts", delivers: "the record of the handler in src/login.ts" },
+          { id: "T2", covers: "AC2", uses: "none", files: "src/login.ts" },
+        ],
+        2,
+        CONTRACT,
+      ),
+    );
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.ok(result.stderr.includes("error: task T1 reads src/login.ts, which only the later task T2 creates - move the reading after T2 (Read after)"), result.stderr);
+  });
+});
+
+const LANDED_DEFECTS: [string, () => string][] = [
+  ["forward", () => forwardPlan({ dod: "it reads `src/new.ts`" })],
+  ["Delivers", () => readAfterPlan({ delivers: "the handler in src/login.ts" })],
+];
+
+for (const [defect, plan] of LANDED_DEFECTS) {
+  test(`read-after: a landed plan with the ${defect} defect validates (status.md beside it)`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, plan());
+      seedStatus(dir, { done: "none" });
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    });
+  });
+}
 
 test("read-after: a token that is only the tail of a listed path raises nothing (a.ts inside src/a.ts)", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
@@ -1515,7 +1647,7 @@ test("read-after: the same plan with no status.md beside it still exits 4 naming
 
 test("read-after: the header's exit-4 list names the case", () => {
   const source = fs.readFileSync(SUT, "utf-8");
-  assert.match(source, /read-after: a "Verification:" or "DoD:" line naming/);
+  assert.match(source, /read-after: a "Verification:", "Delivers:" or "DoD:" line naming/);
 });
 
 /** One task writing `files`, whose Verification is `verification`: the shape the

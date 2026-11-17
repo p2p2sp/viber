@@ -1,0 +1,6 @@
+- The forward case lives in the existing read-after block of plan-index.sh (now a loop over every task, 1..n); it reads the tree through present() with the script cwd, so a test plants the file in its temp dir.
+- A decision record task is one whose every Files path starts with docs/adr/; only its Delivers is dropped from the read text, its Verification and DoD still count.
+- The old test "a path listed only by a higher-numbered task raises nothing" asserted the opposite of the new rule and was replaced by the forward-case tests.
+- rule-budget planner cap 45311 -> 45967 (the longer Read after and Ordered rules); plan-rules.md stays far under its 20900 cap.
+- .claude/rules/instruction-editing.md quotes the old Ordered wording ("Every file, route or symbol"); build.rules owns that, left untouched.
+- Red: .temp/viber/T7/red.log (9 failing before the production edit).

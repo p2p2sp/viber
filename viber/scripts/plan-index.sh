@@ -237,12 +237,18 @@
 #       Uses - add it to Uses"), or a task holding more "Files:"
 #       entries or "DoD:" clauses than its TDD value allows - 12 and 6 on
 #       "required", 25 and 10 on "none" (it bundles several behaviours -
-#       split it), or a read-after: a "Verification:" or "DoD:" line naming,
+#       split it), or a read-after: a "Verification:", "Delivers:" or "DoD:" line naming,
 #       as a whole path token (a backtick, a quote, a space or a sentence period
 #       bounds it, a longer path or a bare file name inside one does not), a
 #       file a lower-numbered task lists in its "Files:" while no dependency
 #       path, direct or transitive, joins the two (the reader would run beside
-#       the writer; the error names the reader, the path and the writer), or an
+#       the writer; the error names the reader, the path and the writer), or a
+#       file the tree does not hold that only higher-numbered tasks list, none
+#       of them the reader or a lower-numbered task (stderr: "error: task <id>
+#       reads <path>, which only the later task <other> creates - move the
+#       reading after <other> (Read after)", <other> the lowest-numbered lister;
+#       the "Delivers:" of a task whose every "Files:" path lies under docs/adr/
+#       is no reading), or an
 #       integration test: a "Files:" path under a directory segment "integration"
 #       or one holding integration[-_.]?tests? (case folded), or whose file name
 #       holds ".integration.", while no command of its "Verification:" text before
@@ -1251,12 +1257,17 @@ END {
           if ((j, fpath[i, k]) in fset)
             fail("tasks " id[i] " and " id[j] " both list " fpath[i, k] ", with no dependency path between them")
       }
-    # read-after: a task naming, in its Verification or DoD, a file a lower-numbered
-    # task lists must run after that task, or it reads a file not yet written.
-    # Skipped under --split - a plan that landed before this rule is frozen.
+    # read-after: a task naming, in its Verification, Delivers or DoD, a file a
+    # lower-numbered task lists must run after that task, or it reads a file not yet
+    # written; naming a file the tree does not hold that only a higher-numbered task
+    # lists, it reads a file no earlier task writes. The Delivers of a decision record
+    # task (every Files path under docs/adr/) is no reading: it records what other
+    # tasks build. Skipped under --split - a plan that landed before this rule is frozen.
     if (mode != "--split")
-      for (i = 2; i <= n; i++) {
-        rtext = verif[i] " " dod[i]
+      for (i = 1; i <= n; i++) {
+        adr = (nf[i] > 0)
+        for (k = 1; k <= nf[i]; k++) if (index(fpath[i, k], "docs/adr/") != 1) adr = 0
+        rtext = verif[i] " " (adr ? "" : deliv[i] " ") dod[i]
         for (j = 1; j < i; j++) {
           if ((i, j) in anc) continue
           for (k = 1; k <= nf[j]; k++) {
@@ -1265,6 +1276,16 @@ END {
               fail("task " id[i] " reads " fpath[j, k] ", listed by " id[j] ", but has no dependency path to " id[j] " - add " id[j] " to its Depends-on")
           }
         }
+        for (j = i + 1; j <= n; j++)
+          for (k = 1; k <= nf[j]; k++) {
+            rp = fpath[j, k]
+            if ((i, rp) in fset || (i, rp) in fwdseen) continue
+            lower = 0
+            for (t = 1; t < i; t++) if ((t, rp) in fset) lower = 1
+            if (lower || present(rp) || !pathtok(rtext, rp)) continue
+            fwdseen[i, rp] = 1
+            fail("task " id[i] " reads " rp ", which only the later task " id[j] " creates - move the reading after " id[j] " (Read after)")
+          }
       }
   }
 

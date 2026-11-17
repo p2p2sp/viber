@@ -1,0 +1,2 @@
+- Blocking [task] tests/viber/plan-index.test.ts:1582 - test-strategy Act: "read-after: a landed plan with the forward or the Delivers defect validates (status.md beside it)" carries two acts, running plan-index.sh on the forward plan, then re-seeding the Delivers plan and running it again in the same body
+  Split DoD.4 into two tests, one landed plan each (or one parameterised row per defect), each seeding its plan and status.md and running plan-index.sh once

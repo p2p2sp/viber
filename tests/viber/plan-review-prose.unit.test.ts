@@ -98,13 +98,14 @@ test("plan-rules.md opens by saying the scripted rules live in plan-rules-script
 });
 
 test("plan-rules-script.md keeps the sections of plan-rules.md its scripted rules came from", () => {
-  assert.deepEqual(lines(SCRIPT_RULES).filter((line) => line.startsWith("## ")), ["## Graph", "## Task", "## Contracts"]);
+  assert.deepEqual(lines(SCRIPT_RULES).filter((line) => line.startsWith("## ")), ["## Spec", "## Graph", "## Task", "## Contracts"]);
 });
 
 const SCRIPT_SECTIONS: [string, string[]][] = [
-  ["Graph", ["Depends", "Minimal", "Read after", "Disjoint", "Leaf", "Covers"]],
-  ["Task", ["Paths", "Exclusive", "Hard", "Uses", "Supplied", "Provable", "Reproduced", "Self-proven", "Layered"]],
-  ["Contracts", ["Block body", "Named", "Homed", "Seen", "Consumed after"]],
+  ["Spec", ["Attachments", "Filled"]],
+  ["Graph", ["Ids", "Depends", "Minimal", "Read after", "Disjoint", "Leaf", "Covers"]],
+  ["Task", ["Title", "Paths", "Exclusive", "Hard", "Uses", "Supplied", "Provable", "Memory-owned", "Reproduced", "Self-proven", "Layered"]],
+  ["Contracts", ["Blocks", "Block body", "Named", "Homed", "Seen", "Consumed after"]],
 ];
 
 for (const [heading, names] of SCRIPT_SECTIONS) {
@@ -118,6 +119,8 @@ for (const [heading, names] of SCRIPT_SECTIONS) {
 }
 
 const ERROR_MESSAGES: [string, string][] = [
+  ["Attachments", "with `error: attachments: name \"<name>\" is not one path component of letters, digits, _, . and - opening on a letter or digit - rename it (Attachments)`, `error: attachments: name \"<name>\" repeats an earlier one - rename one of them (Attachments)` or `error: task <id>: DoD names attachments/<name>, absent from the attachments map - add a <name> entry or drop the reference (Attachments)`. (script)"],
+  ["Filled", "with `error: line <n>: template slot <slot> left unfilled - replace it (Filled)`. (script)"],
   ["Uses", "with `error: task <id>: <DoD|Delivers> names <block id>, missing from its Uses - add it to Uses`. (script)"],
   ["Provable", "with `error: task <id>: Verification runs git grep without --untracked over <path>, which this task creates and git grep never reads - add --untracked or use grep (Provable)`. (script)"],
   ["Layered", "with `error: task <id>: Files writes <path> under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`. (script)"],
@@ -128,6 +131,25 @@ for (const [rule, text] of ERROR_MESSAGES) {
     assert.ok(SCRIPT_RULES.includes(text));
   });
 }
+
+function ruleOf(text: string, heading: string, name: string): string {
+  return lines(section(text, heading)).find((line) => line.startsWith(`- ${name}:`)) ?? "";
+}
+
+test("the Read after rule of plan-rules-script.md names Delivers, the forward case, the decision record exemption and both error messages", () => {
+  const rule = ruleOf(SCRIPT_RULES, "Graph", "Read after");
+  assert.ok(rule.includes("`Verification`, `Delivers` or `DoD`"));
+  assert.ok(rule.includes("the tree does not hold that only a higher-numbered task lists"));
+  assert.ok(rule.includes("every `Files` path under `docs/adr/`"));
+  assert.ok(rule.includes("`error: task <id> reads <path>, listed by <other>, but has no dependency path to <other> - add <other> to its Depends-on`"));
+  assert.ok(rule.includes("`error: task <id> reads <path>, which only the later task <other> creates - move the reading after <other> (Read after)`"));
+});
+
+test("the Ordered rule of plan-rules.md asks a Depends-on for each route, symbol or file another task creates or changes, leaving a file named by its whole path to Read after and any other file naming to the reviewer", () => {
+  const rule = ruleOf(PLAN_RULES, "Graph", "Ordered");
+  assert.ok(rule.includes("Every route, symbol or file a task's `Verification`, `Delivers` or a done clause reads that another task creates or changes needs that task among its `Depends-on`, directly or through another;"));
+  assert.ok(rule.includes("a file named by its whole repo-relative path is left to `Read after`, and a file named any other way (a bare file name, a file read without its path) stays yours."));
+});
 
 test("planner step 1 reads plan-rules.md together with plan-rules-script.md", () => {
   assert.ok(plannerReadsBoth(PLANNER));
