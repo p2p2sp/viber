@@ -43,7 +43,7 @@ const SYNTHESIS = "viber/skills/code-auditor/references/synthesis.md";
 const READ_SETS: ReadSet[] = [
   {
     role: "planner",
-    cap: 45967,
+    cap: 46609,
     entries: [
       { file: "viber/skills/planner/SKILL.md" },
       { file: "viber/references/plan-rules.md" },

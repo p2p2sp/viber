@@ -1,7 +1,7 @@
 ---
 name: planner
 description: Only for a viber:intent summary file path or a confirmed intent summary as text, or a viber:fixer diagnosis already in context - never the entry point. Without one, suggest the viber:intent interview and let the user decide. Turns that input into a reviewed implementation plan.
-allowed-tools: Read, Write, Edit, Grep, Glob, Agent, Skill, EnterPlanMode, ExitPlanMode, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(date:*)
+allowed-tools: Read, Write, Edit, Grep, Glob, Agent, Skill, EnterPlanMode, ExitPlanMode, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(${CLAUDE_SKILL_DIR}/scripts/reach.sh:*), Bash(date:*)
 user-invocable: false
 effort: high
 ---
@@ -39,14 +39,20 @@ Before writing a task, decide which files get created, modified or deleted and w
 Then map the reach of the change:
 
 - Skip it only when the change adds, modifies, moves or deletes no file or symbol.
-- Otherwise dispatch `viber:impact-mapper` with the prompt ending on a `targets:` block: one repo-relative path per line for a whole file the change modifies, moves or deletes, `<path> | <symbol>` for one symbol of it, a symbol only where its name, signature, type or observable behaviour changes for its callers, or `<path> | new` for each file the change adds.
+- Otherwise list the targets: one repo-relative path for a whole file the change modifies, moves or deletes, `<path> | <symbol>` for one symbol of it, a symbol only where its name, signature, type or observable behaviour changes for its callers, or `<path> | new` for each file the change adds.
+- Run `"${CLAUDE_SKILL_DIR}/scripts/reach.sh" "<target>" "<target>"` as one literal line, one double-quoted argument per target as listed. Its one write under `.temp/viber/planner/` is expected in plan mode. It prints `candidates: <path>` and a `hits:` line.
+- Then dispatch `viber:impact-mapper` with the prompt below, the `targets:` block running to the end of it.
 
   ```
+  plan: <absolute path of the plan file>
+  candidates: <path printed by reach.sh>
   targets:
   <repo-relative path>
   <repo-relative path> | <symbol>
   <repo-relative path> | new
   ```
+
+- On a `reach.sh` exit 2, dispatch it with the `plan:` and `targets:` lines and no `candidates:` line: the mapper runs every search itself.
 
 - Every `REF:` line it returns lands in a task's `Files`, through the file map, or under `### Out of scope` naming the behaviour that reference keeps.
 - `VERDICT: NONE` adds nothing.
@@ -72,7 +78,7 @@ Add no behaviour, rule or narrowing that neither the input nor an `Answered:` li
 
 ## 2. Write the plan
 
-The specification half is `${CLAUDE_SKILL_DIR}/templates/spec-lite.md` or `${CLAUDE_SKILL_DIR}/templates/spec-full.md`, whichever shape you picked; the task half is `${CLAUDE_SKILL_DIR}/templates/tasks.md` under either. Fill the spec, append the task half under it, and write the result into the plan file plan mode names in its system message, the only file you may write while planning. Keep every section and every HTML marker of both templates, except one a template comment says to drop; add no section of your own.
+The specification half is `${CLAUDE_SKILL_DIR}/templates/spec-lite.md` or `${CLAUDE_SKILL_DIR}/templates/spec-full.md`, whichever shape you picked; the task half is `${CLAUDE_SKILL_DIR}/templates/tasks.md` under either. Fill the spec, append the task half under it, and write the result into the plan file plan mode names in its system message, the only file you may write while planning besides the candidates file `reach.sh` wrote under `.temp/viber/planner/`. Keep every section and every HTML marker of both templates, except one a template comment says to drop; add no section of your own.
 
 Fill the frontmatter per its placeholders: `source:` is the only way back to the file once approval clears this context; `issue:` comes only from the input's `Issue:` line and the `attachments:` entries only from its `Attachment:` lines, never from the scope. Each `Attachment:` line is one entry: a unique name that is the file's or directory's own name (letters, digits, `_`, `.` and `-`, opening on a letter or digit), changed only to avoid a repeat, then the line's path. A task needing one of those files names `attachments/<name>` in its `DoD`, `attachments/<name>/` for a directory; a task needing none names none.
 

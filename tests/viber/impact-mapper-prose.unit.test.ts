@@ -6,7 +6,9 @@
  * nothing and writes each added file as a `| new` target; `impact-mapper.md` answers a `| new`
  * target with the existing files enumerating the set the file joins (kind `collection`) and a type
  * symbol with its implementers (kind `implementation`) and constructing places (kind `call`);
- * `README.md` and `help.html` say the map also covers what the change adds. The files read here
+ * `README.md` and `help.html` say the map also covers what the change adds. The planner runs
+ * `reach.sh` before the dispatch and passes its `plan:` and `candidates:` lines; the mapper
+ * classifies that file and searches itself only where the file says so. The files read here
  * are shipped prompts and guides, whose text is the behaviour. Nothing is spawned. Each phrase is
  * matched with any run of whitespace between its words, so rewrapping a line breaks no test.
  *
@@ -65,6 +67,60 @@ test("impact-mapper reports, for a type symbol, every implementer and deriving c
 test("the description of impact-mapper names the files a plan adds beside those it modifies, moves or deletes", () => {
   const description = MAPPER.split(/\r?\n/).find((line) => line.startsWith("description:")) ?? "";
   assert.ok(has(description, "the files and symbols a plan modifies, moves or deletes, and every file listing, counting or linking the files it adds"));
+});
+
+test("the planner allows its reach.sh call through the skill directory", () => {
+  assert.ok(has(PLANNER, "Bash(${CLAUDE_SKILL_DIR}/scripts/reach.sh:*)"));
+});
+
+test("the planner runs reach.sh as one literal line with one double-quoted argument per target", () => {
+  assert.ok(has(PLANNER, 'Run `"${CLAUDE_SKILL_DIR}/scripts/reach.sh" "<target>" "<target>"` as one literal line, one double-quoted argument per target'));
+});
+
+test("the planner says reach.sh writes one file under .temp/ and that write is expected in plan mode", () => {
+  assert.ok(has(PLANNER, "Its one write under `.temp/viber/planner/` is expected in plan mode."));
+});
+
+test("step 2 names the reach file as the one write allowed beside the plan file", () => {
+  assert.ok(has(PLANNER, "the only file you may write while planning besides the candidates file `reach.sh` wrote under `.temp/viber/planner/`"));
+});
+
+test("the planner dispatches impact-mapper with the plan and candidates lines before the targets block", () => {
+  assert.ok(has(PLANNER, "plan: <absolute path of the plan file> candidates: <path printed by reach.sh> targets: <repo-relative path>"));
+});
+
+test("on a reach.sh exit 2 the planner dispatches the mapper without a candidates line", () => {
+  assert.ok(has(PLANNER, "On a `reach.sh` exit 2, dispatch it with the `plan:` and `targets:` lines and no `candidates:` line: the mapper runs every search itself."));
+});
+
+test("impact-mapper names plan: as the plan path carried for the token report and never read", () => {
+  assert.ok(has(MAPPER, "`plan:` is the plan path, carried for the token report and never read."));
+});
+
+test("impact-mapper names candidates: as the file it classifies", () => {
+  assert.ok(has(MAPPER, "`candidates:` is the file you classify; a prompt without it means every search is yours."));
+});
+
+test("impact-mapper keeps a candidate that refers to its target with the kind it reads there and drops a name shared with an unrelated symbol", () => {
+  assert.ok(
+    has(
+      MAPPER,
+      "Keep each candidate that refers to its target, with the kind it reads there, and drop a name shared with an unrelated symbol.",
+    ),
+  );
+});
+
+test("impact-mapper searches itself only for a truncated target, a skipped term and a new target's glob or count not naming its directory", () => {
+  assert.ok(
+    has(
+      MAPPER,
+      "Search yourself only for a target whose section ends on `truncated:`, a term listed on `skipped:` and, for a `| new` target, a glob or count that does not name its directory.",
+    ),
+  );
+});
+
+test("impact-mapper runs every search itself when the prompt carries no candidates line", () => {
+  assert.ok(has(MAPPER, "Without a `candidates:` line, search for each target as follows."));
 });
 
 test("README says the map also covers the files that list, count or link what the change adds", () => {

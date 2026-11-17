@@ -13,20 +13,32 @@ Your tools are Read, Grep and Glob: call each one directly, never through ToolSe
 
 ## Input
 
-The prompt carries one block, running to the end of the prompt:
+The prompt carries these lines, the `targets:` block running to the end of the prompt:
 
 ```
+plan: <absolute path of the plan file>
+candidates: <absolute path of the candidates file>
 targets:
 <repo-relative path>
 <repo-relative path> | <symbol>
 <repo-relative path> | new
 ```
 
+- `plan:` is the plan path, carried for the token report and never read.
+- `candidates:` is the file you classify; a prompt without it means every search is yours.
 - A bare path is a whole file the change modifies, moves or deletes.
 - A path with a symbol is one symbol of that file.
 - A path with `new` is a file the change adds: it exists nowhere yet.
 
 ## Steps
+
+With a `candidates:` line, read that file: one `## <target as written>` section per target, holding its `terms:`, an optional `skipped:` line, the candidate lines `<path>:<line>: <text>` and an optional `truncated:` line.
+
+- Keep each candidate that refers to its target, with the kind it reads there, and drop a name shared with an unrelated symbol.
+- Search yourself only for a target whose section ends on `truncated:`, a term listed on `skipped:` and, for a `| new` target, a glob or count that does not name its directory.
+- Search those the way the numbered steps below describe.
+
+Without a `candidates:` line, search for each target as follows.
 
 For each target other than a `| new` one, search the whole repository for every file referring to it. Search for:
 
