@@ -13,7 +13,8 @@
 #   cwd    : the repository root, as plan-path.sh's own contract pins it.
 #   env    : none. branch_decide takes its flags from the st_fixer, st_pr,
 #            st_roadmap, st_entry and st_settled shell variables
-#            plan-path.sh sets before branch_start.
+#            plan-path.sh sets before branch_start; branch_plan_decide from
+#            pb_work, pb_name and pb_entry, set before branch_report.
 #   file   : the sibling config.sh --branching lines (mode and work entries
 #            for the landing, all of them for branch_report); the plan's
 #            frontmatter "branch:", "work:" and "issue:" keys and its task
@@ -27,7 +28,8 @@
 #   stdout : branch_setup, branch_entry and branch_land print nothing - their
 #            result is the br_* variables; the plan_* and branch_expand helpers print one
 #            value for a caller to capture. branch_report prints the C3
-#            report of plan-path.sh --branch and branch_start the C1 report of
+#            report of plan-path.sh --branch, the decision lines of
+#            branch_plan_decide included, and branch_start the C1 report of
 #            plan-path.sh --start, the decision lines of branch_decide
 #            included, whose header shows both; branch_checkout
 #            prints the one "branch:" line of plan-path.sh --checkout.
@@ -360,13 +362,19 @@ base_behind() {
 # array expansions are guarded: bash 3.2 under `set -u` fails on "${a[@]}".
 branch_report() {
   local issue suggested only="" usable=0 e
-  local key rest base name target new exists entry_lines=""
+  local key rest base name target new exists behind entry_lines=""
   issue="$(plan_issue "$1")"
   branch_situation "$issue" "$(plan_issue "$1" url)"
   if [[ "$rp_mode" == off ]]; then
     printf 'mode: off\n'
     return 0
   fi
+  pb_keys=()
+  pb_bases=()
+  pb_targets=()
+  pb_news=()
+  pb_exists=()
+  pb_behind=()
   suggested="$rp_suggested"
   for e in ${rp_entries[@]+"${rp_entries[@]}"}; do
     key="${e%% | *}"
@@ -384,14 +392,147 @@ branch_report() {
       only="$key"
       if [[ -n "$new" ]] && git show-ref --verify --quiet "refs/heads/$new" 2>/dev/null; then exists=yes; fi
     fi
-    entry_lines+="entry: $key | base: $base | target: $target | new: $new | new-exists: $exists | behind: $(base_behind "$base")"$'\n'
+    behind="$(base_behind "$base")"
+    pb_keys+=("$key")
+    pb_bases+=("$base")
+    pb_targets+=("$target")
+    pb_news+=("$new")
+    pb_exists+=("$exists")
+    pb_behind+=("$behind")
+    entry_lines+="entry: $key | base: $base | target: $target | new: $new | new-exists: $exists | behind: $behind"$'\n'
   done
   [[ "$suggested" != none || "$usable" -ne 1 ]] || suggested="$only"
+  pb_suggested="$suggested"
   printf 'mode: %s\n' "$rp_mode"
   printf 'issue-type: %s\n' "${rp_type:-none}"
   printf 'suggested: %s\n' "$suggested"
   printf '%s' "$entry_lines"
   branch_tail
+  branch_plan_decide
+}
+
+# The planner decision printed after the --branch report (C3 of plan-path.sh),
+# read from the pb_* entry arrays and pb_suggested branch_report sets,
+# rp_errors, the tl_* tail values and the flags plan-path.sh sets: pb_work (the
+# input Work: value, "none" included), pb_name (its Branch: value) and pb_entry
+# (the entry picked on ask-entry), each empty for not given.
+branch_plan_decide() {
+  local work="${pb_work:-}" name="${pb_name:-}" i n=0 only=-1
+  if [[ "$work" == none ]]; then
+    plan_write - none "no run branch is made; commits land on $tl_cur."
+    return 0
+  fi
+  if [[ -n "$work" && -n "$name" ]]; then
+    plan_write "$work" "$name" "no run branch is made; commits land on $name."
+    return 0
+  fi
+  if [[ ${#rp_errors[@]} -gt 0 ]]; then
+    printf 'next: errors\n'
+    return 0
+  fi
+  if [[ -n "$work" ]]; then
+    plan_find "$work"
+    if [[ $d_i -ge 0 && "${pb_news[$d_i]}" != - ]]; then
+      plan_write "$work" "${pb_news[$d_i]}" "$(plan_effect "$d_i")"
+      return 0
+    fi
+  fi
+  if [[ -n "${pb_entry:-}" ]]; then
+    plan_find "$pb_entry"
+    if [[ $d_i -ge 0 && "${pb_news[$d_i]}" != - ]]; then
+      plan_ask_base "$d_i"
+      return 0
+    fi
+  fi
+  for ((i = 0; i < ${#pb_keys[@]}; i++)); do
+    if [[ "${pb_news[$i]}" != - ]]; then
+      n=$((n + 1))
+      only=$i
+    fi
+  done
+  if [[ $n -gt 1 ]]; then
+    plan_ask_entry
+  elif [[ $n -eq 1 ]]; then
+    plan_ask_base "$only"
+  elif [[ "$tl_is_base" == no && ! ( "$rp_mode" == required && "$tl_cur" == detached ) ]]; then
+    plan_write - none "no run branch is made; commits land on $tl_cur."
+  elif [[ "$rp_mode" == allowed ]]; then
+    printf 'next: ask\n'
+    printf 'option: continue | - | none | no run branch is made; commits land on %s.\n' "$tl_cur"
+    printf 'option: stop | - | - | the planner ends with no review, no hand-off and nothing landed.\n'
+    printf 'note: no work entry can name a run branch without an issue, and HEAD is on an entry base.\n'
+  else
+    printf 'next: stop\n'
+    printf 'note: branching is required, no work entry can name a run branch without an issue, and HEAD is on an entry base or detached.\n'
+  fi
+}
+
+# Index of entry key $1 among the pb_* arrays in d_i, -1 when there is none.
+plan_find() {
+  local i
+  d_i=-1
+  for ((i = 0; i < ${#pb_keys[@]}; i++)); do
+    if [[ "${pb_keys[$i]}" == "$1" ]]; then d_i=$i; return 0; fi
+  done
+}
+
+# The next: write verdict: work key $1 ("-" for none), branch $2, line $3.
+plan_write() {
+  printf 'next: write\n'
+  printf 'work: %s\n' "$1"
+  printf 'branch: %s\n' "$2"
+  printf 'show: %s\n' "$3"
+}
+
+# What creating the run branch of entry $1 (an index) does.
+plan_effect() {
+  local how="is cut from ${pb_bases[$1]}"
+  [[ "${pb_exists[$1]}" != yes ]] || how="already exists and is switched to"
+  printf 'the run branch %s of work entry %s %s when the plan lands; pull requests target %s.\n' \
+    "${pb_news[$1]}" "${pb_keys[$1]}" "$how" "${pb_targets[$1]}"
+}
+
+# The entry question: every entry able to name its branch, suggested first.
+plan_ask_entry() {
+  local i
+  printf 'next: ask-entry\n'
+  plan_find "$pb_suggested"
+  if [[ $d_i -ge 0 && "${pb_news[$d_i]}" != - ]]; then
+    printf 'option: %s | - | - | %s\n' "${pb_keys[$d_i]}" "$(plan_effect "$d_i")"
+  fi
+  for ((i = 0; i < ${#pb_keys[@]}; i++)); do
+    [[ "${pb_news[$i]}" != - && "${pb_keys[$i]}" != "$pb_suggested" ]] || continue
+    printf 'option: %s | - | - | %s\n' "${pb_keys[$i]}" "$(plan_effect "$i")"
+  done
+}
+
+# The base question of entry $1 (an index): create its branch, stay on the
+# current one (allowed: off that entry base; required: off every entry base),
+# or under allowed no run branch. Create alone left writes it unasked.
+plan_ask_base() {
+  local key="${pb_keys[$1]}" base="${pb_bases[$1]}" stay=no opts=""
+  if [[ "$tl_cur" != detached ]]; then
+    if [[ "$rp_mode" == allowed && "$tl_cur" != "$base" ]] || [[ "$rp_mode" == required && "$tl_is_base" == no ]]; then
+      stay=yes
+    fi
+  fi
+  [[ "$stay" != yes ]] || opts+="option: stay | $key | $tl_cur | no run branch is made; commits land on $tl_cur."$'\n'
+  if [[ "$rp_mode" == allowed ]]; then
+    opts+="option: no-branch | $key | none | no run branch is made; commits land on the branch HEAD is on when the plan lands."$'\n'
+  fi
+  if [[ -z "$opts" ]]; then
+    plan_write "$key" "${pb_news[$1]}" "$(plan_effect "$1")"
+  else
+    printf 'next: ask\n'
+    printf 'option: create | %s | %s | %s\n' "$key" "${pb_news[$1]}" "$(plan_effect "$1")"
+    printf '%s' "$opts"
+  fi
+  if [[ "${pb_behind[$1]}" =~ ^[0-9]+$ && "${pb_behind[$1]}" -gt 0 ]]; then
+    printf 'note: the base %s is %s commits behind its remote.\n' "$base" "${pb_behind[$1]}"
+  fi
+  if [[ "$tl_dirty" == yes ]]; then
+    printf 'note: uncommitted changes block a switch to another commit.\n'
+  fi
 }
 
 # What --branch and --start share: reads the sibling config.sh --branching

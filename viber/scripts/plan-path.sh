@@ -16,9 +16,12 @@
 #   plan-path.sh --land <src>              land <src> as this run's plan
 #   plan-path.sh                          no argument: the plan most recently
 #                                          worked on
-#   plan-path.sh --branch <plan>           read-only report on the run branch
-#                                          situation for <plan> (C3); nothing
-#                                          moves, nothing is written
+#   plan-path.sh --branch <plan> [--work <key>|none] [--name <branch>]
+#                                [--entry <key>]
+#                                          read-only report on the run branch
+#                                          situation for <plan> (C3), then the
+#                                          planner decision (see stdout below);
+#                                          nothing moves, nothing is written
 #   plan-path.sh --start [--fixer] [--pr] [--roadmap]
 #                        [--entry <key>] [--settled <key>] [<issue URL>]
 #                                          read-only start report (C1) needing no
@@ -74,7 +77,7 @@
 #
 # Contract:
 #   argv   : --land and the source plan, or
-#            --branch and a plan, or --start with its flags and optionally an issue URL, or
+#            --branch, a plan and its flags, or --start with its flags and optionally an issue URL, or
 #            --checkout and a branch name, or nothing.
 #   file   : On a first landing, and on --branch, <src>'s frontmatter "branch:",
 #            "work:" and "issue:" keys and its task blocks' "Repro:" lines, for
@@ -137,6 +140,31 @@
 #   the plan can fill, else none. "error:" lines, zero or more: every
 #   config.sh --branching error, then, with mappings, "issue <n> has no issue
 #   type" or "issue type <type> is not in branching.issue-type-mappings".
+#   The planner decision, after those lines (flags: --work the input Work:
+#   value, --name its Branch: value, --entry the entry picked on ask-entry):
+#     next: write | ask | ask-entry | errors | stop
+#     work: <entry key> | -             (next: write; - writes no work: key)
+#     branch: <name> | none             (next: write)
+#     show: <one sentence>              (next: write; the run branch line)
+#     option: <answer> | <work key or -> | <branch, none or -> | <effect>
+#                                       (ask, ask-entry; one per answer)
+#     note: <one sentence>              (zero or more)
+#   The first rule that applies decides:
+#     1. --work none -> write - none; --work with --name -> write both.
+#     2. any error: line -> next: errors.
+#     3. --work naming an entry whose new: is not - -> write it and its new:.
+#     4. --entry naming such an entry -> the base question for it.
+#     5. several such entries -> ask-entry, one option per entry, suggested:
+#        first; the caller re-runs with --entry <answer>. One -> the base
+#        question for it.
+#     6. none: off every entry base (under required also off a detached HEAD)
+#        -> write - none; allowed -> ask continue (- none) or stop; required
+#        -> next: stop and a note.
+#   The base question: create (the entry and its new:), stay (the entry and
+#   current:, offered off a detached HEAD and, under allowed, off that entry
+#   base, under required off every entry base), no-branch (allowed only: the
+#   entry and none); create alone left -> write it unasked. Notes for behind:
+#   above 0 and dirty: yes.
 #   stdout, --start [<issue URL>], mode allowed or required inside a git
 #   repository, read from config.sh --branching:
 #     mode: allowed | required
@@ -201,7 +229,8 @@
 #         one branch name, --land without a source or with anything after
 #         it, a source that is not a file, a title and file name that both
 #         normalize to nothing, or --branch on a plan that is not a
-#         file, or --start on an argument that is not an issue URL ending in
+#         file or with an unknown flag or a flag without a value, or
+#         --start on an argument that is not an issue URL ending in
 #         /issues/<n>, on an unknown flag, or on --entry or --settled
 #         with no value
 #     3 - no argument and docs/_specs/ holds no plan
@@ -581,6 +610,26 @@ if [[ "$mode" == "--branch" ]]; then
     echo "error: plan file not found: $plan" >&2
     exit 2
   fi
+  shift 2
+  pb_work=""
+  pb_name=""
+  pb_entry=""
+  while [[ $# -gt 0 ]]; do
+    if [[ $# -lt 2 || -z "$2" || "$2" == --* ]]; then
+      echo "error: usage: plan-path.sh --branch <plan> [--work <key>|none] [--name <branch>] [--entry <key>]" >&2
+      exit 2
+    fi
+    case "$1" in
+      --work) pb_work="$2" ;;
+      --name) pb_name="$2" ;;
+      --entry) pb_entry="$2" ;;
+      *)
+        echo "error: usage: plan-path.sh --branch <plan> [--work <key>|none] [--name <branch>] [--entry <key>]" >&2
+        exit 2
+        ;;
+    esac
+    shift 2
+  done
   branch_report "$plan" "$(slug_of "$plan")"
   exit 0
 fi

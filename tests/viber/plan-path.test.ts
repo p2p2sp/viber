@@ -2209,9 +2209,122 @@ test("a single entry and a plan with no issue: the whole report, verbatim, sugge
           "current: main",
           "current-is-base: yes",
           "dirty: no",
+          "next: write",
+          "work: feature",
+          "branch: feature/add-login",
+          "show: the run branch feature/add-login of work entry feature is cut from main when the plan lands; pull requests target main.",
           "",
         ].join("\n"),
       );
+    });
+  });
+});
+
+const TWO = ["mode: allowed", "work:", ...workEntry("feature", "main", "feature/{slug}", "main"), ...workEntry("chore", "main", "chore/{slug}", "main")];
+
+test("plan decision: --work none writes no work key and no branch, whatever the configuration reports", async () => {
+  await withBranchRepo(["mode: required", "base: develop"], async (repo) => {
+    await withSource([], async (src) => {
+      const result = await runIn(repo, ["--branch", src, "--work", "none"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: write", "work: -", "branch: none", "show: no run branch is made; commits land on main."]);
+    });
+  });
+});
+
+test("plan decision: --work with --name writes both as given, asking nothing", async () => {
+  await withBranchRepo(TWO, async (repo) => {
+    await withSource([], async (src) => {
+      const result = await runIn(repo, ["--branch", src, "--work", "chore", "--name", "pr/42"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout).slice(0, 3), ["next: write", "work: chore", "branch: pr/42"]);
+    });
+  });
+});
+
+test("plan decision: --work naming an entry writes that entry and its new: name", async () => {
+  await withBranchRepo(TWO, async (repo) => {
+    await withSource([], async (src) => {
+      const result = await runIn(repo, ["--branch", src, "--work", "chore"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout).slice(0, 3), ["next: write", "work: chore", "branch: chore/add-login"]);
+    });
+  });
+});
+
+test("plan decision: an error: line settles nothing: next: errors", async () => {
+  await withBranchRepo(["mode: required", "base: develop", "name: '{type}/{issue}-{slug}'"], async (repo) => {
+    await withSource([], async (src) => {
+      const result = await runIn(repo, ["--branch", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: errors"]);
+    });
+  });
+});
+
+test("plan decision: several usable entries ask for the entry, then --entry asks create, stay or no-branch under allowed off the base", async () => {
+  await withBranchRepo(TWO, async (repo) => {
+    await repo.git("checkout", "-q", "-b", "work");
+    await withSource([], async (src) => {
+      const first = await runIn(repo, ["--branch", src]);
+      assert.equal(first.status, 0, `stderr: ${first.stderr}`);
+      assert.deepEqual(
+        decisionOf(first.stdout).map((line) => line.split(" | ").slice(0, 3).join(" | ")),
+        ["next: ask-entry", "option: feature | - | -", "option: chore | - | -"],
+      );
+      const second = await runIn(repo, ["--branch", src, "--entry", "chore"]);
+      assert.equal(second.status, 0, `stderr: ${second.stderr}`);
+      assert.deepEqual(
+        decisionOf(second.stdout).map((line) => line.split(" | ").slice(0, 3).join(" | ")),
+        ["next: ask", "option: create | chore | chore/add-login", "option: stay | chore | work", "option: no-branch | chore | none"],
+      );
+    });
+  });
+});
+
+test("plan decision: under required off every entry base the base question offers create and stay, noting a dirty tree", async () => {
+  await withBranchRepo(SINGLE, async (repo) => {
+    await repo.git("checkout", "-q", "-b", "work");
+    fs.writeFileSync(path.join(repo.dir, "untracked.txt"), "x\n");
+    await withSource([], async (src) => {
+      const result = await runIn(repo, ["--branch", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(
+        decisionOf(result.stdout).map((line) => line.split(" | ").slice(0, 3).join(" | ")),
+        ["next: ask", "option: create | feature | feature/add-login", "option: stay | feature | work", "note: uncommitted changes block a switch to another commit."],
+      );
+    });
+  });
+});
+
+test("plan decision: no entry able to name a branch, on an entry base under allowed, asks continue or stop", async () => {
+  await withBranchRepo(["mode: allowed", "work:", ...workEntry("numbered", "main", "hotfix/issue.{issue-number}", "main")], async (repo) => {
+    await withSource([], async (src) => {
+      const result = await runIn(repo, ["--branch", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(
+        decisionOf(result.stdout).map((line) => line.split(" | ").slice(0, 3).join(" | ")),
+        ["next: ask", "option: continue | - | none", "option: stop | - | -", "note: no work entry can name a run branch without an issue, and HEAD is on an entry base."],
+      );
+    });
+  });
+});
+
+test("plan decision: no entry able to name a branch, on an entry base under required, stops with a note", async () => {
+  await withBranchRepo(["mode: required", "work:", ...workEntry("numbered", "main", "hotfix/issue.{issue-number}", "main")], async (repo) => {
+    await withSource([], async (src) => {
+      const result = await runIn(repo, ["--branch", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout).slice(0, 1), ["next: stop"]);
+    });
+  });
+});
+
+test("plan decision: an unknown flag or a flag without a value exits 2", async () => {
+  await withBranchRepo(SINGLE, async (repo) => {
+    await withSource([], async (src) => {
+      assert.equal((await runIn(repo, ["--branch", src, "--bogus", "x"])).status, 2);
+      assert.equal((await runIn(repo, ["--branch", src, "--work"])).status, 2);
     });
   });
 });

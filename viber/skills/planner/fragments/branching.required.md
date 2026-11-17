@@ -1,7 +1,9 @@
-Once `plan-index.sh` has passed:
+Once `plan-index.sh` has passed, run `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh" --branch "<plan-path>"`, adding `--work <value>` for an input `Work:` line and `--name <value>` for an input `Branch:` line. Act on its lines from `next:` on:
 
-- `Work: none` in the input (a pull request's review fixes) writes `branch: none` and no `work:` key, asking nothing; run the report below only to take `current:` for the run branch line, an `error:` line leaving that line out.
-- Any other `Work: <entry key>` line in the input asks nothing and writes that key into `work:`. The `branch:` key takes the `Branch:` line's name when the input carries one, without a report. Else run `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh" --branch "<plan-path>"` and take that entry's `new:` value; an `error:` line ends this step: show it, record nothing. An entry whose `new:` reads `-`, or that no `entry:` line names, falls back to the question below.
-- Without a `Work:` line, run that same report, an `error:` line ending this step likewise. Then one `AskUserQuestion`: only when several `entry:` lines lack `new: -`, which entry, `suggested:` first, at most four, others by free text (else `suggested:`); then create that entry's `new:` from its `base:` - naming `base:` behind its remote when `behind:` is above 0, the tree dirty when `dirty: yes` would block the switch - or stay on `current:`, offered only when `current-is-base:` reads `no`. Write the entry key into the frontmatter's `work:` key, the branch name into its `branch:` key.
+- `next: write`: write `work:` into the frontmatter's `work:` key (no key for `-`) and `branch:` into its `branch:` key, then show `show:`.
+- `next: ask`: one `AskUserQuestion`, one option per `option: <answer> | <work> | <branch> | <effect>` line with its effect as the description, every `note:` in the question; write the chosen option's work and branch as above and show its effect. `stop` ends the planner with no review, no hand-off and nothing landed.
+- `next: ask-entry`: one `AskUserQuestion` for the work entry, the first four `option:` lines (the first is suggested), others by free text; run the command again adding `--entry <chosen key>` and act on it the same way.
+- `next: errors`: show the `error:` lines and record nothing.
+- `next: stop`: show the `note:` and end the planner with no review, no hand-off and nothing landed.
 
-Once `work:` and `branch:` are written, show the run branch line once: one line in the conversation's language, never opening with `Work:` or `Branch:`, holding the `work:` entry key, the final `branch:` name, that entry's `base:` and its `target:`. For `branch: none`, "stay" and a `Branch:` line, show instead that there is no run branch and commits land on `current:` (the `Branch:` line's name when the input carries one).
+Show every `show:` or effect line once, in the conversation's language, never opening with `Work:` or `Branch:`.
