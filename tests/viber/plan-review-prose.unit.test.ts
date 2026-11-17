@@ -4,7 +4,8 @@
  * beside `plan-rules.md` and no planner reviewer reads. `plan-rules.md` keeps the `(review)` rules in
  * its four sections and says where the scripted ones went. The planner reviewers also carry no
  * check `plan-index.sh` decides (attachment names, template slots outside fences, whole-path
- * reads) and keep the part no script can make. The files read here are shipped prompts,
+ * reads) and keep the part no script can make. Three of them search the code only where the plan
+ * changes something callers see, and the graph reviewer keeps its exploration. The files read here are shipped prompts,
  * whose text is the behaviour. Nothing is spawned. Each check is a pure function proven on a
  * synthetic bad sample before it is held to the tree.
  *
@@ -235,6 +236,60 @@ for (const name of MEMORY_READERS) {
 
 test("the memory: line of planner-graph-review also names its check of a fix it proposes", () => {
   assert.ok(memoryLine(read("agents/planner-graph-review.md")).includes("the check of a fix you propose"));
+});
+
+const SCOPED_SEARCH = "grep callers only of the symbols whose signature or observable behaviour the plan changes (a moved or deleted file changing all of its symbols), and the documents and `.claude/rules/` files naming a path the plan modifies, moves or deletes";
+const CONFIRM_ONLY = "Read a file only to confirm a hit or to check a task's change against the code it modifies.";
+const SCOPED_READERS = ["planner-review", "planner-spec-review", "planner-task-review"];
+
+function readsScoped(text: string): boolean {
+  return text.includes(SCOPED_SEARCH) && text.includes(CONFIRM_ONLY) && !text.includes("explore the codebase broadly");
+}
+
+test("a reviewer text is scoped only when it states the scoped search and the confirm-only read and never explores broadly", () => {
+  assert.deepEqual(
+    [SCOPED_SEARCH + " " + CONFIRM_ONLY, "explore the codebase broadly " + SCOPED_SEARCH + " " + CONFIRM_ONLY, SCOPED_SEARCH, "Then explore the codebase broadly before judging."].map(readsScoped),
+    [true, false, false, false],
+  );
+});
+
+for (const name of SCOPED_READERS) {
+  test(`${name} states the scoped search and the confirm-only read, and never says to explore the codebase broadly`, () => {
+    assert.ok(readsScoped(read(`agents/${name}.md`)));
+  });
+
+  test(`${name} never tells to read files the plan does not name`, () => {
+    assert.equal(/files? the plan does not name|ones the plan does not name/.test(read(`agents/${name}.md`)), false);
+  });
+}
+
+const END_TO_END_SEARCH = "the one search past it is the end-to-end spec search of `Grounded`";
+const OUTSIDE_FINDING = "A reference the search reaches that sits in neither the `### File map`, a task's `Files` nor `### Out of scope` is a finding";
+
+for (const name of ["planner-review", "planner-task-review"]) {
+  test(`${name} names the end-to-end spec search of Grounded as the one search past the scoped one`, () => {
+    assert.ok(read(`agents/${name}.md`).includes(END_TO_END_SEARCH));
+  });
+}
+
+test("planner-spec-review names no search past the scoped one", () => {
+  const text = read("agents/planner-spec-review.md");
+  assert.deepEqual([text.includes("it runs no search past it"), text.includes("end-to-end spec search")], [true, false]);
+});
+
+for (const name of ["planner-review", "planner-spec-review"]) {
+  test(`${name} makes a reference outside the File map, a task's Files and Out of scope a finding`, () => {
+    assert.ok(read(`agents/${name}.md`).includes(OUTSIDE_FINDING));
+  });
+}
+
+test("planner-task-review checks a reference against the File map and Out of scope alone", () => {
+  assert.ok(read("agents/planner-task-review.md").includes("A reference the search reaches is checked against the `### File map` and `### Out of scope` alone"));
+});
+
+test("planner-graph-review keeps its exploration sentence and states no scoped search", () => {
+  const text = read("agents/planner-graph-review.md");
+  assert.deepEqual([text.includes("explore the codebase broadly before judging"), text.includes(SCOPED_SEARCH)], [true, false]);
 });
 
 test("planner-graph-review keeps its check that a proposed fix never adds a CLAUDE.md to Files while memory is on", () => {

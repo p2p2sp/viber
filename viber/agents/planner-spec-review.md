@@ -20,7 +20,7 @@ input:
 
 A one-line `input:` naming a `.md` file under `.temp/viber/intent/summary-` is read as that file's content: `Read` it, and treat it as the summary.
 
-Read the whole plan. Read `<refs>/plan-rules.md` only in the sections `## Spec` and `## Contracts`: `Grep` it for the `## ` line numbers, then `Read` each of those two sections by range. Then explore the codebase broadly before judging, scoped to the specification: the files the file map names and the callers of every symbol it changes.
+Read the whole plan. Read `<refs>/plan-rules.md` only in the sections `## Spec` and `## Contracts`: `Grep` it for the `## ` line numbers, then `Read` each of those two sections by range. Then search the codebase before judging, scoped to the specification: grep callers only of the symbols whose signature or observable behaviour the plan changes (a moved or deleted file changing all of its symbols), and the documents and `.claude/rules/` files naming a path the plan modifies, moves or deletes; it runs no search past it. Read a file only to confirm a hit or to check a task's change against the code it modifies. A reference the search reaches that sits in neither the `### File map`, a task's `Files` nor `### Out of scope` is a finding.
 
 ## Check
 
