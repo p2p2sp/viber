@@ -225,6 +225,7 @@ test("a control run that fails with the change in place yields UNRUNNABLE, never
 
 test("a Verification wrapped in Markdown backticks runs as the bare command and yields FAIL-AS-EXPECTED (the wrapped text ran as a shell substitution and always failed)", async () => {
   await withGitRepo(async (repo) => {
+    write(repo.dir, `${RUN_DIR}/status.md`, "done: none\n");
     await seed(repo, "`bash tests/check.sh`");
     changeProduction(repo.dir);
     write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');

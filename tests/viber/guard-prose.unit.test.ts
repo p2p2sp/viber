@@ -136,9 +136,14 @@ for (const rel of ["hooks/scripts/shell-guard.sh", "agents/task-coder.md"]) {
   });
 }
 
-test("plan-rules.md Provable rule makes a Verification running inline interpreter code a finding", () => {
-  const rule = lines(read("references/plan-rules.md")).find((line) => line.startsWith("- Provable:")) ?? "";
+test("plan-rules-script.md Provable rule makes a Verification running inline interpreter code a finding", () => {
+  const rule = lines(read("references/plan-rules-script.md")).find((line) => line.startsWith("- Provable:")) ?? "";
   assert.ok(rule.includes("A `Verification` running inline interpreter code"));
+});
+
+test("plan-rules.md Provable rule no longer states the interpreter and backtick checks", () => {
+  const rule = lines(read("references/plan-rules.md")).find((line) => line.startsWith("- Provable:")) ?? "";
+  assert.ok(!rule.includes("inline interpreter code") && !rule.includes("wrapped in backticks"));
 });
 
 test("shell-guard.sh holds the stash stack rationale", () => {

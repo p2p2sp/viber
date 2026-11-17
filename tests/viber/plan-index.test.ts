@@ -1754,6 +1754,70 @@ test("git grep check: a plain call with status.md beside the plan does not run i
   });
 });
 
+const PROVABLE_TAIL = "run a project test or script instead (Provable)";
+const BAD_VERIFICATIONS: [string, string, string][] = [
+  ["wrapped in backticks", "`npm test` -> green", "error: task T1: Verification is wrapped in backticks - write the command bare (Provable)"],
+  ["running node -e", "node -e \"process.exit(0)\" -> green", `error: task T1: Verification runs inline interpreter code "node -e" - ${PROVABLE_TAIL}`],
+  ["running python -c", "python -c \"print(1)\" -> green", `error: task T1: Verification runs inline interpreter code "python -c" - ${PROVABLE_TAIL}`],
+  ["running python3 -c", "python3 -c \"print(1)\" -> green", `error: task T1: Verification runs inline interpreter code "python3 -c" - ${PROVABLE_TAIL}`],
+  ["running ruby -e", "ruby -e \"puts 1\" -> green", `error: task T1: Verification runs inline interpreter code "ruby -e" - ${PROVABLE_TAIL}`],
+  ["running perl -e", "perl -e \"print 1\" -> green", `error: task T1: Verification runs inline interpreter code "perl -e" - ${PROVABLE_TAIL}`],
+  ["running an interpreter after an option and a chain", "npm test && node --no-warnings -e \"1\" -> green", `error: task T1: Verification runs inline interpreter code "node -e" - ${PROVABLE_TAIL}`],
+  ["running bash on a .temp/ script", "bash .temp/run.sh -> green", `error: task T1: Verification runs .temp/run.sh under .temp/ - ${PROVABLE_TAIL}`],
+  ["running a .temp/ script as the command word", "./.temp/run.sh -> green", `error: task T1: Verification runs ./.temp/run.sh under .temp/ - ${PROVABLE_TAIL}`],
+  ["running node on a .temp/ script after an option", "node --no-warnings .temp/run.mjs -> green", `error: task T1: Verification runs .temp/run.mjs under .temp/ - ${PROVABLE_TAIL}`],
+];
+
+for (const [label, verification, message] of BAD_VERIFICATIONS) {
+  test(`Provable check: a Verification ${label} on a fresh plan exits 4 with its C1 error and nothing on stdout`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, planBody([{ id: "T1", verification }], 1));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, "");
+      assert.ok(result.stderr.includes(message), result.stderr);
+    });
+  });
+
+  test(`Provable check: a Verification ${label} exits 0 under --split`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, planBody([{ id: "T1", verification }], 1));
+
+      const result = await run(dir, {}, [PLAN_REL, "--split"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    });
+  });
+
+  test(`Provable check: a Verification ${label} exits 0 as a landed plan with status.md beside it`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, planBody([{ id: "T1", verification }], 1));
+      seedStatus(dir, { done: "none" });
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    });
+  });
+}
+
+for (const [label, verification] of [
+  ["a project test run", "node --test tests/a.test.ts -> green"],
+  ["a grep quoting an interpreter option", "grep -c 'node -e' docs/a.md -> 1"],
+  ["a grep quoting an interpreter option after a semicolon", "grep -c 'a; node -e' docs/a.md -> 1"],
+  ["a test run redirecting its output under .temp/", "node --test x > .temp/log -> green"],
+  ["a grep over a file under .temp/", "grep x .temp/a.md -> 1"],
+  ["a test run with an environment prefix and no inline code", "CI=true node --test x -> green"],
+] as const) {
+  test(`Provable check: ${label} as a Verification validates on a fresh plan`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, planBody([{ id: "T1", verification }], 1));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    });
+  });
+}
+
 test("a File entry whose bracket wraps a whole segment is a path, not a glob - like a Files entry", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     const route = "src/app/api/sites/[siteId]/route.ts";
@@ -3163,9 +3227,11 @@ test("a backslashed coder-file path of a file a task not yet done claims is left
 
 // --- the verify command value: one pair of wrapping backticks is dropped ------
 
-/** The `verify:` lines of the index a one-task plan prints, T1 carrying `verification`. */
+/** The `verify:` lines of the index a landed one-task plan prints (status.md beside it,
+ *  so the fresh-plan checks stand aside), T1 carrying `verification`. */
 async function verifyLines(dir: string, verification: string): Promise<string[]> {
   seed(dir, planBody([{ id: "T1", verification }], 1));
+  seedStatus(dir, { done: "none" });
   const result = await run(dir, {}, [PLAN_REL]);
   assert.equal(result.status, 0, `stderr: ${result.stderr}`);
   return result.stdout.split("\n").filter((l) => l.startsWith("verify:"));

@@ -260,8 +260,16 @@
 #       not T<k>, the <k>th task block in order (Ids), a contract id that is not C<k>,
 #       the <k>th block in order (Blocks), or a task title opening with a commit type
 #       prefix - feat, fix, docs, style, refactor, perf, test, build, ci, chore or
-#       revert, case folded, an optional (scope), an optional "!", then ":" (Title).
-#       The last twelve cases and the parenthetical one above are exempted under --split
+#       revert, case folded, an optional (scope), an optional "!", then ":" (Title),
+#       or a "Verification:" whose command before the first " -> " is wrapped in
+#       backticks, runs inline interpreter code (node or ruby with -e, python or
+#       python3 with -c, perl with -e, in command position - a quoted argument of
+#       another command is none), or runs a script under .temp/ (a command word
+#       starting with .temp/ or ./.temp/, or the first non-option argument of bash,
+#       sh or an interpreter starting that way - a redirect target or another
+#       command argument is none), each with its own error naming the fix
+#       (Provable).
+#       The last fifteen cases and the parenthetical one above are exempted under --split
 #       and under --extra, and on a plain call whose plan has status.md beside
 #       it (a landed run plan): a plan that landed before the rule is frozen,
 #       and a run resumed after the upgrade must still validate and decompose.
@@ -596,6 +604,61 @@ function gitgrepblind(vtext, p,   nv, vcmds, vc, vtk, nt, vk, vg, vu, vt, vq) {
   return 0
 }
 
+# the simple commands of a Verification command, cut at ; | || && and a newline
+# outside quotes, into sg[1..n], n returned: a quoted argument never splits
+function cmdsegs(s, sg,   n, cur, i, len, ch, q) {
+  split("", sg)
+  n = 0; cur = ""; q = ""; len = length(s)
+  for (i = 1; i <= len; i++) {
+    ch = substr(s, i, 1)
+    if (q != "") { if (ch == q) q = ""; cur = cur ch; continue }
+    if (ch == "\"" || ch == "\047") { q = ch; cur = cur ch; continue }
+    if (ch == ";" || ch == "|" || ch == "\n" || (ch == "&" && substr(s, i + 1, 1) == "&")) {
+      if (ch == "&") i++
+      if (trim(cur) != "") sg[++n] = trim(cur)
+      cur = ""
+      continue
+    }
+    cur = cur ch
+  }
+  if (trim(cur) != "") sg[++n] = trim(cur)
+  return n
+}
+
+# 1 when the path starts under .temp/, with or without a leading "./"
+function temppath(a) { return (index(a, ".temp/") == 1 || index(a, "./.temp/") == 1) }
+
+# Provable scan of a Verification command: sets vbi to "<interpreter> <option>"
+# for the first inline interpreter code (node, ruby or perl with -e, python or
+# python3 with -c, the option among the leading options) and vbt to the first path
+# under .temp/ it runs (a command word, or the first non-option argument of
+# bash, sh or an interpreter), "" when none. A leading VAR=value is skipped, a
+# redirect and its target are no argument, a quoted argument of another command is none.
+function verifyscan(cmd,   ns, sg, k, nt, tk, j, w, opt, a) {
+  vbi = ""; vbt = ""
+  ns = cmdsegs(cmd, sg)
+  for (k = 1; k <= ns; k++) {
+    nt = split(sg[k], tk, /[[:space:]]+/)
+    for (j = 1; j <= nt; j++) gsub("[\"\047]", "", tk[j])
+    j = 1
+    while (j <= nt && tk[j] ~ /^[A-Za-z_][A-Za-z0-9_]*=/) j++
+    if (j > nt) continue
+    w = tk[j]
+    if (temppath(w)) { if (vbt == "") vbt = w; continue }
+    if (w !~ /^(bash|sh|node|python|python3|ruby|perl)$/) continue
+    opt = (w == "python" || w == "python3") ? "-c" : ((w == "node" || w == "ruby" || w == "perl") ? "-e" : "")
+    for (j++; j <= nt; j++) {
+      a = tk[j]
+      if (a == "") continue
+      if (a ~ /^[0-9]*[<>]+&?$/) { j++; continue }
+      if (a ~ /^[0-9]*[<>]/) continue
+      if (a ~ /^-/) { if (opt != "" && a == opt && vbi == "") vbi = w " " opt; continue }
+      if (temppath(a) && vbt == "") vbt = a
+      break
+    }
+  }
+}
+
 # the length of the run of one repeated first character that opens t
 function frun(t,   c, n) {
   c = substr(t, 1, 1); n = 0
@@ -908,6 +971,20 @@ END {
       for (k = 1; k <= nf[i]; k++)
         if (!present(fpath[i, k]) && gitgrepblind(verifycmd(verif[i]), fpath[i, k]))
           fail("task " id[i] ": Verification runs git grep without --untracked over " fpath[i, k] ", which this task creates and git grep never reads - add --untracked or use grep (Provable)")
+
+    # Provable: the command before the first " -> " is written bare, never wrapped
+    # in backticks, and is no inline interpreter code and no script under .temp/,
+    # which the coder shell refuses. Skipped under --split, like the other checks
+    # added after plans were frozen.
+    if (mode != "--split" && verif[i] != "") {
+      vpa = index(verif[i], " -> ")
+      vraw = trim(vpa == 0 ? verif[i] : substr(verif[i], 1, vpa - 1))
+      if (length(vraw) >= 2 && substr(vraw, 1, 1) == "`" && substr(vraw, length(vraw), 1) == "`")
+        fail("task " id[i] ": Verification is wrapped in backticks - write the command bare (Provable)")
+      verifyscan(verifycmd(verif[i]))
+      if (vbi != "") fail("task " id[i] ": Verification runs inline interpreter code \"" vbi "\" - run a project test or script instead (Provable)")
+      if (vbt != "") fail("task " id[i] ": Verification runs " vbt " under .temp/ - run a project test or script instead (Provable)")
+    }
 
     # Size:a task past either cap bundles several behaviours, and a coder
     # holding that many files and clauses at once drifts. Skipped under --split,
