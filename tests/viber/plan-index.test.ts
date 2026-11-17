@@ -310,6 +310,8 @@ test("the index carries one row per task: id, state, TDD marker, exclusivity, no
         "T2 | todo | required | - | - | T1 | - | src/reject.ts | Reject a bad password",
         "verify: T1 | npm test",
         "verify: T2 | npm test",
+        "review: single",
+        "dispatch: viber:planner-review",
         "",
       ].join("\n"),
     );
@@ -363,6 +365,8 @@ test("Exclusive: true reaches the orchestrator as excl yes, and an absent line a
         "T2 | todo | required | yes | - | T1 | - | test/login.api.ts | Prove the endpoint against a real server",
         "verify: T1 | npm test",
         "verify: T2 | npm test",
+        "review: single",
+        "dispatch: viber:planner-review",
         "",
       ].join("\n"),
     );
@@ -4022,3 +4026,103 @@ for (const [defect, build] of FRESH_PLAN_DEFECTS) {
     });
   });
 }
+
+// --- the review instruction on a fresh plan ------------------------------------
+
+/** `count` independent tasks T1..Tcount, each on its own file, all covering AC1. */
+function plannedTasks(count: number): string {
+  return planBody(
+    Array.from({ length: count }, (_, i) => ({
+      id: `T${i + 1}`,
+      title: `Do thing ${i + 1}`,
+      files: `src/t${i + 1}.ts`,
+    })),
+    1,
+  );
+}
+
+const SPEC_AND_GRAPH = [
+  "dispatch: viber:planner-spec-review",
+  "dispatch: viber:planner-graph-review",
+];
+
+const REVIEW_TAILS: Array<[number, string[]]> = [
+  [1, ["review: single", "dispatch: viber:planner-review"]],
+  [12, ["review: single", "dispatch: viber:planner-review"]],
+  [
+    13,
+    [
+      "review: set",
+      ...SPEC_AND_GRAPH,
+      "dispatch: viber:planner-task-review | tasks: T1-T7",
+      "dispatch: viber:planner-task-review | tasks: T8-T13",
+    ],
+  ],
+  [
+    30,
+    [
+      "review: set",
+      ...SPEC_AND_GRAPH,
+      "dispatch: viber:planner-task-review | tasks: T1-T8",
+      "dispatch: viber:planner-task-review | tasks: T9-T16",
+      "dispatch: viber:planner-task-review | tasks: T17-T23",
+      "dispatch: viber:planner-task-review | tasks: T24-T30",
+    ],
+  ],
+  [
+    31,
+    [
+      "review: set",
+      ...SPEC_AND_GRAPH,
+      "dispatch: viber:planner-task-review | tasks: T1-T8",
+      "dispatch: viber:planner-task-review | tasks: T9-T16",
+      "dispatch: viber:planner-task-review | tasks: T17-T24",
+      "dispatch: viber:planner-task-review | tasks: T25-T31",
+      "threshold: 31 tasks, past 30",
+    ],
+  ],
+];
+
+for (const [count, tail] of REVIEW_TAILS) {
+  test(`a fresh plan of ${count} tasks ends its index on the review instruction naming the reviewers to dispatch`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, plannedTasks(count));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout.slice(result.stdout.indexOf("review: ")), [...tail, ""].join("\n"));
+    });
+  });
+}
+
+test("a landed plan of 13 tasks (status.md beside it) prints no review instruction (the index of a landed run is parsed by other scripts)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, plannedTasks(13));
+    seedStatus(dir, { done: "none" });
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /^(review|dispatch|threshold):/m);
+  });
+});
+
+test("--split of a plan of 13 tasks prints no review instruction", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, plannedTasks(13));
+
+    const result = await run(dir, {}, [PLAN_REL, "--split"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /^(review|dispatch|threshold):/m);
+  });
+});
+
+test("--extra of a plan of 13 tasks prints the extra line alone, no review instruction", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, plannedTasks(13));
+    write(dir, `${PLAN_DIR}/work/T1-extra.md`, "lib/x.ts\n");
+
+    const result = await run(dir, {}, [PLAN_REL, "--extra", "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "extra: lib/x.ts\n");
+  });
+});

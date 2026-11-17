@@ -41,6 +41,18 @@
 #   orphan: lib/y.ts                not "done" (run directory excluded), in git
 #                                   order, a path holding a comma kept whole;
 #                                   no line when none
+#   review: single                  last, on a fresh plan only (a plain call with
+#   dispatch: viber:planner-review  no status.md beside the plan; a landed plan,
+#                                   --split and --extra print none of it): a plan
+#                                   of 12 tasks or fewer
+#   review: set                     a plan of more than 12 tasks: the spec and graph
+#   dispatch: viber:planner-spec-review     reviewers, then one task reviewer per
+#   dispatch: viber:planner-graph-review    slice - ceil(n / 8) runs of consecutive
+#   dispatch: viber:planner-task-review | tasks: T1-T7     tasks, sizes differing
+#   dispatch: viber:planner-task-review | tasks: T8-T13    by at most one, the
+#                                   larger first, cut as plan-gate.sh cuts them
+#                                   (13 tasks -> T1-T7, T8-T13)
+#   threshold: 31 tasks, past 30    only past 30 tasks, after the dispatch lines
 #
 # --extra <task-id> prints, instead of the index, the scope a reviewer checks
 # beyond the task's own Files, read from the coder extras file
@@ -1452,6 +1464,30 @@ END {
     orph = orph "orphan: " p "\n"
   }
   printf "%s", orph
+
+  # the review instruction, last and on a fresh plan only: the reviewers the
+  # planner dispatches, task-review slices cut as plan-gate.sh cuts them
+  # (ceil(n / 8) runs, sizes differing by at most one, the larger first)
+  if (mode != "--split") {
+    if (n <= 12) {
+      printf "review: single\n"
+      printf "dispatch: viber:planner-review\n"
+    } else {
+      printf "review: set\n"
+      printf "dispatch: viber:planner-spec-review\n"
+      printf "dispatch: viber:planner-graph-review\n"
+      m = int((n + 7) / 8)
+      base = int(n / m)
+      rem = n % m
+      c = 1
+      for (i = 1; i <= m; i++) {
+        ce = c + base - 1 + (i <= rem ? 1 : 0)
+        printf "dispatch: viber:planner-task-review | tasks: T%d-T%d\n", c, ce
+        c = ce + 1
+      }
+      if (n > 30) printf "threshold: %d tasks, past 30\n", n
+    }
+  }
 }
 ' "$plan")"
 
