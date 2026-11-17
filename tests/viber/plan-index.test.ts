@@ -1818,6 +1818,108 @@ for (const [label, verification] of [
   });
 }
 
+const MEMORY_ON = ["schema: 1", "build:", "  memory: true", ""].join("\n");
+const MEMORY_OFF = ["schema: 1", "build:", "  memory: false", ""].join("\n");
+
+function memoryMessage(file: string): string {
+  return `error: task T1: Files lists ${file} while build.memory is on - drop it, the build close updates every CLAUDE.md (Memory-owned)`;
+}
+
+for (const file of ["src/CLAUDE.md", "CLAUDE.md", "./src/CLAUDE.md"]) {
+  test(`Memory-owned check: ${file} in Files on a fresh plan with build.memory on exits 4 with the C1 error and nothing on stdout`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      write(dir, ".claude/viber.yml", MEMORY_ON);
+      seed(dir, planBody([{ id: "T1", files: `src/a.ts, ${file}` }], 1));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, "");
+      assert.ok(result.stderr.includes(memoryMessage(file.replace(/^\.\//, ""))), result.stderr);
+    });
+  });
+}
+
+for (const file of ["docs/CLAUDE-notes.md", "viber/scripts/CLAUDE.run-scripts.md", "src/NOTCLAUDE.md"]) {
+  test(`Memory-owned check: ${file} in Files with build.memory on exits 0 (only a file named CLAUDE.md is owned by the close)`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      write(dir, ".claude/viber.yml", MEMORY_ON);
+      seed(dir, planBody([{ id: "T1", files: `src/a.ts, ${file}` }], 1));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    });
+  });
+}
+
+test("Memory-owned check: a CLAUDE.md in Files exits 0 with build.memory false", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    write(dir, ".claude/viber.yml", MEMORY_OFF);
+    seed(dir, planBody([{ id: "T1", files: "src/a.ts, src/CLAUDE.md" }], 1));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("Memory-owned check: a CLAUDE.md in Files exits 0 with no .claude/viber.yml", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody([{ id: "T1", files: "src/a.ts, src/CLAUDE.md" }], 1));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+for (const [label, config] of [
+  ["at column 0", "memory: true\n"],
+  ["under another group", ["planning:", "  memory: true", ""].join("\n")],
+]) {
+  test(`Memory-owned check: memory: true ${label} exits 0 (the build.memory line config.sh prints decides)`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      write(dir, ".claude/viber.yml", config);
+      seed(dir, planBody([{ id: "T1", files: "src/a.ts, src/CLAUDE.md" }], 1));
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    });
+  });
+}
+
+test("Memory-owned check: a landed plan with status.md beside it and a CLAUDE.md in Files exits 0", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    write(dir, ".claude/viber.yml", MEMORY_ON);
+    seed(dir, planBody([{ id: "T1", files: "src/a.ts, src/CLAUDE.md" }], 1));
+    seedStatus(dir, { done: "none" });
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("Memory-owned check: a CLAUDE.md in Files exits 0 under --split with build.memory on", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    write(dir, ".claude/viber.yml", MEMORY_ON);
+    seed(dir, planBody([{ id: "T1", files: "src/a.ts, src/CLAUDE.md" }], 1));
+
+    const result = await run(dir, {}, [PLAN_REL, "--split"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("Memory-owned check: the switch is read in the caller's cwd, so a plan file outside it still gets the check", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    await withTempDir("p2p2-viber-plan-", async (outside) => {
+      write(dir, ".claude/viber.yml", MEMORY_ON);
+      const planFile = path.join(outside, "plan.md");
+      fs.writeFileSync(planFile, planBody([{ id: "T1", files: "src/a.ts, src/CLAUDE.md" }], 1));
+
+      const result = await run(dir, {}, [planFile]);
+      assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+      assert.ok(result.stderr.includes(memoryMessage("src/CLAUDE.md")), result.stderr);
+    });
+  });
+});
+
 test("a File entry whose bracket wraps a whole segment is a path, not a glob - like a Files entry", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     const route = "src/app/api/sites/[siteId]/route.ts";

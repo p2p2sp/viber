@@ -268,8 +268,16 @@
 #       starting with .temp/ or ./.temp/, or the first non-option argument of bash,
 #       sh or an interpreter starting that way - a redirect target or another
 #       command argument is none), each with its own error naming the fix
-#       (Provable).
-#       The last fifteen cases and the parenthetical one above are exempted under --split
+#       (Provable), or a task whose "Files:" lists a file named CLAUDE.md (a path
+#       whose last segment is exactly that, the root one included) while
+#       build.memory is on - the "build.memory: true" line "config.sh" prints,
+#       run in the caller cwd (never the plan directory, so a plan outside the
+#       repository is held to it too) and only on a fresh plan; with the switch
+#       off or no .claude/viber.yml the case never fires, and a CLAUDE-notes.md
+#       or CLAUDE.run-scripts.md is none (stderr: "error: task <id>: Files lists
+#       <path> while build.memory is on - drop it, the build close updates every
+#       CLAUDE.md (Memory-owned)").
+#       The last sixteen cases and the parenthetical one above are exempted under --split
 #       and under --extra, and on a plain call whose plan has status.md beside
 #       it (a landed run plan): a plan that landed before the rule is frozen,
 #       and a run resumed after the upgrade must still validate and decompose.
@@ -432,6 +440,21 @@ awk_mode="$mode"
 # the plan is frozen, so a rule added after it landed must not refuse it.
 [[ ! -f "$dir/status.md" ]] || awk_mode="--split"
 
+# Memory-owned (a fresh plan only): with build.memory on, no task lists a
+# CLAUDE.md. The switch is the "build.memory: true" line config.sh prints, read
+# in the caller's cwd (the repository this script already reads with git status),
+# never in the plan's own directory, so a plan file outside the repository is
+# still held to it. The output is captured whole: grep -q on a pipe would end
+# config.sh early under pipefail.
+memory_on=0
+if [[ "$awk_mode" != "--split" ]]; then
+  cfg_out="$(bash "$(dirname -- "${BASH_SOURCE[0]}")/config.sh" 2>/dev/null || true)"
+  cfg_out="${cfg_out//$'\r'/}"
+  case $'\n'"$cfg_out"$'\n' in
+    *$'\nbuild.memory: true\n'*) memory_on=1 ;;
+  esac
+fi
+
 # The coder extras file of the --extra task, one path per line, each folded to its
 # repo-relative form so the ownership comparison below sees one spelling of a file
 # (an absolute path inside the repository, as the coder may have written it, equals
@@ -457,7 +480,7 @@ fi
 # would mangle a Windows path containing backslashes. The output is held until
 # the awk pass has exited 0, so a plan refused for any reason prints nothing and
 # --split below touches nothing.
-index_out="$(plan="$plan" changed="$changed" mode="$awk_mode" rundir="$dir" \
+index_out="$(plan="$plan" changed="$changed" mode="$awk_mode" rundir="$dir" memory_on="$memory_on" \
 extra="$extra_id" extra_paths="$extra_paths" \
 st_done="$st_done" st_skipped="$st_skipped" st_unreviewed="$st_unreviewed" \
 st_deferred="$st_deferred" st_closed="$st_closed" st_decisions="$st_decisions" st_rulings="$st_rulings" \
@@ -950,6 +973,10 @@ END {
       if (p ~ /[`"]/)                  { fail("task " id[i] ": Files entry \"" p "\" is not a bare path, drop the quoting"); continue }
       fset[i, p] = 1
       fpath[i, ++nf[i]] = p
+      # Memory-owned: the build close updates every CLAUDE.md while build.memory is
+      # on. Fresh plan only, like the other checks added after plans were frozen.
+      if (mode != "--split" && ENVIRON["memory_on"] == "1" && p ~ /(^|\/)CLAUDE\.md$/)
+        fail("task " id[i] ": Files lists " p " while build.memory is on - drop it, the build close updates every CLAUDE.md (Memory-owned)")
     }
 
     # Layered: an integration test is written in its own task and never run there,
