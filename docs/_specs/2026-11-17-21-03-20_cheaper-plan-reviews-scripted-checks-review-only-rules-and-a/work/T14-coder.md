@@ -1,0 +1,4 @@
+- Production code was written before its tests; red came from temporarily making `plan_rows` return at once (red.log, 3 failing), and red-2.log from breaking the already-counted skip (1 failing: the once-only case).
+- DoD.3 cases are negative: they pass without the planning pass by nature, and fail if the path or usage filter is dropped.
+- A planning transcript the build pass counted (it names the run directory inside the date cut) is skipped by file path; one older than the run day naming both is counted as a planning row.
+- `unavailable` now prints the planning rows between its line and `rounds:`; `role_re` and `read_transcript` moved above it, and the projects check below them.

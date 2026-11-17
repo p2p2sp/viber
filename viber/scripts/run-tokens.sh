@@ -49,6 +49,7 @@
 #   stdout : on exit 0 one of
 #              tokens: <role> <model> in <n> out <n> cache-read <n> cache-write <n>
 #              ...one line per role and model, sorted by role then model in byte order
+#              ...then the same line for the planning agents, sorted alike (below)
 #              tokens: agents only - the main session and the closeout agent are not counted
 #            or the single line
 #              tokens: unavailable - <reason>
@@ -56,7 +57,15 @@
 #            run` or `a transcript holds no readable usage` (a counted transcript
 #            with assistant lines and no usage on any of them, one that could not
 #            be read through, or counted transcripts with no assistant line at
-#            all): never a partial sum.
+#            all): never a partial sum. The reason is decided by the build transcripts
+#            alone; the planning rows print after it either way.
+#            The planning rows are the same line for each transcript, wherever and
+#            whenever written (no date cut), whose `agentType` ends in `:planner-review`,
+#            `:planner-spec-review`, `:planner-graph-review`, `:planner-task-review`,
+#            `:impact-mapper` or `:adr-screener` and whose first line names the `planned:`
+#            path of plan.md (the spellings the rounds line accepts): a transcript the
+#            build rows counted is not counted again, one with no readable usage adds no
+#            row, and no `planned:` line or no projects directory means no planning row.
 #            Either form ends on one rounds line, read from `<run-dir>/plan.md`:
 #              rounds: plan review <n>
 #              rounds: plan review unavailable - <reason>
@@ -118,20 +127,26 @@ projects="$config/projects"
 # landed from (the `planned:` line of its plan.md). The plan is reviewed before the
 # run exists, so no date cut here: every transcript with a review role is opened.
 planned_re='^planned:[[:space:]]*(.*[^[:space:]])[[:space:]]*$'
+planned_path=""
+read_planned() {
+  local line=""
+  planned_path=""
+  [[ -r "$abs/plan.md" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    if [[ "$line" =~ $planned_re ]]; then
+      planned_path="${BASH_REMATCH[1]//\\//}"
+      break
+    fi
+  done <"$abs/plan.md"
+}
 rounds() {
-  local reason="" planned="" line="" file="" meta="" meta_text="" role="" first="" p="" p_escaped="" p_back="" n=0
+  local reason="" planned="" file="" meta="" meta_text="" role="" first="" p="" p_escaped="" p_back="" n=0
   if [[ ! -d "$projects" ]]; then
     reason="no projects directory"
   else
-    if [[ -r "$abs/plan.md" ]]; then
-      while IFS= read -r line || [[ -n "$line" ]]; do
-        line="${line%$'\r'}"
-        if [[ "$line" =~ $planned_re ]]; then
-          planned="${BASH_REMATCH[1]//\\//}"
-          break
-        fi
-      done <"$abs/plan.md"
-    fi
+    read_planned
+    planned="$planned_path"
     if [[ -z "$planned" ]]; then
       reason="no planned line in plan.md"
     fi
@@ -168,14 +183,11 @@ rounds() {
   fi
 }
 
-unavailable() {
-  echo "tokens: unavailable - $1"
-  rounds
-  exit 0
-}
-
 role_re='"agentType"[[:space:]]*:[[:space:]]*"([^"]*)"'
-[[ -d "$projects" ]] || unavailable "no projects directory"
+
+# The transcripts the build rows counted, one path per line between newlines: a
+# planning transcript that also names the run directory is never counted twice.
+counted_files=$'\n'
 
 # One call per counted transcript: a `U` row per assistant line with a usage block
 # (id, role, model, the four numbers, tab separated) and one `N` row with the number
@@ -214,6 +226,85 @@ index($0, "\"type\":\"assistant\"") == 0 { next }
 }
 END { printf "N\t%d\t%d\n", a, u }
 '
+
+# The last row of a message id wins; the rows of one role and model are then summed
+# into one `tokens:` line each, sorted by role then model.
+sum_rows() {
+  awk '
+BEGIN { FS = "\t" }
+$1 == "U" {
+  id = $2
+  role[id] = $3
+  model[id] = $4
+  vin[id] = $5
+  vout[id] = $6
+  vread[id] = $7
+  vwrite[id] = $8
+}
+END {
+  for (id in role) {
+    k = role[id] "\t" model[id]
+    tin[k] += vin[id]
+    tout[k] += vout[id]
+    tread[k] += vread[id]
+    twrite[k] += vwrite[id]
+  }
+  for (k in tin) {
+    split(k, part, "\t")
+    printf "tokens: %s %s in %.0f out %.0f cache-read %.0f cache-write %.0f\n", part[1], part[2], tin[k], tout[k], tread[k], twrite[k]
+  }
+}
+' | sort
+}
+
+# The planning rows: the planning agents whose first line names the `planned:` path,
+# whenever written, that the build rows did not count already. A transcript with no
+# readable usage adds nothing; no planned line or no projects directory, no row.
+plan_rows() {
+  local file="" meta="" meta_text="" role="" first="" p="" p_escaped="" p_back="" result="" u_rows="" prow=""
+  [[ -d "$projects" ]] || return 0
+  read_planned
+  [[ -n "$planned_path" ]] || return 0
+  p="$planned_path"
+  p_back="${p//\//\\}"
+  p_escaped="${p//\//\\\\}"
+  while IFS= read -r file <&5; do
+    [[ -n "$file" ]] || continue
+    case "$counted_files" in
+      *$'\n'"$file"$'\n'*) continue ;;
+    esac
+    meta="${file%.jsonl}.meta.json"
+    [[ -r "$meta" ]] || continue
+    meta_text="$(<"$meta")"
+    [[ "$meta_text" =~ $role_re && -n "${BASH_REMATCH[1]}" ]] || continue
+    role="${BASH_REMATCH[1]}"
+    case "$role" in
+      *:planner-review | *:planner-spec-review | *:planner-graph-review | *:planner-task-review | *:impact-mapper | *:adr-screener) ;;
+      *) continue ;;
+    esac
+    first=""
+    IFS= read -r first <"$file" || [[ -n "$first" ]] || continue
+    if [[ "$first" == *"$p"[!A-Za-z0-9._-]* || "$first" == *"$p_escaped"[!A-Za-z0-9._-]* || "$first" == *"$p_back"[!A-Za-z0-9._-]* ]]; then
+      result="$(RT_ROLE="$role" awk "$read_transcript" "$file" 2>/dev/null || true)"
+      u_rows="$(printf '%s\n' "$result" | grep '^U' || true)"
+      if [[ -n "$u_rows" ]]; then
+        prow+="$u_rows"$'\n'
+      fi
+    fi
+  done 5< <(find "$projects" -type f -name 'agent-*.jsonl' -path '*/subagents/agent-*.jsonl' 2>/dev/null | sort)
+  if [[ -n "$prow" ]]; then
+    printf '%s' "$prow" | sum_rows
+  fi
+}
+
+unavailable() {
+  echo "tokens: unavailable - $1"
+  plan_rows
+  rounds
+  exit 0
+}
+
+[[ -d "$projects" ]] || unavailable "no projects directory"
 
 # The transcripts to open. A find refusing `-newermt`, or failing on any directory,
 # is run again with no date: the full list is slower, never wrong.
@@ -256,6 +347,7 @@ while IFS= read -r file <&3; do
     closeout | *:closeout) continue ;;
   esac
   counted=$((counted + 1))
+  counted_files+="$file"$'\n'
 
   # No `N` row means awk did not read the file through: its rows would be a
   # partial sum, so the whole report turns unavailable.
@@ -280,32 +372,8 @@ done 3< <(printf '%s\n' "$files" | sort)
 [[ $counted -gt 0 ]] || unavailable "no agent transcript names this run"
 [[ $unreadable -eq 0 && -n "$rows" ]] || unavailable "a transcript holds no readable usage"
 
-# The last row of a message id wins; the rows of one role and model are then summed.
-printf '%s' "$rows" | awk '
-BEGIN { FS = "\t" }
-$1 == "U" {
-  id = $2
-  role[id] = $3
-  model[id] = $4
-  vin[id] = $5
-  vout[id] = $6
-  vread[id] = $7
-  vwrite[id] = $8
-}
-END {
-  for (id in role) {
-    k = role[id] "\t" model[id]
-    tin[k] += vin[id]
-    tout[k] += vout[id]
-    tread[k] += vread[id]
-    twrite[k] += vwrite[id]
-  }
-  for (k in tin) {
-    split(k, part, "\t")
-    printf "tokens: %s %s in %.0f out %.0f cache-read %.0f cache-write %.0f\n", part[1], part[2], tin[k], tout[k], tread[k], twrite[k]
-  }
-}
-' | sort
+printf '%s' "$rows" | sum_rows
+plan_rows
 echo "tokens: agents only - the main session and the closeout agent are not counted"
 rounds
 exit 0
