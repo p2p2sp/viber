@@ -3769,10 +3769,105 @@ test("a fresh plan whose task is titled \"Fix the parser\" exits 0 (a word that 
   });
 });
 
+/** A one-task plan whose Goal's second line (line 6) is replaced by `text`. */
+function slotGoal(text: string): string {
+  return planBody([{ id: "T1" }], 1).replace("The session is durable.", text);
+}
+
+/** A copy of the script under `dir`, so its own directory is the one the planner templates are
+ *  located from; each template holds a slot of its own, none holding the real ones. */
+function installScript(dir: string, templates: boolean): string {
+  const script = path.join(dir, "viber/scripts/plan-index.sh");
+  fs.mkdirSync(path.dirname(script), { recursive: true });
+  fs.copyFileSync(SUT, script);
+  if (templates) {
+    for (const name of ["spec-full.md", "spec-lite.md", "tasks.md"]) {
+      write(dir, `viber/skills/planner/templates/${name}`, "# template\n\n<!-- <hidden> -->\n\n<brand new slot>\n");
+    }
+  }
+  return script;
+}
+
+const SLOT_EXEMPT: Array<[string, () => string]> = [
+  ["a fenced block", () => slotGoal("```\n<n>\n```")],
+  ["a backtick span", () => slotGoal("Write `<repo-relative path>` here.")],
+  ["an HTML comment on one line", () => slotGoal("<!-- <n> -->")],
+  ["an HTML comment over several lines", () => slotGoal("<!--\n<repo-relative path>\n-->")],
+  ["the Contracts appendix", () => planBody([{ id: "T1" }], 1, [...CONTRACT, "", "Path: <repo-relative path> and <n>"])],
+];
+
+test("Filled check: the Goal slot of the template left in a fresh plan exits 4 with the C1 error naming line 5 and the slot, nothing on stdout", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody([{ id: "T1" }], 1).replace("Users can log in.", "<2-4 sentences: what gets built and why. No description of the solution.>"));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.equal(
+      result.stderr,
+      "error: line 5: template slot <2-4 sentences: what gets built and why. No description of the solution.> left unfilled - replace it (Filled)\n",
+    );
+  });
+});
+
+test("Filled check: a heading S<n> - Login left in a fresh plan exits 4 with the C1 error naming line 6 and the slot <n>", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, slotGoal("### S<n> - Login"));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "error: line 6: template slot <n> left unfilled - replace it (Filled)\n");
+  });
+});
+
+for (const [place, build] of SLOT_EXEMPT) {
+  test(`Filled check: a slot inside ${place} exits 0 (it is not plan text)`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, build());
+
+      const result = await run(dir, {}, [PLAN_REL]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    });
+  });
+}
+
+test("Filled check: a slot added to a template is read at run time, so a plan keeping it exits 4 naming it (the script holds no slot list)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const script = installScript(dir, true);
+    seed(dir, slotGoal("<brand new slot>"));
+
+    const result = await runScript(script, [PLAN_REL], { cwd: dir, env: {}, shell: "bash" });
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.equal(result.stderr, "error: line 6: template slot <brand new slot> left unfilled - replace it (Filled)\n");
+  });
+});
+
+test("Filled check: a <...> span inside an HTML comment of a template is no slot, so a plan keeping it exits 0 (a template comment read as slots rejects plain plan text)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const script = installScript(dir, true);
+    seed(dir, slotGoal("<hidden>"));
+
+    const result = await runScript(script, [PLAN_REL], { cwd: dir, env: {}, shell: "bash" });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
+test("Filled check: a script whose templates directory is missing skips the check and exits 0", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const script = installScript(dir, false);
+    seed(dir, slotGoal("<n>"));
+
+    const result = await runScript(script, [PLAN_REL], { cwd: dir, env: {}, shell: "bash" });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
 const FRESH_PLAN_DEFECTS: Array<[string, () => string]> = [
   ["a skipped task id", skippedTaskId],
   ["a skipped contract id", skippedBlockId],
   ["a commit-typed title", () => titledPlan("feat(viber): Add x")],
+  ["a template slot", () => slotGoal("<n>")],
 ];
 
 for (const [defect, build] of FRESH_PLAN_DEFECTS) {

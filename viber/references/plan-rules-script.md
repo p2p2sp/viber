@@ -5,6 +5,7 @@ Every rule `plan-index.sh` rejects, under the section of `plan-rules.md` it belo
 ## Spec
 
 - Attachments: each name of the frontmatter `attachments:` map is one path component of letters, digits, `_`, `.` and `-` opening on a letter or digit (`^[A-Za-z0-9][A-Za-z0-9_.-]*$`) and unique once case folded, and a `DoD` naming `attachments/<name>` has a `<name>` entry in the map; `plan-index.sh` rejects each, with `error: attachments: name "<name>" is not one path component of letters, digits, _, . and - opening on a letter or digit - rename it (Attachments)`, `error: attachments: name "<name>" repeats an earlier one - rename one of them (Attachments)` or `error: task <id>: DoD names attachments/<name>, absent from the attachments map - add a <name> entry or drop the reference (Attachments)`. (script)
+- Filled: no slot of the planner templates (a `<...>` span such as `<title>`, `<n>` or `<repo-relative path>`) is left in the plan text outside fenced blocks, HTML comments, backtick spans and the `## Contracts` appendix; `plan-index.sh` rejects it, with `error: line <n>: template slot <slot> left unfilled - replace it (Filled)`. (script)
 
 ## Graph
 

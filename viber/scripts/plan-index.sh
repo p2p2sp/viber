@@ -289,8 +289,14 @@
 #       no <name> entry in a map the plan carries (a plan with no frontmatter or no
 #       "attachments:" key has none to check; "error: task <id>: DoD names
 #       attachments/<name>, absent from the attachments map - add a <name> entry or
-#       drop the reference (Attachments)").
-#       The last seventeen cases and the parenthetical one above are exempted under --split
+#       drop the reference (Attachments)"), or a template slot left in the plan text:
+#       a "<...>" span of the planner templates (spec-full.md, spec-lite.md and
+#       tasks.md under ../skills/planner/templates, located from this script, read
+#       at run time outside their HTML comments; no templates directory, no check),
+#       found on a plan line outside a fenced block, an HTML comment, a backtick span
+#       and the "## Contracts" appendix ("error: line <n>: template slot <slot> left
+#       unfilled - replace it (Filled)"; one per line and slot).
+#       The last eighteen cases and the parenthetical one above are exempted under --split
 #       and under --extra, and on a plain call whose plan has status.md beside
 #       it (a landed run plan): a plan that landed before the rule is frozen,
 #       and a run resumed after the upgrade must still validate and decompose.
@@ -489,11 +495,44 @@ if [[ "$has_extra" -eq 1 && -f "$dir/work/$extra_id-extra.md" ]]; then
   done < "$dir/work/$extra_id-extra.md"
 fi
 
+# Filled (a fresh plan only): the slots of the planner templates, one per line, read
+# at run time as the angle-bracket spans outside HTML comments of the three files
+# beside this script, so a slot added to a template needs no edit here. No
+# templates directory, no slot, no check. The apostrophe rule of the awk block
+# below holds for this one too.
+slots=""
+tpl_dir="$(dirname -- "${BASH_SOURCE[0]}")/../skills/planner/templates"
+if [[ "$awk_mode" != "--split" && -d "$tpl_dir" ]]; then
+  tpl_files=()
+  for tpl_name in spec-full.md spec-lite.md tasks.md; do
+    [[ ! -f "$tpl_dir/$tpl_name" ]] || tpl_files+=("$tpl_dir/$tpl_name")
+  done
+  if [[ ${#tpl_files[@]} -gt 0 ]]; then
+    slots="$(awk '
+    {
+      s = $0
+      sub(/\r$/, "", s)
+      if (cm) { p = index(s, "-->"); if (!p) next; s = substr(s, p + 3); cm = 0 }
+      while ((p = index(s, "<!--")) > 0) {
+        rest = substr(s, p + 4); q = index(rest, "-->")
+        if (!q) { s = substr(s, 1, p - 1); cm = 1; break }
+        s = substr(s, 1, p - 1) " " substr(rest, q + 3)
+      }
+      while (match(s, /<[^<>]+>/)) {
+        sl = substr(s, RSTART, RLENGTH)
+        if (!(sl in sn)) { sn[sl] = 1; print sl }
+        s = substr(s, RSTART + RLENGTH)
+      }
+    }
+    ' "${tpl_files[@]}" 2>/dev/null || true)"
+  fi
+fi
+
 # The path travels through ENVIRON, not -v: awk -v expands escape sequences and
 # would mangle a Windows path containing backslashes. The output is held until
 # the awk pass has exited 0, so a plan refused for any reason prints nothing and
 # --split below touches nothing.
-index_out="$(plan="$plan" changed="$changed" mode="$awk_mode" rundir="$dir" memory_on="$memory_on" \
+index_out="$(plan="$plan" changed="$changed" mode="$awk_mode" rundir="$dir" memory_on="$memory_on" slots="$slots" \
 extra="$extra_id" extra_paths="$extra_paths" \
 st_done="$st_done" st_skipped="$st_skipped" st_unreviewed="$st_unreviewed" \
 st_deferred="$st_deferred" st_closed="$st_closed" st_decisions="$st_decisions" st_rulings="$st_rulings" \
@@ -790,6 +829,22 @@ function attdod(text, own,   t, off, pos, s, rest, nm) {
   }
 }
 
+# Filled: the plan line with every backtick span and every HTML comment cut out
+# (a comment may open on one line and close on a later one; scm carries it), so
+# what is left is plan text. The state of a line inside a fence never reaches here.
+function slotstrip(raw,   s, p, rest, q) {
+  s = raw
+  sub(/\r$/, "", s)
+  if (scm) { p = index(s, "-->"); if (!p) return ""; s = substr(s, p + 3); scm = 0 }
+  gsub(/`[^`]*`/, " ", s)
+  while ((p = index(s, "<!--")) > 0) {
+    rest = substr(s, p + 4); q = index(rest, "-->")
+    if (!q) { s = substr(s, 1, p - 1); scm = 1; break }
+    s = substr(s, 1, p - 1) " " substr(rest, q + 3)
+  }
+  return s
+}
+
 # the --extra report for task "self": the paths of its coder extras file, in file
 # order, minus a blank line, a path under .temp/, a repeat, one the task itself
 # lists and one a task not yet done lists; then one recheck line per done task
@@ -838,6 +893,7 @@ BEGIN {
   rulings = ENVIRON["st_rulings"]
   rundir = ENVIRON["rundir"]
   if (rundir == ".") rundir = ""
+  nslot = split(ENVIRON["slots"], slot, "\n")
   nch = split(ENVIRON["changed"], ch, /\n/)
   for (k = 1; k <= nch; k++) if (ch[k] != "") chg[ch[k]] = 1
 }
@@ -856,6 +912,19 @@ infm && NR > 1 {
 
 # infc: this line sits inside a code fence, so no heading rule below fires on it
 { infc = fstep($0) }
+
+# Filled: a template slot left in the plan text, outside fences, comments, backtick
+# spans and the "## Contracts" appendix (the heading line itself is read as the
+# section it opens). Fresh plan only, like the other checks added after plans were
+# frozen; it runs before the rules below, whose next would skip a heading line.
+mode != "--split" && nslot > 0 && !infc {
+  stext = slotstrip($0)
+  scon = ($0 ~ /^##[[:space:]]/) ? ($0 ~ /Contracts/) : incon
+  if (!scon)
+    for (sk = 1; sk <= nslot; sk++)
+      if (slot[sk] != "" && index(stext, slot[sk]) > 0)
+        fail("line " NR ": template slot " slot[sk] " left unfilled - replace it (Filled)")
+}
 
 # plan title: the first H1
 !infc && /^#[[:space:]]/ && title == "" { title = trim(substr($0, 2)); next }
