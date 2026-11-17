@@ -64,7 +64,7 @@ test("arbiter lists the tools Read, Grep, Glob, Write", () => {
 });
 
 test("arbiter's tools paragraph names Read, Grep, Glob and Write", () => {
-  assert.ok(ARBITER.includes("Your tools are Read, Grep, Glob and Write, every one of them loaded"));
+  assert.ok(ARBITER.includes("Your tools are Read, Grep, Glob and Write: call each one directly"));
 });
 
 test("arbiter names the ruling input line and reads that path first when it exists", () => {

@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Only for a viber:intent summary file path or a confirmed intent summary as text, or a viber:fixer diagnosis already in context - never the entry point. Without one, suggest the viber:intent interview and let the user decide. Turns that input into a reviewed implementation plan - acceptance criteria, file map, then tasks carrying dependencies, contracts, verification and DoD.
+description: Only for a viber:intent summary file path or a confirmed intent summary as text, or a viber:fixer diagnosis already in context - never the entry point. Without one, suggest the viber:intent interview and let the user decide. Turns that input into a reviewed implementation plan.
 allowed-tools: Read, Write, Edit, Grep, Glob, Agent, Skill, EnterPlanMode, ExitPlanMode, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(date:*)
 user-invocable: false
 effort: high
@@ -26,7 +26,7 @@ Every bundled-script run below is one literal Bash line, every argument double-q
 
 Read `${CLAUDE_PLUGIN_ROOT}/references/plan-rules.md` first and hold the plan to every rule in it. Before a task is written, read `## Layers`, `## Proves` and `## Ports` of `${CLAUDE_PLUGIN_ROOT}/references/test-strategy.md` by range: `Grep` the file for its `## ` lines, then `Read` each of the three sections. A plan carrying an integration test or creating or changing an adapter also reads `${CLAUDE_PLUGIN_ROOT}/references/integration-tests.md`: the layer is designed from it as a whole.
 
-Never plan an end-to-end test on your own: `/viber:e2e` writes them after the build. Plan one only when the input records the user explicitly asking for it, then per `plan-rules.md`'s End-to-end rule; one merely suggested, implied by a UI change or thought useful stays out of every criterion, task and `Verification`. The one exception: an existing end-to-end spec whose selector a task changes is no new test: it joins that task's `Files` per the same rule.
+Never plan an end-to-end test on your own. Plan one only when the input records the user explicitly asking for it, then per `plan-rules.md`'s End-to-end rule; one merely suggested, implied by a UI change or thought useful stays out of every criterion, task and `Verification`. The one exception: an existing end-to-end spec whose selector a task changes is no new test: it joins that task's `Files` per the same rule.
 
 Never propose, write or show a mockup or prototype.
 
