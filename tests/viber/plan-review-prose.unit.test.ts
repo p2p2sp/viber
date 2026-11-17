@@ -238,6 +238,35 @@ test("the memory: line of planner-graph-review also names its check of a fix it 
   assert.ok(memoryLine(read("agents/planner-graph-review.md")).includes("the check of a fix you propose"));
 });
 
+const COUNTING_PHRASES = ["ceil", "T1-T7", "T8-T13", "12 tasks", "rows under the `tasks:` header"];
+
+function countingPhrases(text: string): string[] {
+  return COUNTING_PHRASES.filter((phrase) => text.includes(phrase));
+}
+
+test("a planner text counting tasks or cutting slices itself is caught by the phrases it holds", () => {
+  assert.deepEqual(countingPhrases("n tasks: ceil(n / 8) runs, 13 -> T1-T7, T8-T13; a plan of 12 tasks or fewer"), ["ceil", "T1-T7", "T8-T13", "12 tasks"]);
+});
+
+test("planner/SKILL.md counts no task, computes no slice and names no 12-task count", () => {
+  assert.deepEqual(countingPhrases(PLANNER), []);
+});
+
+test("planner step 2 asks the threshold question again only on a threshold: line, and only above the accepted count", () => {
+  assert.ok(section(PLANNER, "2. Write the plan").includes("Ask the step 1 question again only on a `threshold:` line of that output, and only when its count is above the accepted count, if the user accepted one"));
+});
+
+const DISPATCH_PHRASES = [
+  "Dispatch exactly the `dispatch:` lines of the last `plan-index.sh` run",
+  "`viber:planner-task-review`: `memory: <value>` as above and its line's `tasks:` value",
+];
+
+for (const phrase of DISPATCH_PHRASES) {
+  test(`planner step 3 dispatches the dispatch: lines of the last plan-index.sh run as written: ${phrase}`, () => {
+    assert.ok(section(PLANNER, "3. Review gate").includes(phrase));
+  });
+}
+
 const SCOPED_SEARCH = "grep callers only of the symbols whose signature or observable behaviour the plan changes (a moved or deleted file changing all of its symbols), and the documents and `.claude/rules/` files naming a path the plan modifies, moves or deletes";
 const CONFIRM_ONLY = "Read a file only to confirm a hit or to check a task's change against the code it modifies.";
 const SCOPED_READERS = ["planner-review", "planner-spec-review", "planner-task-review"];

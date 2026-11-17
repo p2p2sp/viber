@@ -86,7 +86,7 @@ An input carrying a roadmap, or a `Roadmap: <path>` line (read that `roadmap.md`
 
 Then run `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh" "<plan-path>"`. It must exit 0: fix whatever it reports and re-run.
 
-Then run the threshold check again on the written plan: count the rows under the `tasks:` header of that output. Ask the step 1 question again only when the count is above 30 and above the accepted count, if the user accepted one; the answers act as in step 1, and a keep records the new count as the accepted one.
+The threshold check on the written plan is that output's own `threshold:` line, which `plan-index.sh` prints only past 30 tasks. Ask the step 1 question again only on a `threshold:` line of that output, and only when its count is above the accepted count, if the user accepted one; the answers act as in step 1, and a keep records that count as the accepted one. Count no row yourself.
 
 ```!
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" planning.adr "${CLAUDE_SKILL_DIR}" adr
@@ -100,12 +100,14 @@ Show the user the full path of the written plan.
 
 ## 3. Review gate
 
-Count the rows under the `tasks:` header of the `plan-index.sh` output of this round.
+Dispatch exactly the `dispatch:` lines of the last `plan-index.sh` run, printed after its `review:` line: all of them in one message, one `Agent` call per line, each getting the plan path and `refs: ${CLAUDE_PLUGIN_ROOT}/references` and:
 
-- A plan of 12 tasks or fewer: dispatch the `viber:planner-review` agent alone, as below.
-- A plan of more than 12 tasks: dispatch the review set, as further below.
+- `viber:planner-review`: `memory: <value>` (the `build.memory:` line of the config block resolved above) and the `input:` block below.
+- `viber:planner-spec-review`: the `input:` block below with its `Answered:` lines.
+- `viber:planner-graph-review`: `memory: <value>` as above.
+- `viber:planner-task-review`: `memory: <value>` as above and its line's `tasks:` value, as `tasks: T<a>-T<b>`.
 
-Dispatch the `viber:planner-review` agent with the plan path, `refs: ${CLAUDE_PLUGIN_ROOT}/references`, `memory: <value>` (the `build.memory:` line of the config block resolved above), and the line:
+The `input:` block:
 
 ```
 input:
@@ -119,15 +121,7 @@ Pass one of the three input forms, never the file path together with its content
 
 One `Answered:` line after the input for every answer the user gave you, from step 1 and from a `VERDICT: FAIL` finding alike, none when there are none.
 
-From round 2 on, also pass the previous findings verbatim and one line per fix you applied.
-
-The review set is dispatched in one message, one `Agent` call per member, each member getting the plan path and `refs: ${CLAUDE_PLUGIN_ROOT}/references` and:
-
-- `viber:planner-spec-review`: the `input:` block above with its `Answered:` lines.
-- `viber:planner-graph-review`: `memory: <value>` as above.
-- `viber:planner-task-review`, one per slice: `memory: <value>` as above and `tasks: T<a>-T<b>`. The slices are `ceil(n / 8)` runs of consecutive tasks for `n` tasks, sizes differing by at most one, the larger first (13 -> T1-T7, T8-T13; 30 -> T1-T8, T9-T16, T17-T23, T24-T30).
-
-From round 2 on, every member also gets every member's previous findings verbatim and one line per fix you applied. Every round after a `VERDICT: FAIL` dispatches the whole set anew, slices recounted from the plan as fixed.
+From round 2 on, every dispatched member also gets every member's previous findings verbatim and one line per fix you applied. Every round after a `VERDICT: FAIL` dispatches the `dispatch:` lines of the `plan-index.sh` run on the plan as fixed, all anew.
 
 Every round and every retry is a new `Agent` dispatch, never a `SendMessage` to an earlier reviewer: the plan gate counts only a dispatch made after the last plan write.
 

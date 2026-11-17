@@ -1,0 +1,6 @@
+- Red: .temp/viber/T13/red.log (3 failing before the SKILL.md edit: the two sentences and the absent counting phrases).
+- Red of the step 3 `tasks:` value phrase: .temp/viber/T13/red-2.log, by temporarily cutting that clause from the SKILL.md task-review bullet (1 failing), then restoring it byte for byte.
+- rule-budget.unit.test.ts needed no change: the planner read set shrank under its cap of 46609, left as is.
+- Step 1's estimate of the task count against 30 stays: it runs before any plan exists, so no `plan-index.sh` line can answer it.
+- Step 3 now lists each member's inputs under one dispatch sentence; the `input:` block follows it unchanged.
+- The step 3 phrases are pinned as one parameterised list (`DISPATCH_PHRASES`), one test per phrase.
