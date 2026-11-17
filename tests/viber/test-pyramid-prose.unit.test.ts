@@ -28,6 +28,7 @@ function read(relative: string): string {
 }
 
 const PLAN_RULES = read("references/plan-rules.md");
+const SCRIPT_RULES = read("references/plan-rules-script.md");
 const INTEGRATION = read("references/integration-tests.md");
 const STRATEGY = read("references/test-strategy.md");
 const TDD = read("references/tdd.md");
@@ -60,6 +61,10 @@ function bullet(file: string, start: string): string {
 
 function rules(name: string): string {
   return PLAN_RULES.split(/\r?\n/).filter((candidate) => candidate.startsWith(`- ${name}:`)).join("\n");
+}
+
+function scriptRules(name: string): string {
+  return SCRIPT_RULES.split(/\r?\n/).filter((candidate) => candidate.startsWith(`- ${name}:`)).join("\n");
 }
 
 test("plan-rules Layers names unit, component, integration and e2e by pointing at the Layers section of test-strategy", () => {
@@ -114,17 +119,24 @@ test("plan-rules Observable makes a ruled-out test listed in Files or run by Ver
   assert.ok(has(rule("Observable"), "A test in `Files` or run by `Verification` that `## Proves` rules out is the same finding, whatever the host's `CLAUDE.md`, rules or existing tests ask."));
 });
 
-test("plan-rules carries the integration test check as a second Layered rule tagged script, after the review half that stays the first Layered line", () => {
-  const lines = rules("Layered").split("\n");
-  assert.ok(lines[0].endsWith("(review)"));
-  assert.ok(has(lines[lines.length - 1],"`plan-index.sh` rejects one without it, with `error: task <id>: Files writes <path> under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`. (script)"));
+test("plan-rules keeps only the review half of Layered, one line tagged review", () => {
+  const reviewLines = rules("Layered").split("\n");
+  assert.ok(reviewLines.length === 1 && reviewLines[0].endsWith("(review)"));
 });
 
-test("plan-rules carries the git grep check as a second Provable rule tagged script, after the review half that stays the first Provable line", () => {
-  const lines = rules("Provable").split("\n");
-  assert.ok(lines[0].endsWith("(review)"));
-  assert.equal(lines.length, 2);
-  assert.ok(has(lines[lines.length - 1], "`plan-index.sh` rejects it, with `error: task <id>: Verification runs git grep without --untracked over <path>, which this task creates and git grep never reads - add --untracked or use grep (Provable)`. (script)"));
+test("plan-rules-script carries the integration test check as its one Layered rule, tagged script", () => {
+  const scriptLines = scriptRules("Layered").split("\n");
+  assert.ok(scriptLines.length === 1 && has(scriptLines[0], "`plan-index.sh` rejects one without it, with `error: task <id>: Files writes <path> under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`. (script)"));
+});
+
+test("plan-rules keeps only the review half of Provable, one line tagged review", () => {
+  const reviewLines = rules("Provable").split("\n");
+  assert.ok(reviewLines.length === 1 && reviewLines[0].endsWith("(review)"));
+});
+
+test("plan-rules-script carries the git grep check as its one Provable rule, tagged script", () => {
+  const scriptLines = scriptRules("Provable").split("\n");
+  assert.ok(scriptLines.length === 1 && has(scriptLines[0], "`plan-index.sh` rejects it, with `error: task <id>: Verification runs git grep without --untracked over <path>, which this task creates and git grep never reads - add --untracked or use grep (Provable)`. (script)"));
 });
 
 test("plan-rules Layered closes with an integration test written in its adapter's task and never run there, a Repro test excepted, and names no Exclusive leaf task", () => {

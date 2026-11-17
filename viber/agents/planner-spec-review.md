@@ -24,7 +24,7 @@ Read the whole plan. Read `<refs>/plan-rules.md` only in the sections `## Spec` 
 
 ## Check
 
-Gate every `(review)` rule of the `## Spec` and `## Contracts` sections, each clause of it, and report a breach under the rule's name. The `(script)` rules are already validated. Then:
+Gate every `(review)` rule of the `## Spec` and `## Contracts` sections, each clause of it, and report a breach under the rule's name. Then:
 
 - Complete: no TODOs, no placeholders, no part of the specification that trails off mid-thought.
 - Faithful: when `input:` is present, a criterion, boundary or constraint of it missing from the plan, or one the plan adds beyond it, is a Blocking finding, and what an `Answered:` line settles counts as part of the input; so is a scenario or edge case whose outcome neither the input nor an `Answered:` line settles, nor follows from them; so is an `Attachment:` line of it with no entry in the frontmatter `attachments:` map, a name repeated within that map, a name not matching `^[A-Za-z0-9][A-Za-z0-9_.-]*$`, and an `attachments/<name>` reference in a `DoD` to a name the map does not hold.

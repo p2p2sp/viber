@@ -19,7 +19,7 @@ Read the plan from its `## Tasks` heading to the end, the `## Contracts` appendi
 
 ## Check
 
-Gate every `(review)` rule of the `## Graph` section, each clause of it, and report a breach under the rule's name. The `(script)` rules are already validated. Then:
+Gate every `(review)` rule of the `## Graph` section, each clause of it, and report a breach under the rule's name. Then:
 
 - Wired: for each task, list every file, route or symbol its `Verification`, `Delivers` or a done clause reads and the task that creates or changes it, confirming the reading task's `Depends-on` reaches that producing task directly or transitively; then for every `Depends-on` edge, name what the dependent actually takes from its target - a file, route or symbol it reads, or a file both list - and treat an edge whose dependent consumes nothing from its target as Minor.
 - Decomposed: tasks are independently verifiable and their boundaries are real ones.

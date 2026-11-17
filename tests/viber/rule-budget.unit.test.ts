@@ -47,6 +47,7 @@ const READ_SETS: ReadSet[] = [
     entries: [
       { file: "viber/skills/planner/SKILL.md" },
       { file: "viber/references/plan-rules.md" },
+      { file: "viber/references/plan-rules-script.md" },
       { file: "viber/skills/planner/templates/spec-full.md" },
       { file: "viber/skills/planner/templates/tasks.md" },
       { file: TEST_STRATEGY, sections: ["Layers", "Proves", "Ports"] },

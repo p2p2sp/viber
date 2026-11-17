@@ -21,7 +21,7 @@ Read `<refs>/test-strategy.md` in the sections `## Layers`, `## Proves` and `## 
 
 ## Check
 
-Gate every `(review)` rule of the `## Task` section, each clause of it, for your tasks only, and report a breach under the rule's name. Gate `Layered`, `Observable` and `Owned` against the three sections of `test-strategy.md` you read, a breach reported under the rule's name. The `(script)` rules are already validated. Then, each for your own tasks:
+Gate every `(review)` rule of the `## Task` section, each clause of it, for your tasks only, and report a breach under the rule's name. Gate `Layered`, `Observable` and `Owned` against the three sections of `test-strategy.md` you read, a breach reported under the rule's name. Then, each for your own tasks:
 
 - Complete: no TODOs, no placeholders, no task that trails off mid-thought.
 - Buildable: an engineer could execute each task without stopping to ask what was meant.
