@@ -51,5 +51,6 @@ test("closeout reads one path per orphan line and keeps the dirty paths comma-se
 
 test("the dirty bullet still asks the continue, start over or drop question for any other task", () => {
   assert.ok(DIRTY[0].includes("any other, before the first dispatch, `AskUserQuestion`"));
-  assert.ok(DIRTY[0].includes("continue (its coder gets `resume: <paths>` added to its lines)"));
+  assert.ok(DIRTY[0].includes("continue (its `start` call gets `--resume \"<paths>\"`, the paths as printed)"));
+  assert.ok(!DIRTY[0].includes("`resume: <paths>`"));
 });

@@ -4,13 +4,14 @@
  *
  * `task-coder` returns a `RED:` line on such a PASS, pointing at the `red.log` of a
  * `Verification` run made before the first production edit, and voids a PASS whose own text
- * admits skipping a required step. `implementor` reads a PASS without red evidence as a coder
- * failure, waives the review of a `TDD: required` task only while `build.red-check` reads
- * `true`, preloads the `red-check` fragment and hands the reviewer the `red:` path. The
- * fragment maps each `red-check.sh` result, `task-reviewer` checks the failing tests are the
- * task's own, and the close prints the `red-check:` tally. The files read here are shipped
- * prompts, whose text is the behaviour. Nothing is spawned. Each phrase is matched with any
- * run of whitespace between its words, so rewrapping a line breaks no test.
+ * admits skipping a required step. `implementor` never waives the review of a `TDD: required`
+ * task, hands the `RED:` line to `task-step.sh` as `--red` and `--red-log`, runs the call of
+ * such a PASS under a Bash timeout of 600000 (the red check runs inside it, a timeout reported
+ * as `--red-timeout`) and counts the `red-check:` field of each directive; the `red-check`
+ * fragment is gone and `task-step.sh` holds the result mapping. `task-reviewer` checks the
+ * failing tests are the task's own, and the close prints the `red-check:` tally. The files read
+ * here are shipped prompts, whose text is the behaviour. Nothing is spawned. Each phrase is
+ * matched with any run of whitespace between its words, so rewrapping a line breaks no test.
  *
  * Run directly by Node's type stripping:
  *   node --test tests/viber/red-evidence-prose.unit.test.ts
@@ -28,7 +29,6 @@ function read(relative: string): string {
 }
 
 const SKILL = read("skills/implementor/SKILL.md");
-const FRAGMENT = read("skills/implementor/fragments/red-check.true.md");
 const CODER = read("agents/task-coder.md");
 const REVIEWER = read("agents/task-reviewer.md");
 const CLOSE = read("skills/implementor/parts/close.md");
@@ -47,9 +47,10 @@ function frontmatter(text: string): string {
   return match?.[1] ?? "";
 }
 
-test("implementor reads a TDD: required PASS with no RED: line or RED: 0 failing as a coder failure, no red evidence", () => {
-  assert.ok(has(SKILL, "a `PASS` of a `TDD: required` task with no `RED:` line or `RED: 0 failing`"));
-  assert.ok(has(SKILL, "its `REASON:` read as `no red evidence`"));
+test("implementor maps the RED: line to --red and --red-log and judges no red evidence itself (task-step.sh reads a PASS without it as a coder failure)", () => {
+  assert.ok(has(SKILL, "`--red <n>|missing` and `--red-log \"<path>\"` for its `RED:` line"));
+  assert.ok(!has(SKILL, "no red evidence"));
+  assert.ok(!has(SKILL, "`RED: 0 failing`"));
 });
 
 test("implementor step 3 never waives the review of a TDD: required task (red-check judges the whole command, so only a reviewer tells which tests failed)", () => {
@@ -57,41 +58,36 @@ test("implementor step 3 never waives the review of a TDD: required task (red-ch
   assert.ok(!has(SKILL, "unless the config block's `build.red-check` reads `true`"));
 });
 
-test("implementor re-runs an exit-4 commit with --landed in place of its --with paths (commit-task.sh refuses --landed with --with)", () => {
-  assert.ok(has(SKILL, "the same call re-runs with `--landed \"<sha>\"` in place of its `--with` paths"));
+test("implementor reports an exit-4 commit whose error names --landed with --landed (commit-task.sh refuses --landed with --with)", () => {
+  assert.ok(has(SKILL, "`commit <exit>` with `--landed` when its error names `--landed`"));
 });
 
-test("the implementor reviewer dispatch carries the red path of the coder's last RED: line", () => {
-  assert.ok(has(SKILL, "`red: <path>`: the path on the coder's last `RED:` line"));
+test("implementor builds no red: line for the reviewer (the review block of task-step.sh carries it)", () => {
+  assert.ok(!has(SKILL, "`red: <path>`"));
+  assert.ok(!has(SKILL, "red-check: <line>"));
 });
 
-test("implementor preloads the red-check fragment through switch-text.sh with key build.red-check", () => {
-  assert.ok(has(SKILL, '"${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" build.red-check "${CLAUDE_SKILL_DIR}" red-check'));
+test("implementor no longer preloads the red-check fragment, which is gone with its switch-text.sh call", () => {
+  assert.ok(!has(SKILL, "build.red-check"));
+  assert.ok(!fs.existsSync(path.join(VIBER, "skills/implementor/fragments/red-check.true.md")));
 });
 
-test("implementor allowed-tools lists red-check.sh (a preloaded call it cannot make is refused)", () => {
-  assert.ok(frontmatter(SKILL).includes("Bash(${CLAUDE_PLUGIN_ROOT}/scripts/red-check.sh:*)"));
+test("implementor allowed-tools grants task-step.sh and no longer red-check.sh (task-step.sh runs the check itself)", () => {
+  assert.ok(frontmatter(SKILL).includes("Bash(${CLAUDE_PLUGIN_ROOT}/scripts/task-step.sh:*)"));
+  assert.ok(!frontmatter(SKILL).includes("red-check.sh"));
 });
 
-test("the red-check fragment calls red-check.sh with the plan and the task id", () => {
-  assert.ok(has(FRAGMENT, '"${CLAUDE_PLUGIN_ROOT}/scripts/red-check.sh" "<plan>" "<id>"'));
+test("implementor runs the call of a coder PASS of a TDD: required task with Bash timeout 600000, never in the background", () => {
+  assert.ok(has(SKILL, "The call of a `PASS` of a `TDD: required` task runs the red check: Bash timeout 600000, never in the background"));
 });
 
-test("the red-check fragment runs the call with Bash timeout 600000, never in the background", () => {
-  assert.ok(has(FRAGMENT, "Bash timeout 600000"));
-  assert.ok(has(FRAGMENT, "never in the background"));
+test("implementor repeats a call cut off by its timeout with --red-timeout", () => {
+  assert.ok(has(SKILL, "cut off by it, run the same call again with `--red-timeout`"));
 });
 
-test("the red-check fragment lets FAIL-AS-EXPECTED go on as for the PASS", () => {
-  assert.ok(has(FRAGMENT, "`red-check: FAIL-AS-EXPECTED <log>` -> go on"));
-});
-
-test("the red-check fragment maps PASSED-WITHOUT-CHANGE to a coder failure, tests pass without the change", () => {
-  assert.ok(has(FRAGMENT, "`red-check: PASSED-WITHOUT-CHANGE <files>` -> a coder failure, `REASON: tests pass without the change: <files>`"));
-});
-
-test("the red-check fragment sends UNRUNNABLE, a non-zero exit or no line to the reviewer", () => {
-  assert.ok(has(FRAGMENT, "`red-check: UNRUNNABLE <reason>`, a non-zero exit or no `red-check:` line -> reviewer dispatch."));
+test("implementor counts the red-check field of each directive by result for the final summary", () => {
+  assert.ok(has(SKILL, "the `red-check:` field of each directive"));
+  assert.ok(has(SKILL, "`FAIL-AS-EXPECTED` sealed, `PASSED-WITHOUT-CHANGE` rejected, `UNRUNNABLE` by task id"));
 });
 
 test("task-coder returns RED: <n> failing pointing at its red.log on a TDD: required PASS", () => {

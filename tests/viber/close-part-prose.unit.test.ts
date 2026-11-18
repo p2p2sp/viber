@@ -120,6 +120,18 @@ test("allowed-tools lists the skill-part script", () => {
   assert.ok(allowedTools().includes("Bash(${CLAUDE_PLUGIN_ROOT}/scripts/skill-part.sh:*)"));
 });
 
+test("allowed-tools lists the task-step script and no longer the red-check script", () => {
+  assert.ok(allowedTools().includes("Bash(${CLAUDE_PLUGIN_ROOT}/scripts/task-step.sh:*)"));
+  assert.ok(!allowedTools().includes("red-check.sh"));
+});
+
+const WORD_CAP = 3626;
+
+test("SKILL.md stays below the 3626 words it held before step 4 ran on task-step.sh (no decision table, no dispatch template)", () => {
+  const words = SKILL.split(/\s+/).filter((word) => word.length > 0).length;
+  assert.ok(words < WORD_CAP, `${words} words`);
+});
+
 const ENTRIES = [
   ["Final review", "`build.final-review`"],
   ["Update project memory", "`build.memory`"],

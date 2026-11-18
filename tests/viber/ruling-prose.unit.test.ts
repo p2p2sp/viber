@@ -5,9 +5,10 @@
  *
  * `arbiter` carries `Write`, takes a `ruling` input line and writes its four output
  * lines to that file; `task-coder` writes its `DECIDE:` line to the file its
- * `decide-file` line names; `implementor` dispatches both lines and records through
- * the `--from`, `--first-of` and fixed-words forms of `commit-task.sh`, whose usage
- * text carries each form. The files read here are shipped prompts and a script
+ * `decide-file` line names; `implementor` dispatches the arbiter's `ruling:` line
+ * and reports each ruling through the `ruled` call of `task-step.sh`, whose RUN lines
+ * record it through the `--from`, `--first-of` and fixed-words forms of `commit-task.sh`,
+ * whose usage text carries each form. The files read here are shipped prompts and a script
  * usage line, whose text is the behaviour. Nothing is spawned.
  *
  * Run directly by Node's type stripping:
@@ -22,12 +23,7 @@ import path from "node:path";
 const VIBER = path.resolve(import.meta.dirname, "../../viber");
 
 const RULING_LINE = "ruling: <dir>/work/ruling-<subject>.md";
-const DECIDE_FILE_LINE = "decide-file: <dir>/work/<id>-options.md";
-const RECORD = '"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh"';
-const RULE_FROM = `${RECORD} --rule "<plan>" "<subject>" --from "<dir>/work/ruling-<subject>.md"`;
-const DECIDE_FROM = `${RECORD} --decide "<plan>" "<id>" --from "<dir>/work/ruling-<id>.md"`;
-const DECIDE_FIRST_OF = `${RECORD} --decide "<plan>" "<id>" --first-of "<dir>/work/<id>-options.md"`;
-const RULE_REFUSED = `${RECORD} --rule "<plan>" "<subject>" "<first option>" "the arbiter was refused" "not assessed - the arbiter was refused"`;
+const RULED_CALL = '"${CLAUDE_PLUGIN_ROOT}/scripts/task-step.sh" "<plan>" "<subject>" "<started>" ruled --case <case>';
 
 function read(rel: string): string {
   return fs.readFileSync(path.join(VIBER, rel), "utf8");
@@ -52,8 +48,8 @@ const ARBITER = read("agents/arbiter.md");
 const CODER = read("agents/task-coder.md");
 const COMMIT_TASK = read("scripts/commit-task.sh");
 
-const CODER_DISPATCH = between(SKILL, "Coder dispatch:", "Reviewer dispatch:");
-const ARBITER_DISPATCH = between(SKILL, "Arbiter dispatch:", "Commit outside a task:");
+const STEP_4 = between(SKILL, "## 4. Run the plan", "## 5 to 7. Close and archive");
+const ARBITER_DISPATCH = between(SKILL, "Arbiter dispatch", "Commit outside a task:");
 
 function recordingLines(): string[] {
   return lines(SKILL).filter((line) => /commit-task\.sh" --(rule|decide)/.test(line));
@@ -130,36 +126,23 @@ test("the arbiter dispatch of implementor carries the C7 ruling line", () => {
   assert.equal(lines(SKILL).filter((line) => line.includes("viber:arbiter")).length, 1);
 });
 
-test("the coder dispatch of implementor carries the C7 decide-file line", () => {
-  assert.ok(lines(CODER_DISPATCH).includes(DECIDE_FILE_LINE));
-  assert.equal(lines(SKILL).filter((line) => line.startsWith("Coder dispatch:")).length, 1);
+test("a refused arbiter the user accepts is reported as the ruled call with --refused, and implementor holds no fixed words of its own", () => {
+  assert.ok(ARBITER_DISPATCH.includes("accept` -> the same `ruled` call with `--refused`"));
+  assert.ok(!SKILL.includes("the arbiter was refused"));
 });
 
-test("an accepted refused arbiter records the first option word of its case through fixed words", () => {
-  assert.ok(ARBITER_DISPATCH.includes(`\`${RULE_REFUSED}\``));
-  for (const word of ["`accept`", "`skip`", "`continue`", "`leave uncommitted`", "`the coder's first option`"]) {
-    assert.ok(ARBITER_DISPATCH.includes(word), word);
-  }
-  for (const caseName of ["`cap`", "`baseline`", "`tests`", "`final-review`", "`commit`", "`decide`"]) {
-    assert.ok(ARBITER_DISPATCH.includes(caseName), caseName);
-  }
-});
-
-test("the accept answer records an accepted refused arbiter through the fixed-words call", () => {
+test("the accept answer records an accepted refused arbiter through the ruled call with --refused", () => {
   const accept = lines(SKILL).find((line) => line.startsWith("- `accept`: the user overrides the gate.")) ?? "";
-  assert.ok(accept.includes("recorded through the fixed-words `--rule` call of step 4"));
+  assert.ok(accept.includes("recorded through the `ruled` call of step 4 with `--refused`"));
 });
 
-test("implementor records rulings and decisions only through the --from, --first-of and fixed-words forms", () => {
-  const forms = [RULE_FROM, DECIDE_FROM, DECIDE_FIRST_OF, RULE_REFUSED];
-  const found = recordingLines();
-  assert.ok(found.length >= 4);
-  for (const line of found) {
-    assert.ok(forms.some((form) => line.includes(form)), line);
-  }
-  for (const form of forms) {
-    assert.ok(SKILL.includes(form), form);
-  }
+test("implementor reports every ruling through the ruled call of task-step.sh, adding --options for the four fixed cases", () => {
+  assert.ok(ARBITER_DISPATCH.includes(`\`${RULED_CALL}\``));
+  assert.ok(ARBITER_DISPATCH.includes('`--options "<a> | <b>"` for the cases `baseline`, `tests`, `final-review` and `commit`'));
+});
+
+test("implementor holds no commit-task.sh --rule or --decide call of its own (the RUN: lines of task-step.sh record them)", () => {
+  assert.deepEqual(recordingLines(), []);
 });
 
 test("each recording form of implementor appears in the usage text of commit-task.sh", () => {
@@ -177,16 +160,8 @@ test("implementor holds no instruction to rewrite a quote, dollar sign, backtick
   assert.ok(!/\bescap/i.test(SKILL));
 });
 
-test("a decide ruling naming no listed option is recorded through the --first-of call", () => {
-  const stall = lines(SKILL).find((line) => line.startsWith("- Coder failure on attempt 1 to 4")) ?? "";
-  assert.ok(stall.includes(DECIDE_FROM));
-  assert.ok(stall.includes("or the `--first-of` call above when its `RULING` names no listed option"));
-});
-
-test("an accepted refused arbiter on case decide is recorded through the --first-of call", () => {
-  const bullet = lines(ARBITER_DISPATCH).find((line) => line.includes(`\`${DECIDE_FIRST_OF}\``)) ?? "";
-  assert.ok(bullet.includes("an accepted refused arbiter on case `decide`"));
-  assert.ok(bullet.includes("a `decide` ruling naming no listed option"));
+test("a decide ruling is reported without --options, the options file of the coder being the script's to read", () => {
+  assert.ok(ARBITER_DISPATCH.includes("The cases `decide` and `cap` take no `--options`"));
 });
 
 const C4_CLOSING = "Continue the task under these decisions, then return your output lines again.";
@@ -194,34 +169,23 @@ const FLAT = (text: string): string => text.replace(/\s+/g, " ");
 const README = FLAT(read("README.md"));
 const HELP_FAILING_TASK = FLAT(between(read("skills/setup/assets/help.html"), 'id="ts-task-fails"', 'id="ts-denied"'));
 
-function stallBullet(): string {
-  return lines(SKILL).find((line) => line.startsWith("- Coder failure on attempt 1 to 4")) ?? "";
+function bullet(opening: string): string {
+  return lines(STEP_4).find((line) => line.startsWith(opening)) ?? "";
 }
 
-test("a DECIDE line of attempts 1 to 4 goes to the arbiter at once, with no attempt number left to wait for", () => {
-  const stall = stallBullet();
-  assert.ok(stall.includes("a `DECIDE:` line"));
-  assert.ok(stall.includes("`case: decide`"));
-  assert.ok(!stall.includes("From attempt 2 on"));
+test("a DECIDE line of the coder is reported as --decide, the arbiter routing being the script's", () => {
+  assert.ok(STEP_4.includes("`--decide` for its `DECIDE:` line"));
+  assert.ok(!STEP_4.includes("From attempt 2 on"));
 });
 
-test("the arbiter's ruling is followed by a SendMessage of the C4 message to the same coder, the attempt count and tier unchanged", () => {
-  const stall = stallBullet();
-  assert.ok(stall.includes("`SendMessage` that same coder"));
-  assert.ok(stall.includes(`\`${C4_CLOSING}\``));
-  assert.ok(stall.includes("one `decision:` line per `decision:` line of its dispatch, the new one among them"));
-  assert.ok(stall.includes("the attempt count and tier unchanged"));
+test("the resume directive sends its lines to the same coder by SendMessage, closing sentence included, the attempt unchanged", () => {
+  const resume = bullet("- `NEXT: resume`");
+  assert.ok(resume.includes("`SendMessage` that same coder the body lines verbatim"));
+  assert.ok(resume.includes("the attempt unchanged"));
 });
 
-test("a refused SendMessage or a failed resumed coder leads to the next attempt with every decision line", () => {
-  const bullet = lines(SKILL).find((line) => line.startsWith("- A refused `SendMessage`")) ?? "";
-  assert.ok(bullet.includes("a failure of the resumed coder"));
-  assert.ok(bullet.includes("the next attempt with every `decision:` line"));
-});
-
-test("a second DECIDE line of the resumed coder goes to the arbiter again", () => {
-  const bullet = lines(SKILL).find((line) => line.startsWith("- A refused `SendMessage`")) ?? "";
-  assert.ok(bullet.includes("a second `DECIDE:` line of the resumed coder goes to the arbiter again"));
+test("a refused SendMessage is reported as resume-failed, which answers the next attempt with every decision line", () => {
+  assert.ok(STEP_4.includes("A refused `SendMessage`: `resume-failed`"));
 });
 
 test("task-coder finishes every DoD clause the dispute does not touch before returning DECIDE", () => {
@@ -254,8 +218,8 @@ test("the failing-task help entry says in Polish that the same coder continues w
 
 test("a ruling naming no listed option is carried out as the first option with the mismatch in the final summary", () => {
   assert.ok(
-    lines(ARBITER_DISPATCH).includes(
-      "- A `RULING` naming no listed option -> carry out the first option, the mismatch named in the final summary.",
+    lines(STEP_4).includes(
+      "- `NEXT: carry-out: <option>`: carry that option out; a `mismatch` field (a `RULING` naming no listed option) names the mismatch in the final summary.",
     ),
   );
 });

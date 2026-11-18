@@ -2,8 +2,9 @@
  * previous-review-prose.unit.test.ts - pins the prose that starts a re-review from the
  * previous findings (contract C2, the `previous: <dir>/work/review-<id>-<round>.md` line).
  *
- * After a review of a task failed, `implementor` hands the next reviewer of that task the
- * `REVIEW` path the failed one returned, and omits the line before any failure. `task-reviewer`
+ * After a review of a task failed, `task-step.sh` hands the next reviewer of that task the
+ * `REVIEW` path the failed one returned (`implementor` reports it as `--report`), and omits the
+ * line before any failure. `task-reviewer`
  * given that line checks each Blocking item of the report against the code before any other
  * check: an item still standing ends the round on `VERDICT: FAIL` with a report holding those
  * items alone and no `## Must Check` run, an item a `decision:` line overrules or the code
@@ -35,7 +36,6 @@ function bulletsOpening(text: string, opening: string): string[] {
 }
 
 const STEP_4 = SKILL.slice(SKILL.indexOf("## 4. Run the plan"), SKILL.indexOf("## 5 to 7. Close and archive"));
-const DISPATCH_LINE = bulletsOpening(STEP_4, "- `previous: ")[0] ?? "";
 const INPUT = REVIEWER.slice(REVIEWER.indexOf("\n## Input\n"), REVIEWER.indexOf("\n## Must Check\n"));
 const PREVIOUS = bulletsOpening(INPUT, "- A `previous` line")[0] ?? "";
 
@@ -56,22 +56,10 @@ function caseOpening(opening: string): string {
 const STANDING = caseOpening("An item still standing");
 const DROPPED = caseOpening("An item a `decision:` line overrules");
 
-test("the reviewer dispatch of implementor carries one previous line in the C2 shape", () => {
-  assert.equal(bulletsOpening(STEP_4, "- `previous: ").length, 1);
-  assert.ok(DISPATCH_LINE.startsWith("- `previous: <dir>/work/review-<id>-<round>.md`"));
-});
-
-test("the previous line is the REVIEW path the task's last failed review returned in this session", () => {
-  assert.ok(DISPATCH_LINE.includes("the `REVIEW` path the task's last failed review returned in this session"));
-});
-
-test("the previous line rides every review of the task after one of its reviews failed and is omitted before", () => {
-  assert.ok(DISPATCH_LINE.includes("on every review of the task after one of its reviews failed, omitted before"));
-});
-
-test("the previous line sits in the reviewer dispatch, after the report line and before the commit step", () => {
-  assert.ok(STEP_4.indexOf("- `previous: ") > STEP_4.indexOf("- `report: <dir>/work/review-<id>-<round>.md`"));
-  assert.ok(STEP_4.indexOf("- `previous: ") < STEP_4.indexOf("Commit: `"));
+test("implementor builds no previous line: task-step.sh prints it from the REVIEW path of the last failed review, handed over as --report", () => {
+  assert.equal(bulletsOpening(STEP_4, "- `previous: ").length, 0);
+  assert.ok(!STEP_4.includes("`previous:"));
+  assert.ok(STEP_4.includes("`--report \"<path>\"` for its `REVIEW` path"));
 });
 
 test("task-reviewer carries exactly one previous input bullet naming the C2 line", () => {
