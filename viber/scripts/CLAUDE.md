@@ -9,9 +9,9 @@ This directory holds the scripts more than one viber skill or agent calls: the c
 
 ## Relationships
 
-- Callers: `config.sh` is preloaded by `implementor`, `planner`, `e2e` and `intent` (`--questions`) and run by `skills/extension/scripts/extension.sh` and `hooks/scripts/plan-gate.sh`; `run-clock.sh` by `implementor` alone; `switch-text.sh` by `implementor`, `planner`, `intent`, `fixer` and `prototype`; `skill-part.sh` by `implementor` (its `close` part) and `intent` (its `done` part); `plan-path.sh` by `planner`, `implementor`, `intent` and `fixer` (`--start`/`--checkout`) and `e2e` (no argument, the latest run); `plan-index.sh` by `planner` (validate), `implementor` (`--split`), `task-reviewer` (`--extra`, through its `scope` line) and `closeout`; `commit-task.sh` by `implementor` (`--drop` included), `e2e` (`--e2e`) and `closeout` (`--outside`); `archive-run.sh` by the `closeout` agent alone; `red-check.sh` by `implementor` alone (`fragments/red-check.true.md`); `run-failures.sh` (its `--lessons` mode included) and `run-tokens.sh` by `implementor` alone.
+- Callers: `config.sh` is preloaded by `implementor`, `planner`, `e2e` and `intent` (`--questions`) and run by `skills/extension/scripts/extension.sh` and `hooks/scripts/plan-gate.sh`; `run-clock.sh` by `implementor` alone; `switch-text.sh` by `implementor`, `planner`, `intent`, `fixer` and `prototype`; `skill-part.sh` by `implementor` (its `close` part) and `intent` (its `done` part); `plan-path.sh` by `planner`, `implementor`, `intent` and `fixer` (`--start`/`--checkout`) and `e2e` (no argument, the latest run); `plan-index.sh` by `planner` (validate), `implementor` (`--split`), `task-step.sh` (the index, `--dispatch`), `task-reviewer` (`--extra`, through its `scope` line) and `closeout`; `commit-task.sh` by `implementor` (`--drop` included), `e2e` (`--e2e`) and `closeout` (`--outside`); `archive-run.sh` by the `closeout` agent alone; `task-step.sh` by `implementor` alone; `red-check.sh` by `task-step.sh` alone; `run-failures.sh` and `run-tokens.sh` by `implementor`, `run-failures.sh --lessons` also by `task-step.sh`.
 - GitHub callers: `issue-facts.sh` by `intent`, `fixer`, `prototype`; `issue-templates.sh` and `issue-create.sh` by `issue-create`, `intent`, `fixer`; `post-comment.sh` by `intent`, `prototype`; `pr-facts.sh` and `pr-create.sh` by `pr-create`; `pr-threads.sh` by `pr-feedback` and `pr-feedback-reply`; `pr-reply.sh` by `pr-feedback-reply`; `qa-comment.sh` by `pr-create` and the `implementor` close (`qa.true.md`); `gh-read.sh` by `talk`; `open-page.sh` by `setup`, `help`, `prototype`; `check-playwright.sh` by `e2e`.
-- Sibling calls: `plan-path.sh` sources `run-branch.sh`; `run-branch.sh` runs `config.sh --branching` and `sh issue-facts.sh`; `gh-read.sh issue` runs `sh issue-facts.sh`; `red-check.sh` runs `plan-index.sh` and `config.sh --red-check`.
+- Sibling calls: `plan-path.sh` sources `run-branch.sh`; `run-branch.sh` runs `config.sh --branching` and `sh issue-facts.sh`; `gh-read.sh issue` runs `sh issue-facts.sh`; `red-check.sh` runs `plan-index.sh` and `config.sh --red-check`; `task-step.sh` runs `plan-index.sh`, `config.sh`, `run-failures.sh --lessons` and `red-check.sh`, all beside it.
 
 ## Contracts
 
@@ -22,18 +22,25 @@ This directory holds the scripts more than one viber skill or agent calls: the c
 - `skill-part.sh <skill dir> <part>` prints `<skill dir>/parts/<part>.md`, running only a ```` ```! ```` block whose single body line is the exact `switch-text.sh` call shape (header) and replacing it, fences included, by that call's output; any other block prints as plain text. A fragment's output is appended as `switch-text.sh` printed it, never expanded twice; the placeholders of every other line are expanded here.
 - `config.sh`'s `--branching` report is read by `run-branch.sh` and `pr-facts.sh` only, `--red-check` by `red-check.sh` only, `--specifications` by `run-failures.sh` and `rules-map.sh` only (both fall back to `specs`), `--questions` by the `intent` preload only (the default block carries no line for that key, though its `# local:` line names it); every other reader takes the default block. A report line added or renamed changes those readers.
 
+- `task-step.sh <plan> <subject> <started> <event>` answers each return of a task agent with blocks, each opening on `NEXT:`, `RUN:`, `ASK:` or `STOP:`: the body lines after it are sent verbatim in the dispatch the verb names, and an `add:` field names a line the model copies from the return it holds (`reason`, `repair`). The header defines every event, verb and field. It keeps the task step in `.temp/viber/<id>/state`, discarded when written under another `started:` mark, and the session lessons in `.temp/viber/lessons`; it takes no free text in its arguments and exits 2 with one `error:` line and an empty stdout.
+
 ## Commands
 
-- Each script's test is `tests/viber/<basename>.test.ts`, integration tier (CI only). `run-branch.sh` has no file of its own: `tests/viber/plan-path.test.ts` covers it through `--branch`, `--start`, `--checkout` and `--land`.
+- Each script's test is `tests/viber/<basename>.test.ts`, integration tier (CI only); `task-step.test.ts` runs about 3 minutes. `run-branch.sh` has no file of its own: `tests/viber/plan-path.test.ts` covers it through `--branch`, `--start`, `--checkout` and `--land`.
+
+## Change together
+
+- The directive format of `task-step.sh`: its header defines it, `skills/implementor/SKILL.md` step 4 acts on each verb, `tests/viber/task-step.test.ts` pins it; the `NEXT:` words `red-check.sh` prints (`review`, `coder-failure`) are read by `task-step.sh`.
 
 ## Traps
 
-- `skill-part.sh` and `run-tokens.sh` are invoked bare by `implementor`, so their index mode must stay 100755: the portability exec-bit sweep fails on 100644.
+- `skill-part.sh`, `run-tokens.sh` and `task-step.sh` are invoked bare by `implementor`, so their index mode must stay 100755: the portability exec-bit sweep fails on 100644.
 - The GitHub wrappers are `#!/bin/sh` and must stay POSIX: CI runs them under every POSIX shell present, and the portability sweep flags bash-only syntax in them.
 - A failed GitHub call is never retried by its caller: `post-comment.sh` exits 1 when whether the comment landed is unknown, and `pr-create.sh` exits 1 after the push may already have happened (its ERROR line names the pushed branch); `pr-reply.sh` exits 1 when a reply may or may not have landed; the caller reports.
 - The portability sweep reads the awk block of `pr-threads.sh` as shell: it flags `function NAME` and `((` there, so the block defines no function (a sentinel `T` line closes the last thread) and the `--jq` filter avoids `((`.
 - `issue-create.sh` never removes a created issue when applying its type or its `--parent` attach fails: the type failure is reported as `TYPE=dropped` or `TYPE=error`, the attach failure as `PARENT=error` with `PARENT_ERROR=`, always with exit 0.
 - `gh-read.sh` is the read-only reader: every `gh api` call in it stays a GET (no `-X`, `-f`, `-F`), which `tests/viber/gh-read.test.ts` asserts; a write belongs in its own wrapper.
+- Never edit `task-step.sh` while its test runs: bash reads a script incrementally, so a header edit mid-run shows as a syntax error in the running cases.
 
 ## Sections
 
