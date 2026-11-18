@@ -1,6 +1,7 @@
-- `viber:qa-writer` with `spec: <dir>/spec.md`, `notes: <dir>/work/`, `refs: ${CLAUDE_PLUGIN_ROOT}/references` and `out: <dir>`.
+- With a `NEXT: qa-kept` block from the index of step 2: run its `RUN:` line and dispatch no `qa-writer`; its `"<file>"` arguments are the QA paths.
+- Otherwise `viber:qa-writer` with `spec: <dir>/spec.md`, `notes: <dir>/work/`, `refs: ${CLAUDE_PLUGIN_ROOT}/references` and `out: <dir>`.
 
-QA paths, the `FILES:` of `VERDICT: WRITTEN` or `VERDICT: KEPT`, commit through `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --qa "<plan>" "<file>" ["<file>"...]`. No `FILES:` line, or only `VERDICT: NONE` -> no call.
+QA paths of a writer, the `FILES:` of `VERDICT: WRITTEN`, commit through `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --qa "<plan>" "<file>" ["<file>"...]`. No `FILES:` line, or only `VERDICT: NONE` -> no call.
 
 A `qa.md` among the QA paths, once its `--qa` commit exited 0, is posted to the run's issue (the branch's pull request when the run has none) through `"${CLAUDE_PLUGIN_ROOT}/scripts/qa-comment.sh" "<the qa.md path>"`, with no `--pr` and no question, one call, never retried. Its stdout and exit carry to the final summary:
 

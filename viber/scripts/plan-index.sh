@@ -62,7 +62,14 @@
 #                                   whose every name is closed takes no number;
 #                                   "build.extensions: none" prints none. Blocks
 #                                   follow each other with no blank line.
-#   review: single                 last, on a fresh plan only (a plain call with
+#   NEXT: qa-kept                  --split only, last (after every extension block),
+#   RUN: "<plugin root>/scripts/commit-task.sh" --qa "<plan>" "<dir>/qa.md" "<dir>/qa.e2e.md"
+#                                   when build.qa is true, <dir>/qa.md or <dir>/qa.e2e.md
+#                                   exists and closed: does not name qa: the --qa call
+#                                   over each of the two present, qa.md first;
+#                                   <plugin root> is cut as under --dispatch. No block
+#                                   otherwise.
+#   review: single                last, on a fresh plan only (a plain call with
 #   dispatch: viber:planner-review  no status.md beside the plan; a landed plan,
 #                                   --split and --extra print none of it): a plan
 #                                   of 12 tasks or fewer
@@ -439,7 +446,8 @@
 #            value: haiku and opus) for the profile lines, --final-review for its
 #            model field and build.memory (no usable value: false) for its memory
 #            line. --split also reads build.extensions (no usable value: none)
-#            for its extension blocks.
+#            for its extension blocks and build.qa (no usable value: false) for its
+#            qa-kept block.
 #   exit   : 0 on a valid plan; a git failure during the --split commit never
 #            changes that, the decomposed files are already on disk.
 #
@@ -704,6 +712,7 @@ tier_min="haiku"
 tier_max="opus"
 cfg_memory="false"
 cfg_ext="none"
+cfg_qa="false"
 if [[ "$mode" == "--split" || "$has_final" -eq 1 ]]; then
   [[ "$mode" != "--split" ]] || profile_on=1
   cfg_tiers="$(bash "$(dirname -- "${BASH_SOURCE[0]}")/config.sh" 2>/dev/null || true)"
@@ -714,6 +723,7 @@ if [[ "$mode" == "--split" || "$has_final" -eq 1 ]]; then
       "tiers.max: "*) tier_max="${line#tiers.max: }" ;;
       "build.memory: "*) cfg_memory="${line#build.memory: }" ;;
       "build.extensions: "*) cfg_ext="${line#build.extensions: }" ;;
+      "build.qa: "*) cfg_qa="${line#build.qa: }" ;;
     esac
   done < <(printf '%s\n' "$cfg_tiers")
 fi
@@ -2029,6 +2039,26 @@ if [[ "$mode" == "--split" && "$cfg_ext" != "none" && -n "$cfg_ext" ]]; then
       printf 'out: .temp/viber/extension-%s/\n' "$ext_name"
     done
   done
+fi
+
+# --split: last, the commit of the QA documents already in the run directory, when
+# build.qa is true and status.md has not closed qa. qa.md first, then qa.e2e.md, each
+# only when present. <plugin root> is cut as under --dispatch.
+if [[ "$mode" == "--split" && "$cfg_qa" == "true" ]]; then
+  case " $st_closed " in
+    *" qa "*) ;;
+    *)
+      qa_paths=""
+      for qa_name in qa.md qa.e2e.md; do
+        [[ ! -f "$dir/$qa_name" ]] || qa_paths="$qa_paths \"$dir/$qa_name\""
+      done
+      if [[ -n "$qa_paths" ]]; then
+        self="${0//\\//}"
+        printf 'NEXT: qa-kept\n'
+        printf 'RUN: "%s/scripts/commit-task.sh" --qa "%s"%s\n' "${self%/scripts/${self##*/}}" "$plan" "$qa_paths"
+      fi
+      ;;
+  esac
 fi
 
 [[ "$mode" == "--split" ]] || exit 0

@@ -4776,3 +4776,50 @@ test("--split with build.extensions none prints no extension block", async () =>
   assert.equal(result.status, 0, `stderr: ${result.stderr}`);
   assert.doesNotMatch(result.stdout, /NEXT: extension/);
 });
+
+// --- the kept QA block: plan-index.sh <plan> --split ------------------------------
+
+/** A run holding the QA documents `docs`, `--split` run over it with the config `lines`
+ *  (the whole .claude/viber.yml, none when empty) and the status.md lines `status`. */
+async function splitWithQa(docs: string[], lines: string[], status: string[] = []) {
+  return withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody(numberedTasks(1), 1));
+    if (status.length > 0) write(dir, `${PLAN_DIR}/status.md`, ["# status", "", ...status, ""].join("\n"));
+    for (const doc of docs) write(dir, `${PLAN_DIR}/${doc}`, "# qa\n");
+    if (lines.length > 0) write(dir, ".claude/viber.yml", [...lines, ""].join("\n"));
+    return run(dir, {}, [PLAN_REL, "--split"]);
+  });
+}
+
+const QA_ON = ["build:", "  qa: true"];
+
+function qaBlock(...docs: string[]): string[] {
+  const paths = docs.map((doc) => `"${PLAN_DIR}/${doc}"`).join(" ");
+  return ["NEXT: qa-kept", `RUN: "${DISPATCH_ROOT}/scripts/commit-task.sh" --qa "${PLAN_REL}" ${paths}`];
+}
+
+test("--split prints, last, a qa-kept block committing qa.md then qa.e2e.md through --qa when build.qa is true and both exist", async () => {
+  const result = await splitWithQa(["qa.e2e.md", "qa.md"], [...QA_ON, "  extensions:", "    a:"]);
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.deepEqual(result.stdout.split("\n").filter((l) => l !== "").slice(-2), qaBlock("qa.md", "qa.e2e.md"));
+  assert.ok(result.stdout.indexOf("NEXT: extension") < result.stdout.indexOf("NEXT: qa-kept"));
+});
+
+test("--split names only the QA document that exists in the qa-kept block", async () => {
+  const result = await splitWithQa(["qa.e2e.md"], QA_ON);
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.deepEqual(result.stdout.split("\n").filter((l) => l !== "").slice(-2), qaBlock("qa.e2e.md"));
+});
+
+for (const [label, docs, lines, status] of [
+  ["no QA document exists", [], QA_ON, []],
+  ["build.qa is off", ["qa.md"], ["build:", "  qa: false"], []],
+  ["there is no config", ["qa.md"], [], []],
+  ["status.md closed: names qa", ["qa.md", "qa.e2e.md"], QA_ON, ["closed: memory qa"]],
+] as const) {
+  test(`--split prints no qa-kept block when ${label}`, async () => {
+    const result = await splitWithQa([...docs], [...lines], [...status]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /qa-kept/);
+  });
+}

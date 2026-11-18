@@ -397,6 +397,32 @@ test("the extensions fragment sends the index's blocks step by step, one message
   assert.ok(!EXTENSIONS.includes("out: .temp/viber/extension-<name>/"));
 });
 
+const QA = fs.readFileSync(path.join(SKILL_DIR, "fragments/qa.true.md"), "utf8");
+const QA_WRITER = fs.readFileSync(path.resolve(SKILL_DIR, "../../agents/qa-writer.md"), "utf8");
+
+test("step 2 carries the NEXT: qa-kept block of the index to step 6 and runs its RUN: line no earlier", () => {
+  const bullet = lines(section(SKILL, "2.")).find((line) => line.startsWith("- `NEXT: qa-kept")) ?? "";
+  assert.ok(bullet.includes("carry it to step 6"));
+  assert.ok(bullet.includes("running its `RUN:` line no earlier"));
+});
+
+test("the QA fragment answers the qa-kept block by running its RUN: line with no qa-writer dispatch, and posts qa.md as for a written one", () => {
+  const text = QA.replace(/\s+/g, " ");
+  assert.ok(text.includes("a `NEXT: qa-kept` block"));
+  assert.ok(text.includes("run its `RUN:` line and dispatch no `qa-writer`"));
+  assert.ok(text.includes("A `qa.md` among the QA paths, once its `--qa` commit exited 0, is posted"));
+});
+
+test("neither qa-writer nor the QA fragment names a KEPT verdict", () => {
+  assert.ok(!QA_WRITER.includes("KEPT"));
+  assert.ok(!QA.includes("KEPT"));
+});
+
+test("qa-writer keeps no rule for an existing qa.md or qa.e2e.md", () => {
+  assert.ok(!QA_WRITER.includes("An existing"));
+  assert.ok(!QA_WRITER.includes("overwrites"));
+});
+
 test("the both-forms paragraph after the rulings keeps only the not-written line", () => {
   const paragraph = stepSevenParagraph("After those, also outside its 7 lines, in both forms");
   assert.equal(lines(paragraph).filter((line) => line.startsWith("- ")).length, 1);

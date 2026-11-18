@@ -24,7 +24,7 @@ Two independent questions over the spec's file map, each answered from what a fi
 - Did the UI change - a view, a component, a page, a template, client-side routing?
 - Did the endpoints change - a controller, a route, a request handler, an API definition?
 
-`<out>/qa.md` is written when the UI changed. `<out>/qa.e2e.md` is written when the UI changed or the endpoints did. Neither answer yes -> `VERDICT: NONE` with `REASON: no UI or endpoint change`. An existing `<out>/qa.md` or `<out>/qa.e2e.md` -> write nothing and return `VERDICT: KEPT`: a resumed build never overwrites scenarios a tester may already have worked through.
+`<out>/qa.md` is written when the UI changed. `<out>/qa.e2e.md` is written when the UI changed or the endpoints did. Neither answer yes -> `VERDICT: NONE` with `REASON: no UI or endpoint change`.
 
 ## Write
 
@@ -36,6 +36,5 @@ Two independent questions over the spec's file map, each answered from what a fi
 Two lines, nothing else:
 
 - `VERDICT: WRITTEN` plus `FILES: <every repo-relative path you wrote, comma-separated>`
-- or `VERDICT: KEPT` plus `FILES: <the repo-relative paths of the existing qa.md and qa.e2e.md, whichever are present, comma-separated>`
 - or `VERDICT: NONE` plus `REASON: <one line>`
 - or `VERDICT: DENIED` plus `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`
