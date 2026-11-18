@@ -21,9 +21,10 @@ tasks: <task id>, <task id>, ...
 report: <run directory>/work/final-review-<slice number>.md
 refs: <plugin references directory>
 memory: <true|false>
+scope: <the plan-index.sh --slice call>
 ```
 
-- A recheck carries `fix: <path>, <path>, ...` in place of `tasks:`, one or more `review: <findings report>` lines, and `report: <run directory>/work/final-review-recheck-<round>.md`.
+- A recheck carries `fix: <path>, <path>, ...` in place of `tasks:` and `scope:`, one or more `review: <findings report>` lines, and `report: <run directory>/work/final-review-recheck-<round>.md`.
 
 ## Recheck a fix
 
@@ -35,9 +36,7 @@ Only with a `fix:` line, in place of "Read your slice":
 
 ## Read your slice
 
-Read in full: `<run>/spec.md`, `<run>/status.md`, each of your `tasks`' own task file under `<run>/tasks/`, and each of their coders' notes at `<run>/work/<task id>-coder.md` when present. Find each task's commit by its subject - `<task id> - <title>`, or `<task id>(<n>) - <title>` for a post-review fix - and read what it changed.
-
-Your slice is the files those commits changed or removed, minus every file a commit of a lower-numbered task also changed when that task's id is not among your own `tasks`: such a file belongs to the slice holding the lowest-numbered task that changed it, never yours. Reach everything else - the rest of the repository, an earlier task's own commit, any file outside your slice - only through a targeted search, never a full read.
+Read in full: `<run>/spec.md`, `<run>/status.md`, each of your `tasks`' own task file under `<run>/tasks/`, and each of their coders' notes at `<run>/work/<task id>-coder.md` when present. Run your `scope` line: its `commit:` lines are your tasks' commits, which you read for what each changed, and its `file:` lines are your slice, the files those commits changed or removed that belong to no earlier slice. Nothing printed means no commit to review. Reach everything else - the rest of the repository, an earlier task's own commit, any file outside your slice - only through a targeted search, never a full read.
 
 ## What you search for
 

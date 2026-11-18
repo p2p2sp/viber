@@ -4614,3 +4614,92 @@ for (const [label, args] of [
     });
   });
 }
+
+// --- the final-review blocks: plan-index.sh <plan> --final-review ---------------
+
+/** `count` tasks T1..T<count>, each with a file of its own. */
+function numberedTasks(count: number): TaskFields[] {
+  return Array.from({ length: count }, (_, i) => ({ id: `T${i + 1}`, title: `Task ${i + 1}`, files: `src/t${i + 1}.ts` }));
+}
+
+/** A landed run of `count` tasks with `status` beside it, `--final-review` run over it. */
+async function finalReview(count: number, status: string[], config = "") {
+  return withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody(numberedTasks(count), 1));
+    write(dir, `${PLAN_DIR}/status.md`, ["# status", "", ...status, ""].join("\n"));
+    if (config !== "") write(dir, ".claude/viber.yml", config);
+    return run(dir, {}, [PLAN_REL, "--final-review"]);
+  });
+}
+
+test("--final-review prints one block of the C6 lines for a plan of at most 8 tasks, memory from the config block", async () => {
+  const result = await finalReview(3, ["progress: 2/3", "done: T1 T2"], "build:\n  memory: false\n");
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(
+    result.stdout,
+    [
+      "NEXT: final-review | slice: 1 | model: sonnet",
+      `run: ${PLAN_DIR}`,
+      "tasks: T1, T2, T3",
+      `report: ${PLAN_DIR}/work/final-review-1.md`,
+      `refs: ${DISPATCH_ROOT}/references`,
+      "memory: false",
+      `scope: "${DISPATCH_ROOT}/scripts/plan-index.sh" "${PLAN_REL}" --slice "T1,T2,T3"`,
+      "",
+    ].join("\n"),
+  );
+});
+
+test("--final-review cuts 13 tasks into a block of 7 and a block of 6, a skipped task included", async () => {
+  const result = await finalReview(13, ["progress: 11/13", "done: T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11", "skipped: T5"]);
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  const lines = result.stdout.split("\n");
+  assert.deepEqual(
+    lines.filter((l) => /^(NEXT|tasks|report): /.test(l)),
+    [
+      "NEXT: final-review | slice: 1 | model: sonnet",
+      "tasks: T1, T2, T3, T4, T5, T6, T7",
+      `report: ${PLAN_DIR}/work/final-review-1.md`,
+      "NEXT: final-review | slice: 2 | model: sonnet",
+      "tasks: T8, T9, T10, T11, T12, T13",
+      `report: ${PLAN_DIR}/work/final-review-2.md`,
+    ],
+  );
+  assert.ok(lines.includes(`scope: "${DISPATCH_ROOT}/scripts/plan-index.sh" "${PLAN_REL}" --slice "T8,T9,T10,T11,T12,T13"`));
+});
+
+test("--final-review clamps the model into tiers.min..tiers.max", async () => {
+  const result = await finalReview(2, ["done: T1"], "tiers:\n  min: opus\n");
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout.split("\n")[0], "NEXT: final-review | slice: 1 | model: opus");
+});
+
+test("--final-review prints NEXT: skip when status.md closes final-review", async () => {
+  const result = await finalReview(2, ["done: T1 T2", "closed: memory final-review"]);
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "NEXT: skip\n");
+});
+
+test("--final-review prints NEXT: skip when no task is done", async () => {
+  const result = await finalReview(2, ["done: none", "skipped: T2"]);
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "NEXT: skip\n");
+});
+
+for (const [label, args] of [
+  ["--split beside it", [PLAN_REL, "--split", "--final-review"]],
+  ["--extra beside it", [PLAN_REL, "--final-review", "--extra", "T1"]],
+  ["--dispatch beside it", [PLAN_REL, "--final-review", "--dispatch", "T1", "coder"]],
+  ["--slice beside it", [PLAN_REL, "--final-review", "--slice", "T1"]],
+] as const) {
+  test(`--final-review with ${label} exits 2 with nothing on stdout and no decomposition`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seedDispatch(dir);
+
+      const result = await run(dir, {}, [...args]);
+      assert.equal(result.status, 2, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, "");
+      assert.equal(fs.existsSync(path.join(dir, PLAN_DIR, "tasks")), false);
+    });
+  });
+}

@@ -1,16 +1,6 @@
-Skip this step, completing its `Final review` entry, when the index's `closed:` line names `final-review`, the build ended on `abort`, or no task was committed this run.
+Run `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh" "<plan>" --final-review`. Skip this step, completing its `Final review` entry, when it prints `NEXT: skip` or the build ended on `abort`.
 
-Cut every task of the index, in index order, skipped ones included, into groups of at most 8 consecutive tasks, one group per slice.
-
-Dispatch one `viber:final-reviewer` (Agent tool, `model` sonnet clamped into the tiers range) per slice, all in one message, each carrying:
-
-```
-run: <dir>
-tasks: <the slice's task ids, comma-separated>
-report: <dir>/work/final-review-<slice number>.md
-refs: ${CLAUDE_PLUGIN_ROOT}/references
-memory: <the config block's build.memory value>
-```
+Otherwise dispatch one `viber:final-reviewer` (Agent tool, `model` the block's `model:` field) per `NEXT: final-review` block, all in one message, each carrying the block's body lines as printed.
 
 - `VERDICT: DENIED` -> `AskUserQuestion` naming that slice: retry / accept / abort.
 - No reviewer returned `VERDICT: FAIL` -> complete the entry and skip the rest of this step.

@@ -12,6 +12,8 @@
 #                                        the labelled lines of one dispatch (below)
 #   plan-index.sh <plan-file> --slice <id>[,<id>]...
 #                                        the commits and files of a final-review slice (below)
+#   plan-index.sh <plan-file> --final-review
+#                                        the final-review dispatch blocks (below)
 #
 # stdout (the orchestrator's only view of the plan - the decomposed files are read
 # by agents):
@@ -126,6 +128,22 @@
 # Nothing at all, exit 0, when no commit matches or no commit added the plan. The
 # plan is validated as under --split and no file is written. An id the plan does
 # not hold, or --slice beside --split, --extra or --dispatch, exits 2.
+#
+# --final-review prints, instead of the index, the dispatches of the final review:
+#   NEXT: skip                      status.md closes final-review, or no task is done
+# or one block per slice, the tasks cut into ceil(n / 8) runs of consecutive tasks in
+# index order, skipped ones included, sizes differing by at most one, the larger
+# first (as the planner review slices are cut):
+#   NEXT: final-review | slice: <k> | model: <sonnet clamped into tiers.min..tiers.max>
+#   run: <dir>
+#   tasks: <id>, <id>, ...
+#   report: <dir>/work/final-review-<k>.md
+#   refs: <plugin root>/references
+#   memory: <the build.memory value config.sh prints>
+#   scope: "<plugin root>/scripts/plan-index.sh" "<plan>" --slice "<id>,<id>,..."
+# <plugin root> is cut as under --dispatch. The plan is validated as under --split and
+# no file is written. --final-review beside --split, --extra, --dispatch or --slice
+# exits 2.
 #
 # --split removes, once the plan is validated and decomposed and before the index
 # is printed, the coder and reviewer extras files of every task not done; a done
@@ -283,7 +301,7 @@
 #       --extra <task-id>, --extra beside --split, a --extra id the plan does not
 #       hold, a --dispatch with an unknown id or form or beside --split or
 #       --extra, a --slice with an unknown id or beside --split, --extra or
-#       --dispatch, or a --split pointed at anything but the run's own <dir>/plan.md
+#       --dispatch, a --final-review beside any of those four, or a --split pointed at anything but the run's own <dir>/plan.md
 #   3 - no <!-- TASK --> blocks
 #   4 - broken task contract (<!-- TASK --> blocks under no "## Tasks" heading,
 #       where the cut would leave tasks/ empty while the index still lists
@@ -401,12 +419,15 @@
 #
 # Contract:
 #   argv   : the plan file, optionally --split, --extra <task-id>, --dispatch
-#            <task-id> coder|reviewer or --slice <id>[,<id>]..., never two of them.
+#            <task-id> coder|reviewer, --slice <id>[,<id>]... or --final-review,
+#            never two of them.
 #   cwd    : the repository root - the plan path and every path in the index are
 #            relative to it; a plan path given absolute, or with a leading
 #            "./", inside it is read as its relative form.
 #   env    : none. --split reads tiers.min and tiers.max from config.sh (no usable
-#            value: haiku and opus) for the profile lines.
+#            value: haiku and opus) for the profile lines, --final-review for its
+#            model field and build.memory (no usable value: false) for its memory
+#            line.
 #   exit   : 0 on a valid plan; a git failure during the --split commit never
 #            changes that, the decomposed files are already on disk.
 #
@@ -421,11 +442,13 @@ dispatch_id=""
 dispatch_form=""
 has_slice=0
 slice_arg=""
+has_final=0
 [[ $# -eq 0 ]] || shift
-usage="error: usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer | --slice <id>[,<id>]...]"
+usage="error: usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer | --slice <id>[,<id>]... | --final-review]"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --split) mode="--split" ;;
+    --final-review) has_final=1 ;;
     --extra)
       if [[ $# -lt 2 || -z "$2" ]]; then echo "$usage" >&2; exit 2; fi
       has_extra=1
@@ -473,6 +496,11 @@ fi
 
 if [[ "$has_slice" -eq 1 && ( "$has_extra" -eq 1 || "$has_dispatch" -eq 1 || "$mode" == "--split" ) ]]; then
   echo "error: --slice cannot be combined with --split, --extra or --dispatch" >&2
+  exit 2
+fi
+
+if [[ "$has_final" -eq 1 && ( "$has_slice" -eq 1 || "$has_extra" -eq 1 || "$has_dispatch" -eq 1 || "$mode" == "--split" ) ]]; then
+  echo "error: --final-review cannot be combined with --split, --extra, --dispatch or --slice" >&2
   exit 2
 fi
 
@@ -582,6 +610,7 @@ awk_mode="$mode"
 [[ "$has_extra" -eq 0 ]] || awk_mode="--split"
 [[ "$has_dispatch" -eq 0 ]] || awk_mode="--split"
 [[ "$has_slice" -eq 0 ]] || awk_mode="--split"
+[[ "$has_final" -eq 0 ]] || awk_mode="--split"
 # A plain call on a landed plan (status.md beside it) is validated the same way:
 # the plan is frozen, so a rule added after it landed must not refuse it.
 [[ ! -f "$dir/status.md" ]] || awk_mode="--split"
@@ -657,17 +686,20 @@ fi
 
 # The profile lines (--split only) clamp their tiers into the config block's
 # tiers.min..tiers.max, read from config.sh; no usable value keeps haiku..opus.
+# --final-review clamps its model field the same way and reads build.memory.
 profile_on=0
 tier_min="haiku"
 tier_max="opus"
-if [[ "$mode" == "--split" ]]; then
-  profile_on=1
+cfg_memory="false"
+if [[ "$mode" == "--split" || "$has_final" -eq 1 ]]; then
+  [[ "$mode" != "--split" ]] || profile_on=1
   cfg_tiers="$(bash "$(dirname -- "${BASH_SOURCE[0]}")/config.sh" 2>/dev/null || true)"
   cfg_tiers="${cfg_tiers//$'\r'/}"
   while IFS= read -r line; do
     case "$line" in
       "tiers.min: "*) tier_min="${line#tiers.min: }" ;;
       "tiers.max: "*) tier_max="${line#tiers.max: }" ;;
+      "build.memory: "*) cfg_memory="${line#build.memory: }" ;;
     esac
   done < <(printf '%s\n' "$cfg_tiers")
 fi
@@ -1665,6 +1697,68 @@ END {
   }
 }
 ' "$plan")"
+
+# --final-review: one dispatch block per slice of consecutive tasks, read off the
+# validated index above (its task rows, progress and closed lines). The plugin root
+# is this script's own path as invoked, cut at its "/scripts/<name>.sh" as text.
+if [[ "$has_final" -eq 1 ]]; then
+  self="${0//\\//}"
+  plugin_root="${self%/scripts/${self##*/}}"
+
+  fr_ids=()
+  fr_done=0
+  fr_closed=""
+  in_rows=0
+  while IFS= read -r row; do
+    case "$row" in
+      "closed: "*) fr_closed="${row#closed: }" ;;
+      "tasks: "*) in_rows=1 ;;
+      "verify: "*) in_rows=0 ;;
+      *)
+        if [[ $in_rows -eq 1 ]]; then
+          row_rest="${row#* | }"
+          fr_ids+=("${row%% | *}")
+          [[ "${row_rest%% | *}" != "done" ]] || fr_done=$((fr_done + 1))
+        fi
+        ;;
+    esac
+  done < <(printf '%s\n' "$index_out")
+
+  case " $fr_closed " in
+    *" final-review "*) printf 'NEXT: skip\n'; exit 0 ;;
+  esac
+  if [[ $fr_done -eq 0 ]]; then printf 'NEXT: skip\n'; exit 0; fi
+
+  # sonnet clamped into tiers.min..tiers.max (haiku < sonnet < opus < fable)
+  fr_model="sonnet"
+  case "$tier_min" in haiku) r_min=1 ;; sonnet) r_min=2 ;; opus) r_min=3 ;; fable) r_min=4 ;; *) r_min=1 ;; esac
+  case "$tier_max" in haiku) r_max=1 ;; sonnet) r_max=2 ;; opus) r_max=3 ;; fable) r_max=4 ;; *) r_max=3 ;; esac
+  r_model=2
+  if [[ $r_model -lt $r_min ]]; then r_model=$r_min; fi
+  if [[ $r_model -gt $r_max ]]; then r_model=$r_max; fi
+  case "$r_model" in 1) fr_model="haiku" ;; 2) fr_model="sonnet" ;; 3) fr_model="opus" ;; *) fr_model="fable" ;; esac
+
+  fr_n=${#fr_ids[@]}
+  fr_m=$(((fr_n + 7) / 8))
+  fr_base=$((fr_n / fr_m))
+  fr_rem=$((fr_n % fr_m))
+  fr_at=0
+  for ((k = 1; k <= fr_m; k++)); do
+    fr_size=$fr_base
+    if [[ $k -le $fr_rem ]]; then fr_size=$((fr_size + 1)); fi
+    fr_list=""
+    for ((j = fr_at; j < fr_at + fr_size; j++)); do fr_list="${fr_list:+$fr_list, }${fr_ids[$j]}"; done
+    fr_at=$((fr_at + fr_size))
+    printf 'NEXT: final-review | slice: %d | model: %s\n' "$k" "$fr_model"
+    printf 'run: %s\n' "$dir"
+    printf 'tasks: %s\n' "$fr_list"
+    printf 'report: %s/work/final-review-%d.md\n' "$dir" "$k"
+    printf 'refs: %s/references\n' "$plugin_root"
+    printf 'memory: %s\n' "$cfg_memory"
+    printf 'scope: "%s/scripts/plan-index.sh" "%s" --slice "%s"\n' "$plugin_root" "$plan" "${fr_list//, /,}"
+  done
+  exit 0
+fi
 
 # --slice: the commits and files of a final-review slice, read off the validated
 # index above (its id and title columns) and the history since the oldest commit

@@ -1,0 +1,6 @@
+- `--final-review` blocks are printed back to back, no blank line between: each `NEXT:` line opens the next block, as in task-step.sh.
+- The model field clamps sonnet into tiers.min..tiers.max (defaults haiku..opus when config.sh prints none); `memory:` is config.sh's `build.memory` value, `false` when absent.
+- `NEXT: skip` is decided from the validated index: a `closed:` word `final-review`, or no task row in state `done`.
+- Red log `.temp/viber/T7/red.log` (9 failing) comes from the revert route (the flag parse temporarily set to a no-op). The prose tests were written after the fragment and reviewer edits; the old text fails them by construction (`groups of at most 8`, `<slice number>`, `by its subject`).
+- `tests/viber/skill-part.test.ts` has 6 failures on this Windows checkout (mixed `/` and `\` in the printed plugin path); skill-part.sh and its test are untouched, so they predate this task.
+- The CLAUDE.md nodes naming the `plan-index.sh` forms stay for the build's memory step.
