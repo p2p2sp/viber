@@ -216,6 +216,37 @@ test("the failing-task help entry says in Polish that the same coder continues w
   assert.ok(HELP_FAILING_TASK.includes("ten sam wykonawca kontynuuje z orzeczeniem"));
 });
 
+const ANSWERS = between(SKILL, "## Answers", "## 1. Land the plan");
+const RUN_BULLET = bullet("- `RUN:` line");
+const RUN_RULE_BULLET = bullet("  - A `--rule` one");
+const RUN_AFTER_BULLET = bullet("  - A `--decide` or `--skip` one");
+
+test("the skip answer reports the skip event and runs its RUN lines, each with its TaskUpdate to completed", () => {
+  const skip = lines(ANSWERS).find((line) => line.startsWith("- `skip`")) ?? "";
+  assert.ok(skip.includes("report the `skip` event and run its `RUN:` lines, one per message, each with its `TaskUpdate` -> completed"));
+});
+
+test("the retry answer of a coder after a DENIED reports retry coder --denied", () => {
+  const retry = lines(ANSWERS).find((line) => line.startsWith("- `retry`")) ?? "";
+  assert.ok(retry.includes("reporting `retry coder --denied` for a coder after a `DENIED`"));
+});
+
+test("a --rule RUN line exiting non-zero is named in the final summary, records no further ruling and retries nothing", () => {
+  assert.ok(RUN_RULE_BULLET.includes("exiting non-zero -> name it in the final summary, record no further ruling, retry nothing"));
+});
+
+test("a --rule RUN line exiting non-zero still has the ruling carried out", () => {
+  assert.ok(RUN_RULE_BULLET.includes("carry the ruling out all the same"));
+});
+
+test("a --decide or --skip RUN line exiting non-zero after a ruling is named in the final summary and the next block acted on", () => {
+  assert.ok(RUN_AFTER_BULLET.includes("exiting non-zero after a ruling -> name it in the final summary and act on the next block"));
+});
+
+test("the RUN line bullet carries a --skip line's task completion in the message running it", () => {
+  assert.ok(RUN_BULLET.includes("a `--skip` one in the message carrying its task's `TaskUpdate` -> completed"));
+});
+
 test("a ruling naming no listed option is carried out as the first option with the mismatch in the final summary", () => {
   assert.ok(
     lines(STEP_4).includes(

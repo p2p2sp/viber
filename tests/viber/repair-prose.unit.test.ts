@@ -154,8 +154,25 @@ test("a repair pass opens the C3 task-list entry", () => {
   assert.ok(STEP_4.includes("`R<n> - repair <id> (<tier>, review <review tier>)`, `<n>` counting from 1 in the session"));
 });
 
-test("a repair pass entry completes with the task's commit or with the second failure", () => {
-  assert.ok(STEP_4.includes("completed with the task's commit or with the second failure"));
+test("a repair pass entry completes with that task's NEXT: done or its cap ruling", () => {
+  assert.ok(STEP_4.includes("completed with that task's `NEXT: done` or its `cap` ruling"));
+});
+
+test("only the first repair block opens the entry", () => {
+  assert.ok(STEP_4.includes("A `repair: 1` field opens `TaskCreate`"));
+});
+
+test("a coder block past attempt 1 rewrites the task's subject with the tiers its model and review fields name", () => {
+  assert.ok(STEP_4.includes("past attempt 1 its subject is rewritten"));
+  assert.ok(STEP_4.includes("with the tiers its `model:` and `review:` fields name"));
+});
+
+test("the message running a commit RUN line carries the task's TaskUpdate to completed", () => {
+  assert.ok(STEP_4.includes("in the message carrying its `TaskUpdate` -> completed, then report its exit"));
+});
+
+test("an ASK or NEXT: coder answering a refused commit sets the task back to in progress", () => {
+  assert.ok(STEP_4.includes("the `ASK:` or `NEXT: coder` answering a refused commit sets the task back to in progress"));
 });
 
 test("a repair block's repair line takes one line naming the problem the pass fixes", () => {

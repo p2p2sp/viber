@@ -1,0 +1,4 @@
+- T9 had already reduced the arbiter section to the dispatch shape and the `ruled` call; T10 only added the Answers `retry`/`skip` wording, the RUN: sub-bullets, and the task-list entry rules.
+- The repair entry opens only on `repair: 1` (the field is the repair attempt number, 1 or 2); a `repair: 2` block rewrites nothing new.
+- Red evidence: the new tests were written after the SKILL.md edit; the red run is the revert route (edits temporarily undone), 10 failing, `.temp/viber/T10/red-2.log`.
+- `repair-prose` test "completes with the task's commit or with the second failure" was replaced by the `NEXT: done` / `cap` ruling wording.

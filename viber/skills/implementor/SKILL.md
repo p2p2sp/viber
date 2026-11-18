@@ -36,7 +36,7 @@ You orchestrate and delegate: every piece of work runs inside a subagent. Open n
 
 Every question below offers some of these four answers, each doing exactly this wherever it is offered; under an `ASK:` line of step 4 the event after an answer's `->` is what it reports:
 
-- `retry`: dispatch again, with its own dispatch lines, the agent that was refused. After a failed commit: run the same call again.
+- `retry`: dispatch again the agent that was refused, reporting `retry coder --denied` for a coder after a `DENIED` and `retry reviewer` for a reviewer. After a failed commit: run the same call again.
 - `skip`: report the `skip` event and run its `RUN:` lines, one per message, each with its `TaskUpdate` -> completed. The task's half-finished files stay uncommitted in the tree; name them in the final summary.
 - `accept`: the user overrides the gate. On a task: the `accept` event, the task named unreviewed in the final summary. On the test run: go to step 6, the failing or refused run named in the final summary. On the arbiter: take the first option of its dispatch, recorded through the `ruled` call of step 4 with `--refused`, then carried out. On any other agent: go on as if it returned nothing, its refused call named in the final summary.
 - `abort`: stop every dispatch, go to step 7.
@@ -127,15 +127,17 @@ Events:
 
 Directives:
 
-- `NEXT: coder`: `viber:task-coder` (Agent tool, `model` = its `model:` field), the block's body lines verbatim as its prompt, then one line per label of its `add:` field: `reason: <the returned REASON>` (the commit's error after a refused commit), `repair: <one line: the problem this pass fixes>`. `TaskUpdate` -> in progress, the subject rewritten `<id> - <title> (<model>, review <review>)` (`(<model>)` when `review` reads `waived`, `[TDD]` after `<id>` as in step 3). A `repair:` field opens `TaskCreate` `R<n> - repair <id> (<tier>, review <review tier>)`, `<n>` counting from 1 in the session, completed with the task's commit or with the second failure.
+- `NEXT: coder`: `viber:task-coder` (Agent tool, `model` = its `model:` field), the block's body lines verbatim as its prompt, then one line per label of its `add:` field: `reason: <the returned REASON>` (the commit's error after a refused commit), `repair: <one line: the problem this pass fixes>`. `TaskUpdate` -> in progress; past attempt 1 its subject is rewritten `<id> - <title> (<model>, review <review>)` with the tiers its `model:` and `review:` fields name (`(<model>)` when `review` reads `waived`, `[TDD]` after `<id>` as in step 3). A `repair: 1` field opens `TaskCreate` `R<n> - repair <id> (<tier>, review <review tier>)`, `<n>` counting from 1 in the session, completed with that task's `NEXT: done` or its `cap` ruling.
 - `NEXT: review`: `viber:task-reviewer` (Agent tool, `model` = its `model:` field), its prompt built the same way, `add: repair` taking the same `repair:` line.
-- `NEXT: commit`: run the `RUN:` line after it with its `TaskUpdate` -> completed, then report its exit (`TaskUpdate` back to in progress when it is not 0). Warnings off the commit never stop the build: carry `refused <path> - claimed by task <id>`, `took <path> - claimed by committed task <id>` and `changed, claimed by no task in the plan` to the final summary.
+- `NEXT: commit`: run the `RUN:` line after it in the message carrying its `TaskUpdate` -> completed, then report its exit; the `ASK:` or `NEXT: coder` answering a refused commit sets the task back to in progress. Warnings off the commit never stop the build: carry `refused <path> - claimed by task <id>`, `took <path> - claimed by committed task <id>` and `changed, claimed by no task in the plan` to the final summary.
 - `NEXT: done`: nothing more for the task; its dependents are ready.
 - `NEXT: hold | dependents: <ids>|none`: hold the task and the tasks its `dependents:` field names, asking nothing and calling no arbiter; none of them dispatches while held, the rest of the plan goes on, and the failure waits for the repair pass below.
 - `NEXT: arbiter`: the arbiter dispatch below, `add: reason` taking the `reason:` line as above.
 - `NEXT: resume`: `SendMessage` that same coder the body lines verbatim, the attempt unchanged; its next return is judged as any coder return.
 - `NEXT: carry-out: <option>`: carry that option out; a `mismatch` field (a `RULING` naming no listed option) names the mismatch in the final summary.
-- `RUN:` line: run it exactly as written, a `--skip` one with its `TaskUpdate` -> completed. A `--rule` or `--decide` one exiting non-zero -> name it in the final summary, ask nothing, and carry on.
+- `RUN:` line: run it exactly as written, a `--skip` one in the message carrying its task's `TaskUpdate` -> completed.
+  - A `--rule` one exiting non-zero -> name it in the final summary, record no further ruling, retry nothing, and carry the ruling out all the same.
+  - A `--decide` or `--skip` one exiting non-zero after a ruling -> name it in the final summary and act on the next block.
 - `ASK:` line: one `AskUserQuestion` naming the task and offering those answers, the chosen one's event reported next; `retry` reruns the last `RUN:` line and reports its exit, `abort` goes to step 7. An `already committed` answer has the user name the commit.
 - `STOP:` line: report its sentence and stop.
 
