@@ -1,0 +1,5 @@
+- The portability sweep reads any `function NAME` and `((` line of a `#!/bin/sh` file as a bashism, awk blocks included: synthesize.sh writes each awk function as `function \` plus a newline and each getline condition as `( (getline ...) > 0)`.
+- Scope kept to T9: no merge pairs, no `--merge` (an extra argument exits 2), no wave ASK, seeds, `last-line:` or filled-entry keep; T10 and T11 add them to the same awk block.
+- With no full entry the block is `NEXT: none` (C1 verb), not an empty `NEXT: fill`.
+- The `no-report:` ledger line is not read: a hunt with no `<id>-<digit>.md` file at all is the one with no report.
+- A critic SEVERITY that is not a number leaves the filed severity in force; a filed one that is not a number reads 0.0.
