@@ -3,12 +3,14 @@
  * `red-check.sh <plan> <id>` builds a detached worktree of HEAD in the system
  * temp directory, copies in only the task's changed test files and runs the
  * task's Verification command (the red run), then copies in the task's changed
- * production files and runs it again (the control run). It prints exactly one
- * `red-check:` line with exit 0: `FAIL-AS-EXPECTED <log>` when the red run
- * fails and the control run passes, `PASSED-WITHOUT-CHANGE <files>` when the
- * red run already passes, `UNRUNNABLE <reason>` when there is no test file, the
- * control run fails too, or the worktree cannot be built. Bad arguments or plan
- * exit 2.
+ * production files and runs it again (the control run). It prints one
+ * `red-check:` line and a `NEXT:` directive line after it, with exit 0:
+ * `FAIL-AS-EXPECTED <log>` (then `NEXT: review`) when the red run fails and the
+ * control run passes, `PASSED-WITHOUT-CHANGE <files>` (then `NEXT: coder-failure
+ * | reason: tests pass without the change: <files>`) when the red run already
+ * passes, `UNRUNNABLE <reason>` (then `NEXT: review`) when there is no test
+ * file, the control run fails too, or the worktree cannot be built. Bad
+ * arguments or plan exit 2.
  *
  * The cases that matter most are the isolation ones: coders build in parallel
  * in the main tree, so another task's dirty file must never reach the worktree,
@@ -151,7 +153,7 @@ test("a test that passes on HEAD without the production change yields PASSED-WIT
     write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ -n "$(answer)" ]\n');
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, "red-check: PASSED-WITHOUT-CHANGE tests/check.sh\n");
+    assert.equal(r.stdout, "red-check: PASSED-WITHOUT-CHANGE tests/check.sh\nNEXT: coder-failure | reason: tests pass without the change: tests/check.sh\n");
   });
 });
 
@@ -162,7 +164,7 @@ test("a test written first that fails on HEAD and passes with the change yields 
     write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\nNEXT: review\n`);
     const log = fs.readFileSync(path.join(repo.dir, LOG_REL), "utf-8");
     assert.match(log, /red run exit: 1/);
     assert.match(log, /control run exit: 0/);
@@ -178,7 +180,7 @@ test("a test file named only on the task's extras line still counts as the task'
     write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, "tests/extra.test.sh\n");
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, "red-check: PASSED-WITHOUT-CHANGE tests/check.sh tests/extra.test.sh\n");
+    assert.equal(r.stdout, "red-check: PASSED-WITHOUT-CHANGE tests/check.sh tests/extra.test.sh\nNEXT: coder-failure | reason: tests pass without the change: tests/check.sh tests/extra.test.sh\n");
   });
 });
 
@@ -193,7 +195,7 @@ test("another task's dirty production file in the shared tree leaves the verdict
     const listBefore = await worktrees(repo);
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\nNEXT: review\n`);
     assert.equal(await status(repo), before);
     assert.deepEqual(await worktrees(repo), listBefore);
     assert.equal(fs.readFileSync(path.join(repo.dir, "src/other.sh"), "utf-8"), "exit 3\n");
@@ -206,7 +208,7 @@ test("a task whose changes hold no test file yields UNRUNNABLE without building 
     changeProduction(repo.dir);
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, "red-check: UNRUNNABLE no test files among the task's changes\n");
+    assert.equal(r.stdout, "red-check: UNRUNNABLE no test files among the task's changes\nNEXT: review\n");
     assert.equal((await worktrees(repo)).length, 1);
   });
 });
@@ -218,7 +220,7 @@ test("a control run that fails with the change in place yields UNRUNNABLE, never
     write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 43 ]\n');
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, `red-check: UNRUNNABLE control run failed (exit 1): ${LOG_REL}\n`);
+    assert.equal(r.stdout, `red-check: UNRUNNABLE control run failed (exit 1): ${LOG_REL}\nNEXT: review\n`);
     assert.equal((await worktrees(repo)).length, 1);
   });
 });
@@ -231,7 +233,7 @@ test("a Verification wrapped in Markdown backticks runs as the bare command and 
     write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\nNEXT: review\n`);
   });
 });
 
@@ -242,7 +244,7 @@ test("a control run exiting 127 on a command-not-found word that is not the comm
     write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, `red-check: UNRUNNABLE verify command mangled by shell substitution: ${LOG_REL}\n`);
+    assert.equal(r.stdout, `red-check: UNRUNNABLE verify command mangled by shell substitution: ${LOG_REL}\nNEXT: review\n`);
   });
 });
 
@@ -253,7 +255,7 @@ test("a control run exiting 127 on the command's own first word keeps the contro
     write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, `red-check: UNRUNNABLE control run failed (exit 127): ${LOG_REL}\n`);
+    assert.equal(r.stdout, `red-check: UNRUNNABLE control run failed (exit 127): ${LOG_REL}\nNEXT: review\n`);
   });
 });
 
@@ -273,7 +275,7 @@ test("a changed production file whose main-tree mtime is older than the red run'
     write(repo.dir, "tests/check.sh", 'mkdir -p out\n{ [ -f out/lib.built ] && [ -z "$(find src/lib.sh -newer out/lib.built)" ]; } || cp src/lib.sh out/lib.built\n. ./out/lib.built\n[ "$(answer)" = 42 ]\n');
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\nNEXT: review\n`);
   });
 });
 
@@ -286,7 +288,7 @@ test("a production change that sets the exec bit reaches the control run with th
     write(repo.dir, "tests/check.sh", "[ -x src/lib.sh ]\n");
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\nNEXT: review\n`);
   });
 });
 
@@ -313,7 +315,7 @@ test("a node_modules directory of the main tree becomes a real directory in the 
       const before = await status(repo);
       const r = await run(repo.dir, { ...repo.env, TMPDIR: tmp }, [PLAN_REL, "T1"]);
       assert.equal(r.status, 0, r.stderr);
-      assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+      assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\nNEXT: review\n`);
       assert.deepEqual(fs.readdirSync(path.join(repo.dir, "node_modules")).sort(), [".bin", "@acme", "pkg"]);
       assert.equal(fs.readFileSync(path.join(repo.dir, "node_modules/pkg/value.txt"), "utf-8"), "7\n");
       assert.equal(fs.readFileSync(path.join(repo.dir, "node_modules/.bin/tool.txt"), "utf-8"), "8\n");
@@ -335,7 +337,7 @@ test("a fixture under a testdata/ directory travels with the tests into the red 
     write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, "src/testdata/expected.txt\n");
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, "red-check: PASSED-WITHOUT-CHANGE tests/check.sh src/testdata/expected.txt\n");
+    assert.equal(r.stdout, "red-check: PASSED-WITHOUT-CHANGE tests/check.sh src/testdata/expected.txt\nNEXT: coder-failure | reason: tests pass without the change: tests/check.sh src/testdata/expected.txt\n");
   });
 });
 
@@ -352,7 +354,7 @@ test("a workspace package link inside node_modules resolving into the repository
       write(repo.dir, "tests/check.sh", '. ./node_modules/@acme/core/lib.sh\n[ "$(answer)" = 42 ]\n');
       const r = await run(repo.dir, { ...repo.env, TMPDIR: tmp }, [PLAN_REL, "T1"]);
       assert.equal(r.status, 0, r.stderr);
-      assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+      assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\nNEXT: review\n`);
       assert.equal(fs.readFileSync(path.join(repo.dir, "src/lib.sh"), "utf-8"), "answer() { echo 42; }\n");
       assert.equal(fs.lstatSync(entry).isSymbolicLink(), true);
       assert.equal((await worktrees(repo)).length, 1);
@@ -406,7 +408,7 @@ for (const layout of STALE_LAYOUTS) {
         assert.equal((await worktrees(repo)).length, 2);
         const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
         assert.equal(r.status, 0, r.stderr);
-        assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\n`);
+        assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\nNEXT: review\n`);
         assert.equal((await worktrees(repo)).length, 1);
         assert.equal(fs.existsSync(left), false);
         assert.equal(fs.readFileSync(path.join(repo.dir, "node_modules/pkg/value.txt"), "utf-8"), "7\n");
@@ -464,7 +466,7 @@ test("a link that cannot be made yields UNRUNNABLE naming the entry (a missing n
           shell: "bash",
           timeout: 120000,
         });
-        assert.equal(r.stdout, "red-check: UNRUNNABLE link failed: node_modules/pkg\n");
+        assert.equal(r.stdout, "red-check: UNRUNNABLE link failed: node_modules/pkg\nNEXT: review\n");
       });
     });
   });

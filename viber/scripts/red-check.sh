@@ -87,12 +87,16 @@
 #            remove --force and git worktree prune, so the forced remove never
 #            reaches the main tree through a link. A link that would not go
 #            leaves the worktree in place with a "warning:" line on stderr.
-#   stdout : exactly one line, exit 0:
+#   stdout : exactly two lines, exit 0: the "red-check:" verdict line, then a
+#            "NEXT:" line naming the step that verdict leads to:
 #              red-check: FAIL-AS-EXPECTED .temp/viber/<id>/red-check.log
+#              NEXT: review
 #                red run non-zero, control run zero
 #              red-check: PASSED-WITHOUT-CHANGE <test file> <test file> ...
+#              NEXT: coder-failure | reason: tests pass without the change: <test file> <test file> ...
 #                red run zero; every changed test path of the task
 #              red-check: UNRUNNABLE <reason>
+#              NEXT: review
 #                no test files among the task's changes, a link that failed
 #                (link failed: <entry path>, worktree-relative), the worktree
 #                could not be built or a task path not placed in it (worktree
@@ -112,6 +116,13 @@ if [[ $# -ne 2 || -z "$1" || -z "$2" ]]; then
   echo "$usage" >&2
   exit 2
 fi
+
+# Prints an UNRUNNABLE verdict and the directive after it.
+unrunnable() {
+  echo "red-check: UNRUNNABLE $1"
+  echo "NEXT: review"
+}
+
 plan="${1//\\//}"
 id="$2"
 here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -247,7 +258,7 @@ for p in ${task_paths[@]+"${task_paths[@]}"}; do
 done
 
 if [[ ${#test_files[@]} -eq 0 ]]; then
-  echo "red-check: UNRUNNABLE no test files among the task's changes"
+  unrunnable "no test files among the task's changes"
   exit 0
 fi
 
@@ -375,7 +386,7 @@ reclaim_stale() {
 
 reclaim_stale
 tmp="$(mktemp -d)" || {
-  echo "red-check: UNRUNNABLE worktree error: mktemp -d failed"
+  unrunnable "worktree error: mktemp -d failed"
   exit 0
 }
 wt="$tmp/wt"
@@ -384,7 +395,7 @@ git worktree prune >> "$log" 2>&1 || true
 if git worktree add --detach "$wt" HEAD >> "$log" 2>&1; then
   added=1
 else
-  echo "red-check: UNRUNNABLE worktree error: git worktree add failed: $log_rel"
+  unrunnable "worktree error: git worktree add failed: $log_rel"
   exit 0
 fi
 
@@ -431,7 +442,7 @@ queue_dir() {
   printf '%s\n' "$rel" >> "$tmp/red-check.owner"
   links+=("$rel")
   mkdir -p "$wt/$rel" 2>/dev/null || {
-    echo "red-check: UNRUNNABLE link failed: $rel"
+    unrunnable "link failed: $rel"
     exit 0
   }
   shopt -s dotglob nullglob
@@ -507,13 +518,13 @@ if [[ ${#pair_rel[@]} -gt 0 ]]; then
 fi
 for ((i = 0; i < ${#pair_rel[@]}; i++)); do
   if [[ ! -L "$wt/${pair_rel[i]}" ]]; then
-    echo "red-check: UNRUNNABLE link failed: ${pair_rel[i]}"
+    unrunnable "link failed: ${pair_rel[i]}"
     exit 0
   fi
 done
 for rel in ${copied[@]+"${copied[@]}"}; do
   if [[ ! -f "$wt/$rel" ]]; then
-    echo "red-check: UNRUNNABLE link failed: $rel"
+    unrunnable "link failed: $rel"
     exit 0
   fi
 done
@@ -536,7 +547,7 @@ place_all() {
   local f
   for f in "$@"; do
     place "$f" >> "$log" 2>&1 || {
-      echo "red-check: UNRUNNABLE worktree error: could not place $f"
+      unrunnable "worktree error: could not place $f"
       exit 0
     }
   done
@@ -557,6 +568,7 @@ run_verify red || red=$?
 
 if [[ "$red" -eq 0 ]]; then
   echo "red-check: PASSED-WITHOUT-CHANGE ${test_files[*]}"
+  echo "NEXT: coder-failure | reason: tests pass without the change: ${test_files[*]}"
   exit 0
 fi
 
@@ -573,13 +585,14 @@ if [[ "$control" -ne 0 ]]; then
       word="${word##*: }"
       word="${word##* }"
       if [[ -n "$word" && "$word" != "$first_word" ]]; then
-        echo "red-check: UNRUNNABLE verify command mangled by shell substitution: $log_rel"
+        unrunnable "verify command mangled by shell substitution: $log_rel"
         exit 0
       fi
     done < <(awk '/^===== control run: / { s = 1; next } s && /: command not found/' "$log")
   fi
-  echo "red-check: UNRUNNABLE control run failed (exit $control): $log_rel"
+  unrunnable "control run failed (exit $control): $log_rel"
   exit 0
 fi
 echo "red-check: FAIL-AS-EXPECTED $log_rel"
+echo "NEXT: review"
 exit 0
