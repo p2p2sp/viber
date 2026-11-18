@@ -1,0 +1,5 @@
+- Critic mode shares one `critic_block` function with the hunter path, so a retried critic block differs from the first only by `| retry` and the `-retry` worktree suffix; its `id:` stays `<hunt id>-<k>`, the Out file and Claim path are unchanged.
+- A verdict line counts only when it reads `VERDICT: <one of the four>` with nothing after it but blanks or a carriage return; `VERDICT: MAYBE` or a verdict with trailing prose is a miss.
+- A critic id is `<hunt id>-<one digit>`; the hunt id is looked up in the ledger as for a hunter, so an unknown hunt is exit 2.
+- Second critic miss records nothing (C7 has no critic no-report line).
+- Red: `.temp/viber/T8/red.log` (8 failing, exit 2 on the critic mode).

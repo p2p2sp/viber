@@ -9,6 +9,12 @@
  * as `retried:`, and on the second miss records `no-report:` and prints `NEXT: none`; a
  * hunt with only `<id>-0.md` prints `NEXT: none`.
  *
+ * `sh hunt-return.sh <ws> critic <hunt id>-<k>` is proven the same way: the verdict file loses
+ * a trailing closing tag, a `VERDICT:` line holding one of the four verdicts prints
+ * `NEXT: none`, a missing file or one with no such line prints the critic block once more
+ * with `retry` and its worktree suffixed `-retry`, recorded as `critic-retried:`, and the
+ * second miss prints `NEXT: none`.
+ *
  * hunt-return.sh is `#!/bin/sh` and the skill invokes it through `sh`, so every case runs
  * through forEachShell("posix", ...) via opts.shell. Each case builds its own temp
  * workspace; the lens and run files are small fixtures, never a shipped lens. Every
@@ -93,9 +99,9 @@ function read(ws: string, ...parts: string[]): string {
 const U1_LEDGER = ["hunt: U1 | wave: 1 | unit: U1 | angle: none"];
 
 /** The critic block hunt-return.sh prints for the claim `<cid>`, `extra` the lens-dependent lines. */
-function criticBlock(ws: string, lensFile: string, cid: string, extra: string[] = [], tail: string[] = []): string {
+function criticBlock(ws: string, lensFile: string, cid: string, extra: string[] = [], tail: string[] = [], retry = false): string {
   return lines(
-    `NEXT: critic | id: ${cid} | background`,
+    `NEXT: critic | id: ${cid} | background${retry ? " | retry" : ""}`,
     `Claim: ${ws}/reports/${cid}.claim.md`,
     `Run file: ${ws}/run.md`,
     `Lens file: ${lensFile}`,
@@ -322,6 +328,93 @@ test("a hunt with only <id>-0.md prints NEXT: none and records nothing", async (
       assert.equal(result.stdout, "NEXT: none\n");
       assert.equal(read(ws, "ledger.md"), lines(...U1_LEDGER));
       assert.equal(read(ws, "reports", "U1-0.md"), "NO FINDING\nchecked: src/m1\n");
+    });
+  });
+});
+
+function putVerdict(ws: string, name: string, body: string): void {
+  fs.mkdirSync(path.join(ws, "verdicts"), { recursive: true });
+  fs.writeFileSync(path.join(ws, "verdicts", name), body);
+}
+
+const VERDICT_BODY = ["COMMAND: grep -n x a.ts", "OBSERVED: the call is unguarded", "SEVERITY: 6"];
+
+test("the verdict file of a critic loses a trailing closing tag, every other byte kept", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("hunt-return-", async (dir) => {
+      const { ws } = frame(dir, { ledger: U1_LEDGER });
+      putVerdict(ws, "U1-1.md", lines("VERDICT: VERIFIED", ...VERDICT_BODY) + `${CONTENT}\n`);
+      const result = await run(shell, ws, "critic", "U1-1");
+      assert.equal(result.status, 0, `stderr=${result.stderr}`);
+      assert.equal(read(ws, "verdicts", "U1-1.md"), lines("VERDICT: VERIFIED", ...VERDICT_BODY));
+    });
+  });
+});
+
+for (const verdict of ["VERIFIED", "REFUTED", "PARTIALLY VERIFIED", "INCONCLUSIVE"]) {
+  test(`a verdict file holding the line VERDICT: ${verdict} prints NEXT: none and records nothing`, async () => {
+    await assertPosix(async (shell) => {
+      await withTempDir("hunt-return-", async (dir) => {
+        const { ws } = frame(dir, { ledger: U1_LEDGER });
+        putVerdict(ws, "U1-2.md", lines(`VERDICT: ${verdict}`, ...VERDICT_BODY));
+        const result = await run(shell, ws, "critic", "U1-2");
+        assert.equal(result.status, 0, `stderr=${result.stderr}`);
+        assert.equal(result.stdout, "NEXT: none\n");
+        assert.equal(read(ws, "ledger.md"), lines(...U1_LEDGER));
+      });
+    });
+  });
+}
+
+test("a missing verdict file prints the critic block once more with retry, its worktree suffixed -retry, and records critic-retried:", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("hunt-return-", async (dir) => {
+      const { ws, lensFile } = frame(dir, { worktree: true, lens: "tests", ledger: ["hunt: V-1 | wave: 2 | unit: none | angle: alpha"] });
+      const result = await run(shell, ws, "critic", "V-1-2");
+      assert.equal(result.status, 0, `stderr=${result.stderr}`);
+      assert.equal(
+        slash(result.stdout),
+        criticBlock(
+          ws,
+          lensFile,
+          "V-1-2",
+          [
+            `Worktree script: ${SKILL_DIR}/scripts/worktree.sh`,
+            `Worktree: ${ws}/worktrees/critic-V-1-2-retry`,
+            `Overlay script: ${SKILL_DIR}/scripts/diff-overlay.sh`,
+            `Test rules: ${PLUGIN_ROOT}/references/test-strategy.md`,
+          ],
+          ["Variant: yes"],
+          true,
+        ),
+      );
+      assert.equal(read(ws, "ledger.md"), lines("hunt: V-1 | wave: 2 | unit: none | angle: alpha", "critic-retried: V-1-2"));
+    });
+  });
+});
+
+test("a verdict file with no VERDICT: line holding a verdict gets the same retry block on a lens with no worktree", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("hunt-return-", async (dir) => {
+      const { ws, lensFile } = frame(dir, { ledger: U1_LEDGER });
+      putVerdict(ws, "U1-1.md", lines("VERDICT: MAYBE", ...VERDICT_BODY));
+      const result = await run(shell, ws, "critic", "U1-1");
+      assert.equal(result.status, 0, `stderr=${result.stderr}`);
+      assert.equal(slash(result.stdout), criticBlock(ws, lensFile, "U1-1", [], [], true));
+      assert.equal(read(ws, "ledger.md"), lines(...U1_LEDGER, "critic-retried: U1-1"));
+    });
+  });
+});
+
+test("the second miss of a critic prints NEXT: none and records nothing more", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("hunt-return-", async (dir) => {
+      const { ws } = frame(dir, { ledger: [...U1_LEDGER, "critic-retried: U1-1"] });
+      putVerdict(ws, "U1-1.md", lines(...VERDICT_BODY));
+      const result = await run(shell, ws, "critic", "U1-1");
+      assert.equal(result.status, 0, `stderr=${result.stderr}`);
+      assert.equal(result.stdout, "NEXT: none\n");
+      assert.equal(read(ws, "ledger.md"), lines(...U1_LEDGER, "critic-retried: U1-1"));
     });
   });
 });

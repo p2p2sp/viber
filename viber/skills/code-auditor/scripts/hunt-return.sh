@@ -1,15 +1,27 @@
 #!/bin/sh
 # viber - skills/code-auditor/scripts/hunt-return.sh
-# Answers the return of a hunter of an audit run: one critic block per claim the hunt
-# filed, the hunt's one retry when it filed no report, or `NEXT: none`.
+# Answers the return of a hunter or a critic of an audit run: one critic block per
+# claim the hunt filed, the one retry of a hunter that filed no report or of a critic
+# that left no verdict, or `NEXT: none`.
 #
 # Why it exists: on each hunter return the skill listed the reports of that hunt only
 # (a hyphen and one digit right after the full id, so `A-x` never counted an `A-x-y`
 # file), stripped a leaked closing tag, built one critic brief per claim sidecar, with
 # its worktree, overlay, test rules and variant lines per lens, scope and wave, and
-# rebuilt the hunter brief by hand for the retry. That is mechanical work a model
-# repeats differently every run and pays tokens for. One script answers each return
-# with the next directive, so the skill only dispatches what is printed.
+# rebuilt the hunter brief by hand for the retry; on each critic return it stripped the
+# verdict file, looked for the `VERDICT:` line and rebuilt the critic brief for the
+# retry. That is mechanical work a model repeats differently every run and pays tokens
+# for. One script answers each return with the next directive, so the skill only
+# dispatches what is printed.
+#
+# What it does for `critic <hunt id>-<k>`:
+#   1. <ws>/verdicts/<hunt id>-<k>.md loses a trailing closing tag (strip-tag.sh).
+#   2. A `VERDICT:` line holding one of the four verdicts (VERIFIED, REFUTED,
+#      PARTIALLY VERIFIED, INCONCLUSIVE) answers `NEXT: none`.
+#   3. A missing file, or one with no such line, the first time: the critic block of
+#      the claim once more with `retry` and its worktree suffixed `-retry`, recorded as
+#      the ledger line `critic-retried: <hunt id>-<k>`; once that line stands, the
+#      miss answers `NEXT: none` and records nothing.
 #
 # What it does for `hunter <hunt id>`:
 #   1. Every <ws>/reports/<hunt id>-<digit>.md and <hunt id>-<digit>.claim.md loses a
@@ -30,24 +42,29 @@
 # diff hunt `V-<n>`). A critic block of a wave 2 hunt ends on `Variant: yes`.
 #
 # Contract:
-#   argv   : <ws> hunter <hunt id>. A missing <ws>, a mode other than `hunter`, a hunt
-#            id that is empty or holds a character outside [A-Za-z0-9._-], a hunt with
-#            no `hunt:` line in the ledger, or a unit hunt whose unit line is not in
-#            map.md is a usage error (exit 2).
+#   argv   : <ws> hunter <hunt id>, or <ws> critic <hunt id>-<k> (k one digit). A
+#            missing <ws>, a mode other than `hunter` or `critic`, an id that is empty
+#            or holds a character outside [A-Za-z0-9._-], a critic id not ending in a
+#            hyphen and one digit after a non-empty hunt id, a hunt with no `hunt:`
+#            line in the ledger, or a unit hunt whose unit line is not in map.md is a
+#            usage error (exit 2).
 #   cwd    : irrelevant: every path derives from argv and the files it names, cwd
 #            only resolves a relative <ws>.
 #   env    : TMPDIR, read by strip-tag.sh; nothing else.
 #   files  : reads <ws>/run.md (the header lines before its first `## ` heading:
 #            Lens:, Lens file:, Scope:), <ws>/ledger.md, <ws>/map.md, <ws>/seeds.md,
-#            the lens file and <ws>/reports/. Writes: the hunt's report and sidecar
-#            files (a trailing closing tag stripped) and <ws>/ledger.md (a line
-#            appended, never rewritten).
+#            the lens file, <ws>/reports/ and, for a critic, its verdict file
+#            <ws>/verdicts/<hunt id>-<k>.md. Writes: the hunt's report and sidecar files
+#            or the verdict file (a trailing closing tag stripped) and <ws>/ledger.md
+#            (a line appended, never rewritten).
 #   stdout : exactly one answer, in the auditor directive format:
 #              per claim NEXT: critic | id: <hunt id>-<k> | background, then the lines
 #                Claim:, Run file:, Lens file:, Out:, and for a lens reading
 #                Worktree: required Worktree script:, Worktree: and, on the diff
 #                scope, Overlay script:, then on the tests lens Test rules:, then for a
 #                wave 2 hunt Variant: yes
+#              NEXT: critic | id: <hunt id>-<k> | background | retry, then the critic
+#                lines above with the Worktree: line suffixed -retry
 #              NEXT: hunter | id: <hunt id> | background | retry, then the lines of the
 #                hunter block of keep-units.sh
 #              NEXT: none
@@ -64,15 +81,29 @@ script_dir=$(cd "$(dirname "$0")" && pwd)
 skill_dir=${script_dir%/*}
 plugin_root=${skill_dir%/skills/code-auditor}
 
+usage="usage: hunt-return.sh <ws> hunter <hunt id> | <ws> critic <hunt id>-<k>"
 ws=${1:-}
 mode=${2:-}
 id=${3:-}
-[ -n "$ws" ] || fail "usage: hunt-return.sh <ws> hunter <hunt id>"
+[ -n "$ws" ] || fail "$usage"
 ws=${ws%/}
-[ "$mode" = hunter ] || fail "usage: hunt-return.sh <ws> hunter <hunt id>"
+case $mode in
+  hunter | critic) ;;
+  *) fail "$usage" ;;
+esac
 case $id in
   '' | *[!A-Za-z0-9._-]*) fail "bad hunt id: $id" ;;
 esac
+cid=
+if [ "$mode" = critic ]; then
+  case $id in
+    *-[0-9]) ;;
+    *) fail "bad critic id: $id" ;;
+  esac
+  cid=$id
+  id=${cid%-?}
+  [ -n "$id" ] || fail "bad critic id: $cid"
+fi
 
 run_file=$ws/run.md
 map_file=$ws/map.md
@@ -120,6 +151,60 @@ in_ledger() {
 worktree=0
 grep -q '^Worktree: required' "$lens_file" 2>/dev/null && worktree=1
 
+# critic_block <critic id> [retry] -> the critic block of one claim; on `retry` the
+# second attempt, its worktree suffixed -retry.
+critic_block() {
+  cb_id=$1
+  cb_retry=${2:-}
+  cb_tail=
+  cb_suffix=
+  if [ "$cb_retry" = retry ]; then
+    cb_tail=' | retry'
+    cb_suffix=-retry
+  fi
+  printf 'NEXT: critic | id: %s | background%s\n' "$cb_id" "$cb_tail"
+  printf 'Claim: %s/%s.claim.md\n' "$reports" "$cb_id"
+  printf 'Run file: %s\n' "$run_file"
+  printf 'Lens file: %s\n' "$lens_file"
+  printf 'Out: %s/verdicts/%s.md\n' "$ws" "$cb_id"
+  if [ "$worktree" -eq 1 ]; then
+    printf 'Worktree script: %s/scripts/worktree.sh\n' "$skill_dir"
+    printf 'Worktree: %s/worktrees/critic-%s%s\n' "$ws" "$cb_id" "$cb_suffix"
+    if [ "$scope" = diff ]; then
+      printf 'Overlay script: %s/scripts/diff-overlay.sh\n' "$skill_dir"
+    fi
+  fi
+  if [ "$lens" = tests ]; then
+    printf 'Test rules: %s/references/test-strategy.md\n' "$plugin_root"
+  fi
+  if [ "$wave" = 2 ]; then
+    printf 'Variant: yes\n'
+  fi
+}
+
+# has_verdict <file> -> success when the file holds a `VERDICT: <verdict>` line with
+# one of the four verdicts of the critic verdict schema.
+has_verdict() {
+  [ -f "$1" ] && awk '
+    { sub(/\r$/, "") }
+    /^VERDICT: (VERIFIED|REFUTED|PARTIALLY VERIFIED|INCONCLUSIVE)[ \t]*$/ { found = 1; exit }
+    END { exit !found }
+  ' "$1"
+}
+
+# Critic return: strip the verdict file, then answer with the one retry or `NEXT: none`.
+if [ "$mode" = critic ]; then
+  verdict_file=$ws/verdicts/$cid.md
+  sh "$script_dir/strip-tag.sh" "$verdict_file"
+  if has_verdict "$verdict_file" || in_ledger "critic-retried: $cid"; then
+    printf 'NEXT: none\n'
+    exit 0
+  fi
+  printf 'critic-retried: %s\n' "$cid" >> "$ledger"
+  critic_block "$cid" retry
+  exit 0
+fi
+
 # 1. Strip the closing tag of each file of this hunt and no other.
 set --
 for f in "$reports/$id"-[0-9].md "$reports/$id"-[0-9].claim.md; do
@@ -132,25 +217,7 @@ claims=0
 for k in 0 1 2 3 4 5 6 7 8 9; do
   [ -f "$reports/$id-$k.claim.md" ] || continue
   claims=$((claims + 1))
-  cid=$id-$k
-  printf 'NEXT: critic | id: %s | background\n' "$cid"
-  printf 'Claim: %s/%s.claim.md\n' "$reports" "$cid"
-  printf 'Run file: %s\n' "$run_file"
-  printf 'Lens file: %s\n' "$lens_file"
-  printf 'Out: %s/verdicts/%s.md\n' "$ws" "$cid"
-  if [ "$worktree" -eq 1 ]; then
-    printf 'Worktree script: %s/scripts/worktree.sh\n' "$skill_dir"
-    printf 'Worktree: %s/worktrees/critic-%s\n' "$ws" "$cid"
-    if [ "$scope" = diff ]; then
-      printf 'Overlay script: %s/scripts/diff-overlay.sh\n' "$skill_dir"
-    fi
-  fi
-  if [ "$lens" = tests ]; then
-    printf 'Test rules: %s/references/test-strategy.md\n' "$plugin_root"
-  fi
-  if [ "$wave" = 2 ]; then
-    printf 'Variant: yes\n'
-  fi
+  critic_block "$id-$k"
 done
 [ "$claims" -eq 0 ] || exit 0
 
