@@ -41,14 +41,6 @@ test("the orphan bullet of implementor gathers every orphan line into its one qu
   assert.ok(ORPHAN[0].includes("one `AskUserQuestion`"));
 });
 
-const CLOSEOUT = fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/agents/closeout.md"), "utf8");
-
-test("closeout reads one path per orphan line and keeps the dirty paths comma-separated", () => {
-  assert.ok(CLOSEOUT.includes("`orphan: <path>` lines (one path each, a comma belongs to the path)"));
-  assert.ok(CLOSEOUT.includes("the `dirty:` paths comma-separated"));
-  assert.ok(!CLOSEOUT.includes("`orphan: <paths>`"));
-});
-
 test("the dirty bullet still asks the continue, start over or drop question for any other task", () => {
   assert.ok(DIRTY[0].includes("any other, before the first dispatch, `AskUserQuestion`"));
   assert.ok(DIRTY[0].includes("continue (its `start` call gets `--resume \"<paths>\"`, the paths as printed)"));

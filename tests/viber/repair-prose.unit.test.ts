@@ -237,9 +237,16 @@ test("closeout ARCHIVED output puts the LEFT line after the PATH line", () => {
   assert.ok(ARCHIVED_OUTPUT.indexOf("`LEFT: <n>`") > ARCHIVED_OUTPUT.indexOf("`PATH: "));
 });
 
-test("closeout LEFT line counts the outcome.md leftover lines ending left uncommitted, else none", () => {
-  assert.ok(ARCHIVED_OUTPUT.includes("the leftover lines of `outcome.md` ending `left uncommitted`"));
-  assert.ok(ARCHIVED_OUTPUT.includes("`LEFT: none`"));
+test("closeout LEFT line is the left: value of the --leftovers call, else none", () => {
+  assert.ok(ARCHIVED_OUTPUT.includes("`LEFT: <n>` or `LEFT: none`, the `left:` value of the leftovers call"));
+  assert.ok(!ARCHIVED_OUTPUT.includes("leftover lines of `outcome.md`"));
+});
+
+test("closeout ends a non-zero --leftovers exit on BLOCKED with its error line and a refusal on DENIED, before any archive call", () => {
+  const outcome = CLOSEOUT.slice(CLOSEOUT.indexOf("## Outcome"), CLOSEOUT.indexOf("## Archive"));
+  assert.ok(outcome.includes("its `left:` line is your `LEFT:` value"));
+  assert.ok(outcome.includes("A non-zero exit -> the run ends on `VERDICT: BLOCKED`, `REASON:` its `error:` line, with no archive call."));
+  assert.ok(outcome.includes("The harness refuses it -> the run ends on `VERDICT: DENIED`"));
 });
 
 test("closeout ARCHIVED output lists four lines and its intro counts four", () => {
@@ -283,9 +290,9 @@ test("the closing sentence is all clear when no problem kind was found", () => {
   assert.ok(SENTENCE.includes("All clear when no problem kind below was found"));
 });
 
-test("the closing sentence says outcome.md records a problem, the summary above on a screen form with no outcome.md", () => {
+test("the closing sentence says outcome.md records a problem, the summary above on the screen form whether or not an outcome.md exists", () => {
   assert.ok(SENTENCE.includes("`outcome.md` records a problem"));
-  assert.ok(SENTENCE.includes("with no `outcome.md`: the summary above records a problem"));
+  assert.ok(SENTENCE.includes("on the screen form: the summary above records a problem, whether or not an `outcome.md` exists"));
 });
 
 test("the screen form prints the closing sentence after the rulings", () => {

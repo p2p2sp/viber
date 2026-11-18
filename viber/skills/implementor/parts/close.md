@@ -85,7 +85,7 @@ After those, also outside its 7 lines, list the rulings: each index `ruling:` li
 After those, also outside its 7 lines, in both forms:
 - A non-zero exit of the trail call -> `failure trail not written: <the error: line of run-failures.sh>`; it asks nothing and goes on to the cleanup close part.
 
-Closing sentence, in both forms: one sentence in the conversation's language, printed after everything above it (archived form: after the `Summary:` line). All clear when no problem kind below was found; otherwise it says `outcome.md` records a problem (on the screen form with no `outcome.md`: the summary above records a problem), naming each kind found. `OWNER:` lines and drift markers are no problem kind. The kinds:
+Closing sentence, in both forms: one sentence in the conversation's language, printed after everything above it (archived form: after the `Summary:` line). All clear when no problem kind below was found; otherwise it says `outcome.md` records a problem (on the screen form: the summary above records a problem, whether or not an `outcome.md` exists), naming each kind found. `OWNER:` lines and drift markers are no problem kind. The kinds:
 
 - skipped task
 - commit without review
