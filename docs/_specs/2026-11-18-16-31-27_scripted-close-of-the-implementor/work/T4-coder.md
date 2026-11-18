@@ -1,4 +1,0 @@
-- closeout writes the summary plus a bare heading line and lets `--leftovers` rebuild everything after it; an outcome.md from an earlier blocked closeout is only read so the Write may replace it (the script carries earlier committed lines itself).
-- Closing sentence wording of parts/close.md now reads "(on the screen form: the summary above records a problem, whether or not an `outcome.md` exists)"; repair-prose pins it.
-- repair-prose gained a test pinning the BLOCKED/DENIED/`left:` rules of closeout's Outcome step (DoD.3); resume-prose's closeout test dropped.
-- Left for the memory step: `viber/agents/CLAUDE.md` (closeout write scope sentence), `viber/CLAUDE.md` and `viber/scripts/CLAUDE.md` still describe the `--outside` / `plan-index.sh` calls of closeout.

@@ -1,6 +1,0 @@
-- Red came by the revert route: the script body reduced to `exit 0` (header kept), `Verification` run into `.temp/viber/T10/red-3.log` (8 of 8 failing on assertions), body restored byte for byte (`git diff` empty against the staged copy), green 8/8 in `green-3.log`.
-- `red.log` and `red-2.log` in `.temp/viber/T10/` belong to an older run's T10, not this task.
-- An empty argument is read as no argument (base HEAD); the contract names only more than one argument as a refusal.
-- Paths print with `core.quotepath=false`, unquoted, one per line; a path holding a newline is not supported.
-- The viber guard refuses an absolute redirect target even under `.temp/`: redirect to a repo-relative `.temp/...` path.
-- Scratch repo left at .temp/viber/T10/dup (git-ignored).

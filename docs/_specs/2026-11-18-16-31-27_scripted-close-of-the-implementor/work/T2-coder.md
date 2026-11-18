@@ -1,7 +1,0 @@
-- `--repair` is its own block before the shared forms (it left that `if`): groups are task groups in ascending id number (plan order breaks ties), then the unowned group last.
-- Owner of a file = the highest-numbered claimant by the digits of the id; `tasks_in_order` and `task_heading` are new helpers beside `task_ids_of`.
-- A stage failure of a group exits 5 through `repair_fail` the same as a commit failure; groups with no change are skipped before any trail is staged, so the trail rides in the first group that does change.
-- SKILL.md word count is 2867 (the cap): the exit 4 sentence and the form list dropped the fix-number form to pay for the longer `left uncommitted:` sentence. Any further addition needs a matching cut.
-- The `--repair` cases in `commit-task.test.ts` (integration tier) were written and only listed (no-match run), per the integration-test rule; the fail-mid-call cases use a BASH_ENV `git` shim failing the Nth commit.
-- Red log `.temp/viber/T2/red.log` is a revert-route run of the two prose files (4 failing) against the old step 5 / SKILL sentences.
-- The fix-number form of `commit-task.sh` stays in the script, unused by the close now.

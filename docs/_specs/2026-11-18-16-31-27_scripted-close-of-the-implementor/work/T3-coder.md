@@ -1,7 +1,0 @@
-- The new `--leftovers` cases (integration tier) were written, listed (`.temp/viber/T3/list.log`) and never run; the file's other cases ran green with `--test-name-pattern "^(?!--leftovers)"` (`green.log`). The script got `bash -n` and the portability sweep only, so the first real run is the build's final test run.
-- `red.log` is the old script refusing `--leftovers` with the usage text (exit 2): the form did not exist, no case could be run red.
-- Re-run rule: a trailing `Drift:` line marks an outcome.md this form wrote; its section lines and heading are popped and rebuilt. A call that found no leftover drops the heading, so a later call finding some writes `## Leftovers`.
-- Reasons from stderr: a warning is quoted without `warning: `, an error line (plan-index, stage, commit) whole with its `error:`; a commit failing silently reads `error: the commit failed`; nothing to commit reads `no changes to commit`.
-- Note links are fixed-string substring matches of the path over `T*-coder|extra|extra-review.md`, as the closeout grep was; the lowest task number wins by number (T3 before T10).
-- `OUTSIDE_SUBJECT` is now a script constant shared by `--outside` and `--leftovers`; the commit also carries `rulings.md` like `--outside`.
-- The closeout agent, `implementor` prose and CLAUDE.md nodes still describe the hand-applied leftovers step (other tasks / the memory step).

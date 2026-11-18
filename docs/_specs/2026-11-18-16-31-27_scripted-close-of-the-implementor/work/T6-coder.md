@@ -1,5 +1,0 @@
-- `--slice` choices left open by C5: the sha is `%h` (as `rev-parse --short`); a subject matches only with the task's exact plan title; "lower-numbered task outside the slice" means an outside task numbered below the highest-numbered slice task.
-- The base is the oldest commit adding the plan file (as `run-changes.sh`); the range excludes it. No such commit (or no repository) prints nothing, exit 0.
-- Mutating `GIT_LITERAL_PATHSPECS` is exported inside the slice block only, after the earlier `git status`; the `--split` commit path is untouched.
-- Red log `.temp/viber/T6/red.log` (7 failing) comes from the revert route: the slice block and the combination check were temporarily disabled after the code was first written, then restored.
-- The `--final-review` combination named by C5 is not parsed yet (any unknown argument already exits 2); the task that adds that mode must refuse it beside `--slice`.

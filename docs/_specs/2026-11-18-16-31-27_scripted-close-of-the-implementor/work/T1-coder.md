@@ -1,5 +1,0 @@
-- run-summary.sh checks argc (more than two -> exit 2, nothing on stdout) before it prints anything; an empty run-dir is the same usage error, printed after the elapsed line.
-- The usage text is `error: usage: run-summary.sh [<started> [<run-dir>]]`.
-- The old run-clock three-argument "ignored further argument" case became: two arguments with a frozen `date` print the elapsed line then the token report; the three-argument exit 2 is the token section's case.
-- Token cases that compare the whole stdout use `reportLines` (drops the leading `elapsed:` line); the mark they pass is a fixed `1750000000`.
-- Step 7 of close.md now has one call; a non-zero exit of it still leaves the `elapsed:` line printed, so the prose keeps `tokens: unavailable` for that case only.

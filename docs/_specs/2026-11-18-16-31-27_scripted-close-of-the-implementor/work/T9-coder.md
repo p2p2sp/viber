@@ -1,5 +1,0 @@
-- The qa-kept block prints after the extension blocks and reads `build.qa` from config.sh in the same pass as tiers, memory and extensions; it is absent when `closed:` holds the whole word `qa`.
-- Red log `.temp/viber/T9/red.log` (6 failing): new tests run before any production edit.
-- `tests/viber/skill-part.test.ts` keeps the 6 Windows path failures T7 and T8 recorded (pre-existing, files untouched); every other test of the Verification passes.
-- With either QA document present the fragment dispatches no writer at all, so a writer is only dispatched when neither exists (a qa.md alone no longer gets a qa.e2e.md written beside it).
-- The CLAUDE.md nodes naming the `plan-index.sh` forms, `qa-writer` and the QA fragment stay for the build's memory step.
