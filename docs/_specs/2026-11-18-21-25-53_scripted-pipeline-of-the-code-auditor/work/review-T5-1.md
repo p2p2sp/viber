@@ -1,0 +1,2 @@
+- Blocking [task] tests/viber/keep-units.test.ts:404 - test-strategy `Act`: "the security lens passes model: sonnet on every scout block and on its retry" carries two acts in one body: it runs keep-units.sh, asserts the S1/S2 headers, then runs it a second time and asserts the S1-retry header
+  Split it into two tests (DoD.1): one whose single act is the first call, asserting both `NEXT: scout | id: S<b> | model: sonnet` headers, and one that runs the first call as arrangement only and asserts the `S1-retry | model: sonnet` header of the second call, its one act

@@ -1,7 +1,8 @@
 #!/bin/sh
 # viber - skills/code-auditor/scripts/keep-units.sh
-# Gates the mapper's map of an audit run and prints the hunter blocks of a scope
-# whose hunts fit its budget, recording each printed hunt in the ledger.
+# Gates the mapper's map of an audit run, prints the scout batches of a scope whose
+# units exceed its budget and the hunter blocks of the kept units, recording each
+# printed hunt in the ledger.
 #
 # Why it exists: after the mapper returned, the skill checked the four headings of
 # map.md, retried the mapper, read the `none:` line of `## Units`, appended the map
@@ -29,8 +30,20 @@
 #      `hunt: <id> | wave: 1 | unit: U<n>|none | angle: <slug>|none`. The line
 #      `hunters-at-once: 16` (4 on the tests lens) comes first. A lens reading
 #      `Worktree: required` adds the worktree script and worktree lines, and on the
-#      diff scope the overlay script line. Units above the budget print nothing here.
-#   3. Otherwise `NEXT: none`.
+#      diff scope the overlay script line.
+#   3. Scouts and kept units, on a directory or repo scope with more units than the
+#      budget and no wave 1 `hunt:` line. With no `scouts:` ledger line, one scout
+#      block per batch of up to 8 units in map order (id S<b>, `model: sonnet` on the
+#      security lens only), recorded as the ledger line `scouts: S1,S2,...`. On the
+#      next call the units with no score line in <ws>/scores/*.md (a missing score
+#      file leaves its units unscored) go once to `S<b>-retry` batches, recorded as
+#      `scouts-retried`; when none is unscored no retry is printed. After that no call
+#      prints a scout block: the kept units, the budget's count with the highest score
+#      first, equal scores in map order, units still unscored after every scored one
+#      in map order, are printed as hunter blocks in that order. A score file loses a
+#      trailing closing tag (strip-tag.sh) and every line that is not a score line
+#      (`{"unit":"U<n>","score":1-5,...}`) is skipped.
+#   4. Otherwise `NEXT: none`.
 #
 # Contract:
 #   argv   : <ws>, the run workspace holding run.md and map.md. Absent or empty is a
@@ -39,14 +52,17 @@
 #            only resolves a relative <ws>.
 #   env    : TMPDIR, read by strip-tag.sh; nothing else.
 #   files  : reads <ws>/run.md (the header lines before its first `## ` heading:
-#            Lens:, Lens file:, Scope:), <ws>/map.md, <ws>/ledger.md and the lens
-#            file. Writes: map.md (a trailing closing tag stripped), run.md (the map
-#            appended once) and <ws>/ledger.md (lines appended, never rewritten).
+#            Lens:, Lens file:, Scope:), <ws>/map.md, <ws>/scores/*.md, <ws>/ledger.md
+#            and the lens file. Writes: map.md and the score files (a trailing closing
+#            tag stripped), run.md (the map appended once) and <ws>/ledger.md (lines
+#            appended, never rewritten).
 #   stdout : exactly one answer, in the auditor directive format:
 #              NEXT: mapper | retry, then the lines Run file:, Lens file:, Signals:,
 #                Output: of the map-signals.sh block
 #              STOP: code-auditor: map unavailable after two attempts
 #              STOP: code-auditor: nothing to audit for <lens>: <reason>
+#              per batch NEXT: scout | id: S<b>[-retry][ | model: sonnet], then the
+#                lines Run file:, Lens file:, Out:, and one Unit: line per unit
 #              hunters-at-once: <n>, then per hunt NEXT: hunter | id: <id> |
 #                background and the lines Run file:, Lens file:, Schema:, Test
 #                rules:, Hunt:, Unit: or Angle:, Reports:, and for a lens reading
@@ -186,6 +202,62 @@ hunter_block() {
   printf 'hunt: %s | wave: 1 | unit: %s | angle: %s\n' "$hid" "${unit_id:-none}" "${angle:-none}" >> "$ledger"
 }
 
+# batch_ids <unit count> prints S1,S2,... one id per batch of up to 8 units.
+batch_ids() {
+  total=$(($1 + 7))
+  batches=$((total / 8))
+  i=1
+  ids=
+  while [ "$i" -le "$batches" ]; do
+    ids="${ids:+$ids,}S$i"
+    i=$((i + 1))
+  done
+  printf '%s' "$ids"
+}
+
+# scout_blocks <unit lines> <id suffix> prints one scout block per batch of up to 8
+# unit lines in the order given; the security lens passes model: sonnet.
+scout_blocks() {
+  printf '%s\n' "$1" | SC_RUN=$run_file SC_LENS=$lens_file SC_OUT=$ws/scores SC_SUFFIX=$2 SC_LENSNAME=$lens \
+    awk '
+      (NR - 1) % 8 == 0 {
+        b++
+        head = "NEXT: scout | id: S" b ENVIRON["SC_SUFFIX"]
+        if (ENVIRON["SC_LENSNAME"] == "security") head = head " | model: sonnet"
+        print head
+        print "Run file: " ENVIRON["SC_RUN"]
+        print "Lens file: " ENVIRON["SC_LENS"]
+        print "Out: " ENVIRON["SC_OUT"] "/S" b ENVIRON["SC_SUFFIX"] ".md"
+      }
+      { print "Unit: " $0 }
+    '
+}
+
+# scored_units prints one `U<n> <score>` line per unit with a score line in
+# <ws>/scores/*.md, the first one seen. Each file first loses a trailing closing tag
+# (strip-tag.sh); a line that is no score line (a JSON object holding "unit":"U<n>"
+# and "score" 1-5) is skipped.
+scored_units() {
+  set --
+  for f in "$ws"/scores/*.md; do
+    [ -f "$f" ] && set -- "$@" "$f"
+  done
+  [ "$#" -gt 0 ] || return 0
+  sh "$script_dir/strip-tag.sh" "$@"
+  awk '
+    /^[ \t]*[{]/ {
+      if (match($0, /"unit"[ \t]*:[ \t]*"U[0-9]+"/) == 0) next
+      u = substr($0, RSTART, RLENGTH)
+      sub(/^.*:[ \t]*"/, "", u)
+      sub(/"$/, "", u)
+      if (match($0, /"score"[ \t]*:[ \t]*[1-5][ \t,}]/) == 0) next
+      v = substr($0, RSTART, RLENGTH)
+      gsub(/[^0-9]/, "", v)
+      if (!(u in seen)) { seen[u] = 1; print u " " v }
+    }
+  ' "$@"
+}
+
 at_once=16
 [ "$lens" != tests ] || at_once=4
 
@@ -217,6 +289,48 @@ else
   if [ "$count" -gt 0 ] && [ "$count" -le "$budget" ]; then
     printf 'hunters-at-once: %s\n' "$at_once"
     printf '%s\n' "$units" | while IFS= read -r line; do
+      id=${line#- }
+      id=${id%% *}
+      hunter_block "$id" "$line" "" "$id"
+    done
+    exit 0
+  fi
+  if [ "$count" -gt "$budget" ]; then
+    if ! in_ledger '^scouts: '; then
+      scout_blocks "$units" ""
+      printf 'scouts: %s\n' "$(batch_ids "$count")" >> "$ledger"
+      exit 0
+    fi
+    scored=$(scored_units)
+    if ! in_ledger '^scouts-retried$'; then
+      unscored=$(printf '%s\n' "$units" | SCORED="$scored" awk '
+        BEGIN {
+          n = split(ENVIRON["SCORED"], a, "\n")
+          for (i = 1; i <= n; i++) { split(a[i], p, " "); if (p[1] != "") s[p[1]] = 1 }
+        }
+        !($2 in s) { print }
+      ')
+      if [ -n "$unscored" ]; then
+        scout_blocks "$unscored" "-retry"
+        printf 'scouts-retried\n' >> "$ledger"
+        exit 0
+      fi
+    fi
+    kept=$(printf '%s\n' "$units" | SCORED="$scored" BUDGET="$budget" awk '
+      BEGIN {
+        n = split(ENVIRON["SCORED"], a, "\n")
+        for (i = 1; i <= n; i++) { split(a[i], p, " "); if (p[1] != "") s[p[1]] = p[2] + 0 }
+        limit = ENVIRON["BUDGET"] + 0
+      }
+      { m++; line[m] = $0; rank[m] = ($2 in s) ? s[$2] : 0 }
+      END {
+        for (k = 5; k >= 0; k--)
+          for (i = 1; i <= m; i++)
+            if (rank[i] == k && taken < limit) { print line[i]; taken++ }
+      }
+    ')
+    printf 'hunters-at-once: %s\n' "$at_once"
+    printf '%s\n' "$kept" | while IFS= read -r line; do
       id=${line#- }
       id=${id%% *}
       hunter_block "$id" "$line" "" "$id"
