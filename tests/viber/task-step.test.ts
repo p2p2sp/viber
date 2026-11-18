@@ -1,7 +1,8 @@
 /*
  * task-step.test.ts - proves viber/scripts/task-step.sh's answers to the
- * `start`, `coder` and `retry coder` events: the one directive block the
- * implementor sends next after a coder returns.
+ * `start`, `coder`, `reviewer`, `retry`, `accept`, `commit` and `landed` events:
+ * the one directive block the implementor sends next after a coder, a reviewer
+ * or a commit returns.
  *
  * The script is the implementor's task loop moved out of prose: it counts
  * attempts, climbs the tiers, decides review against commit and holds a task at
@@ -565,6 +566,239 @@ test("retry coder after a short DOD prints the attempt's block again with its re
       result.stdout,
       lines("NEXT: coder | attempt: 2 | model: opus | review: opus", ...coderLines("T1", ["reason: DOD: 1/2"])),
     );
+  });
+});
+
+// --- a reviewer return --------------------------------------------------------
+
+const T1_PASS: Call = ["T1", "100", "coder", "PASS", "--dod", "3/3", "--red", "2"];
+const REVIEW_1 = `${PLAN_DIR}/work/review-T1-1.md`;
+
+test("a reviewer PASS answers the commit with every --with path the coder and the reviewers reported and the --defer entries", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [
+      START_T1,
+      [...T1_PASS, "--with", "lib/x.ts", "--defer", "T2:src/x.ts"],
+    ]);
+
+    const result = await step(repo, ["T1", "100", "reviewer", "PASS", "--with", "lib/y.ts,lib/x.ts"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines("NEXT: commit", `RUN: "${ROOT}/scripts/commit-task.sh" "${PLAN_REL}" "T1" --with "lib/x.ts" "lib/y.ts" --defer "T2:src/x.ts"`),
+    );
+  });
+});
+
+test("a reviewer FAIL on attempt 4 answers the next attempt's coder block with the returned REVIEW path as report and no reason", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo, "tiers:\n  max: opus\n");
+    await arrange(repo, [["T1", "100", "start", "--tier", "haiku", "--review", "haiku"], T1_FAIL, T1_FAIL, T1_FAIL, T1_PASS]);
+
+    const result = await step(repo, ["T1", "100", "reviewer", "FAIL", "--report", REVIEW_1]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines("NEXT: coder | attempt: 5 | model: opus | review: opus", ...coderLines("T1", [`report: ${REVIEW_1}`])),
+    );
+  });
+});
+
+test("a reviewer of the next round carries the path of the last failed review as previous", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T1, T1_PASS, ["T1", "100", "reviewer", "FAIL", "--report", REVIEW_1]]);
+
+    const result = await step(repo, T1_PASS);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        "NEXT: review | round: 2 | model: opus",
+        ...reviewerLines("T1"),
+        `report: ${PLAN_DIR}/work/review-T1-2.md`,
+        `previous: ${REVIEW_1}`,
+      ),
+    );
+  });
+});
+
+const FOUR_FAILURES_THEN_PASS: Call[] = [...FOUR_FAILURES, T1_PASS];
+
+const LESSONS_ROWS: [string, Call[]][] = [
+  ["1", [START_T1, T1_PASS]],
+  ["5", FOUR_FAILURES_THEN_PASS],
+];
+
+for (const [label, calls] of LESSONS_ROWS) {
+  test(`a reviewer FAIL on attempt ${label} rewrites the session lessons file before it answers`, async () => {
+    await withGitRepo(async (repo) => {
+      seedPlan(repo);
+      await arrange(repo, calls);
+      write(repo.dir, `${PLAN_DIR}/work/review-T2-1.md`, "- Blocking [task] tests/a.test.ts:1 - breaks test-strategy `Act`\n");
+
+      const result = await step(repo, ["T1", "100", "reviewer", "FAIL", "--report", REVIEW_1]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(fs.readFileSync(path.join(repo.dir, ".temp/viber/lessons"), "utf-8"), "started: 100\nAct x1\n");
+    });
+  });
+}
+
+test("a reviewer FAIL on attempt 1 answers a coder block that carries the rewritten lessons as run-lessons", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T1, T1_PASS]);
+    write(repo.dir, `${PLAN_DIR}/work/review-T2-1.md`, "- Blocking [task] tests/a.test.ts:1 - breaks test-strategy `Act`\n");
+
+    const result = await step(repo, ["T1", "100", "reviewer", "FAIL", "--report", REVIEW_1]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        "NEXT: coder | attempt: 2 | model: opus | review: opus",
+        ...coderLines("T1", ["run-lessons: Act x1", `report: ${REVIEW_1}`]),
+      ),
+    );
+  });
+});
+
+test("a reviewer FAIL on attempt 5 holds the task naming every task depending on it", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, FOUR_FAILURES_THEN_PASS);
+
+    const result = await step(repo, ["T1", "100", "reviewer", "FAIL", "--report", REVIEW_1]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: hold | dependents: T2,T3"));
+  });
+});
+
+test("a denied reviewer answers the retry, accept and abort question", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T1, T1_PASS]);
+
+    const result = await step(repo, ["T1", "100", "reviewer", "DENIED"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("ASK: retry -> retry reviewer | accept -> accept | abort"));
+  });
+});
+
+test("retry reviewer prints the same round's reviewer block again", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T1, [...T1_PASS, "--red-log", ".temp/viber/T1/red.log"], ["T1", "100", "reviewer", "DENIED"]]);
+
+    const result = await step(repo, ["T1", "100", "retry", "reviewer"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        "NEXT: review | round: 1 | model: opus",
+        ...reviewerLines("T1"),
+        `report: ${REVIEW_1}`,
+        "red: .temp/viber/T1/red.log",
+      ),
+    );
+  });
+});
+
+test("accept after a denied reviewer answers the task commit with --unreviewed after the --with and --defer arguments", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [
+      START_T1,
+      [...T1_PASS, "--with", "lib/x.ts", "--defer", "T2:src/x.ts"],
+      ["T1", "100", "reviewer", "DENIED"],
+    ]);
+
+    const result = await step(repo, ["T1", "100", "accept"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines("NEXT: commit", `RUN: "${ROOT}/scripts/commit-task.sh" "${PLAN_REL}" "T1" --with "lib/x.ts" --defer "T2:src/x.ts" --unreviewed`),
+    );
+  });
+});
+
+// --- a commit return ---------------------------------------------------------
+
+const T1_REVIEWED: Call[] = [
+  START_T1,
+  [...T1_PASS, "--with", "lib/x.ts", "--defer", "T2:src/x.ts"],
+  ["T1", "100", "reviewer", "PASS"],
+];
+
+test("commit 0 answers done", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, T1_REVIEWED);
+
+    const result = await step(repo, ["T1", "100", "commit", "0"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: done"));
+  });
+});
+
+test("commit 4 answers the retry, skip and abort question", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, T1_REVIEWED);
+
+    const result = await step(repo, ["T1", "100", "commit", "4"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("ASK: retry | skip -> skip | abort"));
+  });
+});
+
+test("commit 4 naming --landed opens the question on the already committed answer", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, T1_REVIEWED);
+
+    const result = await step(repo, ["T1", "100", "commit", "4", "--landed"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("ASK: already committed -> landed <sha> | retry | skip -> skip | abort"));
+  });
+});
+
+test("landed answers the commit with the sha in place of the --with paths and keeps the --defer entries", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [...T1_REVIEWED, ["T1", "100", "commit", "4", "--landed"]]);
+
+    const result = await step(repo, ["T1", "100", "landed", "abc1234"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines("NEXT: commit", `RUN: "${ROOT}/scripts/commit-task.sh" "${PLAN_REL}" "T1" --landed "abc1234" --defer "T2:src/x.ts"`),
+    );
+  });
+});
+
+test("a commit refused on attempt 1 answers the next attempt's coder block with add: reason and no report", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T4_WAIVED, ["T4", "100", "coder", "PASS"]]);
+
+    const result = await step(repo, ["T4", "100", "commit", "5"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines("NEXT: coder | attempt: 2 | model: opus | review: waived | add: reason", ...coderLines("T4")),
+    );
+  });
+});
+
+test("a commit refused on attempt 5 holds the task", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [...FOUR_FAILURES_OF_T4, ["T4", "100", "coder", "PASS"]]);
+
+    const result = await step(repo, ["T4", "100", "commit", "5"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: hold | dependents: none"));
   });
 });
 

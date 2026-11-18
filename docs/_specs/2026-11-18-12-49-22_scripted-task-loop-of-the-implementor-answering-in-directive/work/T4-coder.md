@@ -1,0 +1,7 @@
+- State gains `rpt` (the current attempt's `report:` line, kept by `retry coder`), `lastrev` (the last failed review, feeds `previous:`, survives later attempts) and `unrev` (set by `accept`, kept for a later `landed`, cleared by the next attempt).
+- `RUN:` flag order: `--with` paths or `--landed "<sha>"`, then `--defer`, then `--unreviewed` last (the SKILL's "appended"). `landed` keeps `--defer` and `--unreviewed`, since commit-task.sh allows both with `--landed`.
+- A reviewer FAIL without `--report` prints no `report:` and sets no `previous:`; `commit <n>` and `landed <sha>` validate their argument (exit 2) before reading the state.
+- Those argument checks carry no refusal rows by review ruling (no DoD clause states them, and HEAD already exits 2 on the unknown events).
+- The `commit 0` answer writes no state; `retry reviewer` before any review exits 2.
+- The attempt 1 `reviewer FAIL` answer (header plus `report:`) is pinned only by the run-lessons test; the report test keeps attempt 4.
+- Red evidence: 17 failing, `.temp/viber/T4/red.log`, taken by temporarily making the new events exit 2 (production was written before its tests, so the revert route was used).

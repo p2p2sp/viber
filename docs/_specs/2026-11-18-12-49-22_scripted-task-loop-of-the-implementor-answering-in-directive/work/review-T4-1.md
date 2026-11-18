@@ -1,0 +1,2 @@
+- Blocking [task] tests/viber/task-step.test.ts:816 - the three refusal rows this task added ("a commit with no exit code", "a landed with a flag for a sha", "a reviewer verdict that is none", lines 816-818) prove none of DoD.1-DoD.6, which state only what the events answer, never how bad arguments are refused; they also pass on HEAD, where `commit`, `landed` and `reviewer` are unknown events that already exit 2 (red-check.log shows every refusal row green on the control run)
+  Remove the three rows from the refusal table; keep the argument checks in task-step.sh as they are

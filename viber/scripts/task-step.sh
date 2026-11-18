@@ -23,28 +23,46 @@
 #                            [--decide] [--red-timeout]
 #                            (an omitted --dod is no short DOD; --decide and
 #                            --red-timeout are read by later events only)
-#     retry coder [--denied]
+#     reviewer PASS|FAIL|DENIED [--report <path>] [--with <path>[,<path>]...]
+#     retry coder [--denied] | retry reviewer
+#     accept
+#     commit <exit code> [--landed]
+#     landed <sha>
 #
 # stdout, one block per directive, a block opening on a directive line and its
 # body lines (labelled "<label>: <value>") sent verbatim in the dispatch it names:
 #   NEXT: coder | attempt: <n> | model: <tier> | review: <tier>|waived [| add: reason]
 #         the coder lines plan-index.sh --dispatch prints, then resume: <paths>
-#         when start got --resume, then the ready reason line of a failure that
-#         returned no REASON ("reason: DOD: <m>/<n>" or "reason: no red evidence");
-#         "add: reason" tells the model to append the returned REASON as "reason: ..."
+#         when start got --resume, report: <path> after a review failure, then the
+#         ready reason line of a failure that returned no REASON ("reason: DOD:
+#         <m>/<n>" or "reason: no red evidence"); "add: reason" tells the model to
+#         append the returned REASON (the commit's error after a refused commit)
+#         as "reason: ..."
 #   NEXT: review | round: <r> | model: <tier>
-#         the reviewer lines, report: <dir>/work/review-<id>-<r>.md, then
-#         red: <path> when the coder's last return named a red log
+#         the reviewer lines, report: <dir>/work/review-<id>-<r>.md, previous:
+#         <path> once a review of the task failed, then red: <path> when the
+#         coder's last return named a red log
 #   NEXT: commit
-#   RUN: "<plugin root>/scripts/commit-task.sh" "<plan>" "<id>" [--with "<path>"...] [--defer "<entry>"...]
+#   RUN: "<plugin root>/scripts/commit-task.sh" "<plan>" "<id>" [--with "<path>"... | --landed "<sha>"] [--defer "<entry>"...] [--unreviewed]
+#   NEXT: done
+#         after commit 0
 #   NEXT: hold | dependents: <ids>|none
 #         the fifth failed attempt: the task and every task depending on it,
 #         directly or through another, in plan order
 #   ASK: retry -> retry coder --denied | skip -> skip | abort
 #         after coder DENIED
+#   ASK: retry -> retry reviewer | accept -> accept | abort
+#         after reviewer DENIED; "accept" answers the commit with --unreviewed
+#   ASK: [already committed -> landed <sha> | ]retry | skip -> skip | abort
+#         after commit 4 (the first answer when it carried --landed); "landed
+#         <sha>" answers the commit with --landed in place of the --with paths
 #
 # Attempts: a task gets 5 per session; a coder failure (a FAIL, a PASS whose --dod
-# is short, a PASS of a TDD: required task with no --red or --red 0) ends one.
+# is short, a PASS of a TDD: required task with no --red or --red 0), a reviewer
+# FAIL and a commit exiting other than 0 and 4 each end one; the next attempt of a
+# review failure carries the returned --report path as report:, that of a refused
+# commit "add: reason". Every reviewer FAIL rewrites the session lessons file
+# first.
 # Each next attempt runs one tier up, clamped into tiers.max, the review tier
 # rising with it (never below sonnet, "waived" staying waived). A coder PASS goes
 # to review when the review is not waived or any coder of the task reported
@@ -108,20 +126,32 @@ shift 4
 [[ -n "$started" ]] || die "bad started mark"
 
 verdict=""
+exit_code=""
+sha=""
 case "$event" in
-  start) ;;
-  coder)
-    [[ $# -ge 1 ]] || die "coder needs PASS, FAIL or DENIED"
+  start|accept) ;;
+  coder|reviewer)
+    [[ $# -ge 1 ]] || die "$event needs PASS, FAIL or DENIED"
     verdict="$1"
     shift
     case "$verdict" in
       PASS|FAIL|DENIED) ;;
-      *) die "bad coder verdict: $verdict" ;;
+      *) die "bad $event verdict: $verdict" ;;
     esac
     ;;
   retry)
-    [[ $# -ge 1 && "$1" == "coder" ]] || die "retry needs coder"
-    event="retry coder"
+    [[ $# -ge 1 && ( "$1" == "coder" || "$1" == "reviewer" ) ]] || die "retry needs coder or reviewer"
+    event="retry $1"
+    shift
+    ;;
+  commit)
+    [[ $# -ge 1 && "$1" =~ ^[0-9]+$ ]] || die "commit needs an exit code"
+    exit_code=$((10#$1))
+    shift
+    ;;
+  landed)
+    [[ $# -ge 1 && "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._~^/-]*$ ]] || die "landed needs a commit sha"
+    sha="$1"
     shift
     ;;
   *) die "unknown event: $event" ;;
@@ -135,12 +165,15 @@ f_red=""
 f_redlog=""
 f_with=""
 f_defer=""
+f_report=""
 f_denied=0
+f_landed=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --decide|--red-timeout) shift ;;
     --denied) f_denied=1; shift ;;
-    --tier|--review|--resume|--dod|--red|--red-log|--with|--defer)
+    --landed) f_landed=1; shift ;;
+    --tier|--review|--resume|--dod|--red|--red-log|--with|--defer|--report)
       [[ $# -ge 2 ]] || die "$1 needs a value"
       case "$1" in
         --tier) f_tier="$2" ;;
@@ -151,6 +184,7 @@ while [[ $# -gt 0 ]]; do
         --red-log) f_redlog="$2" ;;
         --with) f_with="$2" ;;
         --defer) f_defer="$2" ;;
+        --report) f_report="$2" ;;
       esac
       shift 2
       ;;
@@ -299,6 +333,9 @@ anywith=0
 redlog=""
 resume=""
 reason=""
+rpt=""
+lastrev=""
+unrev=0
 
 load_state() {
   local line
@@ -318,6 +355,9 @@ load_state() {
       redlog=*) redlog="${line#*=}" ;;
       resume=*) resume="${line#*=}" ;;
       reason=*) reason="${line#*=}" ;;
+      rpt=*) rpt="${line#*=}" ;;
+      lastrev=*) lastrev="${line#*=}" ;;
+      unrev=*) unrev="${line#*=}" ;;
     esac
   done < "$state_file"
 }
@@ -331,15 +371,16 @@ save_state() {
   local tmp="$state_file.tmp.$$"
   mkdir -p "$state_dir"
   printf '%s\n' "started=$started" "attempt=$attempt" "model=$model" "review=$review" "round=$round" \
-    "with=$with" "defer=$defer" "anywith=$anywith" "redlog=$redlog" "resume=$resume" "reason=$reason" > "$tmp"
+    "with=$with" "defer=$defer" "anywith=$anywith" "redlog=$redlog" "resume=$resume" "reason=$reason" \
+    "rpt=$rpt" "lastrev=$lastrev" "unrev=$unrev" > "$tmp"
   mv -f "$tmp" "$state_file"
 }
 
 # The session lessons file: rewritten when it does not hold the current mark,
-# and always under "unknown".
+# and always under "unknown" or when $1 is "force".
 write_lessons() {
   local file="$root/.temp/viber/lessons" first="" res="" list="" abs tmp
-  if [[ "$started" != "unknown" && -f "$file" ]]; then
+  if [[ "${1:-}" != "force" && "$started" != "unknown" && -f "$file" ]]; then
     first="$(sed -n '1p' "$file")"
     first="${first//$'\r'/}"
     [[ "$first" != "started: $started" ]] || return 0
@@ -384,7 +425,39 @@ coder_block() {
   say "NEXT: coder | attempt: $attempt | model: $model | review: $review${1:+ | $1}"
   dispatch coder
   [[ -z "$resume" ]] || say "resume: $resume"
+  [[ -z "$rpt" ]] || say "report: $rpt"
   [[ -z "$reason" ]] || say "reason: $reason"
+}
+
+# The reviewer block of the current round: a waived review runs at the attempt's
+# tier, raised to sonnet from haiku.
+review_block() {
+  local review_model="$review"
+  if [[ "$review" == "waived" ]]; then
+    review_model="$model"
+    [[ "$(rank "$review_model")" -ge 2 ]] || review_model="sonnet"
+  fi
+  say "NEXT: review | round: $round | model: $review_model"
+  dispatch reviewer
+  say "report: $plan_dir/work/review-$id-$round.md"
+  [[ -z "$lastrev" ]] || say "previous: $lastrev"
+  [[ -z "$redlog" ]] || say "red: $redlog"
+}
+
+# The commit answer; $1 is a sha the task's work already landed under, else the
+# --with paths stand.
+commit_block() {
+  local paths="" unr=""
+  if [[ -n "${1:-}" ]]; then
+    paths=" --landed \"$1\""
+  elif [[ -n "$with" ]]; then
+    paths=" --with$(quoted_list "$with")"
+  fi
+  if [[ $unrev -eq 1 ]]; then
+    unr=" --unreviewed"
+  fi
+  say "NEXT: commit"
+  say "RUN: \"$plugin_root/scripts/commit-task.sh\" \"$plan\" \"$id\"$paths${defer:+ --defer$(quoted_list "$defer")}$unr"
 }
 
 # A list entry per quoted argument: a,b -> ` "a" "b"`.
@@ -428,6 +501,25 @@ climb() {
   fi
 }
 
+# The next attempt's coder block, or the hold at the fifth failure. $1 is the
+# ready reason line, $2 the add field, $3 the report path of a review failure.
+next_attempt() {
+  if [[ $attempt -ge 5 ]]; then
+    say "NEXT: hold | dependents: $(dependents_of_task)"
+    return 0
+  fi
+  climb
+  attempt=$((attempt + 1))
+  with=""
+  defer=""
+  redlog=""
+  resume=""
+  unrev=0
+  reason="$1"
+  rpt="$3"
+  coder_block "$2"
+}
+
 case "$event" in
   start)
     [[ -n "$f_tier" && -n "$f_review" ]] || die "start needs --tier and --review"
@@ -447,6 +539,9 @@ case "$event" in
       redlog=""
       resume="$f_resume"
       reason=""
+      rpt=""
+      lastrev=""
+      unrev=0
     fi
     write_lessons
     coder_block ""
@@ -487,35 +582,70 @@ case "$event" in
       fi
 
       if [[ $failed -eq 1 ]]; then
-        if [[ $attempt -ge 5 ]]; then
-          say "NEXT: hold | dependents: $(dependents_of_task)"
-        else
-          climb
-          attempt=$((attempt + 1))
-          with=""
-          defer=""
-          redlog=""
-          resume=""
-          reason="$why"
-          coder_block "$add"
-        fi
+        next_attempt "$why" "$add" ""
       elif [[ "$review" != "waived" || $anywith -eq 1 ]]; then
         round=$((round + 1))
-        review_model="$review"
-        if [[ "$review" == "waived" ]]; then
-          review_model="$model"
-          [[ "$(rank "$review_model")" -ge 2 ]] || review_model="sonnet"
-        fi
-        say "NEXT: review | round: $round | model: $review_model"
-        dispatch reviewer
-        say "report: $plan_dir/work/review-$id-$round.md"
-        [[ -z "$redlog" ]] || say "red: $redlog"
+        review_block
       else
-        say "NEXT: commit"
-        say "RUN: \"$plugin_root/scripts/commit-task.sh\" \"$plan\" \"$id\"${with:+ --with$(quoted_list "$with")}${defer:+ --defer$(quoted_list "$defer")}"
+        commit_block ""
       fi
       save_state
     fi
+    ;;
+
+  reviewer)
+    require_state
+    case "$verdict" in
+      DENIED)
+        say "ASK: retry -> retry reviewer | accept -> accept | abort"
+        ;;
+      PASS)
+        with="$(union "$with" "$f_with")"
+        [[ -z "$f_with" ]] || anywith=1
+        commit_block ""
+        save_state
+        ;;
+      FAIL)
+        write_lessons force
+        [[ -z "$f_report" ]] || lastrev="$f_report"
+        next_attempt "" "" "$f_report"
+        save_state
+        ;;
+    esac
+    ;;
+
+  "retry reviewer")
+    require_state
+    [[ $round -ge 1 ]] || die "no review to retry for $id: report a coder PASS first"
+    review_block
+    ;;
+
+  accept)
+    require_state
+    unrev=1
+    commit_block ""
+    save_state
+    ;;
+
+  commit)
+    require_state
+    if [[ $exit_code -eq 0 ]]; then
+      say "NEXT: done"
+    elif [[ $exit_code -eq 4 ]]; then
+      if [[ $f_landed -eq 1 ]]; then
+        say "ASK: already committed -> landed <sha> | retry | skip -> skip | abort"
+      else
+        say "ASK: retry | skip -> skip | abort"
+      fi
+    else
+      next_attempt "" "add: reason" ""
+      save_state
+    fi
+    ;;
+
+  landed)
+    require_state
+    commit_block "$sha"
     ;;
 esac
 
