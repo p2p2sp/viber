@@ -1,0 +1,8 @@
+- State is `key=value` lines; `resume:` and the ready `reason:` line are stored per attempt, so `retry coder` and a kept-state `start` reprint them (an `add: reason` field is not kept: the held return would be the wrong REASON). A next attempt clears `resume`.
+- `--red missing` counts as red evidence (`RED: missing <symbol>`); only no `--red` or `--red 0` fails. A short `--dod` wins over missing red evidence.
+- `--decide` and `--red-timeout` are parsed and ignored (T5/T6 read them); `--decide` failures therefore go to the next attempt for now.
+- The lessons file's second line is the list without its `lessons: ` prefix; `plan-index.sh --dispatch` accepts both spellings.
+- Non-`start` events with no state under the current mark exit 2 (`no step state ... report start first`).
+- `--with` reaches a `NEXT: commit` RUN line only through the state T4 will fill from reviewers: in T3 any `--with` forces a review, so that branch has no test yet.
+- The exec bit was set with `git update-index --add --chmod=+x` (the file is staged as a new file, 100755).
+- Red evidence: 38 failing against a skeleton that only exits 2, `.temp/viber/T3/red.log`.
