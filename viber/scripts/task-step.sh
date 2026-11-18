@@ -23,13 +23,16 @@
 #                            [--decide] [--red-timeout]
 #                            (an omitted --dod is no short DOD; --red-timeout says
 #                            the earlier call of this return ran out of time in
-#                            the red check, so it is not run again; --decide is
-#                            read by later events only)
+#                            the red check, so it is not run again; --decide says
+#                            the coder returned a DECIDE: line)
 #     reviewer PASS|FAIL|DENIED [--report <path>] [--with <path>[,<path>]...]
 #     retry coder [--denied] | retry reviewer
 #     accept
 #     commit <exit code> [--landed]
 #     landed <sha>
+#     ruled --case decide|baseline|tests|final-review|commit [--options "<a> | <b>"]
+#           [--refused]   (the subject is a task id on decide, else the case name)
+#     resume-failed
 #
 # stdout, one block per directive, a block opening on a directive line and its
 # body lines (labelled "<label>: <value>") sent verbatim in the dispatch it names:
@@ -48,6 +51,29 @@
 #         directive line then carries the field "red-check: <result word>"
 #   NEXT: commit
 #   RUN: "<plugin root>/scripts/commit-task.sh" "<plan>" "<id>" [--with "<path>"... | --landed "<sha>"] [--defer "<entry>"...] [--unreviewed]
+#   NEXT: arbiter [| add: reason]
+#         case: decide, options: <the DECIDE: options of <dir>/work/<id>-options.md>,
+#         task:, report: <dir>/work/<id>-coder.md, ruling: <dir>/work/ruling-<id>.md,
+#         then the ready reason line of a failure that returned no REASON; the
+#         answer to a coder failure of attempts 1 to 4 that carried --decide when
+#         the options file holds a DECIDE: line, the attempt unchanged (a resumed
+#         coder's second DECIDE: goes here again); attempt 5 holds the task instead
+#   RUN: commit-task.sh --rule ... --from <ruling file>   (a refused arbiter: the fixed
+#         words, the case's first option)
+#   RUN: commit-task.sh --decide ... --from <ruling file> | --first-of <options file>
+#         the two answers to "ruled --case decide", the --first-of form when the
+#         RULING names none of the options (or the arbiter was refused), then
+#   NEXT: resume [| mismatch]
+#         one decision: line per decision of the task and its dependencies, the one
+#         just ruled last, then "Continue the task under these decisions, then
+#         return your output lines again."; "resume-failed" instead answers the
+#         next attempt's coder block, whose decision: lines come from status.md
+#   NEXT: carry-out: <option>[ | mismatch]
+#         after "ruled" on baseline, tests, final-review or commit, as the --rule
+#         call; the first of --options with "mismatch" when the RULING names none
+#         of them, the case's first word (continue, accept, accept, leave
+#         uncommitted) when the arbiter was refused; "ruled" on these subjects
+#         writes no state, and --case cap is not answered
 #   NEXT: done
 #         after commit 0
 #   NEXT: hold | dependents: <ids>|none[ | red-check: PASSED-WITHOUT-CHANGE]
@@ -144,7 +170,7 @@ verdict=""
 exit_code=""
 sha=""
 case "$event" in
-  start|accept) ;;
+  start|accept|ruled|resume-failed) ;;
   coder|reviewer)
     [[ $# -ge 1 ]] || die "$event needs PASS, FAIL or DENIED"
     verdict="$1"
@@ -184,15 +210,22 @@ f_report=""
 f_denied=0
 f_landed=0
 f_timeout=0
+f_decide=0
+f_refused=0
+f_case=""
+f_options=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --decide) shift ;;
+    --decide) f_decide=1; shift ;;
+    --refused) f_refused=1; shift ;;
     --red-timeout) f_timeout=1; shift ;;
     --denied) f_denied=1; shift ;;
     --landed) f_landed=1; shift ;;
-    --tier|--review|--resume|--dod|--red|--red-log|--with|--defer|--report)
+    --tier|--review|--resume|--dod|--red|--red-log|--with|--defer|--report|--case|--options)
       [[ $# -ge 2 ]] || die "$1 needs a value"
       case "$1" in
+        --case) f_case="$2" ;;
+        --options) f_options="$2" ;;
         --tier) f_tier="$2" ;;
         --review) f_review="$2" ;;
         --resume) f_resume="$2" ;;
@@ -290,6 +323,13 @@ while IFS= read -r row; do
   esac
 done < <(printf '%s\n' "$index_out")
 
+fixed_subject=0
+if [[ "$event" == "ruled" ]]; then
+  case "$id" in
+    baseline|tests|final-review|commit) fixed_subject=1 ;;
+  esac
+fi
+
 tdd_required=0
 known=0
 for ((i = 0; i < ${#t_ids[@]}; i++)); do
@@ -298,7 +338,7 @@ for ((i = 0; i < ${#t_ids[@]}; i++)); do
     [[ "${t_tdds[$i]}" != "required" ]] || tdd_required=1
   fi
 done
-[[ $known -eq 1 ]] || die "the plan holds no task $id"
+[[ $known -eq 1 || $fixed_subject -eq 1 ]] || die "the plan holds no task $id"
 
 # Every task depending on $id, directly or through another, in plan order.
 dependents_of_task() {
@@ -577,6 +617,100 @@ next_attempt() {
   coder_block "${rcfield:+$rcfield${2:+ | }}$2"
 }
 
+# The text after the first line of file $1 starting with prefix $2, a trailing
+# carriage return cut; status 1 when the file or the line is absent.
+file_line() {
+  local line
+  [[ -f "$1" && -r "$1" ]] || return 1
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line//$'\r'/}"
+    case "$line" in
+      "$2"*)
+        printf '%s' "${line#"$2"}"
+        return 0
+        ;;
+    esac
+  done < "$1"
+  return 1
+}
+
+# The options of "<a> | <b>", one trimmed non-empty option per line.
+split_options() {
+  local rest="$1" item
+  while :; do
+    case "$rest" in
+      *" | "*)
+        item="${rest%% | *}"
+        rest="${rest#* | }"
+        ;;
+      *)
+        item="$rest"
+        rest=""
+        ;;
+    esac
+    item="$(trim "$item")"
+    if [[ -n "$item" ]]; then
+      printf '%s\n' "$item"
+    fi
+    [[ -n "$rest" ]] || break
+  done
+}
+
+# The closed list of "<a> | <b>" as one line, options trimmed.
+join_options() {
+  local o out=""
+  while IFS= read -r o; do
+    out="${out:+$out | }$o"
+  done < <(split_options "$1")
+  printf '%s' "$out"
+}
+
+# The arbiter block of a stalled coder when the task's options file holds a
+# DECIDE: line; $1 is the ready reason line, $2 the add field. Status 1 when it
+# holds none, so the failure goes to the next attempt.
+route_arbiter() {
+  local text opts
+  text="$(file_line "$plan_dir/work/$id-options.md" "DECIDE: ")" || return 1
+  opts="$(join_options "$text")"
+  [[ -n "$opts" ]] || return 1
+  rc=""
+  say "NEXT: arbiter${2:+ | $2}"
+  say "case: decide"
+  say "options: $opts"
+  say "task: $plan_dir/tasks/$id.md"
+  say "report: $plan_dir/work/$id-coder.md"
+  say "ruling: $plan_dir/work/ruling-$id.md"
+  [[ -z "$1" ]] || say "reason: $1"
+}
+
+# The first option the build takes for a case whose arbiter was refused.
+case_first() {
+  case "$1" in
+    baseline) printf 'continue' ;;
+    commit) printf 'leave uncommitted' ;;
+    *) printf 'accept' ;;
+  esac
+}
+
+# The resume message: the decision lines of the task and its dependencies, the
+# decision just ruled ($1) last, then the closing sentence.
+resume_message() {
+  local d line new="decision: $id: $1" seen=0 body=""
+  d="$(bash "$here/plan-index.sh" "$plan" --dispatch "$id" coder)" || die "plan-index.sh --dispatch failed for $id"
+  while IFS= read -r line; do
+    line="${line//$'\r'/}"
+    case "$line" in
+      "decision: "*)
+        body="$body$line"$'\n'
+        [[ "$line" != "$new" ]] || seen=1
+        ;;
+    esac
+  done < <(printf '%s\n' "$d")
+  [[ $seen -eq 1 ]] || body="$body$new"$'\n'
+  say_block "$body"
+  say "Continue the task under these decisions, then return your output lines again."
+}
+
 case "$event" in
   start)
     [[ -n "$f_tier" && -n "$f_review" ]] || die "start needs --tier and --review"
@@ -648,9 +782,17 @@ case "$event" in
       fi
 
       if [[ $failed -eq 1 ]]; then
-        next_attempt "$why" "$add" ""
+        if [[ $f_decide -eq 1 && $attempt -lt 5 ]] && route_arbiter "$why" "$add"; then
+          :
+        else
+          next_attempt "$why" "$add" ""
+        fi
       elif [[ -n "$rc_reason" ]]; then
-        next_attempt "$rc_reason" "" "" "red-check: PASSED-WITHOUT-CHANGE"
+        if [[ $f_decide -eq 1 && $attempt -lt 5 ]] && route_arbiter "$rc_reason" ""; then
+          :
+        else
+          next_attempt "$rc_reason" "" "" "red-check: PASSED-WITHOUT-CHANGE"
+        fi
       elif [[ $checked -eq 1 || "$review" != "waived" || $anywith -eq 1 ]]; then
         round=$((round + 1))
         review_block
@@ -714,6 +856,81 @@ case "$event" in
   landed)
     require_state
     commit_block "$sha"
+    ;;
+
+  resume-failed)
+    require_state
+    next_attempt "" "" ""
+    save_state
+    ;;
+
+  ruled)
+    case "$f_case" in
+      decide|baseline|tests|final-review|commit) ;;
+      cap) die "ruled --case cap is not answered by this script" ;;
+      *) die "ruled needs --case decide, baseline, tests, final-review or commit" ;;
+    esac
+    if [[ $fixed_subject -eq 1 ]]; then
+      [[ "$f_case" == "$id" ]] || die "ruled --case $f_case does not fit the subject $id"
+    else
+      [[ "$f_case" == "decide" ]] || die "ruled --case $f_case needs the subject $f_case"
+      require_state
+    fi
+    ruling_file="$plan_dir/work/ruling-$id.md"
+    options_file="$plan_dir/work/$id-options.md"
+    ct="\"$plugin_root/scripts/commit-task.sh\""
+    opts_text="$f_options"
+    if [[ -z "$opts_text" && "$f_case" == "decide" ]]; then
+      opts_text="$(file_line "$options_file" "DECIDE: ")" || opts_text=""
+    fi
+
+    first=""
+    got=""
+    matched=""
+    while IFS= read -r option; do
+      [[ -n "$first" ]] || first="$option"
+    done < <(split_options "$opts_text")
+    if [[ $f_refused -eq 0 ]]; then
+      [[ -n "$first" ]] || die "ruled --case $f_case needs --options"
+      got="$(file_line "$ruling_file" "RULING: ")" || got=""
+      got="$(trim "$got")"
+      if [[ -n "$got" ]]; then
+        while IFS= read -r option; do
+          if [[ "$option" == "$got" ]]; then
+            matched="$option"
+          fi
+        done < <(split_options "$opts_text")
+      fi
+      say "RUN: $ct --rule \"$plan\" \"$id\" --from \"$ruling_file\""
+    elif [[ "$f_case" == "decide" ]]; then
+      [[ -n "$first" ]] || die "ruled --case decide needs the DECIDE: options of $options_file"
+      say "RUN: $ct --rule \"$plan\" \"$id\" \"the coder's first option\" \"the arbiter was refused\" \"not assessed - the arbiter was refused\""
+    else
+      first="$(case_first "$f_case")"
+      say "RUN: $ct --rule \"$plan\" \"$id\" \"$first\" \"the arbiter was refused\" \"not assessed - the arbiter was refused\""
+    fi
+
+    if [[ "$f_case" == "decide" ]]; then
+      if [[ -n "$matched" ]]; then
+        say "RUN: $ct --decide \"$plan\" \"$id\" --from \"$ruling_file\""
+        say "NEXT: resume"
+        resume_message "auto: $matched"
+      else
+        say "RUN: $ct --decide \"$plan\" \"$id\" --first-of \"$options_file\""
+        if [[ $f_refused -eq 1 ]]; then
+          say "NEXT: resume"
+        else
+          say "NEXT: resume | mismatch"
+        fi
+        resume_message "auto: $first"
+      fi
+    elif [[ $f_refused -eq 1 ]]; then
+      say "NEXT: carry-out: $first"
+    elif [[ -n "$matched" ]]; then
+      say "NEXT: carry-out: $matched"
+    else
+      say "NEXT: carry-out: $first | mismatch"
+    fi
     ;;
 esac
 

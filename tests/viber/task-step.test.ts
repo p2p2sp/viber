@@ -1,8 +1,8 @@
 /*
  * task-step.test.ts - proves viber/scripts/task-step.sh's answers to the
- * `start`, `coder`, `reviewer`, `retry`, `accept`, `commit` and `landed` events:
- * the one directive block the implementor sends next after a coder, a reviewer
- * or a commit returns.
+ * `start`, `coder`, `reviewer`, `retry`, `accept`, `commit`, `landed`, `ruled`
+ * and `resume-failed` events: the one directive block the implementor sends next
+ * after a coder, a reviewer, a commit or an arbiter returns.
  *
  * The script is the implementor's task loop moved out of prose: it counts
  * attempts, climbs the tiers, decides review against commit and holds a task at
@@ -958,6 +958,320 @@ test("retry reviewer prints the round's check result again (a denied reviewer mu
         "red-check: UNRUNNABLE timeout",
       ),
     );
+  });
+});
+
+// --- a stalled coder and the arbiter ----------------------------------------
+
+const OPTIONS_T1 = `${PLAN_DIR}/work/T1-options.md`;
+const RULING_T1 = `${PLAN_DIR}/work/ruling-T1.md`;
+const CLOSING = "Continue the task under these decisions, then return your output lines again.";
+const COMMIT_TASK = `"${ROOT}/scripts/commit-task.sh"`;
+const T1_DECIDE: Call = ["T1", "100", "coder", "FAIL", "--decide"];
+
+function seedOptions(repo: GitRepo, id = "T1"): void {
+  write(repo.dir, `${PLAN_DIR}/work/${id}-options.md`, "DECIDE: use sqlite | use files\n");
+}
+
+function seedRuling(repo: GitRepo, id: string, ruling: string): void {
+  write(repo.dir, `${PLAN_DIR}/work/ruling-${id}.md`, `VERDICT: RULED\nRULING: ${ruling}\nWHY: the reports say so\nCOST: a rework\n`);
+}
+
+function seedDecisions(repo: GitRepo, decisions: string[]): void {
+  write(repo.dir, `${PLAN_DIR}/status.md`, `# status\n\nprogress: 0/4\ndone: none\n${decisions.join("\n")}\n`);
+}
+
+function arbiterLines(head: string, reasonLine: string[] = []): string {
+  return lines(
+    head,
+    "case: decide",
+    "options: use sqlite | use files",
+    `task: ${PLAN_DIR}/tasks/T1.md`,
+    `report: ${PLAN_DIR}/work/T1-coder.md`,
+    `ruling: ${RULING_T1}`,
+    ...reasonLine,
+  );
+}
+
+test("a FAIL with --decide on attempt 1 answers the arbiter with the options of the options file and add: reason", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedOptions(repo);
+    await arrange(repo, [START_T1]);
+
+    const result = await step(repo, T1_DECIDE);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, arbiterLines("NEXT: arbiter | add: reason"));
+  });
+});
+
+for (const [label, call, reasonLine] of [
+  ["a short DOD", ["T1", "100", "coder", "PASS", "--dod", "2/3", "--red", "2", "--decide"], "reason: DOD: 2/3"],
+  ["no red evidence", ["T1", "100", "coder", "PASS", "--dod", "3/3", "--decide"], "reason: no red evidence"],
+] as const) {
+  test(`a PASS with ${label} and --decide answers the arbiter with the ready reason line and no add field`, async () => {
+    await withGitRepo(async (repo) => {
+      seedPlan(repo);
+      seedOptions(repo);
+      await arrange(repo, [START_T1]);
+
+      const result = await step(repo, [...call]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, arbiterLines("NEXT: arbiter", [reasonLine]));
+    });
+  });
+}
+
+test("tests that pass without the change under --decide answer the arbiter with the red check's reason", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo, CHECK_ON);
+    seedOptions(repo);
+    const { sut } = stubbedCheck(
+      repo,
+      "echo 'red-check: PASSED-WITHOUT-CHANGE x'\necho 'NEXT: coder-failure | reason: tests pass without the change: tests/check.sh'",
+    );
+    await arrange(repo, [START_T1]);
+
+    const result = await step(repo, [...T1_PASS_LOGGED, "--decide"], sut);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      arbiterLines("NEXT: arbiter", ["reason: tests pass without the change: tests/check.sh"]),
+    );
+  });
+});
+
+test("a FAIL with --decide on attempt 5 holds the task instead of calling the arbiter", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedOptions(repo);
+    await arrange(repo, FOUR_FAILURES);
+
+    const result = await step(repo, T1_DECIDE);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: hold | dependents: T2,T3"));
+  });
+});
+
+test("the arbiter route counts no attempt, so the next ordinary failure answers attempt 2", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedOptions(repo);
+    await arrange(repo, [START_T1, T1_DECIDE]);
+
+    const result = await step(repo, T1_FAIL);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.ok(result.stdout.startsWith("NEXT: coder | attempt: 2 | model: opus |"), `stdout: ${result.stdout}`);
+  });
+});
+
+test("a resumed coder's second DECIDE answers the arbiter again in the same attempt", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedOptions(repo);
+    await arrange(repo, [START_T1, T1_DECIDE]);
+
+    const result = await step(repo, T1_DECIDE);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, arbiterLines("NEXT: arbiter | add: reason"));
+  });
+});
+
+test("resume-failed answers the next attempt with every decision line of the task", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedDecisions(repo, ["decision: T1: auto: use files"]);
+    await arrange(repo, [START_T1]);
+
+    const result = await step(repo, ["T1", "100", "resume-failed"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines("NEXT: coder | attempt: 2 | model: opus | review: opus", ...coderLines("T1", ["decision: T1: auto: use files"])),
+    );
+  });
+});
+
+test("a resumed coder's failure without --decide answers the next attempt with the decision lines and add: reason", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedOptions(repo);
+    seedDecisions(repo, ["decision: T1: auto: use files"]);
+    await arrange(repo, [START_T1, T1_DECIDE]);
+
+    const result = await step(repo, T1_FAIL);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        "NEXT: coder | attempt: 2 | model: opus | review: opus | add: reason",
+        ...coderLines("T1", ["decision: T1: auto: use files"]),
+      ),
+    );
+  });
+});
+
+test("a ruling naming a listed option answers the rule call, the decide call from the ruling file and the resume message", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedOptions(repo);
+    seedRuling(repo, "T1", "use files");
+    await arrange(repo, [START_T1]);
+
+    const result = await step(repo, ["T1", "100", "ruled", "--case", "decide"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        `RUN: ${COMMIT_TASK} --rule "${PLAN_REL}" "T1" --from "${RULING_T1}"`,
+        `RUN: ${COMMIT_TASK} --decide "${PLAN_REL}" "T1" --from "${RULING_T1}"`,
+        "NEXT: resume",
+        "decision: T1: auto: use files",
+        CLOSING,
+      ),
+    );
+  });
+});
+
+test("a ruling naming no listed option falls back to the first option of the options file and carries the mismatch field", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedOptions(repo);
+    seedRuling(repo, "T1", "rewrite everything");
+    await arrange(repo, [START_T1]);
+
+    const result = await step(repo, ["T1", "100", "ruled", "--case", "decide"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        `RUN: ${COMMIT_TASK} --rule "${PLAN_REL}" "T1" --from "${RULING_T1}"`,
+        `RUN: ${COMMIT_TASK} --decide "${PLAN_REL}" "T1" --first-of "${OPTIONS_T1}"`,
+        "NEXT: resume | mismatch",
+        "decision: T1: auto: use sqlite",
+        CLOSING,
+      ),
+    );
+  });
+});
+
+test("the resume message carries the decisions of the task and its dependencies, the one just ruled last, and no other task's", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedOptions(repo, "T2");
+    seedRuling(repo, "T2", "use files");
+    seedDecisions(repo, ["decision: T1: auto: use sqlite", "decision: T4: auto: unrelated"]);
+    await arrange(repo, [["T2", "100", "start", "--tier", "sonnet", "--review", "opus"]]);
+
+    const result = await step(repo, ["T2", "100", "ruled", "--case", "decide"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        `RUN: ${COMMIT_TASK} --rule "${PLAN_REL}" "T2" --from "${PLAN_DIR}/work/ruling-T2.md"`,
+        `RUN: ${COMMIT_TASK} --decide "${PLAN_REL}" "T2" --from "${PLAN_DIR}/work/ruling-T2.md"`,
+        "NEXT: resume",
+        "decision: T1: auto: use sqlite",
+        "decision: T2: auto: use files",
+        CLOSING,
+      ),
+    );
+  });
+});
+
+test("a refused arbiter on decide answers the fixed-words rule call, the first-of call and the resume message", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedOptions(repo);
+    await arrange(repo, [START_T1]);
+
+    const result = await step(repo, ["T1", "100", "ruled", "--case", "decide", "--refused"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        `RUN: ${COMMIT_TASK} --rule "${PLAN_REL}" "T1" "the coder's first option" "the arbiter was refused" "not assessed - the arbiter was refused"`,
+        `RUN: ${COMMIT_TASK} --decide "${PLAN_REL}" "T1" --first-of "${OPTIONS_T1}"`,
+        "NEXT: resume",
+        "decision: T1: auto: use sqlite",
+        CLOSING,
+      ),
+    );
+  });
+});
+
+for (const [subject, first] of [
+  ["baseline", "continue"],
+  ["tests", "accept"],
+  ["final-review", "accept"],
+  ["commit", "leave uncommitted"],
+] as const) {
+  test(`a refused arbiter on ${subject} answers the fixed-words rule call and carries out ${first}`, async () => {
+    await withGitRepo(async (repo) => {
+      seedPlan(repo);
+
+      const result = await step(repo, [subject, "100", "ruled", "--case", subject, "--refused"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(
+        result.stdout,
+        lines(
+          `RUN: ${COMMIT_TASK} --rule "${PLAN_REL}" "${subject}" "${first}" "the arbiter was refused" "not assessed - the arbiter was refused"`,
+          `NEXT: carry-out: ${first}`,
+        ),
+      );
+    });
+  });
+}
+
+for (const [subject, options, ruling] of [
+  ["baseline", "continue", "continue"],
+  ["tests", "accept", "accept"],
+  ["final-review", "accept | abort", "abort"],
+  ["commit", "leave uncommitted", "leave uncommitted"],
+] as const) {
+  test(`a ${subject} ruling of ${ruling} answers the rule call from the ruling file and carries it out`, async () => {
+    await withGitRepo(async (repo) => {
+      seedPlan(repo);
+      seedRuling(repo, subject, ruling);
+
+      const result = await step(repo, [subject, "100", "ruled", "--case", subject, "--options", options]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(
+        result.stdout,
+        lines(
+          `RUN: ${COMMIT_TASK} --rule "${PLAN_REL}" "${subject}" --from "${PLAN_DIR}/work/ruling-${subject}.md"`,
+          `NEXT: carry-out: ${ruling}`,
+        ),
+      );
+    });
+  });
+}
+
+test("a tests ruling naming none of the options carries out the first option with the mismatch field", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedRuling(repo, "tests", "ignore it");
+
+    const result = await step(repo, ["tests", "100", "ruled", "--case", "tests", "--options", "accept | abort"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        `RUN: ${COMMIT_TASK} --rule "${PLAN_REL}" "tests" --from "${PLAN_DIR}/work/ruling-tests.md"`,
+        "NEXT: carry-out: accept | mismatch",
+      ),
+    );
+  });
+});
+
+test("a ruling on baseline writes no step state", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedRuling(repo, "baseline", "continue");
+
+    const result = await step(repo, ["baseline", "100", "ruled", "--case", "baseline", "--options", "continue"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(fs.existsSync(path.join(repo.dir, ".temp", "viber", "baseline")), false);
   });
 });
 

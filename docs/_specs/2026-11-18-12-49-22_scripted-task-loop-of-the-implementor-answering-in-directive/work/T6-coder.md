@@ -1,0 +1,7 @@
+- `--decide` routes to the arbiter only when `<id>-options.md` holds a non-empty `DECIDE:` line; without one the failure goes to the next attempt as before. The attempt, tier and state's attempt count stay as they were.
+- `ruled --case decide` takes its options from `--options` when given, else from the options file; the `--first-of` fallback text is the first of those options (commit-task.sh reads the file itself, so they must agree).
+- `resume-failed` carries no `add: reason` and no reason line (a refused SendMessage returns nothing); its `decision:` lines come from status.md through the dispatch, so the `--decide` RUN of the ruling must already have run.
+- `ruled --case cap` exits 2: the cap arbiter belongs to a later task. A fixed subject (baseline, tests, final-review, commit) must be called with its own case and needs no state.
+- A refused arbiter takes the case's first word (baseline continue, tests and final-review accept, commit leave uncommitted).
+- Do not edit task-step.sh while a test run of it is under way: bash reads a script incrementally, so a header edit mid-run shows as a syntax error in running cases.
+- Red evidence: 22 failing, `.temp/viber/T6/red.log` (tests written before the production code).
