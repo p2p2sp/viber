@@ -36,6 +36,24 @@
 #     repair
 #     skip
 #
+# Directive format. An answer is one or more blocks, acted on in order, one block
+# per message. A block opens on a directive line, one of four:
+#   NEXT: <verb>[ | <field>]...   an action
+#   RUN: <one literal Bash line>  run exactly as written
+#   ASK: <answer> -> <event> | <answer> -> <event>[ | ...]
+#         one AskUserQuestion offering those answers; the chosen one's task-step.sh
+#         event is reported next; an answer with no "-> <event>" is "retry" of a
+#         refused commit (rerun the last RUN: line, then report its exit) or "abort"
+#         (step 7)
+#   STOP: <one sentence>          report it and stop
+# A field is "<name>: <value>" or a bare "<name>". Every following line up to the
+# next directive line is a body line, "<label>: <value>", sent verbatim in the
+# prompt or message the verb names. The field "add: <label>[, <label>]" names a
+# body line the model appends, copied from the return it holds:
+#   reason -> "reason: <the returned REASON>", or the commit's error after a
+#             refused commit
+#   repair -> "repair: <one line: the problem this pass fixes>"
+#
 # stdout, one block per directive, a block opening on a directive line and its
 # body lines (labelled "<label>: <value>") sent verbatim in the dispatch it names:
 #   NEXT: coder | attempt: <n> | model: <tier> | review: <tier>|waived [| add: reason]
