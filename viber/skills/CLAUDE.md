@@ -40,7 +40,7 @@ Owns every `skills/<name>/` directory: its `SKILL.md` and the `fragments/`, `par
 - The `Same defect elsewhere` field of the `fixer` diagnosis: its `picked` / `not picked` marks, which `planner` reads from the diagnosis text alone, and `fixer`'s step 5 question.
 - The `Split proposal:` block (parts, `Open decisions:`): written by `planner/SKILL.md`, read by `intent/SKILL.md` and `intent/references/split.md`, which keep the input's hand-off lines and skip the branch start and issue saves for it.
 - The five items a root `CLAUDE.md` names (build, whole suite, single test file, fast command, layer marker convention): `setup/SKILL.md`'s check, `setup/templates/claude-md-prompt.txt`, `references/node-doctrine.md`'s Root and the `MISSING:` vocabulary of `agents/memory-node-writer.md`.
-- The extension contract: `extension/templates/extension.md` (the `<!-- viber:extension -->` marker, the `run:` / `spec:` / `notes:` / `out:` lines, `VERDICT: WRITTEN | NONE | FAIL | DENIED`), the marker test in `extension/scripts/extension.sh` and the dispatch in `implementor/fragments/extensions.on.md`.
+- The extension contract: `extension/templates/extension.md` (the `<!-- viber:extension -->` marker, the `run:` / `spec:` / `notes:` / `out:` lines, `VERDICT: WRITTEN | NONE | FAIL | DENIED`), the marker test in `extension/scripts/extension.sh` and the dispatch lines `scripts/plan-index.sh --split` prints in each `NEXT: extension` block, which `implementor/fragments/extensions.on.md` sends as printed (that block and `NEXT: qa-kept` are carried from step 2 to step 6, never acted on before it).
 
 ## Traps
 
