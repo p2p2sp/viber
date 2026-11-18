@@ -50,6 +50,10 @@
  * path for a later one to prove, `<task-id>:<path>`) and the close entries above.
  * `--rule` writes the run's ruling register, `rulings.md` beside the plan, with
  * no commit; every commit form taking the plan carries it once it changed.
+ * `--leftovers <plan> --drift <n>|none` accounts for every path the build left
+ * uncommitted (the `plan-index.sh` skipped, dirty and orphan lines), commits the
+ * unexplained ones under the `--outside` subject with one `Leftover:` line each, and
+ * rewrites the leftovers section and the `Drift:` line of the run's `outcome.md`.
  * Every commit form also carries the run's own trail - the notes and reports
  * under `<run-dir>/work/` - derived from the task id or the round, so a parallel
  * task's notes never ride along and the trail reaches another machine.
@@ -3662,5 +3666,368 @@ test("the usage text lists the --drop form", async () => {
     const result = await run(repo.dir, repo.env, []);
     assert.equal(result.status, 2);
     assert.match(result.stderr, /--drop <plan-file> <path> \[<path>\.\.\.\]/);
+  });
+});
+
+// --- --leftovers: the leftovers section of outcome.md, the unexplained paths committed ---
+
+const OUTCOME_REL = `${RUN_DIR}/outcome.md`;
+const OUTCOME_HEAD = "Build summary.\n\n## Leftovers\n";
+const NO_NOTE_REASON = "named by no build note: a tool output or a change outside the build";
+
+interface LeftoverTask {
+  id: string;
+  files: string;
+  repro?: string;
+}
+
+const LEFTOVER_TASKS: LeftoverTask[] = [
+  { id: "T1", files: "src/a.ts" },
+  { id: "T2", files: "src/b.ts, test/b.test.ts", repro: "test/b.test.ts" },
+  { id: "T3", files: "src/c.ts" },
+];
+
+/** A plan plan-index.sh accepts: the leftovers form reads the index it prints. */
+function leftoversPlan(tasks: LeftoverTask[]): string {
+  return [
+    "# Add login",
+    "",
+    "## Goal",
+    "",
+    "Users can log in.",
+    "The session is durable.",
+    "",
+    "## Acceptance criteria",
+    "",
+    "1. A user with valid credentials gets a session.",
+    "   The session survives a reload.",
+    "",
+    "## Scope",
+    "",
+    "### File map",
+    "",
+    "- add - src/login.ts - the handler",
+    "",
+    "### Out of scope",
+    "",
+    "- Password reset.",
+    "",
+    "## Tasks",
+    "",
+    ...tasks.flatMap((t) => [
+      "<!-- TASK -->",
+      `### ${t.id} - task ${t.id}`,
+      `- TDD: ${t.repro ? "none" : "required"}`,
+      ...(t.repro ? [`- Repro: ${t.repro}`] : []),
+      "- Covers: AC1",
+      "- Uses: C1",
+      "- Depends-on: none",
+      `- Files: ${t.files}`,
+      "- Delivers: the thing",
+      "- Verification: npm test -> green",
+      "- DoD: it works",
+      "<!-- /TASK -->",
+      "",
+    ]),
+    "## Contracts",
+    "",
+    "### C1 - Login endpoint",
+    "",
+    "File: none",
+    "",
+    "POST /login -> 200 | 401",
+    "",
+  ].join("\n");
+}
+
+/** The three-task plan committed with its state file, then the outcome.md a closeout
+ *  leaves behind (the summary and its heading line), uncommitted like the real one;
+ *  `outcome: null` leaves the run without one. */
+async function seedLeftovers(
+  repo: GitRepo,
+  opts: { skipped?: string; outcome?: string | null } = {},
+): Promise<void> {
+  write(repo.dir, PLAN_REL, leftoversPlan(LEFTOVER_TASKS));
+  write(repo.dir, STATUS_REL, statusBody(3).replace("skipped: none", `skipped: ${opts.skipped ?? "none"}`));
+  write(repo.dir, "README.md", "seed\n");
+  await repo.git("add", "-A");
+  await repo.git("commit", "-m", "seed");
+  if (opts.outcome !== null) write(repo.dir, OUTCOME_REL, opts.outcome ?? OUTCOME_HEAD);
+}
+
+function runLeftovers(repo: GitRepo, drift = "none", env: Record<string, string> = repo.env) {
+  return run(repo.dir, env, ["--leftovers", PLAN_REL, "--drift", drift]);
+}
+
+function readOutcome(repo: GitRepo): string {
+  return fs.readFileSync(path.join(repo.dir, OUTCOME_REL), "utf-8");
+}
+
+async function headSha(repo: GitRepo): Promise<string> {
+  return (await repo.git("rev-parse", "--short", "HEAD")).stdout.trim();
+}
+
+test("--leftovers gives a skipped task's Repro path and the dirty paths of a skipped and of an open task their reasons, leaves all three uncommitted and writes them under the heading above the Drift line", async () => {
+  await withGitRepo(async (repo) => {
+    await seedLeftovers(repo, { skipped: "T2" });
+    write(repo.dir, `${RUN_DIR}/tasks/T2.md`, "### T2 - task T2\n- Repro: test/b.test.ts\n");
+    write(repo.dir, "src/a.ts", "half done\n");
+    write(repo.dir, "src/b.ts", "half done\n");
+    write(repo.dir, "test/b.test.ts", "RED\n");
+
+    const result = await runLeftovers(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "left: 3\n");
+    assert.equal(
+      readOutcome(repo),
+      [
+        "Build summary.",
+        "",
+        "## Leftovers",
+        "test/b.test.ts: reproduction test of skipped task T2 - left uncommitted",
+        "src/a.ts: unfinished work of task T1 - left uncommitted",
+        "src/b.ts: unfinished work of skipped task T2 - left uncommitted",
+        "",
+        "Drift: none",
+        "",
+      ].join("\n"),
+    );
+    assert.deepEqual(await subjects(repo), ["seed"]);
+  });
+});
+
+test("--leftovers leaves an orphan path a summary marker names uncommitted under the marker's reason, while a dirty reason wins over a marker for the same path", async () => {
+  await withGitRepo(async (repo) => {
+    const summary = [
+      "Build summary.",
+      "left uncommitted: tools/out.log | kept as evidence",
+      "left uncommitted: src/a.ts | a marker beside a dirty path",
+    ];
+    await seedLeftovers(repo, { outcome: `${summary.join("\n")}\n\n## Leftovers\n` });
+    write(repo.dir, "tools/out.log", "evidence\n");
+    write(repo.dir, "src/a.ts", "half done\n");
+
+    const result = await runLeftovers(repo, "1");
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "left: 2\n");
+    assert.equal(
+      readOutcome(repo),
+      [
+        ...summary,
+        "",
+        "## Leftovers",
+        "src/a.ts: unfinished work of task T1 - left uncommitted",
+        "tools/out.log: kept as evidence - left uncommitted",
+        "",
+        "Drift: 1",
+        "",
+      ].join("\n"),
+    );
+    assert.deepEqual(await subjects(repo), ["seed"]);
+  });
+});
+
+test("--leftovers leaves an orphan path a skipped task's note names uncommitted as written outside its Files", async () => {
+  await withGitRepo(async (repo) => {
+    await seedLeftovers(repo, { skipped: "T2" });
+    write(repo.dir, `${RUN_DIR}/work/T2-coder.md`, "- wrote lib/x.ts beside its Files\n");
+    write(repo.dir, "lib/x.ts", "stray\n");
+
+    const result = await runLeftovers(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "left: 1\n");
+    assert.match(readOutcome(repo), /^lib\/x\.ts: written by skipped task T2 outside its Files - left uncommitted$/m);
+    assert.deepEqual(await subjects(repo), ["seed"]);
+  });
+});
+
+test("--leftovers commits the unexplained paths in one commit under the --outside subject and footer with one Leftover line each, linking a path to the lowest-numbered task whose note names it", async () => {
+  await withGitRepo(async (repo) => {
+    await seedLeftovers(repo);
+    write(repo.dir, `${RUN_DIR}/work/T10-coder.md`, "- also lib/x.ts\n");
+    write(repo.dir, `${RUN_DIR}/work/T3-extra.md`, "lib/x.ts\n");
+    write(repo.dir, "lib/x.ts", "changed after its commit\n");
+    write(repo.dir, "tools/y.txt", "a tool output\n");
+
+    const result = await runLeftovers(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const sha = await headSha(repo);
+    assert.equal(result.stdout, `committed: ${sha}\nleft: none\n`);
+    assert.deepEqual(await subjects(repo), [OUTSIDE_SUBJECT, "seed"]);
+    assert.deepEqual(await committedFiles(repo), ["lib/x.ts", "tools/y.txt"]);
+    assert.equal(
+      (await repo.git("log", "-1", "--format=%b")).stdout.trim(),
+      [
+        "Leftover: lib/x.ts | written by T3, changed after its commit or outside its Files",
+        `Leftover: tools/y.txt | ${NO_NOTE_REASON}`,
+        "",
+        `Refs: ${PLAN_REL} outside the plan`,
+      ].join("\n"),
+    );
+    assert.equal(
+      readOutcome(repo),
+      [
+        "Build summary.",
+        "",
+        "## Leftovers",
+        `lib/x.ts: written by T3, changed after its commit or outside its Files - committed ${sha}`,
+        `tools/y.txt: ${NO_NOTE_REASON} - committed ${sha}`,
+        "",
+        "Drift: none",
+        "",
+      ].join("\n"),
+    );
+  });
+});
+
+test("--leftovers refuses a .temp path with the warning's text as its reason and still commits the other unexplained path", async () => {
+  await withGitRepo(async (repo) => {
+    await seedLeftovers(repo);
+    write(repo.dir, ".temp/x", "machine state\n");
+    write(repo.dir, "lib/x.ts", "a tool output\n");
+
+    const result = await runLeftovers(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const sha = await headSha(repo);
+    assert.equal(result.stdout, `committed: ${sha}\nleft: 1\n`);
+    assert.deepEqual(await committedFiles(repo), ["lib/x.ts"]);
+    assert.match(
+      readOutcome(repo),
+      /^\.temp\/x: refused \.temp\/x - \.temp is machine state, never committed - left uncommitted$/m,
+    );
+  });
+});
+
+test("--leftovers leaves every path of a failing commit uncommitted under git's error line and exits 0", async () => {
+  await withGitRepo(async (repo) => {
+    await seedLeftovers(repo);
+    write(repo.dir, "lib/x.ts", "a tool output\n");
+    write(repo.dir, "tools/y.txt", "a tool output\n");
+    await breakCommit(repo);
+
+    const result = await runLeftovers(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "left: 2\n");
+    assert.deepEqual(await subjects(repo), ["seed"]);
+    const outcome = readOutcome(repo);
+    assert.match(outcome, /^lib\/x\.ts: error: [^\n]* - left uncommitted$/m);
+    assert.match(outcome, /^tools\/y\.txt: error: [^\n]* - left uncommitted$/m);
+  });
+});
+
+test("--leftovers with nothing left drops the heading line and ends the summary on the Drift line", async () => {
+  await withGitRepo(async (repo) => {
+    await seedLeftovers(repo);
+
+    const result = await runLeftovers(repo, "2");
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "left: none\n");
+    assert.equal(readOutcome(repo), "Build summary.\n\nDrift: 2\n");
+  });
+});
+
+test("--leftovers lists a path an earlier call committed first, as committed, and the new leftovers after it", async () => {
+  await withGitRepo(async (repo) => {
+    await seedLeftovers(repo);
+    write(repo.dir, "lib/x.ts", "a tool output\n");
+    const earlier = await runLeftovers(repo);
+    assert.equal(earlier.status, 0, `stderr: ${earlier.stderr}`);
+    const sha = await headSha(repo);
+    write(repo.dir, "src/a.ts", "half done\n");
+
+    const result = await runLeftovers(repo, "3");
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "left: 1\n");
+    assert.deepEqual(await subjects(repo), [OUTSIDE_SUBJECT, "seed"]);
+    assert.equal(
+      readOutcome(repo),
+      [
+        "Build summary.",
+        "",
+        "## Leftovers",
+        `lib/x.ts: ${NO_NOTE_REASON} - committed ${sha}`,
+        "src/a.ts: unfinished work of task T1 - left uncommitted",
+        "",
+        "Drift: 3",
+        "",
+      ].join("\n"),
+    );
+  });
+});
+
+test("--leftovers lists a carried path that is a leftover again once, by its new line", async () => {
+  await withGitRepo(async (repo) => {
+    await seedLeftovers(repo);
+    write(repo.dir, "lib/x.ts", "a tool output\n");
+    const earlier = await runLeftovers(repo);
+    assert.equal(earlier.status, 0, `stderr: ${earlier.stderr}`);
+    write(repo.dir, "lib/x.ts", "changed again\n");
+
+    const result = await runLeftovers(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const sha = await headSha(repo);
+    assert.deepEqual(await subjects(repo), [OUTSIDE_SUBJECT, OUTSIDE_SUBJECT, "seed"]);
+    assert.deepEqual(
+      readOutcome(repo)
+        .split("\n")
+        .filter((line) => line.startsWith("lib/x.ts:")),
+      [`lib/x.ts: ${NO_NOTE_REASON} - committed ${sha}`],
+    );
+  });
+});
+
+test("--leftovers with a plan plan-index.sh refuses writes the one 'leftover check not performed' line and commits nothing", async () => {
+  await withGitRepo(async (repo) => {
+    await seedRaw(repo, "# Plan - feat x\n", 0);
+    write(repo.dir, OUTCOME_REL, OUTCOME_HEAD);
+    write(repo.dir, "src/legacy.ts", "a hand edit\n");
+
+    const result = await runLeftovers(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "left: none\n");
+    assert.deepEqual(await subjects(repo), ["seed"]);
+    assert.match(
+      readOutcome(repo),
+      /^Build summary\.\n\n## Leftovers\nleftover check not performed: error: [^\n]+\n\nDrift: none\n$/,
+    );
+  });
+});
+
+test("--leftovers without an outcome.md exits 2 and commits nothing", async () => {
+  await withGitRepo(async (repo) => {
+    await seedLeftovers(repo, { outcome: null });
+    write(repo.dir, "lib/x.ts", "a tool output\n");
+
+    const result = await runLeftovers(repo);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /outcome\.md/);
+    assert.equal(result.stdout, "");
+    assert.deepEqual(await subjects(repo), ["seed"]);
+  });
+});
+
+for (const drift of ["abc", "-1", "1.5"]) {
+  test(`--leftovers with --drift ${drift} exits 2 and leaves outcome.md and the tree alone`, async () => {
+    await withGitRepo(async (repo) => {
+      await seedLeftovers(repo);
+      write(repo.dir, "lib/x.ts", "a tool output\n");
+
+      const result = await runLeftovers(repo, drift);
+      assert.equal(result.status, 2);
+      assert.equal(result.stdout, "");
+      assert.equal(readOutcome(repo), OUTCOME_HEAD);
+      assert.deepEqual(await subjects(repo), ["seed"]);
+    });
+  });
+}
+
+test("--leftovers without --drift exits 2 with the usage text", async () => {
+  await withGitRepo(async (repo) => {
+    await seedLeftovers(repo);
+
+    const result = await run(repo.dir, repo.env, ["--leftovers", PLAN_REL]);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /^error: usage: commit-task\.sh/);
+    assert.equal(readOutcome(repo), OUTCOME_HEAD);
   });
 });

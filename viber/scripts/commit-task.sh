@@ -20,6 +20,7 @@
 #   commit-task.sh --e2e <file> [<file>...]
 #   commit-task.sh --review <plan-file> <file> [<file>...]
 #   commit-task.sh --outside <plan-file> <file> [<file>...]
+#   commit-task.sh --leftovers <plan-file> --drift <n>|none
 #   commit-task.sh --extension <plan-file> <name> <file> [<file>...]
 #   commit-task.sh --drop <plan-file> <path> [<path>...]
 #
@@ -129,6 +130,37 @@
 # takes the plan for its Refs footer and the register only: no trail, no
 # status entry, progress left alone.
 #
+# --leftovers accounts for every path the build left uncommitted and writes the
+# leftovers section of "<run-dir>/outcome.md", where closeout left the summary
+# verbatim and, as its last non-empty line, the section heading. It runs
+# plan-index.sh beside this script (skipped:, dirty:, orphan:) and gives each path
+# one reason, each path once: the "- Repro:" path of a skipped task (read from
+# "<run-dir>/tasks/<id>.md") "reproduction test of skipped task <id>"; a dirty:
+# path "unfinished work of [skipped ]task <id>" (it wins over a summary marker);
+# an orphan: path a "left uncommitted: <path> | <why>" line of the summary names
+# "<why>"; any other orphan: path is linked to the lowest-numbered task whose
+# "<run-dir>/work/T<n>-coder.md", "-extra.md" or "-extra-review.md" names it:
+# "written by skipped task <id> outside its Files" when that task is skipped, else
+# "written by <id>, changed after its commit or outside its Files"; with no such
+# note "named by no build note: a tool output or a change outside the build". The
+# Every reason but the last two leaves its path uncommitted; the unexplained
+# paths (the last two reasons) land in one commit with the
+# --outside subject and footer and one "Leftover: <path> | <reason>" line each in
+# its body. A path refused (.temp) or unstageable stays uncommitted, its reason the
+# warning's text; a failing stage or commit leaves every path of it uncommitted,
+# its reason the error: line. A path an earlier call committed (its commit's
+# "Leftover:" lines, read from the --outside-subject commits since the commit that
+# added the plan) is listed again first as "<path>: <reason> - committed <sha>",
+# once, a path that is a leftover again by its new line only. plan-index.sh
+# failing writes the one line "leftover check not performed: <its error: line>"
+# and commits nothing. outcome.md is rewritten: the text above the heading line,
+# the heading and one "<path>: <reason> - committed <sha>" or
+# "<path>: <reason> - left uncommitted" line per leftover (no heading when there is
+# none), a blank line, "Drift: <n>" or "Drift: none". A file this form wrote before
+# is read back: its Drift: line and the section above it are replaced. A heading
+# lost to an earlier call that found no leftover is written as "## Leftovers". It
+# touches no status entry and leaves progress alone.
+#
 # --extension commits the files one of the host project's own closing agents
 # wrote just before the run is archived. <name> is the extension's name (letters,
 # digits, "-" and "_", opening with a letter or digit; else exit 2). The subject
@@ -234,7 +266,9 @@
 #                                "progress: unchanged"; on exit 5 "uncommitted: <path>" lines instead
 #   --chore, --qa, --e2e:        "committed: <sha>", "subject: <line>"
 #   --review, --outside, --extension: "committed: <sha>", "subject: <line>"
-#   --skip:                      "skipped: <id>", "progress: unchanged" (no commit)
+#   --leftovers:                 "committed: <sha>" when a commit landed, then "left: <n>"
+#                                (the leftover lines ending "left uncommitted") or "left: none"
+#   --skip:                     "skipped: <id>", "progress: unchanged" (no commit)
 #   --decide:                    "decided: <id>", "progress: unchanged" (no commit)
 #   --rule:                      "ruled: <subject>", "progress: unchanged" (no commit)
 #   --drop:                      "dropped: <path>" per deleted path (no commit)
@@ -253,7 +287,9 @@
 #       for --from and --first-of also a file that is absent, unreadable or
 #       outside <run-dir>/work/, or lacks a required line or holds it empty
 #       (rulings.md, status.md and the file untouched); for --drop also no path
-#       (nothing deleted)
+#       (nothing deleted); for --leftovers also a missing --drift, a --drift that is
+#       neither a number nor "none", or no outcome.md beside the plan (nothing
+#       written); any other outcome of --leftovers exits 0
 #   3 - no task with that id in the plan (for --rule, a subject shaped like a
 #       task id, "T<n>...", that the plan does not hold)
 #   4 - the named files produced no change to the working tree (a task
@@ -272,8 +308,12 @@ shopt -s nullglob
 # pattern. See the header: an App Router path is made of bracketed segments.
 export GIT_LITERAL_PATHSPECS=1
 
+# the subject of the one commit of the changes made outside the plan: --outside
+# makes it, --leftovers makes it and reads it back from the history
+OUTSIDE_SUBJECT="chore(viber): commit changes made outside the plan"
+
 usage() {
-  echo "error: usage: commit-task.sh <plan-file> <task-id> [--unreviewed] [--with <file> [<file>...]] [--defer <task-id>:<path> [...]] [--landed <sha>] | <plan-file> <task-id> <fix-number> <file> [<file>...] | --skip <plan-file> <task-id> | --decide <plan-file> <task-id> <text> | --decide <plan-file> <task-id> --from <ruling-file> | --decide <plan-file> <task-id> --first-of <options-file> | --rule <plan-file> <subject> <ruling> <why> <cost> | --rule <plan-file> <subject> --from <ruling-file> | --repair <plan-file> <round> <file> [<file>...] | --chore <plan-file> <file> [<file>...] | --qa <plan-file> <file> [<file>...] | --e2e <file> [<file>...] | --review <plan-file> <file> [<file>...] | --outside <plan-file> <file> [<file>...] | --extension <plan-file> <name> <file> [<file>...] | --drop <plan-file> <path> [<path>...]" >&2
+  echo "error: usage: commit-task.sh <plan-file> <task-id> [--unreviewed] [--with <file> [<file>...]] [--defer <task-id>:<path> [...]] [--landed <sha>] | <plan-file> <task-id> <fix-number> <file> [<file>...] | --skip <plan-file> <task-id> | --decide <plan-file> <task-id> <text> | --decide <plan-file> <task-id> --from <ruling-file> | --decide <plan-file> <task-id> --first-of <options-file> | --rule <plan-file> <subject> <ruling> <why> <cost> | --rule <plan-file> <subject> --from <ruling-file> | --repair <plan-file> <round> <file> [<file>...] | --chore <plan-file> <file> [<file>...] | --qa <plan-file> <file> [<file>...] | --e2e <file> [<file>...] | --review <plan-file> <file> [<file>...] | --outside <plan-file> <file> [<file>...] | --leftovers <plan-file> --drift <n>|none | --extension <plan-file> <name> <file> [<file>...] | --drop <plan-file> <path> [<path>...]" >&2
   exit 2
 }
 
@@ -1297,6 +1337,328 @@ if [[ "${1:-}" == "--repair" ]]; then
   exit 0
 fi
 
+# --- the leftovers section of outcome.md: every path the build left uncommitted,
+# --- each with one reason, the unexplained ones committed ---
+if [[ "${1:-}" == "--leftovers" ]]; then
+  [[ $# -eq 4 && "$3" == "--drift" ]] || usage
+  plan="$(plan_arg "${2:-}")"
+  [[ -n "$plan" ]] || usage
+  lf_drift="$4"
+  if [[ ! -f "$plan" ]]; then
+    echo "error: plan file not found: $plan" >&2
+    exit 2
+  fi
+  lf_re_drift='^(none|[0-9]+)$'
+  if [[ ! "$lf_drift" =~ $lf_re_drift ]]; then
+    echo "error: --drift is a number or none, got '$lf_drift'" >&2
+    exit 2
+  fi
+  lf_dir="$(run_dir "$plan")"
+  lf_dir="${lf_dir#./}"
+  lf_outcome="${lf_dir:+$lf_dir/}outcome.md"
+  if [[ ! -f "$lf_outcome" ]]; then
+    echo "error: no outcome.md beside the plan: $lf_outcome" >&2
+    exit 2
+  fi
+  lf_err="$(git rev-parse --absolute-git-dir)/leftovers.$$.err"
+  trap 'rm -f -- "$lf_err"' EXIT
+
+  # outcome.md: the summary and its heading line, or what an earlier call of this
+  # form wrote - the heading, the leftover lines and the Drift line after them
+  lf_re_drift_line='^Drift: (none|[0-9]+)$'
+  lf_re_section=' - (committed [0-9a-f]+|left uncommitted)$'
+  out_lines=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    out_lines+=("${line%$'\r'}")
+  done < "$lf_outcome"
+  n=${#out_lines[@]}
+  lf_trim_tail() {
+    while [[ $n -gt 0 && -z "${out_lines[$((n - 1))]//[[:space:]]/}" ]]; do
+      n=$(( n - 1 ))
+    done
+  }
+  lf_is_section_line() {
+    [[ "$1" =~ $lf_re_section || "$1" == "leftover check not performed: "* ]]
+  }
+  lf_trim_tail
+  lf_heading=""
+  lf_pop_heading=1
+  if [[ $n -gt 0 && "${out_lines[$((n - 1))]}" =~ $lf_re_drift_line ]]; then
+    n=$(( n - 1 ))
+    lf_trim_tail
+    lf_pop_heading=0
+    while [[ $n -gt 0 ]] && lf_is_section_line "${out_lines[$((n - 1))]}"; do
+      n=$(( n - 1 ))
+      lf_pop_heading=1
+    done
+  fi
+  if [[ $lf_pop_heading -eq 1 && $n -gt 0 ]]; then
+    lf_heading="${out_lines[$((n - 1))]}"
+    n=$(( n - 1 ))
+  fi
+  lf_trim_tail
+
+  # the "left uncommitted: <path> | <why>" lines of the summary
+  mk_paths=()
+  mk_whys=()
+  k=0
+  while [[ $k -lt $n ]]; do
+    line="${out_lines[$k]}"
+    k=$(( k + 1 ))
+    if [[ "$line" == "left uncommitted: "* && "$line" == *" | "* ]]; then
+      rest="${line#left uncommitted: }"
+      p="${rest%% | *}"
+      mk_paths+=("${p#./}")
+      mk_whys+=("${rest#* | }")
+    fi
+  done
+
+  lf_paths=()
+  lf_reasons=()
+  lf_states=()
+  # one entry per path, the first reason it gets; state 0 left uncommitted, 1 to be
+  # committed, 2 committed
+  lf_add() {
+    local q
+    for q in ${lf_paths[@]+"${lf_paths[@]}"}; do
+      if [[ "$q" == "$1" ]]; then return 0; fi
+    done
+    lf_paths+=("$1")
+    lf_reasons+=("$2")
+    lf_states+=("$3")
+  }
+
+  lf_check=""
+  lf_rc=0
+  lf_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  index_out="$(bash "$lf_here/plan-index.sh" "$plan" 2>"$lf_err")" || lf_rc=$?
+  if [[ $lf_rc -ne 0 ]]; then
+    lf_line="$(grep -m1 '^error:' -- "$lf_err" || true)"
+    lf_line="${lf_line%$'\r'}"
+    lf_check="leftover check not performed: ${lf_line:-error: plan-index.sh exited $lf_rc}"
+  else
+    lf_skipped=""
+    lf_dirty=""
+    lf_orphans=""
+    while IFS= read -r line; do
+      line="${line%$'\r'}"
+      case "$line" in
+        "skipped: "*) lf_skipped="${line#skipped: }" ;;
+        "dirty: "*)   lf_dirty="$lf_dirty${line#dirty: }"$'\n' ;;
+        "orphan: "*)  lf_orphans="$lf_orphans${line#orphan: }"$'\n' ;;
+      esac
+    done <<< "$index_out"
+
+    for id in $lf_skipped; do
+      [[ "$id" != none && "$id" != - ]] || continue
+      tf="${lf_dir:+$lf_dir/}tasks/$id.md"
+      [[ -f "$tf" ]] || continue
+      repro="$(grep -m1 -E '^-[[:space:]]*Repro:' -- "$tf" || true)"
+      repro="${repro#*:}"
+      repro="${repro%$'\r'}"
+      repro="${repro#"${repro%%[![:space:]]*}"}"
+      repro="${repro%"${repro##*[![:space:]]}"}"
+      repro="${repro#./}"
+      if [[ -n "$repro" ]]; then
+        lf_add "$repro" "reproduction test of skipped task $id" 0
+      fi
+    done
+
+    while IFS= read -r row; do
+      [[ -n "$row" ]] || continue
+      id="${row%% | *}"
+      reason="unfinished work of task $id"
+      case " $lf_skipped " in
+        *" $id "*) reason="unfinished work of skipped task $id" ;;
+      esac
+      IFS=',' read -r -a parts <<< "${row#* | }"
+      for p in ${parts[@]+"${parts[@]}"}; do
+        lf_add "$p" "$reason" 0
+      done
+    done <<< "$lf_dirty"
+
+    while IFS= read -r p; do
+      [[ -n "$p" ]] || continue
+      why=""
+      k=0
+      while [[ $k -lt ${#mk_paths[@]} ]]; do
+        if [[ "${mk_paths[$k]}" == "$p" ]]; then why="${mk_whys[$k]}"; break; fi
+        k=$(( k + 1 ))
+      done
+      if [[ -n "$why" ]]; then
+        lf_add "$p" "$why" 0
+        continue
+      fi
+      # the note link: the lowest-numbered task whose coder or extras notes name it
+      best=""
+      best_n=0
+      for nf in "${lf_dir:+$lf_dir/}work/"T*-coder.md "${lf_dir:+$lf_dir/}work/"T*-extra.md "${lf_dir:+$lf_dir/}work/"T*-extra-review.md; do
+        [[ -f "$nf" ]] || continue
+        base="${nf##*/}"
+        tid="${base%%-*}"
+        num="${tid//[^0-9]/}"
+        [[ -n "$num" ]] || continue
+        num=$(( 10#$num ))
+        if grep -Fq -- "$p" "$nf" && { [[ -z "$best" ]] || [[ $num -lt $best_n ]]; }; then
+          best="$tid"
+          best_n=$num
+        fi
+      done
+      if [[ -z "$best" ]]; then
+        lf_add "$p" "named by no build note: a tool output or a change outside the build" 1
+      else
+        case " $lf_skipped " in
+          *" $best "*) lf_add "$p" "written by skipped task $best outside its Files" 0 ;;
+          *)           lf_add "$p" "written by $best, changed after its commit or outside its Files" 1 ;;
+        esac
+      fi
+    done <<< "$lf_orphans"
+  fi
+
+  # what an earlier call committed: the "Leftover:" lines of the --outside commits
+  # since the commit that added the plan
+  carried_paths=()
+  carried_lines=()
+  if git rev-parse -q --verify HEAD >/dev/null; then
+    lf_range=HEAD
+    added="$(git log -1 --diff-filter=A --format=%H -- "$plan" 2>/dev/null || true)"
+    if [[ -n "$added" ]]; then lf_range="$added..HEAD"; fi
+    while IFS= read -r csha; do
+      [[ -n "$csha" ]] || continue
+      [[ "$(git log -1 --format=%s "$csha")" == "$OUTSIDE_SUBJECT" ]] || continue
+      short="$(git rev-parse --short "$csha")"
+      while IFS= read -r line; do
+        line="${line%$'\r'}"
+        [[ "$line" == "Leftover: "*" | "* ]] || continue
+        rest="${line#Leftover: }"
+        carried_paths+=("${rest%% | *}")
+        carried_lines+=("${rest%% | *}: ${rest#* | } - committed $short")
+      done < <(git log -1 --format=%b "$csha")
+    done < <(git log --reverse --format=%H --fixed-strings --grep="$OUTSIDE_SUBJECT" "$lf_range")
+  fi
+
+  # the unexplained paths in one commit
+  lf_named=()
+  k=0
+  while [[ $k -lt ${#lf_paths[@]} ]]; do
+    if [[ "${lf_states[$k]}" -eq 1 ]]; then
+      case "${lf_paths[$k]}" in
+        .temp|.temp/*)
+          lf_reasons[$k]="refused ${lf_paths[$k]} - .temp is machine state, never committed"
+          lf_states[$k]=0
+          ;;
+        *) lf_named+=("${lf_paths[$k]}") ;;
+      esac
+    fi
+    k=$(( k + 1 ))
+  done
+
+  lf_sha=""
+  if [[ ${#lf_named[@]} -gt 0 ]]; then
+    lf_fail=""
+    lf_rc=0
+    staged="$(stage_named "${lf_named[@]}" 2>"$lf_err")" || lf_rc=$?
+    if [[ $lf_rc -ne 0 ]]; then
+      lf_fail="$(grep -m1 '^error:' -- "$lf_err" || true)"
+      lf_fail="${lf_fail%$'\r'}"
+      lf_fail="${lf_fail:-error: the files could not be staged}"
+    fi
+    lf_paths_in=()
+    while IFS= read -r p; do
+      [[ -n "$p" ]] && lf_paths_in+=("$p")
+    done <<< "$staged"
+    if [[ -z "$lf_fail" ]]; then
+      if [[ ${#lf_paths_in[@]} -eq 0 ]] || git_paths diff --cached --quiet -- "${lf_paths_in[@]}"; then
+        lf_fail="no changes to commit"
+      fi
+    fi
+    if [[ -z "$lf_fail" ]]; then
+      while IFS= read -r t; do
+        [[ -n "$t" ]] && lf_paths_in+=("$t")
+      done < <(stage_rulings "$plan")
+      lf_body=""
+      k=0
+      while [[ $k -lt ${#lf_paths[@]} ]]; do
+        if [[ "${lf_states[$k]}" -eq 1 ]] && grep -Fxq -- "${lf_paths[$k]}" <<< "$staged"; then
+          lf_body="${lf_body}Leftover: ${lf_paths[$k]} | ${lf_reasons[$k]}"$'\n'
+        fi
+        k=$(( k + 1 ))
+      done
+      lf_body="${lf_body%$'\n'}"
+      if commit_named -m "$OUTSIDE_SUBJECT" -m "$lf_body" -m "$(footer "$plan" "Refs: $plan outside the plan")" -- "${lf_paths_in[@]}" >"$lf_err" 2>&1; then
+        lf_sha="$(git rev-parse --short HEAD)"
+      else
+        lf_fail="$(grep -m1 -E '^(error|fatal):' -- "$lf_err" || true)"
+        lf_fail="${lf_fail%$'\r'}"
+        lf_fail="${lf_fail:-error: the commit failed}"
+      fi
+    fi
+    k=0
+    while [[ $k -lt ${#lf_paths[@]} ]]; do
+      if [[ "${lf_states[$k]}" -eq 1 ]]; then
+        if [[ -n "$lf_fail" ]]; then
+          lf_reasons[$k]="$lf_fail"
+          lf_states[$k]=0
+        elif grep -Fxq -- "${lf_paths[$k]}" <<< "$staged"; then
+          lf_states[$k]=2
+        else
+          lf_reasons[$k]="could not stage ${lf_paths[$k]}"
+          lf_states[$k]=0
+        fi
+      fi
+      k=$(( k + 1 ))
+    done
+  fi
+
+  # the section: the carried lines first, a carried path that is a leftover again
+  # only by its new line
+  section=()
+  lf_left=0
+  k=0
+  while [[ $k -lt ${#carried_paths[@]} ]]; do
+    keep=1
+    for q in ${lf_paths[@]+"${lf_paths[@]}"}; do
+      if [[ "$q" == "${carried_paths[$k]}" ]]; then keep=0; fi
+    done
+    if [[ $keep -eq 1 ]]; then section+=("${carried_lines[$k]}"); fi
+    k=$(( k + 1 ))
+  done
+  if [[ -n "$lf_check" ]]; then section+=("$lf_check"); fi
+  k=0
+  while [[ $k -lt ${#lf_paths[@]} ]]; do
+    if [[ "${lf_states[$k]}" -eq 2 ]]; then
+      section+=("${lf_paths[$k]}: ${lf_reasons[$k]} - committed $lf_sha")
+    else
+      section+=("${lf_paths[$k]}: ${lf_reasons[$k]} - left uncommitted")
+      lf_left=$(( lf_left + 1 ))
+    fi
+    k=$(( k + 1 ))
+  done
+
+  lf_tmp="$lf_outcome.tmp.$$"
+  {
+    k=0
+    while [[ $k -lt $n ]]; do
+      printf '%s\n' "${out_lines[$k]}"
+      k=$(( k + 1 ))
+    done
+    if [[ ${#section[@]} -gt 0 ]]; then
+      if [[ $n -gt 0 ]]; then printf '\n'; fi
+      printf '%s\n' "${lf_heading:-## Leftovers}"
+      for s in "${section[@]}"; do
+        printf '%s\n' "$s"
+      done
+    fi
+    if [[ $n -gt 0 || ${#section[@]} -gt 0 ]]; then printf '\n'; fi
+    printf 'Drift: %s\n' "$lf_drift"
+  } > "$lf_tmp"
+  mv -f "$lf_tmp" "$lf_outcome"
+
+  if [[ -n "$lf_sha" ]]; then echo "committed: $lf_sha"; fi
+  if [[ $lf_left -eq 0 ]]; then echo "left: none"; else echo "left: $lf_left"; fi
+  exit 0
+fi
+
 # --- the forms no task owns: the knowledge, QA and test files a run produced
 # --- beside its task map ---
 if [[ "${1:-}" == "--chore" || "${1:-}" == "--qa" || "${1:-}" == "--e2e" || "${1:-}" == "--review" || "${1:-}" == "--outside" || "${1:-}" == "--extension" ]]; then
@@ -1392,7 +1754,7 @@ if [[ "${1:-}" == "--chore" || "${1:-}" == "--qa" || "${1:-}" == "--e2e" || "${1
       closed="final-review"
       ;;
     --outside)
-      subject="chore(viber): commit changes made outside the plan"
+      subject="$OUTSIDE_SUBJECT"
       ;;
     --extension)
       subject="chore(viber): extension $ext"
