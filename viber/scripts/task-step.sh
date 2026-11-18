@@ -21,8 +21,10 @@
 #                            [--with <path>[,<path>]...]
 #                            [--defer <id>:<path>[,<id>:<path>]...]
 #                            [--decide] [--red-timeout]
-#                            (an omitted --dod is no short DOD; --decide and
-#                            --red-timeout are read by later events only)
+#                            (an omitted --dod is no short DOD; --red-timeout says
+#                            the earlier call of this return ran out of time in
+#                            the red check, so it is not run again; --decide is
+#                            read by later events only)
 #     reviewer PASS|FAIL|DENIED [--report <path>] [--with <path>[,<path>]...]
 #     retry coder [--denied] | retry reviewer
 #     accept
@@ -41,12 +43,14 @@
 #   NEXT: review | round: <r> | model: <tier>
 #         the reviewer lines, report: <dir>/work/review-<id>-<r>.md, previous:
 #         <path> once a review of the task failed, then red: <path> when the
-#         coder's last return named a red log
+#         coder's last return named a red log, then red-check: <the check's line
+#         without its prefix> when the red check ran on that return; the
+#         directive line then carries the field "red-check: <result word>"
 #   NEXT: commit
 #   RUN: "<plugin root>/scripts/commit-task.sh" "<plan>" "<id>" [--with "<path>"... | --landed "<sha>"] [--defer "<entry>"...] [--unreviewed]
 #   NEXT: done
 #         after commit 0
-#   NEXT: hold | dependents: <ids>|none
+#   NEXT: hold | dependents: <ids>|none[ | red-check: PASSED-WITHOUT-CHANGE]
 #         the fifth failed attempt: the task and every task depending on it,
 #         directly or through another, in plan order
 #   ASK: retry -> retry coder --denied | skip -> skip | abort
@@ -69,6 +73,15 @@
 # --with, else to the commit; a waived review runs at the attempt's tier, raised
 # to sonnet from haiku. "--red missing" is red evidence (RED: missing <symbol>).
 #
+# The red check: a coder PASS of a TDD: required task that is no coder failure,
+# with build.red-check reading true, runs red-check.sh (beside this script) on the
+# plan and the task, and always goes to review. Its "NEXT: review" answer carries
+# its red-check: line to the reviewer block; its "NEXT: coder-failure" answer is a
+# coder failure whose ready reason line is the check's reason and whose directive
+# line carries "red-check: PASSED-WITHOUT-CHANGE"; a non-zero exit, an answer with
+# no usable NEXT: line or a call under --red-timeout reads as the line
+# "UNRUNNABLE exit <n>", "UNRUNNABLE no NEXT: line" or "UNRUNNABLE timeout".
+#
 # The state is .temp/viber/<id>/state under the repository root: key=value lines,
 # discarded when written under another <started>, a "start" under "unknown"
 # discarding it always. A "start" under the current mark keeps it and prints the
@@ -89,10 +102,12 @@
 #            the cwd outside a repository).
 #   env    : none.
 #   reads  : plan-index.sh (the index, then --dispatch), config.sh (tiers.max,
-#            default opus), run-failures.sh --lessons, the state file; all three
-#            scripts are the ones beside this one, called as this one was invoked.
+#            default opus; build.red-check, default off), run-failures.sh
+#            --lessons, red-check.sh, the state file; all four scripts are the
+#            ones beside this one, called as this one was invoked.
 #   writes : .temp/viber/<id>/state, and .temp/viber/lessons through a temporary
-#            file renamed into place.
+#            file renamed into place; red-check.sh writes
+#            .temp/viber/<id>/red-check.log when the red check runs.
 #   exit   : 0 with an answer on stdout. 2 with one "error: ..." line on stderr
 #            and nothing on stdout: bad arguments, an unknown event, a plan
 #            plan-index.sh refuses, an id the plan does not hold, an event that
@@ -168,9 +183,11 @@ f_defer=""
 f_report=""
 f_denied=0
 f_landed=0
+f_timeout=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --decide|--red-timeout) shift ;;
+    --decide) shift ;;
+    --red-timeout) f_timeout=1; shift ;;
     --denied) f_denied=1; shift ;;
     --landed) f_landed=1; shift ;;
     --tier|--review|--resume|--dod|--red|--red-log|--with|--defer|--report)
@@ -308,11 +325,13 @@ dependents_of_task() {
 }
 
 max="opus"
+red_check_on=0
 cfg_out="$(bash "$here/config.sh" 2>/dev/null || true)"
 while IFS= read -r line; do
   line="${line//$'\r'/}"
   case "$line" in
     "tiers.max: "*) max="${line#tiers.max: }" ;;
+    "build.red-check: true") red_check_on=1 ;;
   esac
 done < <(printf '%s\n' "$cfg_out")
 [[ "$(rank "$max")" -gt 0 ]] || max="opus"
@@ -336,6 +355,7 @@ reason=""
 rpt=""
 lastrev=""
 unrev=0
+rc=""
 
 load_state() {
   local line
@@ -358,6 +378,7 @@ load_state() {
       rpt=*) rpt="${line#*=}" ;;
       lastrev=*) lastrev="${line#*=}" ;;
       unrev=*) unrev="${line#*=}" ;;
+      rc=*) rc="${line#*=}" ;;
     esac
   done < "$state_file"
 }
@@ -372,7 +393,7 @@ save_state() {
   mkdir -p "$state_dir"
   printf '%s\n' "started=$started" "attempt=$attempt" "model=$model" "review=$review" "round=$round" \
     "with=$with" "defer=$defer" "anywith=$anywith" "redlog=$redlog" "resume=$resume" "reason=$reason" \
-    "rpt=$rpt" "lastrev=$lastrev" "unrev=$unrev" > "$tmp"
+    "rpt=$rpt" "lastrev=$lastrev" "unrev=$unrev" "rc=$rc" > "$tmp"
   mv -f "$tmp" "$state_file"
 }
 
@@ -437,11 +458,44 @@ review_block() {
     review_model="$model"
     [[ "$(rank "$review_model")" -ge 2 ]] || review_model="sonnet"
   fi
-  say "NEXT: review | round: $round | model: $review_model"
+  say "NEXT: review | round: $round | model: $review_model${rc:+ | red-check: ${rc%% *}}"
   dispatch reviewer
   say "report: $plan_dir/work/review-$id-$round.md"
   [[ -z "$lastrev" ]] || say "previous: $lastrev"
   [[ -z "$redlog" ]] || say "red: $redlog"
+  [[ -z "$rc" ]] || say "red-check: $rc"
+}
+
+# Runs the red check of the task and sets rc to its line without the prefix,
+# and rc_reason to the reason of a "NEXT: coder-failure" answer (else empty).
+run_red_check() {
+  local out="" code=0 line rline="" nline=""
+  rc_reason=""
+  if [[ $f_timeout -eq 1 ]]; then
+    rc="UNRUNNABLE timeout"
+    return 0
+  fi
+  out="$(bash "$here/red-check.sh" "$plan" "$id" 2>/dev/null < /dev/null)" || code=$?
+  if [[ $code -ne 0 ]]; then
+    rc="UNRUNNABLE exit $code"
+    return 0
+  fi
+  while IFS= read -r line; do
+    line="${line//$'\r'/}"
+    case "$line" in
+      "red-check: "*) [[ -n "$rline" ]] || rline="${line#red-check: }" ;;
+      "NEXT: "*) [[ -n "$nline" ]] || nline="${line#NEXT: }" ;;
+    esac
+  done < <(printf '%s\n' "$out")
+  case "$nline" in
+    "review") [[ -z "$rline" ]] || { rc="$rline"; return 0; } ;;
+    "coder-failure | reason: "?*)
+      rc="PASSED-WITHOUT-CHANGE"
+      rc_reason="${nline#coder-failure | reason: }"
+      return 0
+      ;;
+  esac
+  rc="UNRUNNABLE no NEXT: line"
 }
 
 # The commit answer; $1 is a sha the task's work already landed under, else the
@@ -502,10 +556,13 @@ climb() {
 }
 
 # The next attempt's coder block, or the hold at the fifth failure. $1 is the
-# ready reason line, $2 the add field, $3 the report path of a review failure.
+# ready reason line, $2 the add field, $3 the report path of a review failure,
+# $4 the red-check field.
 next_attempt() {
+  local rcfield="${4:-}"
+  rc=""
   if [[ $attempt -ge 5 ]]; then
-    say "NEXT: hold | dependents: $(dependents_of_task)"
+    say "NEXT: hold | dependents: $(dependents_of_task)${rcfield:+ | $rcfield}"
     return 0
   fi
   climb
@@ -517,7 +574,7 @@ next_attempt() {
   unrev=0
   reason="$1"
   rpt="$3"
-  coder_block "$2"
+  coder_block "${rcfield:+$rcfield${2:+ | }}$2"
 }
 
 case "$event" in
@@ -542,6 +599,7 @@ case "$event" in
       rpt=""
       lastrev=""
       unrev=0
+      rc=""
     fi
     write_lessons
     coder_block ""
@@ -581,9 +639,19 @@ case "$event" in
         why="no red evidence"
       fi
 
+      rc=""
+      rc_reason=""
+      checked=0
+      if [[ $failed -eq 0 && $tdd_required -eq 1 && $red_check_on -eq 1 ]]; then
+        checked=1
+        run_red_check
+      fi
+
       if [[ $failed -eq 1 ]]; then
         next_attempt "$why" "$add" ""
-      elif [[ "$review" != "waived" || $anywith -eq 1 ]]; then
+      elif [[ -n "$rc_reason" ]]; then
+        next_attempt "$rc_reason" "" "" "red-check: PASSED-WITHOUT-CHANGE"
+      elif [[ $checked -eq 1 || "$review" != "waived" || $anywith -eq 1 ]]; then
         round=$((round + 1))
         review_block
       else

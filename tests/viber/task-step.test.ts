@@ -41,7 +41,10 @@ const TASKS = [
   { id: "T4", tdd: "none", deps: "none" },
 ];
 
-function planText(): string {
+/** A task's Files and Verification, where a case needs the red check to run for real. */
+type Overrides = Record<string, { files: string; verify: string }>;
+
+function planText(overrides: Overrides = {}): string {
   return [
     "# Scripted step",
     "",
@@ -72,9 +75,9 @@ function planText(): string {
       "- Covers: AC1",
       "- Uses: C1",
       `- Depends-on: ${t.deps}`,
-      `- Files: src/${t.id}.ts`,
+      `- Files: ${overrides[t.id]?.files ?? `src/${t.id}.ts`}`,
       "- Delivers: the thing",
-      "- Verification: npm test -> green",
+      `- Verification: ${overrides[t.id]?.verify ?? "npm test"} -> green`,
       "- DoD: it works",
       "<!-- /TASK -->",
       "",
@@ -96,8 +99,8 @@ function write(root: string, rel: string, content: string): void {
   fs.writeFileSync(file, content);
 }
 
-function seedPlan(repo: GitRepo, config = ""): void {
-  write(repo.dir, PLAN_REL, planText());
+function seedPlan(repo: GitRepo, config = "", overrides: Overrides = {}): void {
+  write(repo.dir, PLAN_REL, planText(overrides));
   write(repo.dir, `${PLAN_DIR}/status.md`, "# status\n\nprogress: 0/4\ndone: none\n");
   if (config !== "") write(repo.dir, ".claude/viber.yml", config);
 }
@@ -107,7 +110,7 @@ type Call = string[];
 
 function step(repo: GitRepo, call: Call, sut = SUT) {
   const [id, mark, ...rest] = call;
-  return runScript(sut, [PLAN_REL, id, mark, ...rest], { cwd: repo.dir, env: repo.env, shell: "bash" });
+  return runScript(sut, [PLAN_REL, id, mark, ...rest], { cwd: repo.dir, env: repo.env, shell: "bash", timeout: 120000 });
 }
 
 /** Earlier calls of the same task, run one after another. */
@@ -134,14 +137,14 @@ function coderLines(id: string, extra: string[] = []): string[] {
   ];
 }
 
-function reviewerLines(id: string): string[] {
+function reviewerLines(id: string, root = ROOT): string[] {
   return [
     `task: ${PLAN_DIR}/tasks/${id}.md`,
     `notes: ${PLAN_DIR}/work/${id}-coder.md`,
     `out: .temp/viber/${id}/`,
-    `refs: ${ROOT}/references`,
+    `refs: ${root}/references`,
     `extras: ${PLAN_DIR}/work/${id}-extra-review.md`,
-    `scope: "${ROOT}/scripts/plan-index.sh" "${PLAN_REL}" --extra "${id}"`,
+    `scope: "${root}/scripts/plan-index.sh" "${PLAN_REL}" --extra "${id}"`,
   ];
 }
 
@@ -799,6 +802,162 @@ test("a commit refused on attempt 5 holds the task", async () => {
     const result = await step(repo, ["T4", "100", "commit", "5"]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.equal(result.stdout, lines("NEXT: hold | dependents: none"));
+  });
+});
+
+// --- the red check ----------------------------------------------------------
+
+const CHECKED_PLAN: Overrides = { T1: { files: "src/lib.sh, tests/check.sh", verify: "bash tests/check.sh" } };
+const CHECK_ON = "build:\n  red-check: true\n";
+const T1_RED_LOG = ".temp/viber/T1/red.log";
+const T1_PASS_LOGGED: Call = [...T1_PASS, "--red-log", T1_RED_LOG];
+const T1_CHECK_LOG = ".temp/viber/T1/red-check.log";
+
+/** Commits the plan and the production file at their HEAD state, then leaves the
+ *  task's change (the answer becomes 42) and the given test file in the tree. */
+async function seedChecked(repo: GitRepo, config: string, testBody: string): Promise<void> {
+  fs.appendFileSync(path.join(repo.dir, ".git", "info", "exclude"), ".gitconfig-global\n.temp/\n");
+  seedPlan(repo, config, CHECKED_PLAN);
+  write(repo.dir, "src/lib.sh", "answer() { echo 0; }\n");
+  await repo.git("add", "-A");
+  await repo.git("commit", "-m", "seed");
+  write(repo.dir, "src/lib.sh", "answer() { echo 42; }\n");
+  write(repo.dir, "tests/check.sh", testBody);
+}
+
+/** This script beside copies of its siblings, with red-check.sh replaced by a stub. */
+function stubbedCheck(repo: GitRepo, body: string): { sut: string; root: string } {
+  const scripts = path.join(repo.dir, "plugin", "scripts");
+  fs.mkdirSync(scripts, { recursive: true });
+  for (const name of ["task-step.sh", "plan-index.sh", "config.sh", "run-failures.sh"]) {
+    fs.copyFileSync(path.join(path.dirname(SUT), name), path.join(scripts, name));
+  }
+  fs.writeFileSync(path.join(scripts, "red-check.sh"), `#!/usr/bin/env bash\n${body}\n`);
+  return { sut: path.join(scripts, "task-step.sh"), root: slash(path.join(repo.dir, "plugin")) };
+}
+
+test("a coder PASS of a TDD required task under build.red-check true answers the review with the check's result and leaves its log", async () => {
+  await withGitRepo(async (repo) => {
+    await seedChecked(repo, CHECK_ON, '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
+    await arrange(repo, [START_T1]);
+
+    const result = await step(repo, T1_PASS_LOGGED);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        "NEXT: review | round: 1 | model: opus | red-check: FAIL-AS-EXPECTED",
+        ...reviewerLines("T1"),
+        `report: ${PLAN_DIR}/work/review-T1-1.md`,
+        `red: ${T1_RED_LOG}`,
+        `red-check: FAIL-AS-EXPECTED ${T1_CHECK_LOG}`,
+      ),
+    );
+    assert.equal(fs.existsSync(path.join(repo.dir, T1_CHECK_LOG)), true);
+  });
+});
+
+test("a coder PASS of a TDD required task under build.red-check false runs no check and answers no red-check line", async () => {
+  await withGitRepo(async (repo) => {
+    await seedChecked(repo, "", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
+    await arrange(repo, [START_T1]);
+
+    const result = await step(repo, T1_PASS_LOGGED);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        "NEXT: review | round: 1 | model: opus",
+        ...reviewerLines("T1"),
+        `report: ${PLAN_DIR}/work/review-T1-1.md`,
+        `red: ${T1_RED_LOG}`,
+      ),
+    );
+    assert.equal(fs.existsSync(path.join(repo.dir, T1_CHECK_LOG)), false);
+  });
+});
+
+test("tests that pass without the change are a coder failure whose reason is the check's and whose answer carries no red-check line in its body", async () => {
+  await withGitRepo(async (repo) => {
+    await seedChecked(repo, CHECK_ON, '. ./src/lib.sh\n[ -n "$(answer)" ]\n');
+    await arrange(repo, [START_T1]);
+
+    const result = await step(repo, T1_PASS_LOGGED);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        "NEXT: coder | attempt: 2 | model: opus | review: opus | red-check: PASSED-WITHOUT-CHANGE",
+        ...coderLines("T1", ["reason: tests pass without the change: tests/check.sh"]),
+      ),
+    );
+  });
+});
+
+for (const [label, body, line] of [
+  ["exits non-zero", "echo 'red-check: FAIL-AS-EXPECTED x'\necho 'NEXT: review'\nexit 3", "UNRUNNABLE exit 3"],
+  ["prints no NEXT: line", "echo 'red-check: FAIL-AS-EXPECTED x'", "UNRUNNABLE no NEXT: line"],
+] as const) {
+  test(`a check that ${label} answers the reviewer block with ${line}`, async () => {
+    await withGitRepo(async (repo) => {
+      seedPlan(repo, CHECK_ON);
+      const { sut, root } = stubbedCheck(repo, body);
+      await arrange(repo, [START_T1]);
+
+      const result = await step(repo, T1_PASS_LOGGED, sut);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(
+        result.stdout,
+        lines(
+          "NEXT: review | round: 1 | model: opus | red-check: UNRUNNABLE",
+          ...reviewerLines("T1", root),
+          `report: ${PLAN_DIR}/work/review-T1-1.md`,
+          `red: ${T1_RED_LOG}`,
+          `red-check: ${line}`,
+        ),
+      );
+    });
+  });
+}
+
+test("a coder PASS under --red-timeout answers the reviewer block with UNRUNNABLE timeout without running the check", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo, CHECK_ON);
+    await arrange(repo, [START_T1]);
+
+    const result = await step(repo, [...T1_PASS_LOGGED, "--red-timeout"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        "NEXT: review | round: 1 | model: opus | red-check: UNRUNNABLE",
+        ...reviewerLines("T1"),
+        `report: ${PLAN_DIR}/work/review-T1-1.md`,
+        `red: ${T1_RED_LOG}`,
+        "red-check: UNRUNNABLE timeout",
+      ),
+    );
+    assert.equal(fs.existsSync(path.join(repo.dir, T1_CHECK_LOG)), false);
+  });
+});
+
+test("retry reviewer prints the round's check result again (a denied reviewer must not lose the red-check line)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo, CHECK_ON);
+    await arrange(repo, [START_T1, [...T1_PASS_LOGGED, "--red-timeout"], ["T1", "100", "reviewer", "DENIED"]]);
+
+    const result = await step(repo, ["T1", "100", "retry", "reviewer"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        "NEXT: review | round: 1 | model: opus | red-check: UNRUNNABLE",
+        ...reviewerLines("T1"),
+        `report: ${REVIEW_1}`,
+        `red: ${T1_RED_LOG}`,
+        "red-check: UNRUNNABLE timeout",
+      ),
+    );
   });
 });
 
