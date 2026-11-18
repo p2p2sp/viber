@@ -50,4 +50,4 @@ Owns every `skills/<name>/` directory: its `SKILL.md` and the `fragments/`, `par
 
 ## Sections
 
-- Read `CLAUDE.code-auditor.md` before editing `code-auditor/SKILL.md`, its lens files, `<lens>.signals.md` files, `synthesis.md` or `README.md`.
+- Read `CLAUDE.code-auditor.md` before editing `code-auditor/SKILL.md`, its `scripts/`, its lens files, `<lens>.signals.md` files, `synthesis.md` or `README.md`.
