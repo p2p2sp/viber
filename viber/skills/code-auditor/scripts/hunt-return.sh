@@ -1,0 +1,215 @@
+#!/bin/sh
+# viber - skills/code-auditor/scripts/hunt-return.sh
+# Answers the return of a hunter of an audit run: one critic block per claim the hunt
+# filed, the hunt's one retry when it filed no report, or `NEXT: none`.
+#
+# Why it exists: on each hunter return the skill listed the reports of that hunt only
+# (a hyphen and one digit right after the full id, so `A-x` never counted an `A-x-y`
+# file), stripped a leaked closing tag, built one critic brief per claim sidecar, with
+# its worktree, overlay, test rules and variant lines per lens, scope and wave, and
+# rebuilt the hunter brief by hand for the retry. That is mechanical work a model
+# repeats differently every run and pays tokens for. One script answers each return
+# with the next directive, so the skill only dispatches what is printed.
+#
+# What it does for `hunter <hunt id>`:
+#   1. Every <ws>/reports/<hunt id>-<digit>.md and <hunt id>-<digit>.claim.md loses a
+#      trailing closing tag (strip-tag.sh). A file of a longer id (`A-x-y-1.md` for
+#      `A-x`) is neither stripped nor counted.
+#   2. With at least one claim sidecar, one critic block per sidecar, k ascending, the
+#      critic id `<hunt id>-<k>`.
+#   3. With no sidecar and a report (`<hunt id>-0.md` or a report without sidecar),
+#      `NEXT: none`.
+#   4. With no report at all: the first time, the hunter block keep-units.sh printed
+#      for the hunt, once more with `retry` and its worktree suffixed `-retry`, recorded
+#      as the ledger line `retried: <hunt id>`; once that line stands, the miss is
+#      recorded as `no-report: <hunt id>` (once) and answered with `NEXT: none`.
+#
+# The retry brief is rebuilt from the ledger `hunt:` line of the hunt: its unit line
+# comes from `## Units` of map.md, its angle from the ledger line, and a wave 2 hunt
+# carries its seeds from seeds.md (every `Seed:` line on a unit hunt, the n-th on the
+# diff hunt `V-<n>`). A critic block of a wave 2 hunt ends on `Variant: yes`.
+#
+# Contract:
+#   argv   : <ws> hunter <hunt id>. A missing <ws>, a mode other than `hunter`, a hunt
+#            id that is empty or holds a character outside [A-Za-z0-9._-], a hunt with
+#            no `hunt:` line in the ledger, or a unit hunt whose unit line is not in
+#            map.md is a usage error (exit 2).
+#   cwd    : irrelevant: every path derives from argv and the files it names, cwd
+#            only resolves a relative <ws>.
+#   env    : TMPDIR, read by strip-tag.sh; nothing else.
+#   files  : reads <ws>/run.md (the header lines before its first `## ` heading:
+#            Lens:, Lens file:, Scope:), <ws>/ledger.md, <ws>/map.md, <ws>/seeds.md,
+#            the lens file and <ws>/reports/. Writes: the hunt's report and sidecar
+#            files (a trailing closing tag stripped) and <ws>/ledger.md (a line
+#            appended, never rewritten).
+#   stdout : exactly one answer, in the auditor directive format:
+#              per claim NEXT: critic | id: <hunt id>-<k> | background, then the lines
+#                Claim:, Run file:, Lens file:, Out:, and for a lens reading
+#                Worktree: required Worktree script:, Worktree: and, on the diff
+#                scope, Overlay script:, then on the tests lens Test rules:, then for a
+#                wave 2 hunt Variant: yes
+#              NEXT: hunter | id: <hunt id> | background | retry, then the lines of the
+#                hunter block of keep-units.sh
+#              NEXT: none
+#            Nothing on stdout on a usage error.
+#   exit   : 0 in every case but the usage error: 2 with one `error:` line on stderr.
+set -u
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+script_dir=$(cd "$(dirname "$0")" && pwd)
+skill_dir=${script_dir%/*}
+plugin_root=${skill_dir%/skills/code-auditor}
+
+ws=${1:-}
+mode=${2:-}
+id=${3:-}
+[ -n "$ws" ] || fail "usage: hunt-return.sh <ws> hunter <hunt id>"
+ws=${ws%/}
+[ "$mode" = hunter ] || fail "usage: hunt-return.sh <ws> hunter <hunt id>"
+case $id in
+  '' | *[!A-Za-z0-9._-]*) fail "bad hunt id: $id" ;;
+esac
+
+run_file=$ws/run.md
+map_file=$ws/map.md
+ledger=$ws/ledger.md
+reports=$ws/reports
+[ -f "$run_file" ] || fail "run file not found: $run_file"
+
+# header_value <key> -> the value of the first `<key>: <value>` line before the
+# first `## ` heading of run.md.
+header_value() {
+  RUN_KEY="$1" awk '
+    BEGIN { k = ENVIRON["RUN_KEY"] ": "; n = length(k) }
+    /^## / { exit }
+    substr($0, 1, n) == k { v = substr($0, n + 1); sub(/\r$/, "", v); print v; exit }
+  ' "$run_file"
+}
+
+lens=$(header_value "Lens")
+lens_file=$(header_value "Lens file")
+scope=$(header_value "Scope")
+
+[ -n "$lens" ] || fail "run file has no Lens: line: $run_file"
+[ -n "$lens_file" ] || fail "run file has no Lens file: line: $run_file"
+[ -n "$scope" ] || fail "run file has no Scope: line: $run_file"
+
+hunt_line=
+[ ! -f "$ledger" ] || hunt_line=$(HUNT_ID="$id" awk '
+  index($0, "hunt: " ENVIRON["HUNT_ID"] " | ") == 1 { sub(/\r$/, ""); print; exit }
+' "$ledger")
+[ -n "$hunt_line" ] || fail "hunt not in the ledger: $id"
+
+rest=${hunt_line#*| wave: }
+wave=${rest%% *}
+rest=${hunt_line#*| unit: }
+unit_id=${rest%% *}
+rest=${hunt_line#*| angle: }
+angle=$rest
+[ "$unit_id" != none ] || unit_id=
+[ "$angle" != none ] || angle=
+
+in_ledger() {
+  [ -f "$ledger" ] && grep -Fxq "$1" "$ledger"
+}
+
+worktree=0
+grep -q '^Worktree: required' "$lens_file" 2>/dev/null && worktree=1
+
+# 1. Strip the closing tag of each file of this hunt and no other.
+set --
+for f in "$reports/$id"-[0-9].md "$reports/$id"-[0-9].claim.md; do
+  [ -f "$f" ] && set -- "$@" "$f"
+done
+[ "$#" -eq 0 ] || sh "$script_dir/strip-tag.sh" "$@"
+
+# 2. One critic block per claim sidecar, k ascending.
+claims=0
+for k in 0 1 2 3 4 5 6 7 8 9; do
+  [ -f "$reports/$id-$k.claim.md" ] || continue
+  claims=$((claims + 1))
+  cid=$id-$k
+  printf 'NEXT: critic | id: %s | background\n' "$cid"
+  printf 'Claim: %s/%s.claim.md\n' "$reports" "$cid"
+  printf 'Run file: %s\n' "$run_file"
+  printf 'Lens file: %s\n' "$lens_file"
+  printf 'Out: %s/verdicts/%s.md\n' "$ws" "$cid"
+  if [ "$worktree" -eq 1 ]; then
+    printf 'Worktree script: %s/scripts/worktree.sh\n' "$skill_dir"
+    printf 'Worktree: %s/worktrees/critic-%s\n' "$ws" "$cid"
+    if [ "$scope" = diff ]; then
+      printf 'Overlay script: %s/scripts/diff-overlay.sh\n' "$skill_dir"
+    fi
+  fi
+  if [ "$lens" = tests ]; then
+    printf 'Test rules: %s/references/test-strategy.md\n' "$plugin_root"
+  fi
+  if [ "$wave" = 2 ]; then
+    printf 'Variant: yes\n'
+  fi
+done
+[ "$claims" -eq 0 ] || exit 0
+
+# 3. A report with no sidecar: nothing to dispatch.
+for f in "$reports/$id"-[0-9].md; do
+  if [ -f "$f" ]; then
+    printf 'NEXT: none\n'
+    exit 0
+  fi
+done
+
+# 4. No report at all: the one retry, then the recorded miss.
+if in_ledger "retried: $id"; then
+  in_ledger "no-report: $id" || printf 'no-report: %s\n' "$id" >> "$ledger"
+  printf 'NEXT: none\n'
+  exit 0
+fi
+if in_ledger "no-report: $id"; then
+  printf 'NEXT: none\n'
+  exit 0
+fi
+
+unit_line=
+if [ -n "$unit_id" ]; then
+  unit_line=$(UNIT_ID="$unit_id" awk '
+    /^## / { insec = ($0 ~ /^## Units[ \t\r]*$/); next }
+    insec && /^- U[0-9]+ \|/ && $2 == ENVIRON["UNIT_ID"] { print; exit }
+  ' "$map_file" 2>/dev/null)
+  [ -n "$unit_line" ] || fail "unit not in $map_file: $unit_id"
+fi
+
+seed_lines=
+if [ "$wave" = 2 ] && [ -f "$ws/seeds.md" ]; then
+  if [ -n "$unit_id" ]; then
+    seed_lines=$(awk '/^Seed: / { sub(/\r$/, ""); print }' "$ws/seeds.md")
+  else
+    n=${id#V-}
+    seed_lines=$(SEED_N="$n" awk '
+      /^Seed: / { c++; if (c == ENVIRON["SEED_N"] + 0) { sub(/\r$/, ""); print; exit } }
+    ' "$ws/seeds.md")
+  fi
+fi
+
+printf 'retried: %s\n' "$id" >> "$ledger"
+printf 'NEXT: hunter | id: %s | background | retry\n' "$id"
+printf 'Run file: %s\n' "$run_file"
+printf 'Lens file: %s\n' "$lens_file"
+printf 'Schema: %s/references/synthesis.md\n' "$skill_dir"
+printf 'Test rules: %s/references/test-strategy.md\n' "$plugin_root"
+printf 'Hunt: %s\n' "$id"
+[ -z "$unit_line" ] || printf 'Unit: %s\n' "$unit_line"
+[ -z "$angle" ] || printf 'Angle: %s\n' "$angle"
+[ -z "$seed_lines" ] || printf '%s\n' "$seed_lines"
+printf 'Reports: %s/reports/%s\n' "$ws" "$id"
+if [ "$worktree" -eq 1 ]; then
+  printf 'Worktree script: %s/scripts/worktree.sh\n' "$skill_dir"
+  printf 'Worktree: %s/worktrees/%s-retry\n' "$ws" "$id"
+  if [ "$scope" = diff ]; then
+    printf 'Overlay script: %s/scripts/diff-overlay.sh\n' "$skill_dir"
+  fi
+fi
+exit 0

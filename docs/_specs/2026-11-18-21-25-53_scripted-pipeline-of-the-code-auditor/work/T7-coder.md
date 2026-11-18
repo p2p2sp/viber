@@ -1,0 +1,6 @@
+- hunt-return.sh answers only `hunter <id>`; the `critic` mode is a usage error (exit 2) until T8 adds it to the same file, and the tests name no critic-mode case so T8 breaks none.
+- The retry brief is rebuilt from the ledger `hunt:` line: unit line from map.md `## Units`, angle from the ledger, wave 2 seeds from seeds.md (all `Seed:` lines for a unit hunt, the n-th for `V-<n>`, matching keep-units.sh's numbering).
+- A hunt with a report but no sidecar (not only `-0.md`) prints `NEXT: none`; a sidecar wins over everything, so a claim file counts even without its report.
+- A repeat call after `no-report:` prints `NEXT: none` and appends nothing; a repeat call after a claim answer re-prints the same blocks (nothing is recorded).
+- The exit 2 paths of C5 (bad form, hunt absent from the ledger) stay in the script but carry no test: no T7 DoD clause names them (review-T7-1).
+- Red: `.temp/viber/T7/red.log` (16 failing, status 127 on a missing script).

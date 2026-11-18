@@ -1,0 +1,2 @@
+- Blocking [task] tests/viber/hunt-return.test.ts:330 - the three BAD_FORMS cases (a hunt absent from the ledger, an unknown mode, a missing hunt id) prove none of T7's DoD clauses (DoD.1 to DoD.4 name no error path; other tasks such as T3 DoD.6 and T10 DoD.5 list their exit 2 cases as clauses, T7 does not): the task asked for no test beyond its DoD
+  Delete the BAD_FORMS table and its test loop (lines 330-348); keep the exit 2 code in hunt-return.sh as C5 states it.
