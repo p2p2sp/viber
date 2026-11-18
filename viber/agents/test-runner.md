@@ -53,11 +53,11 @@ The fast command and the layer marker convention are the ones the project instru
 - `suite: full` -> every layer but end-to-end.
 - No `suite:` line -> the fast command, then the integration tests selected below.
 - `suite: fast` or no `suite:` line, and the instructions name no fast command or no layer marker convention -> every layer but end-to-end.
-- No `suite:` line, and `run: <dir>` finds no commit that added `<dir>/plan.md` -> every layer but end-to-end.
+- No `suite:` line, and `run-changes.sh` below prints `base: none` -> every layer but end-to-end.
 
 Selecting the integration tests covering the change:
 
-1. With `run: <dir>`, take the oldest commit of `git log --diff-filter=A --format=%H -- <dir>/plan.md`; the change is `git diff --name-only <that commit>` plus `git ls-files --others --exclude-standard`. Without it, the change is `git diff --name-only HEAD` plus the same untracked list.
+1. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/run-changes.sh" <dir>` with `run: <dir>`, or `"${CLAUDE_PLUGIN_ROOT}/scripts/run-changes.sh"` without it. The change is its `changed: <path>` lines; `base: none` means no commit added `<dir>/plan.md` and no change is listed.
 2. Through the layer marker convention, find every test marked integration. Keep each one that is itself among the changed paths, or whose adapter file, or a file that adapter depends on (a migration, a schema, shared data access), is among them.
 3. None kept: no integration test runs. Otherwise one integration command runs exactly the kept tests through the test tool's own filter.
 
@@ -65,10 +65,10 @@ With both a fast and an integration command, the test command below is `<fast co
 
 The suite may outlast one foreground call, so it runs in the background and you wait for it:
 
-- Log: `.temp/viber/test-runner/<report file name without .md>.log`. Before the run starts, create its directory with `mkdir -p .temp/viber/test-runner` and delete any old log there.
-- Run: one Bash call with `run_in_background`: `<test command> > <log> 2>&1; echo "exit=$?" >> <log>`. Make this call once, however long the wait takes.
-- Wait: one foreground Bash call at timeout 600000: `until grep -q '^exit=' <log> 2>/dev/null; do sleep 10; done`. When it returns without the line, repeat the wait, never the run.
-- Result: read the suite output and its closing `exit=<code>` line from the log; the verdict comes from there.
+- Command file: write the test command with `Write` to `.temp/viber/test-runner/<report file name without .md>.cmd`.
+- Run: one Bash call with `run_in_background`: `"${CLAUDE_PLUGIN_ROOT}/scripts/run-suite.sh" run "<report path>" "<command file>"`. Make this call once, however long the wait takes.
+- Wait: one foreground Bash call at timeout 600000: `"${CLAUDE_PLUGIN_ROOT}/scripts/run-suite.sh" wait "<report path>"`. It prints `log: <path>`, then `exit=<code>` or `NEXT: wait`. On `NEXT: wait`, call it again, never the run.
+- Result: read the suite output and its closing `exit=<code>` line from the log path `wait` printed; the verdict comes from there.
 
 ## Stop what you started
 
