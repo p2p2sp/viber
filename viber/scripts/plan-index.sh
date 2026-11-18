@@ -51,7 +51,18 @@
 #   orphan: lib/y.ts                not "done" (run directory excluded), in git
 #                                   order, a path holding a comma kept whole;
 #                                   no line when none
-#   review: single                  last, on a fresh plan only (a plain call with
+#   NEXT: extension | step: 1 | name: write-help
+#   run: <dir>                      --split only, after the orphan: lines: one block
+#   spec: <dir>/spec.md             per name of the config build.extensions: line
+#   notes: <dir>/work/              (steps split on ", ", the names of a step on
+#   out: .temp/viber/extension-write-help/   " + "), in listed order, its step: the
+#                                   number of the step among those keeping a name,
+#                                   from 1. A name status.md closed: holds as
+#                                   extension:<name> prints no block and a step
+#                                   whose every name is closed takes no number;
+#                                   "build.extensions: none" prints none. Blocks
+#                                   follow each other with no blank line.
+#   review: single                 last, on a fresh plan only (a plain call with
 #   dispatch: viber:planner-review  no status.md beside the plan; a landed plan,
 #                                   --split and --extra print none of it): a plan
 #                                   of 12 tasks or fewer
@@ -427,7 +438,8 @@
 #   env    : none. --split reads tiers.min and tiers.max from config.sh (no usable
 #            value: haiku and opus) for the profile lines, --final-review for its
 #            model field and build.memory (no usable value: false) for its memory
-#            line.
+#            line. --split also reads build.extensions (no usable value: none)
+#            for its extension blocks.
 #   exit   : 0 on a valid plan; a git failure during the --split commit never
 #            changes that, the decomposed files are already on disk.
 #
@@ -691,6 +703,7 @@ profile_on=0
 tier_min="haiku"
 tier_max="opus"
 cfg_memory="false"
+cfg_ext="none"
 if [[ "$mode" == "--split" || "$has_final" -eq 1 ]]; then
   [[ "$mode" != "--split" ]] || profile_on=1
   cfg_tiers="$(bash "$(dirname -- "${BASH_SOURCE[0]}")/config.sh" 2>/dev/null || true)"
@@ -700,6 +713,7 @@ if [[ "$mode" == "--split" || "$has_final" -eq 1 ]]; then
       "tiers.min: "*) tier_min="${line#tiers.min: }" ;;
       "tiers.max: "*) tier_max="${line#tiers.max: }" ;;
       "build.memory: "*) cfg_memory="${line#build.memory: }" ;;
+      "build.extensions: "*) cfg_ext="${line#build.extensions: }" ;;
     esac
   done < <(printf '%s\n' "$cfg_tiers")
 fi
@@ -1988,6 +2002,34 @@ if [[ "$mode" == "--split" ]]; then
 fi
 
 [[ -z "$index_out" ]] || printf '%s\n' "$index_out"
+
+# --split: one extension block per name of build.extensions left to run, after the
+# orphan: lines. A step is cut on ", ", its names on " + "; a name status.md closed:
+# holds as extension:<name> prints none, and a step with no name left takes no number.
+if [[ "$mode" == "--split" && "$cfg_ext" != "none" && -n "$cfg_ext" ]]; then
+  ext_step=0
+  ext_rest="$cfg_ext, "
+  while [[ -n "$ext_rest" ]]; do
+    ext_cur="${ext_rest%%, *}"
+    ext_rest="${ext_rest#*, }"
+    ext_open=0
+    ext_names="$ext_cur + "
+    while [[ -n "$ext_names" ]]; do
+      ext_name="${ext_names%% + *}"
+      ext_names="${ext_names#* + }"
+      [[ -n "$ext_name" ]] || continue
+      case " $st_closed " in
+        *" extension:$ext_name "*) continue ;;
+      esac
+      if [[ $ext_open -eq 0 ]]; then ext_open=1; ext_step=$((ext_step + 1)); fi
+      printf 'NEXT: extension | step: %d | name: %s\n' "$ext_step" "$ext_name"
+      printf 'run: %s\n' "$dir"
+      printf 'spec: %s/spec.md\n' "$dir"
+      printf 'notes: %s/work/\n' "$dir"
+      printf 'out: .temp/viber/extension-%s/\n' "$ext_name"
+    done
+  done
+fi
 
 [[ "$mode" == "--split" ]] || exit 0
 

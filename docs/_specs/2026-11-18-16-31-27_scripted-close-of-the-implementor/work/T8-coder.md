@@ -1,0 +1,4 @@
+- Extension blocks are printed by plan-index.sh right after the index (`--split` only), before the decomposition; a later `NEXT: qa-kept` block must print after them. `build.extensions` is read from config.sh in the same pass as tiers and memory.
+- Red log `.temp/viber/T8/red.log` (5 failing) is from the revert route: the block condition made unreachable, the fragment text and the step 2 bullet put back to their old wording.
+- `tests/viber/skill-part.test.ts` keeps the 6 Windows path failures T7 recorded (pre-existing, files untouched); every other test of the Verification passes.
+- The CLAUDE.md nodes naming the `plan-index.sh` forms and the extension contract stay for the build's memory step.

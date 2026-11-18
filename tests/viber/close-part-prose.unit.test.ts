@@ -378,6 +378,25 @@ test("help.html names the rounds, attempts and arbiter lines of the summary in P
   assert.ok(guide("skills/setup/assets/help.html").includes(EFFORT_PL_HTML));
 });
 
+const EXTENSIONS = fs.readFileSync(path.join(SKILL_DIR, "fragments/extensions.on.md"), "utf8");
+
+test("step 2 carries every NEXT: extension block of the index to step 6 and acts on none before it", () => {
+  const bullet = lines(section(SKILL, "2.")).find((line) => line.startsWith("- `NEXT: extension")) ?? "";
+  assert.ok(bullet.includes("carry every one to step 6"));
+  assert.ok(bullet.includes("acting on none before it"));
+});
+
+test("the extensions fragment sends the index's blocks step by step, one message per step, and no longer splits the config line", () => {
+  const text = EXTENSIONS.replace(/\s+/g, " ");
+  assert.ok(text.includes("`NEXT: extension` blocks the index of step 2 printed"));
+  assert.ok(text.includes("Dispatch every block of one `step:` number in one message"));
+  assert.ok(text.includes("Start the next step only once every return of the current one has been handled"));
+  assert.ok(text.includes("or at once when the index printed no block"));
+  assert.ok(!text.includes("split on"));
+  assert.ok(!text.includes("`closed:` line holds"));
+  assert.ok(!EXTENSIONS.includes("out: .temp/viber/extension-<name>/"));
+});
+
 test("the both-forms paragraph after the rulings keeps only the not-written line", () => {
   const paragraph = stepSevenParagraph("After those, also outside its 7 lines, in both forms");
   assert.equal(lines(paragraph).filter((line) => line.startsWith("- ")).length, 1);

@@ -1,17 +1,10 @@
 Run the project's own extensions, once every writer above has returned and the commits of its returns have landed. Skip this step, completing its `Run extensions` entry, when the build ended on `abort`.
 
-The steps are the config block's `build.extensions:` line, split on `, `; a step is one name or several joined by ` + `. Inside a step, skip each name the index's `closed:` line holds as `extension:<name>`. The `Run extensions` entry's `TaskUpdate` -> completed lands once every step has finished, or at once when there is none.
+The steps are the `NEXT: extension` blocks the index of step 2 printed, in listed order, each block's `step:` field its step number. The `Run extensions` entry's `TaskUpdate` -> completed lands once every step has finished, or at once when the index printed no block.
 
-Dispatch each extension by its bare agent name (Agent tool) carrying these labelled lines and nothing else:
+Dispatch each block by its bare `name:` (Agent tool) carrying the block's four lines after `NEXT:` verbatim and nothing else.
 
-```
-run: <dir>
-spec: <dir>/spec.md
-notes: <dir>/work/
-out: .temp/viber/extension-<name>/
-```
-
-Run the steps in listed order. Dispatch every name of a step in one message, then handle the returns as they arrive: when several are waiting, one commit per message, the others held for the next. Start the next step only once every return of the current one has been handled and its commits have run.
+Dispatch every block of one `step:` number in one message, then handle the returns as they arrive: when several are waiting, one commit per message, the others held for the next. Start the next step only once every return of the current one has been handled and its commits have run.
 
 - `VERDICT: WRITTEN` -> `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --extension "<plan>" "<name>" "<file>" ["<file>"...]` with its `FILES:` paths.
 - `VERDICT: NONE` -> no commit, nothing recorded.

@@ -79,7 +79,7 @@ Never dispatch a `done` or `skipped` task again. Also on the index:
 - `closed: <parts>` -> those parts of steps 6 and 7 are already recorded.
 - `ruling: <subject>: <text>` -> carry to step 7.
 - `next: part <n> of <N> - <name>` -> carry it to step 7.
-
+- `NEXT: extension | step: <k> | name: <name>` block (its four lines after it) -> carry every one to step 6, acting on none before it.
 ## 3. Profile the tasks
 
 Each open task has a `profile:` line on the index: take its tier, review tier and subject from it. Decide only:

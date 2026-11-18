@@ -4703,3 +4703,76 @@ for (const [label, args] of [
     });
   });
 }
+
+// --- the extension blocks: plan-index.sh <plan> --split ---------------------------
+
+/** The `NEXT: extension` block of one name, as C7 words it. */
+function extensionBlock(step: number, name: string): string[] {
+  return [
+    `NEXT: extension | step: ${step} | name: ${name}`,
+    `run: ${PLAN_DIR}`,
+    `spec: ${PLAN_DIR}/spec.md`,
+    `notes: ${PLAN_DIR}/work/`,
+    `out: .temp/viber/extension-${name}/`,
+  ];
+}
+
+/** A run with the extension agents `names` present, `--split` run over it. `extensions`
+ *  is the map under `build.extensions:` of the config, `status` the lines of status.md. */
+async function splitWithExtensions(names: string[], extensions: string[], status: string[] = [], orphan = false) {
+  return withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody(numberedTasks(1), 1));
+    if (status.length > 0) write(dir, `${PLAN_DIR}/status.md`, ["# status", "", ...status, ""].join("\n"));
+    for (const name of names) write(dir, `.claude/agents/${name}.md`, "<!-- viber:extension -->\n");
+    if (extensions.length > 0) {
+      write(dir, ".claude/viber.yml", ["build:", "  extensions:", ...extensions.map((l) => `    ${l}`), ""].join("\n"));
+    }
+    if (orphan) write(dir, "lib/x.ts", "x\n");
+    return run(dir, {}, [PLAN_REL, "--split"]);
+  });
+}
+
+/** The lines from the first extension block on, blank lines dropped. */
+function afterIndex(stdout: string): string[] {
+  const lines = stdout.split("\n");
+  const first = lines.findIndex((l) => l.startsWith("NEXT: extension"));
+  return first < 0 ? [] : lines.slice(first).filter((l) => l !== "");
+}
+
+test("--split prints one extension block per name of build.extensions, step numbers in listed order, after the orphan lines", async () => {
+  const result = await splitWithExtensions(
+    ["a", "b", "c"],
+    ["a:", "  parallel: true", "b:", "  parallel: true", "c:"],
+    [],
+    true,
+  );
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.deepEqual(afterIndex(result.stdout), [
+    ...extensionBlock(1, "a"),
+    ...extensionBlock(1, "b"),
+    ...extensionBlock(2, "c"),
+  ]);
+  assert.ok(result.stdout.indexOf("orphan: lib/x.ts") < result.stdout.indexOf("NEXT: extension"));
+});
+
+test("--split prints no block for a name closed: holds as extension:<name>, and a step whose every name is closed takes no number", async () => {
+  const result = await splitWithExtensions(
+    ["a", "b", "c", "d"],
+    ["a:", "b:", "c:", "  parallel: true", "d:", "  parallel: true"],
+    ["done: none", "closed: memory extension:a extension:c extension:d"],
+  );
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.deepEqual(afterIndex(result.stdout), extensionBlock(1, "b"));
+});
+
+test("--split keeps a name whose closed: look-alike is longer (extension:ab does not close a)", async () => {
+  const result = await splitWithExtensions(["a"], ["a:"], ["closed: extension:ab"]);
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.deepEqual(afterIndex(result.stdout), extensionBlock(1, "a"));
+});
+
+test("--split with build.extensions none prints no extension block", async () => {
+  const result = await splitWithExtensions([], []);
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.doesNotMatch(result.stdout, /NEXT: extension/);
+});
