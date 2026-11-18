@@ -30,9 +30,11 @@
 #     accept
 #     commit <exit code> [--landed]
 #     landed <sha>
-#     ruled --case decide|baseline|tests|final-review|commit [--options "<a> | <b>"]
-#           [--refused]   (the subject is a task id on decide, else the case name)
+#     ruled --case decide|cap|baseline|tests|final-review|commit [--options "<a> | <b>"]
+#           [--refused]   (the subject is a task id on decide and cap, else the case name)
 #     resume-failed
+#     repair
+#     skip
 #
 # stdout, one block per directive, a block opening on a directive line and its
 # body lines (labelled "<label>: <value>") sent verbatim in the dispatch it names:
@@ -73,7 +75,27 @@
 #         call; the first of --options with "mismatch" when the RULING names none
 #         of them, the case's first word (continue, accept, accept, leave
 #         uncommitted) when the arbiter was refused; "ruled" on these subjects
-#         writes no state, and --case cap is not answered
+#         writes no state. "ruled --case cap" (subject a task id) prints the same
+#         line after its --rule call, the options being "accept | skip" after a
+#         review failure and "skip" otherwise (--options overrides), then the
+#         blocks carrying the option out: accept the task's commit with
+#         --unreviewed, skip the skip chain
+#   NEXT: coder | repair: <n> | model: <tiers.max> | review: <tiers.max> | add: repair[, reason]
+#         the repair pass of a held task ("repair"), at most 2 attempts: the
+#         coder lines, then report:/reason: carrying the last failure as an
+#         attempt's coder block does; every coder PASS goes to review (its block
+#         carries "add: repair" too, never waived) and a DECIDE: costs an attempt,
+#         no arbiter; a failed attempt answers the next one, the second failure
+#         the arbiter with case: cap (below)
+#   NEXT: arbiter | add: reason (cap)
+#         case: cap, options: accept | skip after a review failure, skip otherwise,
+#         task:, report: <dir>/work/<id>-coder.md, report: <last review report>
+#         when one exists, ruling:, then the ready reason line when the failure
+#         returned no REASON; a commit refused after "accept" answers it again
+#         with options: skip
+#   RUN: commit-task.sh --skip "<plan>" "<id>"
+#         "skip": one block for the task, then one per task depending on it,
+#         directly or through another, in plan order
 #   NEXT: done
 #         after commit 0
 #   NEXT: hold | dependents: <ids>|none[ | red-check: PASSED-WITHOUT-CHANGE]
@@ -170,7 +192,7 @@ verdict=""
 exit_code=""
 sha=""
 case "$event" in
-  start|accept|ruled|resume-failed) ;;
+  start|accept|ruled|resume-failed|repair|skip) ;;
   coder|reviewer)
     [[ $# -ge 1 ]] || die "$event needs PASS, FAIL or DENIED"
     verdict="$1"
@@ -396,6 +418,12 @@ rpt=""
 lastrev=""
 unrev=0
 rc=""
+mode=0
+lf_reason=""
+lf_add=""
+lf_rpt=""
+lf_review=0
+from_review=0
 
 load_state() {
   local line
@@ -419,6 +447,11 @@ load_state() {
       lastrev=*) lastrev="${line#*=}" ;;
       unrev=*) unrev="${line#*=}" ;;
       rc=*) rc="${line#*=}" ;;
+      mode=*) mode="${line#*=}" ;;
+      lf_reason=*) lf_reason="${line#*=}" ;;
+      lf_add=*) lf_add="${line#*=}" ;;
+      lf_rpt=*) lf_rpt="${line#*=}" ;;
+      lf_review=*) lf_review="${line#*=}" ;;
     esac
   done < "$state_file"
 }
@@ -433,7 +466,8 @@ save_state() {
   mkdir -p "$state_dir"
   printf '%s\n' "started=$started" "attempt=$attempt" "model=$model" "review=$review" "round=$round" \
     "with=$with" "defer=$defer" "anywith=$anywith" "redlog=$redlog" "resume=$resume" "reason=$reason" \
-    "rpt=$rpt" "lastrev=$lastrev" "unrev=$unrev" "rc=$rc" > "$tmp"
+    "rpt=$rpt" "lastrev=$lastrev" "unrev=$unrev" "rc=$rc" "mode=$mode" "lf_reason=$lf_reason" \
+    "lf_add=$lf_add" "lf_rpt=$lf_rpt" "lf_review=$lf_review" > "$tmp"
   mv -f "$tmp" "$state_file"
 }
 
@@ -483,7 +517,15 @@ dispatch() {
 
 # The current attempt's coder block; $1 is the field after the tiers, if any.
 coder_block() {
-  say "NEXT: coder | attempt: $attempt | model: $model | review: $review${1:+ | $1}"
+  if [[ $mode -ge 1 ]]; then
+    local added="repair"
+    case "${1:-}" in
+      *"add: reason"*) added="repair, reason" ;;
+    esac
+    say "NEXT: coder | repair: $mode | model: $model | review: $review | add: $added"
+  else
+    say "NEXT: coder | attempt: $attempt | model: $model | review: $review${1:+ | $1}"
+  fi
   dispatch coder
   [[ -z "$resume" ]] || say "resume: $resume"
   [[ -z "$rpt" ]] || say "report: $rpt"
@@ -498,7 +540,9 @@ review_block() {
     review_model="$model"
     [[ "$(rank "$review_model")" -ge 2 ]] || review_model="sonnet"
   fi
-  say "NEXT: review | round: $round | model: $review_model${rc:+ | red-check: ${rc%% *}}"
+  local repair_field=""
+  [[ $mode -lt 1 ]] || repair_field=" | add: repair"
+  say "NEXT: review | round: $round | model: $review_model${rc:+ | red-check: ${rc%% *}}$repair_field"
   dispatch reviewer
   say "report: $plan_dir/work/review-$id-$round.md"
   [[ -z "$lastrev" ]] || say "previous: $lastrev"
@@ -601,6 +645,18 @@ climb() {
 next_attempt() {
   local rcfield="${4:-}"
   rc=""
+  lf_reason="$1"
+  lf_add="$2"
+  lf_rpt="$3"
+  lf_review=$from_review
+  if [[ $mode -ge 2 ]]; then
+    cap_arbiter
+    return 0
+  elif [[ $mode -ge 1 ]]; then
+    mode=2
+    repair_block
+    return 0
+  fi
   if [[ $attempt -ge 5 ]]; then
     say "NEXT: hold | dependents: $(dependents_of_task)${rcfield:+ | $rcfield}"
     return 0
@@ -615,6 +671,54 @@ next_attempt() {
   reason="$1"
   rpt="$3"
   coder_block "${rcfield:+$rcfield${2:+ | }}$2"
+}
+
+# The coder block of the current repair attempt: tiers.max for the coder and the
+# review, the last failure carried as an attempt's coder block carries it.
+repair_block() {
+  model="$max"
+  review="$max"
+  with=""
+  defer=""
+  redlog=""
+  resume=""
+  unrev=0
+  rc=""
+  reason="$lf_reason"
+  rpt="$lf_rpt"
+  coder_block "$lf_add"
+}
+
+# The options a cap ruling chooses from: accept only after a review failure.
+cap_options() {
+  if [[ $lf_review -eq 1 ]]; then
+    printf 'accept | skip'
+  else
+    printf 'skip'
+  fi
+}
+
+# The arbiter block of the second failed repair attempt.
+cap_arbiter() {
+  rc=""
+  say "NEXT: arbiter${lf_add:+ | $lf_add}"
+  say "case: cap"
+  say "options: $(cap_options)"
+  say "task: $plan_dir/tasks/$id.md"
+  say "report: $plan_dir/work/$id-coder.md"
+  [[ -z "$lastrev" ]] || say "report: $lastrev"
+  say "ruling: $plan_dir/work/ruling-$id.md"
+  [[ -z "$lf_reason" ]] || say "reason: $lf_reason"
+}
+
+# One skip call for the task, then one per task depending on it, in plan order.
+skip_chain() {
+  local dep deps
+  deps="$(dependents_of_task)"
+  say "RUN: \"$plugin_root/scripts/commit-task.sh\" --skip \"$plan\" \"$id\""
+  for dep in ${deps//,/ }; do
+    [[ "$dep" == "none" ]] || say "RUN: \"$plugin_root/scripts/commit-task.sh\" --skip \"$plan\" \"$dep\""
+  done
 }
 
 # The text after the first line of file $1 starting with prefix $2, a trailing
@@ -734,6 +838,11 @@ case "$event" in
       lastrev=""
       unrev=0
       rc=""
+      mode=0
+      lf_reason=""
+      lf_add=""
+      lf_rpt=""
+      lf_review=0
     fi
     write_lessons
     coder_block ""
@@ -818,6 +927,7 @@ case "$event" in
       FAIL)
         write_lessons force
         [[ -z "$f_report" ]] || lastrev="$f_report"
+        from_review=1
         next_attempt "" "" "$f_report"
         save_state
         ;;
@@ -864,16 +974,26 @@ case "$event" in
     save_state
     ;;
 
+  repair)
+    require_state
+    mode=1
+    repair_block
+    save_state
+    ;;
+
+  skip)
+    skip_chain
+    ;;
+
   ruled)
     case "$f_case" in
-      decide|baseline|tests|final-review|commit) ;;
-      cap) die "ruled --case cap is not answered by this script" ;;
-      *) die "ruled needs --case decide, baseline, tests, final-review or commit" ;;
+      decide|cap|baseline|tests|final-review|commit) ;;
+      *) die "ruled needs --case decide, cap, baseline, tests, final-review or commit" ;;
     esac
     if [[ $fixed_subject -eq 1 ]]; then
       [[ "$f_case" == "$id" ]] || die "ruled --case $f_case does not fit the subject $id"
     else
-      [[ "$f_case" == "decide" ]] || die "ruled --case $f_case needs the subject $f_case"
+      [[ "$f_case" == "decide" || "$f_case" == "cap" ]] || die "ruled --case $f_case needs the subject $f_case"
       require_state
     fi
     ruling_file="$plan_dir/work/ruling-$id.md"
@@ -882,6 +1002,9 @@ case "$event" in
     opts_text="$f_options"
     if [[ -z "$opts_text" && "$f_case" == "decide" ]]; then
       opts_text="$(file_line "$options_file" "DECIDE: ")" || opts_text=""
+    fi
+    if [[ -z "$opts_text" && "$f_case" == "cap" ]]; then
+      opts_text="$(cap_options)"
     fi
 
     first=""
@@ -902,6 +1025,8 @@ case "$event" in
         done < <(split_options "$opts_text")
       fi
       say "RUN: $ct --rule \"$plan\" \"$id\" --from \"$ruling_file\""
+    elif [[ "$f_case" == "cap" ]]; then
+      say "RUN: $ct --rule \"$plan\" \"$id\" \"$first\" \"the arbiter was refused\" \"not assessed - the arbiter was refused\""
     elif [[ "$f_case" == "decide" ]]; then
       [[ -n "$first" ]] || die "ruled --case decide needs the DECIDE: options of $options_file"
       say "RUN: $ct --rule \"$plan\" \"$id\" \"the coder's first option\" \"the arbiter was refused\" \"not assessed - the arbiter was refused\""
@@ -924,12 +1049,26 @@ case "$event" in
         fi
         resume_message "auto: $first"
       fi
-    elif [[ $f_refused -eq 1 ]]; then
-      say "NEXT: carry-out: $first"
-    elif [[ -n "$matched" ]]; then
-      say "NEXT: carry-out: $matched"
     else
-      say "NEXT: carry-out: $first | mismatch"
+      chosen="$first"
+      if [[ $f_refused -eq 1 ]]; then
+        say "NEXT: carry-out: $first"
+      elif [[ -n "$matched" ]]; then
+        chosen="$matched"
+        say "NEXT: carry-out: $matched"
+      else
+        say "NEXT: carry-out: $first | mismatch"
+      fi
+      if [[ "$f_case" == "cap" ]]; then
+        case "$chosen" in
+          accept)
+            unrev=1
+            commit_block ""
+            save_state
+            ;;
+          *) skip_chain ;;
+        esac
+      fi
     fi
     ;;
 esac

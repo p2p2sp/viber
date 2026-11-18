@@ -1,8 +1,8 @@
 /*
  * task-step.test.ts - proves viber/scripts/task-step.sh's answers to the
- * `start`, `coder`, `reviewer`, `retry`, `accept`, `commit`, `landed`, `ruled`
- * and `resume-failed` events: the one directive block the implementor sends next
- * after a coder, a reviewer, a commit or an arbiter returns.
+ * `start`, `coder`, `reviewer`, `retry`, `accept`, `commit`, `landed`, `ruled`,
+ * `resume-failed`, `repair` and `skip` events: the one directive block the
+ * implementor sends next after a coder, a reviewer, a commit or an arbiter returns.
  *
  * The script is the implementor's task loop moved out of prose: it counts
  * attempts, climbs the tiers, decides review against commit and holds a task at
@@ -1274,6 +1274,269 @@ test("a ruling on baseline writes no step state", async () => {
     assert.equal(fs.existsSync(path.join(repo.dir, ".temp", "viber", "baseline")), false);
   });
 });
+
+// --- the repair pass ----------------------------------------------------------
+
+const HELD_T1: Call[] = [...FOUR_FAILURES, T1_FAIL];
+const HELD_T1_BY_REVIEW: Call[] = [...FOUR_FAILURES_THEN_PASS, ["T1", "100", "reviewer", "FAIL", "--report", REVIEW_1]];
+const HELD_T4: Call[] = [...FOUR_FAILURES_OF_T4, ["T4", "100", "coder", "FAIL"]];
+const HELD_T4_WAIVED: Call[] = [
+  ["T4", "100", "start", "--tier", "haiku", "--review", "waived"],
+  ...Array.from({ length: 5 }, (): Call => ["T4", "100", "coder", "FAIL"]),
+];
+const HELD_T4_BY_COMMIT: Call[] = [...FOUR_FAILURES_OF_T4, ["T4", "100", "coder", "PASS"], ["T4", "100", "commit", "5"]];
+const REPAIR_T1: Call = ["T1", "100", "repair"];
+const REPAIR_T4: Call = ["T4", "100", "repair"];
+const T1_SHORT_DOD: Call = ["T1", "100", "coder", "PASS", "--dod", "1/2", "--red", "1"];
+const T1_REPAIR_PASS: Call = [...T1_PASS, "--with", "lib/x.ts"];
+const T1_CODER_NOTES = `${PLAN_DIR}/work/T1-coder.md`;
+const COMMIT_SKIP_T1 = `RUN: ${COMMIT_TASK} --skip "${PLAN_REL}" "T1"`;
+
+for (const [label, id, held, add, extra] of [
+  ["a coder FAIL", "T1", HELD_T1, "repair, reason", []],
+  ["a short DOD", "T1", [...FOUR_FAILURES, T1_SHORT_DOD], "repair", ["reason: DOD: 1/2"]],
+  ["a review failure", "T1", HELD_T1_BY_REVIEW, "repair", [`report: ${REVIEW_1}`]],
+  ["a refused commit", "T4", HELD_T4_BY_COMMIT, "repair, reason", []],
+] as const) {
+  test(`repair on a task held after ${label} answers repair 1 at tiers.max carrying that failure`, async () => {
+    await withGitRepo(async (repo) => {
+      seedPlan(repo);
+      await arrange(repo, [...held]);
+
+      const result = await step(repo, [id, "100", "repair"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(
+        result.stdout,
+        lines(`NEXT: coder | repair: 1 | model: opus | review: opus | add: ${add}`, ...coderLines(id, [...extra])),
+      );
+    });
+  });
+}
+
+test("repair runs the coder and the review at tiers.max whatever tier the task started at", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo, "tiers:\n  max: fable\n");
+    await arrange(repo, HELD_T1);
+
+    const result = await step(repo, REPAIR_T1);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines("NEXT: coder | repair: 1 | model: fable | review: fable | add: repair, reason", ...coderLines("T1")),
+    );
+  });
+});
+
+for (const [label, id, held, before, last, add, extra] of [
+  ["a coder FAIL", "T1", HELD_T1, [], ["T1", "100", "coder", "FAIL"], "repair, reason", []],
+  ["a short DOD", "T1", HELD_T1, [], T1_SHORT_DOD, "repair", ["reason: DOD: 1/2"]],
+  ["a review failure", "T1", HELD_T1, [T1_PASS], ["T1", "100", "reviewer", "FAIL", "--report", REVIEW_1], "repair", [`report: ${REVIEW_1}`]],
+  ["a refused commit", "T4", HELD_T4, [["T4", "100", "coder", "PASS"], ["T4", "100", "reviewer", "PASS"]], ["T4", "100", "commit", "5"], "repair, reason", []],
+] as const) {
+  test(`${label} of the first repair attempt answers repair 2 carrying that failure`, async () => {
+    await withGitRepo(async (repo) => {
+      seedPlan(repo);
+      await arrange(repo, [...held, [id, "100", "repair"], ...before]);
+
+      const result = await step(repo, [...last]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(
+        result.stdout,
+        lines(`NEXT: coder | repair: 2 | model: opus | review: opus | add: ${add}`, ...coderLines(id, [...extra])),
+      );
+    });
+  });
+}
+
+test("a coder PASS in the repair pass of a waived-review task goes to review at tiers.max with add: repair", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [...HELD_T4_WAIVED, REPAIR_T4]);
+
+    const result = await step(repo, ["T4", "100", "coder", "PASS"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines("NEXT: review | round: 1 | model: opus | add: repair", ...reviewerLines("T4"), `report: ${PLAN_DIR}/work/review-T4-1.md`),
+    );
+  });
+});
+
+test("a DECIDE: in the repair pass costs an attempt and calls no arbiter", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedOptions(repo);
+    await arrange(repo, [...HELD_T1, REPAIR_T1]);
+
+    const result = await step(repo, T1_DECIDE);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines("NEXT: coder | repair: 2 | model: opus | review: opus | add: repair, reason", ...coderLines("T1")),
+    );
+  });
+});
+
+// --- the cap arbiter ----------------------------------------------------------
+
+const CAP_BY_FAIL: Call[] = [...HELD_T1, REPAIR_T1, T1_FAIL, T1_FAIL];
+const CAP_BY_REVIEW: Call[] = [...HELD_T1, REPAIR_T1, T1_FAIL, T1_REPAIR_PASS, ["T1", "100", "reviewer", "FAIL", "--report", REVIEW_1]];
+
+function capLines(id: string, head: string, options: string, reports: string[], tail: string[] = []): string {
+  return lines(
+    head,
+    "case: cap",
+    `options: ${options}`,
+    `task: ${PLAN_DIR}/tasks/${id}.md`,
+    ...reports.map((r) => `report: ${r}`),
+    `ruling: ${PLAN_DIR}/work/ruling-${id}.md`,
+    ...tail,
+  );
+}
+
+test("a second failed repair attempt by a coder FAIL answers the cap arbiter with options: skip and add: reason", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [...HELD_T1, REPAIR_T1, T1_FAIL]);
+
+    const result = await step(repo, T1_FAIL);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, capLines("T1", "NEXT: arbiter | add: reason", "skip", [T1_CODER_NOTES]));
+  });
+});
+
+test("a second failed repair attempt by a short DOD answers the cap arbiter with the ready reason line and no add field", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [...HELD_T1, REPAIR_T1, T1_FAIL]);
+
+    const result = await step(repo, T1_SHORT_DOD);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, capLines("T1", "NEXT: arbiter", "skip", [T1_CODER_NOTES], ["reason: DOD: 1/2"]));
+  });
+});
+
+test("a second failed repair attempt by a review failure answers the cap arbiter offering accept and skip with the coder notes and the review report", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [...HELD_T1, REPAIR_T1, T1_FAIL, T1_PASS]);
+
+    const result = await step(repo, ["T1", "100", "reviewer", "FAIL", "--report", `${PLAN_DIR}/work/review-T1-1.md`]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, capLines("T1", "NEXT: arbiter", "accept | skip", [T1_CODER_NOTES, REVIEW_1]));
+  });
+});
+
+test("a coder failure after an earlier review failure keeps that review report on the cap arbiter and offers skip alone", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [...HELD_T1_BY_REVIEW, REPAIR_T1, T1_FAIL]);
+
+    const result = await step(repo, T1_FAIL);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, capLines("T1", "NEXT: arbiter | add: reason", "skip", [T1_CODER_NOTES, REVIEW_1]));
+  });
+});
+
+test("a refused commit of the second repair attempt answers the cap arbiter with options: skip and add: reason", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [...HELD_T4, REPAIR_T4, ["T4", "100", "coder", "FAIL"], ["T4", "100", "coder", "PASS"]]);
+
+    const result = await step(repo, ["T4", "100", "commit", "5"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, capLines("T4", "NEXT: arbiter | add: reason", "skip", [`${PLAN_DIR}/work/T4-coder.md`]));
+  });
+});
+
+test("an accepted commit refused again answers the cap arbiter with options: skip, add: reason and the same report lines", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedRuling(repo, "T1", "accept");
+    await arrange(repo, [...CAP_BY_REVIEW, ["T1", "100", "ruled", "--case", "cap"]]);
+
+    const result = await step(repo, ["T1", "100", "commit", "5"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, capLines("T1", "NEXT: arbiter | add: reason", "skip", [T1_CODER_NOTES, REVIEW_1]));
+  });
+});
+
+const RULE_CAP = `RUN: ${COMMIT_TASK} --rule "${PLAN_REL}" "T1" --from "${RULING_T1}"`;
+const REFUSED_RULE_CAP = (first: string) =>
+  `RUN: ${COMMIT_TASK} --rule "${PLAN_REL}" "T1" "${first}" "the arbiter was refused" "not assessed - the arbiter was refused"`;
+const SKIP_CHAIN_T1 = [
+  COMMIT_SKIP_T1,
+  `RUN: ${COMMIT_TASK} --skip "${PLAN_REL}" "T2"`,
+  `RUN: ${COMMIT_TASK} --skip "${PLAN_REL}" "T3"`,
+];
+const COMMIT_UNREVIEWED_T1 = [
+  "NEXT: commit",
+  `RUN: ${COMMIT_TASK} "${PLAN_REL}" "T1" --with "lib/x.ts" --unreviewed`,
+];
+
+for (const [label, ruling, expected] of [
+  ["skip", "skip", [RULE_CAP, "NEXT: carry-out: skip", ...SKIP_CHAIN_T1]],
+  ["accept", "accept", [RULE_CAP, "NEXT: carry-out: accept", ...COMMIT_UNREVIEWED_T1]],
+  ["a ruling naming neither", "rewrite it", [RULE_CAP, "NEXT: carry-out: accept | mismatch", ...COMMIT_UNREVIEWED_T1]],
+] as const) {
+  test(`ruled --case cap after a review failure with the ruling ${label} carries it out`, async () => {
+    await withGitRepo(async (repo) => {
+      seedPlan(repo);
+      seedRuling(repo, "T1", ruling);
+      await arrange(repo, CAP_BY_REVIEW);
+
+      const result = await step(repo, ["T1", "100", "ruled", "--case", "cap"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, lines(...expected));
+    });
+  });
+}
+
+test("ruled --case cap offers skip alone after a coder failure, so an accept ruling is a mismatch carried out as skip", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    seedRuling(repo, "T1", "accept");
+    await arrange(repo, CAP_BY_FAIL);
+
+    const result = await step(repo, ["T1", "100", "ruled", "--case", "cap"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines(RULE_CAP, "NEXT: carry-out: skip | mismatch", ...SKIP_CHAIN_T1));
+  });
+});
+
+for (const [label, held, first, expected] of [
+  ["a review failure", CAP_BY_REVIEW, "accept", ["NEXT: carry-out: accept", ...COMMIT_UNREVIEWED_T1]],
+  ["a coder failure", CAP_BY_FAIL, "skip", ["NEXT: carry-out: skip", ...SKIP_CHAIN_T1]],
+] as const) {
+  test(`a refused cap arbiter after ${label} answers the fixed-words rule call with ${first} and carries it out`, async () => {
+    await withGitRepo(async (repo) => {
+      seedPlan(repo);
+      await arrange(repo, [...held]);
+
+      const result = await step(repo, ["T1", "100", "ruled", "--case", "cap", "--refused"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, lines(REFUSED_RULE_CAP(first), ...expected));
+    });
+  });
+}
+
+// --- the skip chain -----------------------------------------------------------
+
+for (const [id, expected] of [
+  ["T1", SKIP_CHAIN_T1],
+  ["T2", [`RUN: ${COMMIT_TASK} --skip "${PLAN_REL}" "T2"`, `RUN: ${COMMIT_TASK} --skip "${PLAN_REL}" "T3"`]],
+  ["T4", [`RUN: ${COMMIT_TASK} --skip "${PLAN_REL}" "T4"`]],
+] as const) {
+  test(`skip of ${id} answers one commit-task --skip block for it, then one per task depending on it in task order`, async () => {
+    await withGitRepo(async (repo) => {
+      seedPlan(repo);
+
+      const result = await step(repo, [id, "100", "skip"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, lines(...expected));
+    });
+  });
+}
 
 // --- refusals ---------------------------------------------------------------
 
