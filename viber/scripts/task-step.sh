@@ -14,7 +14,7 @@
 #   task-step.sh <plan> <subject> <started> <event> [<flag>...]
 #     <plan>     the landed plan file, as plan-path.sh printed it
 #     <subject>  a task id the plan holds
-#     <started>  the run-clock.sh mark of this session ("unknown" included)
+#     <started>  the run-summary.sh mark of this session ("unknown" included)
 #   events:
 #     start --tier <tier> --review <tier>|waived [--resume <path>[,<path>]...]
 #     coder PASS|FAIL|DENIED [--dod <m>/<n>] [--red <n>|missing] [--red-log <path>]

@@ -55,7 +55,7 @@ Commit what the memory and rules dispatches above return, one call: memory and r
 
 ## 7. Archive and close
 
-First `"${CLAUDE_PLUGIN_ROOT}/scripts/run-clock.sh" "<started>"`, one call, then right after it, in every close, one call `"${CLAUDE_PLUGIN_ROOT}/scripts/run-tokens.sh" "<dir>"`, no config key turning it on or off.
+First, in every close, one call `"${CLAUDE_PLUGIN_ROOT}/scripts/run-summary.sh" "<started>" "<dir>"`, no config key turning it on or off: its `elapsed:` line is the clock, the lines after it the token report.
 
 For the close part below, when the config block's `build.cleanup:` line reads `true`, the index's `closed:` line does not already name it and the build did not end on `abort`, first make one call, no config key of its own turning it on or off, `"${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh" "<dir>"`: its `failures:` line gives the `convention` and `runs` counts, and its non-zero exit gives the `error:` line of its stderr. Then compose the final summary in its archived form, then:
 
@@ -77,7 +77,7 @@ Final summary, both forms: max 7 lines, then every line this step places after t
 
 Right after the 7 lines, in both forms: `red-check: <n> sealed, <n> rejected, unrunnable: <ids>` from step 4's counts (`none` for no id), or `red-check: off` when the config block's `build.red-check` does not read `true`.
 
-Right after the `red-check:` line, in both forms, outside the 7 lines: every stdout line of the token call, verbatim. A non-zero exit of the token call -> the one line `tokens: unavailable` there; it asks nothing and goes on. These lines reach `closeout`'s `summary:` and `outcome.md` with the rest of the summary, and the archived close prints no token line on screen.
+Right after the `red-check:` line, in both forms, outside the 7 lines: every stdout line of the summary call after its `elapsed:` line, verbatim. A non-zero exit of the summary call -> the one line `tokens: unavailable` there; it asks nothing and goes on. These lines reach `closeout`'s `summary:` and `outcome.md` with the rest of the summary, and the archived close prints no token line on screen.
 
 Right after the token lines, in both forms, outside the 7 lines: `attempts: <id> <n>[, <id> <n>...]` listing every task that needed more than one attempt this session with its count, `attempts: none` when no task did. Then `arbiter: <n>`: the number of index `ruling:` lines plus every ruling this session recorded that is not already one. Both lines reach `closeout`'s `summary:` and `outcome.md` with the rest of the summary.
 

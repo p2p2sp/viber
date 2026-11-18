@@ -1,22 +1,33 @@
 /*
- * run-tokens.test.ts - proves viber/scripts/run-tokens.sh's contract: it reads the
- * agent transcripts a run left under the Claude Code projects directory and prints
- * the run's token report, one `tokens:` line per agent role and model, then the
+ * run-summary.test.ts - proves viber/scripts/run-summary.sh's contract: with no
+ * argument it prints the run's start mark, with an epoch argument it prints how long
+ * ago that mark was taken, and with a run directory after the mark it goes on to the
+ * run's token report: it reads the agent transcripts a run left under the Claude Code
+ * projects directory and prints one `tokens:` line per agent role and model, then the
  * line saying what is not counted, or the single `tokens: unavailable` line.
  *
- * Properties that carry the design. A transcript counts only when its first line
- * names the run directory, so another run's agents never leak into the sums. A
- * message id written on several lines is one message: the last line's usage
- * counts. The role comes from the meta file beside the transcript, `unknown` when
- * it cannot be read. Unreadable transcripts never fail the build: the script says
- * `unavailable` and exits 0, and only an unusable argument exits 2. The closeout
- * agent and the `<synthetic>` lines of an API error never reach a row, and a
- * transcript last written before the day the run key names is never opened.
+ * Clock properties. It exits 0 for the mark and for the elapsed line, because it runs
+ * as a `!` preload where a non-zero exit aborts the entire skill load - so every
+ * unusable mark (empty, non-numeric, in the future) is the VALUE `elapsed: unknown`
+ * rather than an error, and the orchestrator drops the line instead of inventing a
+ * duration. And the clock touches no file, so the caller's cwd cannot change a byte of
+ * its output. The elapsed cases pin the clock: a stub `date` on PATH prints a fixed
+ * epoch second, so a loaded machine delaying the spawn cannot move a duration by a
+ * second. Only the cases about the real start mark read the real clock.
+ *
+ * Token properties. A transcript counts only when its first line names the run
+ * directory, so another run's agents never leak into the sums. A message id written on
+ * several lines is one message: the last line's usage counts. The role comes from the
+ * meta file beside the transcript, `unknown` when it cannot be read. Unreadable
+ * transcripts never fail the build: the script says `unavailable` and exits 0, and
+ * only an unusable argument exits 2. The closeout agent and the `<synthetic>` lines of
+ * an API error never reach a row, and a transcript last written before the day the run
+ * key names is never opened. Every token report follows the `elapsed:` line; the token
+ * tests read the lines after it.
  *
  * Every report ends on a `rounds:` line: the plan review transcripts (planner-review
  * and planner-graph-review) naming the path of the `planned:` line of the run's
  * plan.md, counted whenever they were written, or the reason that count is unavailable.
- * The token tests read the `tokens:` lines alone.
  *
  * After the build rows come the planning rows: one `tokens:` line per role and model
  * of the planner-review, planner-spec-review, planner-graph-review, planner-task-review,
@@ -28,7 +39,7 @@
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:
- *   node --test tests/viber/run-tokens.test.ts
+ *   node --test tests/viber/run-summary.test.ts
  */
 
 import { test } from "../harness/test.ts";
@@ -38,9 +49,152 @@ import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
 import { slash } from "../harness/paths.ts";
+import { withStub } from "../harness/stub.ts";
 import { withTempDir } from "../harness/tmp.ts";
 
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/run-tokens.sh");
+const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/run-summary.sh");
+
+/** The epoch second a stubbed `date +%s` reports. */
+const NOW = 1750000000;
+
+/** A start mark for the token cases, whose `elapsed:` line they never read. */
+const MARK = "1750000000";
+
+// --- the clock: no argument and the mark alone ---
+
+function runClock(args: string[] = [], cwd?: string) {
+  return runScript(SUT, args, { cwd, shell: "bash" });
+}
+
+/** Runs the script with `date` frozen at NOW. */
+function runAtNow(args: string[], cwd?: string, env?: Record<string, string>) {
+  return withStub("date", `echo ${NOW}`, (dir) => runScript(SUT, args, { cwd, shell: "bash", env, stubDirs: [dir] }));
+}
+
+/** The start mark the script itself hands out, as a number. */
+async function startMark(): Promise<number> {
+  const result = await runClock();
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  const mark = Number(result.stdout.trim().replace("started: ", ""));
+  assert.ok(Number.isInteger(mark), `not an epoch: ${result.stdout}`);
+  return mark;
+}
+
+/** Runs the elapsed mode for a mark `seconds` before NOW. */
+function elapsed(seconds: number) {
+  return runAtNow([String(NOW - seconds)]);
+}
+
+test("no argument prints one `started:` line carrying the current epoch second", async () => {
+  const before = Math.floor(Date.now() / 1000);
+  const result = await runClock();
+  const after = Math.floor(Date.now() / 1000);
+
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout.trim().split("\n").length, 1);
+  assert.match(result.stdout, /^started: \d+\n$/);
+
+  const mark = Number(result.stdout.trim().slice("started: ".length));
+  assert.ok(mark >= before && mark <= after, `${mark} outside [${before}, ${after}]`);
+});
+
+/** Each case: seconds ago -> the duration it reads as. */
+const DURATIONS: Array<[number, string]> = [
+  [0, "elapsed: 0s"],
+  [7, "elapsed: 7s"],
+  [59, "elapsed: 59s"],
+  [60, "elapsed: 1m 00s"],
+  [65, "elapsed: 1m 05s"],
+  [3599, "elapsed: 59m 59s"],
+  [3600, "elapsed: 1h 00m 00s"],
+  [8043, "elapsed: 2h 14m 03s"],
+  [90061, "elapsed: 25h 01m 01s"],
+];
+
+for (const [seconds, expected] of DURATIONS) {
+  test(`${seconds} seconds ago reads as ${expected.slice("elapsed: ".length)}`, async () => {
+    const result = await elapsed(seconds);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, `${expected}\n`);
+  });
+}
+
+test("the largest non-zero unit comes first and hours never roll over into days", async () => {
+  // Epoch 0 is decades back: the hour count runs into six digits and stays an
+  // hour count, and a leading-zero-free `10#` arithmetic never reads it as octal.
+  const result = await runClock(["0"]);
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.match(result.stdout, /^elapsed: \d{5,}h \d{2}m \d{2}s\n$/);
+});
+
+test("a leading zero is decimal, never octal", async () => {
+  const padded = await runAtNow([`0${NOW - 8043}`]);
+  assert.equal(padded.status, 0, `stderr: ${padded.stderr}`);
+  assert.equal(padded.stdout, "elapsed: 2h 14m 03s\n");
+});
+
+/** Every argument that cannot be a mark, including the two shapes a lost
+ *  context produces: an unsubstituted placeholder and the script's own
+ *  `started: unknown` handed straight back. */
+const UNUSABLE: Array<[string, string]> = [
+  ["empty", ""],
+  ["non-numeric", "abc"],
+  ["an unsubstituted placeholder", "<started>"],
+  ["the word unknown", "unknown"],
+  ["a fractional epoch", "1750000000.5"],
+  ["a negative number", "-1750000000"],
+  ["a whole `started:` line", "started: 1750000000"],
+];
+
+for (const [label, argument] of UNUSABLE) {
+  test(`${label} is \`elapsed: unknown\`, not an error`, async () => {
+    const result = await runClock([argument]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "elapsed: unknown\n");
+  });
+}
+
+test("a mark in the future is unknown rather than a negative duration", async () => {
+  const result = await runClock([String(await startMark() + 600)]);
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "elapsed: unknown\n");
+});
+
+test("the exit is 0 whatever the argument, because a preload that fails takes the skill load with it", async () => {
+  for (const args of [[], [""], ["abc"], ["0"], [String(Math.floor(Date.now() / 1000) + 99999)]]) {
+    const result = await runClock(args);
+    assert.equal(result.status, 0, `args ${JSON.stringify(args)} -> stderr: ${result.stderr}`);
+    assert.equal(result.stderr, "");
+  }
+});
+
+test("the cwd is irrelevant: a temp directory outside the repository reads the same clock", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    const started = await runClock([], dir);
+    assert.equal(started.status, 0, `stderr: ${started.stderr}`);
+    assert.match(started.stdout, /^started: \d+\n$/);
+
+    const result = await runAtNow([String(NOW - 65)], dir);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "elapsed: 1m 05s\n");
+  });
+});
+
+test("a run directory after the mark follows the elapsed line with the token report", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    const result = await runAtNow([String(NOW - 8043), slash(fx.runDir)], tmp, {
+      CLAUDE_CONFIG_DIR: slash(path.join(tmp, "missing-config")),
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      result.stdout,
+      "elapsed: 2h 14m 03s\ntokens: unavailable - no projects directory\nrounds: plan review unavailable - no projects directory\n",
+    );
+  });
+});
+
+// --- the token report: fixtures ---
 
 const KEY = "2020-01-02-11-25-26_token-report";
 const OPUS = "claude-opus-4";
@@ -113,11 +267,16 @@ function run(tmp: string, args: string[], env: Record<string, string>) {
 }
 
 function report(tmp: string, fx: Fixture) {
-  return run(tmp, [slash(fx.runDir)], { CLAUDE_CONFIG_DIR: slash(fx.config) });
+  return run(tmp, [MARK, slash(fx.runDir)], { CLAUDE_CONFIG_DIR: slash(fx.config) });
 }
 
 function stdoutLines(stdout: string): string[] {
   return stdout.split("\n").filter((line) => line !== "");
+}
+
+/** The lines of a report after its leading `elapsed:` line. */
+function reportLines(stdout: string): string[] {
+  return stdoutLines(stdout).slice(1);
 }
 
 /** The `tokens:` lines of a report, whatever lines follow them. */
@@ -323,7 +482,7 @@ test("the last tokens line of a report is the not-counted line", async () => {
 test("with no projects directory the report is the single unavailable line and the exit is 0", async () => {
   await withTempDir("p2p2-viber-", async (tmp) => {
     const fx = seed(tmp);
-    const result = await run(tmp, [slash(fx.runDir)], { CLAUDE_CONFIG_DIR: slash(path.join(tmp, "missing-config")) });
+    const result = await run(tmp, [MARK, slash(fx.runDir)], { CLAUDE_CONFIG_DIR: slash(path.join(tmp, "missing-config")) });
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(tokenLines(result.stdout), ["tokens: unavailable - no projects directory"]);
   });
@@ -356,32 +515,33 @@ test("a counted transcript holding assistant lines but no readable usage makes t
   });
 });
 
-// --- DoD.6: unusable argv, exit 2 ---
+// --- DoD.6: argv ---
 
-test("with no argument the exit is 2, one error line on stderr and nothing on stdout", async () => {
-  await withTempDir("p2p2-viber-", async (tmp) => {
-    const result = await run(tmp, [], {});
-    assert.equal(result.status, 2);
-    assert.equal(result.stdout, "");
-    assert.match(result.stderr, /^error: [^\n]*\n$/);
-  });
-});
-
-test("with two arguments the exit is 2, one error line on stderr and nothing on stdout", async () => {
+test("with no argument the output is the start mark and the exit is 0, whatever run directory exists", async () => {
   await withTempDir("p2p2-viber-", async (tmp) => {
     const fx = seed(tmp);
-    const result = await run(tmp, [slash(fx.runDir), slash(fx.runDir)], {});
+    const result = await run(tmp, [], { CLAUDE_CONFIG_DIR: slash(fx.config) });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /^started: \d+\n$/);
+    assert.equal(result.stderr, "");
+  });
+});
+
+test("with three arguments the exit is 2, one error line on stderr and nothing on stdout", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    const result = await run(tmp, [MARK, slash(fx.runDir), slash(fx.runDir)], {});
     assert.equal(result.status, 2);
     assert.equal(result.stdout, "");
     assert.match(result.stderr, /^error: [^\n]*\n$/);
   });
 });
 
-test("with a run directory that does not exist the exit is 2, one error line on stderr and nothing on stdout", async () => {
+test("with a run directory that does not exist the elapsed line is printed, then the exit is 2 with one error line on stderr", async () => {
   await withTempDir("p2p2-viber-", async (tmp) => {
-    const result = await run(tmp, [slash(path.join(tmp, "docs", "_specs", KEY))], {});
+    const result = await run(tmp, [MARK, slash(path.join(tmp, "docs", "_specs", KEY))], {});
     assert.equal(result.status, 2);
-    assert.equal(result.stdout, "");
+    assert.match(result.stdout, /^elapsed: [^\n]*\n$/);
     assert.match(result.stderr, /^error: [^\n]*\n$/);
   });
 });
@@ -404,7 +564,7 @@ test("every planner-review and planner-graph-review transcript naming the planne
     fs.utimesSync(path.join(fx.config, "projects", "proj", "plan", "subagents", "agent-r3.jsonl"), old, old);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(stdoutLines(result.stdout), [
+    assert.deepEqual(reportLines(result.stdout), [
       "tokens: viber:task-coder claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
       NOT_COUNTED,
       "rounds: plan review 4",
@@ -457,9 +617,9 @@ test("with no projects directory the unavailable token line is followed by the n
   await withTempDir("p2p2-viber-", async (tmp) => {
     const fx = seed(tmp);
     writePlan(fx, PLANNED);
-    const result = await run(tmp, [slash(fx.runDir)], { CLAUDE_CONFIG_DIR: slash(path.join(tmp, "missing-config")) });
+    const result = await run(tmp, [MARK, slash(fx.runDir)], { CLAUDE_CONFIG_DIR: slash(path.join(tmp, "missing-config")) });
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(stdoutLines(result.stdout), [
+    assert.deepEqual(reportLines(result.stdout), [
       "tokens: unavailable - no projects directory",
       "rounds: plan review unavailable - no projects directory",
     ]);
@@ -475,7 +635,7 @@ test("with no transcript naming the run the unavailable token line is followed b
     ]);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(stdoutLines(result.stdout), [
+    assert.deepEqual(reportLines(result.stdout), [
       "tokens: unavailable - no agent transcript names this run",
       "tokens: viber:planner-review claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
       "rounds: plan review 1",
@@ -627,7 +787,7 @@ test("the planning rows come after the build rows, sorted by role then model, th
     ]);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(stdoutLines(result.stdout), [
+    assert.deepEqual(reportLines(result.stdout), [
       "tokens: viber:task-coder claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
       "tokens: viber:adr-screener claude-sonnet-4 in 13 out 14 cache-read 15 cache-write 16",
       "tokens: viber:planner-review claude-opus-4 in 9 out 10 cache-read 11 cache-write 12",
@@ -646,7 +806,7 @@ test("with a counted transcript holding no readable usage the unavailable token 
     review(fx, "r1", "viber:planner-review", PLANNED);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(stdoutLines(result.stdout), [
+    assert.deepEqual(reportLines(result.stdout), [
       "tokens: unavailable - a transcript holds no readable usage",
       "rounds: plan review 1",
     ]);

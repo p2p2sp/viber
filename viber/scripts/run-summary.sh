@@ -1,18 +1,27 @@
 #!/usr/bin/env bash
 #
-# run-tokens.sh - prints how many tokens the agents of one run spent, by agent role
-# and model, summed over the agent transcripts Claude Code keeps on disk.
+# run-summary.sh - the run's clock and token report in one call: prints the epoch
+# second a build starts, the time the build took since that mark, and how many
+# tokens the agents of the run spent, by agent role and model, summed over the agent
+# transcripts Claude Code keeps on disk.
 #
-# A finished build says nothing about its cost, so the tier policy and the review
-# waivers can only be judged by feel. Claude Code writes every subagent's turns,
-# with the usage of each, to `agent-<id>.jsonl` under a `subagents` directory of the
-# projects directory, and the role of the agent to `agent-<id>.meta.json` beside it.
-# This script reads that record. It is a script and not a step of an agent because
-# the operation is fixed - find the transcripts of the run, sum four numbers per
-# role and model - and a model asked to do it drifts: it estimates, rounds, skips.
-# It assumes no jq: the JSON lines are read with bash and awk.
+# It exists because `implementor` has no other source of time or cost. That skill's
+# body forbids it to open a file, so it cannot read one to find a timestamp, and the
+# only thing it is handed at load is what its `!` preloads print. The arithmetic and
+# the formatting belong here rather than in the model: a duration composed in prose
+# is a duration that can be wrong, and the orchestrator is meant to REPORT the run's
+# length, not to derive it. The token report is a script and not a step of an agent
+# because the operation is fixed - find the transcripts of the run, sum four numbers
+# per role and model - and a model asked to do it drifts: it estimates, rounds,
+# skips. One script serves both so the close makes one call for the two. It assumes
+# no jq: the JSON lines are read with bash and awk.
 #
-# What counts:
+# The clock measures the CURRENT SESSION alone. The mark lives in the
+# orchestrator's context and nowhere else: nothing is written, no state file is
+# kept, and `status.md`'s contract is untouched - a run resumed in another
+# session simply starts a new clock.
+#
+# What counts in the token report:
 #   - a transcript is counted when its first line (the prompt that started the
 #     agent) contains `<runs>/<key>`, the last two segments of the run directory,
 #     followed by `/`, a backslash, a double quote or a space (a JSON-escaped
@@ -34,19 +43,35 @@
 #     `cache_read_input_tokens`, `cache-write` `cache_creation_input_tokens`.
 #
 # Contract:
-#   argv   : $1 run directory (REQUIRED, exactly one): relative to the repository
-#            root or absolute; a backslash is read as `/` and trailing slashes are
-#            dropped.
-#   cwd    : any directory inside the host repository - the script moves to the
-#            repository root itself, because a relative argument is relative to it.
-#            Outside a repository the cwd is the base a relative argument resolves
-#            against and is left untouched.
+#   argv   : none            -> the start mark.
+#            $1 <started>    -> the time elapsed since that epoch-second mark.
+#            $2 <run-dir>    -> after the elapsed line, the token report of that run
+#                               directory: relative to the repository root or
+#                               absolute; a backslash is read as `/` and trailing
+#                               slashes are dropped.
+#            More than two arguments, or an empty <run-dir>, is unusable argv.
+#   cwd    : any directory inside the host repository - the token report moves to the
+#            repository root itself, because a relative <run-dir> is relative to it.
+#            Outside a repository the cwd is the base a relative <run-dir> resolves
+#            against and is left untouched. The clock reads no file.
 #   env    : CLAUDE_CONFIG_DIR - the projects directory is `$CLAUDE_CONFIG_DIR/projects`,
 #            else `$HOME/.claude/projects`.
-#   reads  : the transcripts `*/subagents/agent-<id>.jsonl` under the projects
-#            directory and the `agent-<id>.meta.json` beside each counted one. Nothing
-#            is written.
-#   stdout : on exit 0 one of
+#   reads  : with <run-dir>, the transcripts `*/subagents/agent-<id>.jsonl` under the
+#            projects directory and the `agent-<id>.meta.json` beside each counted one,
+#            and `<run-dir>/plan.md`. Nothing is written.
+#   stdout : no argument  : "started: <epoch>" (`date +%s`), or "started: unknown"
+#                           when the clock cannot be read.
+#            one argument : "elapsed: <n>h <nn>m <nn>s", "elapsed: <n>m <nn>s" or
+#                           "elapsed: <n>s" - the largest non-zero unit first, every
+#                           smaller one zero-padded to two digits ("43s", "14m 03s",
+#                           "2h 14m 03s"); hours never roll over into days. Or
+#                           "elapsed: unknown" when the argument is empty or is not a
+#                           run of digits (an unsubstituted marker, a "started:
+#                           unknown" handed back), when it lies in the future, or when
+#                           the clock has moved backwards. `unknown` is a VALUE, not an
+#                           error - the caller drops the line rather than inventing a
+#                           duration.
+#            two arguments: the elapsed line above, then on exit 0 one of
 #              tokens: <role> <model> in <n> out <n> cache-read <n> cache-write <n>
 #              ...one line per role and model, sorted by role then model in byte order
 #              ...then the same line for the planning agents, sorted alike (below)
@@ -77,22 +102,75 @@
 #            cannot continue a path). <reason> is `no projects directory`, `no planned
 #            line in plan.md` (plan.md missing included) or `no review transcript names
 #            the plan`.
-#   exit   : 0 always once the argument is usable, the report being `unavailable`
-#            when the transcripts cannot be read.
-#            2 unusable argv: no argument, more than one, or a directory that does
-#              not exist; one `error: ...` line on stderr, nothing on stdout.
+#   exit   : 0 with no argument, with one argument (it is called as a `!` preload,
+#            where a non-zero exit aborts the whole skill load) and with a usable
+#            <run-dir>, the token report being `unavailable` when the transcripts
+#            cannot be read.
+#            2 unusable argv: more than two arguments, an empty <run-dir> or a
+#              <run-dir> that does not exist; one `error: ...` line on stderr. For a
+#              <run-dir> that does not exist the elapsed line is already on stdout;
+#              otherwise stdout is empty.
 #
 set -u
 LC_ALL=C
 export LC_ALL
 
 usage() {
-  echo "error: usage: run-tokens.sh <run-dir>" >&2
+  echo "error: usage: run-summary.sh [<started> [<run-dir>]]" >&2
   exit 2
 }
 
-[[ $# -eq 1 ]] || usage
-raw="$1"
+[[ $# -le 2 ]] || usage
+
+now="$(date +%s 2>/dev/null || true)"
+case "$now" in
+  '' | *[!0-9]*) now="" ;;
+esac
+
+if [[ $# -eq 0 ]]; then
+  if [[ -n "$now" ]]; then
+    printf 'started: %s\n' "$now"
+  else
+    printf 'started: unknown\n'
+  fi
+  exit 0
+fi
+
+print_elapsed() {
+  local started="$1" elapsed=0 hours=0 minutes=0 seconds=0
+  case "$started" in
+    '' | *[!0-9]*) printf 'elapsed: unknown\n'; return 0 ;;
+  esac
+  if [[ -z "$now" ]]; then
+    printf 'elapsed: unknown\n'
+    return 0
+  fi
+
+  # `10#` on both sides: a value carrying a leading zero is decimal here, never
+  # octal, which is what bash arithmetic would otherwise make of "0123".
+  elapsed=$(( 10#$now - 10#$started ))
+  if [[ "$elapsed" -lt 0 ]]; then
+    printf 'elapsed: unknown\n'
+    return 0
+  fi
+
+  hours=$(( elapsed / 3600 ))
+  minutes=$(( (elapsed % 3600) / 60 ))
+  seconds=$(( elapsed % 60 ))
+
+  if [[ "$hours" -gt 0 ]]; then
+    printf 'elapsed: %dh %02dm %02ds\n' "$hours" "$minutes" "$seconds"
+  elif [[ "$minutes" -gt 0 ]]; then
+    printf 'elapsed: %dm %02ds\n' "$minutes" "$seconds"
+  else
+    printf 'elapsed: %ds\n' "$seconds"
+  fi
+}
+
+print_elapsed "$1"
+[[ $# -eq 2 ]] || exit 0
+
+raw="$2"
 [[ -n "$raw" ]] || usage
 
 # A relative argument is relative to the repository root, never to the cwd of the

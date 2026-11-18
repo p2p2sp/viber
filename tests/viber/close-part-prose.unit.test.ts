@@ -280,39 +280,36 @@ test("a non-zero exit of the trail call puts the not-written line in the final s
   assert.ok(paragraph.includes("goes on to the cleanup close part"));
 });
 
-const TOKEN_CALL = '"${CLAUDE_PLUGIN_ROOT}/scripts/run-tokens.sh" "<dir>"';
-const CLOCK_CALL = '"${CLAUDE_PLUGIN_ROOT}/scripts/run-clock.sh" "<started>"';
+const SUMMARY_CALL = '"${CLAUDE_PLUGIN_ROOT}/scripts/run-summary.sh" "<started>" "<dir>"';
 
-test("allowed-tools lists the run-tokens script", () => {
-  assert.ok(allowedTools().includes("Bash(${CLAUDE_PLUGIN_ROOT}/scripts/run-tokens.sh:*)"));
+test("allowed-tools lists the run-summary script", () => {
+  assert.ok(allowedTools().includes("Bash(${CLAUDE_PLUGIN_ROOT}/scripts/run-summary.sh:*)"));
 });
 
-test("step 7 makes the one token call with the run directory right after the clock call, in every close, with no config key", () => {
-  const paragraph = stepSevenParagraph("First `");
-  assert.equal(stepSeven().split(TOKEN_CALL).length, 2);
-  assert.ok(paragraph.includes(CLOCK_CALL));
-  assert.ok(paragraph.indexOf(TOKEN_CALL) > paragraph.indexOf(CLOCK_CALL));
-  assert.ok(paragraph.includes("right after it, in every close"));
+test("step 7 makes the one summary call with the mark and the run directory, in every close, with no config key", () => {
+  const paragraph = stepSevenParagraph("First, in every close");
+  assert.equal(stepSeven().split(SUMMARY_CALL).length, 2);
+  assert.ok(paragraph.includes(SUMMARY_CALL));
   assert.ok(paragraph.includes("no config key turning it on or off"));
   assert.ok(!/`build\.[a-z-]+/.test(paragraph));
 });
 
-test("the token call comes before the trail call and before the final summary is composed", () => {
+test("the summary call comes before the trail call and before the final summary is composed", () => {
   const text = stepSeven();
-  assert.ok(text.indexOf(TOKEN_CALL) < text.indexOf(TRAIL_CALL));
-  assert.ok(text.indexOf(TOKEN_CALL) < text.indexOf("compose the final summary"));
+  assert.ok(text.indexOf(SUMMARY_CALL) < text.indexOf(TRAIL_CALL));
+  assert.ok(text.indexOf(SUMMARY_CALL) < text.indexOf("compose the final summary"));
 });
 
-test("both forms of the final summary carry every stdout line of the token call verbatim, outside the 7 lines, right after the red-check line", () => {
+test("both forms of the final summary carry every stdout line of the summary call after its elapsed line verbatim, outside the 7 lines, right after the red-check line", () => {
   const paragraph = stepSevenParagraph("Right after the `red-check:` line");
   assert.ok(paragraph.includes("in both forms"));
-  assert.ok(paragraph.includes("every stdout line of the token call, verbatim"));
+  assert.ok(paragraph.includes("every stdout line of the summary call after its `elapsed:` line, verbatim"));
   assert.ok(paragraph.includes("outside the 7 lines"));
 });
 
-test("a non-zero exit of the token call puts the one line tokens: unavailable in the summary, asks nothing and goes on", () => {
+test("a non-zero exit of the summary call puts the one line tokens: unavailable in the summary, asks nothing and goes on", () => {
   const paragraph = stepSevenParagraph("Right after the `red-check:` line");
-  assert.ok(paragraph.includes("A non-zero exit of the token call -> the one line `tokens: unavailable`"));
+  assert.ok(paragraph.includes("A non-zero exit of the summary call -> the one line `tokens: unavailable`"));
   assert.ok(paragraph.includes("asks nothing"));
   assert.ok(paragraph.includes("goes on"));
 });
