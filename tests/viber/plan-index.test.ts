@@ -46,6 +46,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
+import { slash } from "../harness/paths.ts";
 import { runScript } from "../harness/run.ts";
 import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
 
@@ -4126,3 +4127,229 @@ test("--extra of a plan of 13 tasks prints the extra line alone, no review instr
     assert.equal(result.stdout, "extra: lib/x.ts\n");
   });
 });
+
+// --- the dispatch lines: plan-index.sh <plan> --dispatch <task-id> coder|reviewer --
+
+/** T3 depends on T2, which depends on T1; T4 stands alone. */
+const DISPATCH_TASKS: TaskFields[] = [
+  { id: "T1", files: "src/one.ts" },
+  { id: "T2", deps: "T1", files: "src/two.ts" },
+  { id: "T3", deps: "T2", files: "src/three.ts" },
+  { id: "T4", files: "src/four.ts" },
+];
+
+const DISPATCH_ROOT = slash(SUT).replace(/\/scripts\/plan-index\.sh$/, "");
+
+function seedDispatch(dir: string, status: string[] = [], tasks: TaskFields[] = DISPATCH_TASKS): void {
+  seed(dir, planBody(tasks, 1));
+  write(dir, `${PLAN_DIR}/status.md`, ["# status", "", "progress: 0/4", "done: none", ...status, ""].join("\n"));
+}
+
+function dispatch(dir: string, id: string, form: string, env: Record<string, string> = {}) {
+  return run(dir, env, [PLAN_REL, "--dispatch", id, form]);
+}
+
+test("the coder form prints the fixed coder lines in order, every path under the run directory and no baseline line while build.baseline-tests is off", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seedDispatch(dir);
+
+    const result = await dispatch(dir, "T3", "coder");
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      [
+        `task: ${PLAN_DIR}/tasks/T3.md`,
+        `notes: ${PLAN_DIR}/work/T3-coder.md`,
+        "out: .temp/viber/T3/",
+        `refs: ${DISPATCH_ROOT}/references`,
+        `extras: ${PLAN_DIR}/work/T3-extra.md`,
+        `decide-file: ${PLAN_DIR}/work/T3-options.md`,
+        `prior: ${PLAN_DIR}/work/T2-coder.md`,
+        "",
+      ].join("\n"),
+    );
+  });
+});
+
+for (const value of ["fast", "full"]) {
+  test(`build.baseline-tests ${value} adds the baseline line of the coder form after decide-file`, async () => {
+    await withGitRepo(async (repo) => {
+      seedDispatch(repo.dir);
+      write(repo.dir, ".claude/viber.yml", `build:\n  baseline-tests: ${value}\n`);
+
+      const result = await dispatch(repo.dir, "T1", "coder", repo.env);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(
+        result.stdout,
+        [
+          `task: ${PLAN_DIR}/tasks/T1.md`,
+          `notes: ${PLAN_DIR}/work/T1-coder.md`,
+          "out: .temp/viber/T1/",
+          `refs: ${DISPATCH_ROOT}/references`,
+          `extras: ${PLAN_DIR}/work/T1-extra.md`,
+          `decide-file: ${PLAN_DIR}/work/T1-options.md`,
+          `baseline: ${PLAN_DIR}/work/tests-baseline.md`,
+          "",
+        ].join("\n"),
+      );
+    });
+  });
+}
+
+test("deferred joins every status entry naming the task, a bracketed path intact, and prior names the notes of the task's own deps only", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seedDispatch(dir, ["deferred: T3:src/x.ts T1:src/other.ts T3:src/[id]/y.ts"]);
+
+    const result = await dispatch(dir, "T3", "coder");
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      [
+        `task: ${PLAN_DIR}/tasks/T3.md`,
+        `notes: ${PLAN_DIR}/work/T3-coder.md`,
+        "out: .temp/viber/T3/",
+        `refs: ${DISPATCH_ROOT}/references`,
+        `extras: ${PLAN_DIR}/work/T3-extra.md`,
+        `decide-file: ${PLAN_DIR}/work/T3-options.md`,
+        "deferred: src/x.ts, src/[id]/y.ts",
+        `prior: ${PLAN_DIR}/work/T2-coder.md`,
+        "",
+      ].join("\n"),
+    );
+  });
+});
+
+test("a task with two deps names both notes on its prior line in dep order", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seedDispatch(dir, [], [
+      { id: "T1", files: "src/one.ts" },
+      { id: "T2", files: "src/two.ts" },
+      { id: "T3", deps: "T1, T2", files: "src/three.ts" },
+    ]);
+
+    const result = await dispatch(dir, "T3", "coder");
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.ok(
+      result.stdout.endsWith(`\nprior: ${PLAN_DIR}/work/T1-coder.md, ${PLAN_DIR}/work/T2-coder.md\n`),
+      `stdout: ${result.stdout}`,
+    );
+  });
+});
+
+test("decision lines of the task and of every task it depends on, directly or through another, print in file order and those of any other task do not", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seedDispatch(dir, [
+      "decision: T2: scope: src/two.ts only",
+      "decision: T4: unrelated",
+      "decision: T3: keep the handler",
+      "decision: T1: older ruling",
+    ]);
+
+    const result = await dispatch(dir, "T3", "coder");
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.ok(
+      result.stdout.endsWith(
+        `\nprior: ${PLAN_DIR}/work/T2-coder.md\ndecision: T2: scope: src/two.ts only\ndecision: T3: keep the handler\ndecision: T1: older ruling\n`,
+      ),
+      `stdout: ${result.stdout}`,
+    );
+  });
+});
+
+test("refs and scope name the plugin root in the spelling the script was invoked with, never resolved", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seedDispatch(dir);
+    const detourSut = `${DISPATCH_ROOT}/scripts/../scripts/plan-index.sh`;
+    const root = `${DISPATCH_ROOT}/scripts/..`;
+
+    const result = await runScript(detourSut, [PLAN_REL, "--dispatch", "T1", "reviewer"], { cwd: dir, shell: "bash" });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.ok(result.stdout.includes(`\nrefs: ${root}/references\n`), `stdout: ${result.stdout}`);
+    assert.ok(
+      result.stdout.endsWith(`\nscope: "${root}/scripts/plan-index.sh" "${PLAN_REL}" --extra "T1"\n`),
+      `stdout: ${result.stdout}`,
+    );
+  });
+});
+
+for (const [form, second] of [
+  ["a list line with the run-failures prefix", "lessons: Public x2, State x1"],
+  ["a bare list line", "Public x2, State x1"],
+] as const) {
+  test(`run-lessons carries the second line of .temp/viber/lessons (${form}) as the last coder line`, async () => {
+    await withGitRepo(async (repo) => {
+      seedDispatch(repo.dir);
+      write(repo.dir, ".temp/viber/lessons", `started: 100\n${second}\n`);
+
+      const result = await dispatch(repo.dir, "T1", "coder", repo.env);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.ok(result.stdout.endsWith("\nrun-lessons: Public x2, State x1\n"), `stdout: ${result.stdout}`);
+    });
+  });
+}
+
+test("run-lessons is absent with no lessons file", async () => {
+  await withGitRepo(async (repo) => {
+    seedDispatch(repo.dir);
+
+    const result = await dispatch(repo.dir, "T1", "coder", repo.env);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /^run-lessons:/m);
+  });
+});
+
+test("run-lessons is absent with an empty list line", async () => {
+  await withGitRepo(async (repo) => {
+    seedDispatch(repo.dir);
+    write(repo.dir, ".temp/viber/lessons", "started: 100\n\n");
+
+    const result = await dispatch(repo.dir, "T1", "coder", repo.env);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /^run-lessons:/m);
+  });
+});
+
+test("the reviewer form prints the reviewer lines in order with no prior, decide-file or run-lessons line, even when a lessons file exists", async () => {
+  await withGitRepo(async (repo) => {
+    seedDispatch(repo.dir, ["deferred: T3:src/x.ts", "decision: T1: older ruling"]);
+    write(repo.dir, ".claude/viber.yml", "build:\n  baseline-tests: fast\n");
+    write(repo.dir, ".temp/viber/lessons", "started: 100\nlessons: Public x2\n");
+
+    const result = await dispatch(repo.dir, "T3", "reviewer", repo.env);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      [
+        `task: ${PLAN_DIR}/tasks/T3.md`,
+        `notes: ${PLAN_DIR}/work/T3-coder.md`,
+        "out: .temp/viber/T3/",
+        `refs: ${DISPATCH_ROOT}/references`,
+        `baseline: ${PLAN_DIR}/work/tests-baseline.md`,
+        "deferred: src/x.ts",
+        "decision: T1: older ruling",
+        `extras: ${PLAN_DIR}/work/T3-extra-review.md`,
+        `scope: "${DISPATCH_ROOT}/scripts/plan-index.sh" "${PLAN_REL}" --extra "T3"`,
+        "",
+      ].join("\n"),
+    );
+  });
+});
+
+for (const [label, args] of [
+  ["an id the plan does not hold", [PLAN_REL, "--dispatch", "T9", "coder"]],
+  ["a form other than coder or reviewer", [PLAN_REL, "--dispatch", "T1", "arbiter"]],
+  ["a missing form", [PLAN_REL, "--dispatch", "T1"]],
+  ["--split beside it", [PLAN_REL, "--split", "--dispatch", "T1", "coder"]],
+  ["--extra beside it", [PLAN_REL, "--dispatch", "T1", "coder", "--extra", "T1"]],
+] as const) {
+  test(`--dispatch with ${label} exits 2 with nothing on stdout and no decomposition`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seedDispatch(dir);
+
+      const result = await run(dir, {}, [...args]);
+      assert.equal(result.status, 2, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, "");
+      assert.equal(fs.existsSync(path.join(dir, PLAN_DIR, "tasks")), false);
+    });
+  });
+}

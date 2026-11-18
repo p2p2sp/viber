@@ -8,6 +8,8 @@
 #   plan-index.sh <plan-file> --split    ... and decompose (the orchestrator's call)
 #   plan-index.sh <plan-file> --extra <task-id>
 #                                        the reviewer's scope for one task (below)
+#   plan-index.sh <plan-file> --dispatch <task-id> coder|reviewer
+#                                        the labelled lines of one dispatch (below)
 #
 # stdout (the orchestrator's only view of the plan - the decomposed files are read
 # by agents):
@@ -74,6 +76,34 @@
 # Nothing at all when no path remains or the file is missing, exit 0. The plan is
 # validated as under --split. An id the plan does not hold, or --extra with
 # --split, exits 2.
+#
+# --dispatch <task-id> coder|reviewer prints, instead of the index, the labelled
+# lines of that task's dispatch, a line omitted when its value is empty. <dir> is
+# the plan's directory, <plugin root> this script's invoked path with its trailing
+# "/scripts/<name>.sh" cut off as text (backslashes read as "/", never resolved).
+# The plan is validated as under --split.
+#   coder:    task: <dir>/tasks/<id>.md
+#             notes: <dir>/work/<id>-coder.md
+#             out: .temp/viber/<id>/
+#             refs: <plugin root>/references
+#             extras: <dir>/work/<id>-extra.md
+#             decide-file: <dir>/work/<id>-options.md
+#             baseline: <dir>/work/tests-baseline.md   only when config.sh prints
+#                                   build.baseline-tests fast or full
+#             deferred: <path>, <path>     the "deferred:" entries of status.md
+#                                   naming the id
+#             prior: <dir>/work/<dep-id>-coder.md, ...   the task's own deps
+#             decision: <task-id>: <text>  one per status.md decision line of the
+#                                   task or of one it depends on, directly or
+#                                   through another, in file order
+#             run-lessons: <Name> x<n>, ...   the second line of
+#                                   <repository root>/.temp/viber/lessons, a
+#                                   "lessons: " prefix dropped, when not empty
+#   reviewer: task:, notes:, out:, refs:, baseline:, deferred:, decision: as above, then
+#             extras: <dir>/work/<id>-extra-review.md
+#             scope: "<plugin root>/scripts/plan-index.sh" "<plan>" --extra "<id>"
+# An id the plan does not hold, a form other than coder or reviewer, or --dispatch
+# with --split or --extra, exits 2.
 #
 # --split removes, once the plan is validated and decomposed and before the index
 # is printed, the coder and reviewer extras files of every task not done; a done
@@ -212,7 +242,8 @@
 # before a build starts:
 #   2 - plan file missing or unusable, an argument that is not --split or
 #       --extra <task-id>, --extra beside --split, a --extra id the plan does not
-#       hold, or a --split pointed at anything but the run's own <dir>/plan.md
+#       hold, a --dispatch with an unknown id or form or beside --split or
+#       --extra, or a --split pointed at anything but the run's own <dir>/plan.md
 #   3 - no <!-- TASK --> blocks
 #   4 - broken task contract (<!-- TASK --> blocks under no "## Tasks" heading,
 #       where the cut would leave tasks/ empty while the index still lists
@@ -329,7 +360,8 @@
 #       could not stage).
 #
 # Contract:
-#   argv   : the plan file, optionally --split or --extra <task-id>, never both.
+#   argv   : the plan file, optionally --split, --extra <task-id> or --dispatch
+#            <task-id> coder|reviewer, never two of them.
 #   cwd    : the repository root - the plan path and every path in the index are
 #            relative to it; a plan path given absolute, or with a leading
 #            "./", inside it is read as its relative form.
@@ -343,8 +375,11 @@ plan="${1:-}"
 mode=""
 extra_id=""
 has_extra=0
+has_dispatch=0
+dispatch_id=""
+dispatch_form=""
 [[ $# -eq 0 ]] || shift
-usage="error: usage: plan-index.sh <plan-file> [--split | --extra <task-id>]"
+usage="error: usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer]"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --split) mode="--split" ;;
@@ -353,6 +388,13 @@ while [[ $# -gt 0 ]]; do
       has_extra=1
       extra_id="$2"
       shift
+      ;;
+    --dispatch)
+      if [[ $# -lt 3 || -z "$2" ]]; then echo "$usage" >&2; exit 2; fi
+      has_dispatch=1
+      dispatch_id="$2"
+      dispatch_form="$3"
+      shift 2
       ;;
     *) echo "$usage" >&2; exit 2 ;;
   esac
@@ -367,6 +409,17 @@ fi
 if [[ "$has_extra" -eq 1 && "$mode" == "--split" ]]; then
   echo "error: --extra cannot be combined with --split" >&2
   exit 2
+fi
+
+if [[ "$has_dispatch" -eq 1 ]]; then
+  if [[ "$has_extra" -eq 1 || "$mode" == "--split" ]]; then
+    echo "error: --dispatch cannot be combined with --split or --extra" >&2
+    exit 2
+  fi
+  if [[ "$dispatch_form" != "coder" && "$dispatch_form" != "reviewer" ]]; then
+    echo "error: --dispatch form must be coder or reviewer, got: $dispatch_form" >&2
+    exit 2
+  fi
 fi
 
 if [[ ! -f "$plan" ]]; then
@@ -473,6 +526,7 @@ fi
 # must still resolve after a rule was added.
 awk_mode="$mode"
 [[ "$has_extra" -eq 0 ]] || awk_mode="--split"
+[[ "$has_dispatch" -eq 0 ]] || awk_mode="--split"
 # A plain call on a landed plan (status.md beside it) is validated the same way:
 # the plan is frozen, so a rule added after it landed must not refuse it.
 [[ ! -f "$dir/status.md" ]] || awk_mode="--split"
@@ -551,7 +605,7 @@ fi
 # the awk pass has exited 0, so a plan refused for any reason prints nothing and
 # --split below touches nothing.
 index_out="$(plan="$plan" changed="$changed" mode="$awk_mode" rundir="$dir" memory_on="$memory_on" slots="$slots" \
-extra="$extra_id" extra_paths="$extra_paths" \
+extra="$extra_id" extra_paths="$extra_paths" dispatch="$dispatch_id" \
 st_done="$st_done" st_skipped="$st_skipped" st_unreviewed="$st_unreviewed" \
 st_deferred="$st_deferred" st_closed="$st_closed" st_decisions="$st_decisions" st_rulings="$st_rulings" \
 awk '
@@ -1391,6 +1445,7 @@ END {
 
   # --extra names a task the plan holds, or the call is refused
   if (extra != "" && !(extra in seen)) { printf "error: --extra: no such task: %s\n", extra > "/dev/stderr"; exit 2 }
+  if (ENVIRON["dispatch"] != "" && !(ENVIRON["dispatch"] in seen)) { printf "error: --dispatch: no such task: %s\n", ENVIRON["dispatch"] > "/dev/stderr"; exit 2 }
 
   # task state from the done list, and the tasks the user dropped from the
   # skipped one - both are settled, neither is dispatched again
@@ -1490,6 +1545,116 @@ END {
   }
 }
 ' "$plan")"
+
+# --dispatch: the labelled lines of one task's coder or reviewer dispatch, read off
+# the validated index above (its deps column) and the state beside the plan. The
+# plugin root is this script's own path as invoked, cut at its "/scripts/<name>.sh"
+# as text, never resolved.
+if [[ "$has_dispatch" -eq 1 ]]; then
+  self="${0//\\//}"
+  plugin_root="${self%/scripts/${self##*/}}"
+
+  dep_rows=""
+  in_rows=0
+  while IFS= read -r row; do
+    case "$row" in
+      "tasks: "*) in_rows=1 ;;
+      "verify: "*) in_rows=0 ;;
+      *)
+        if [[ $in_rows -eq 1 ]]; then
+          row_rest="${row#* | }"
+          row_rest="${row_rest#* | }"
+          row_rest="${row_rest#* | }"
+          row_rest="${row_rest#* | }"
+          row_rest="${row_rest#* | }"
+          dep_rows="$dep_rows${row%% | *} ${row_rest%% | *}"$'\n'
+        fi
+        ;;
+    esac
+  done < <(printf '%s\n' "$index_out")
+
+  own_deps=""
+  while IFS=' ' read -r d_id d_list; do
+    if [[ "$d_id" == "$dispatch_id" && "$d_list" != "-" ]]; then own_deps="$d_list"; fi
+  done < <(printf '%s' "$dep_rows")
+
+  # the task and every task it depends on, directly or through another
+  related=" $dispatch_id "
+  grew=1
+  while [[ $grew -eq 1 ]]; do
+    grew=0
+    while IFS=' ' read -r d_id d_list; do
+      case "$related" in *" $d_id "*) ;; *) continue ;; esac
+      [[ "$d_list" != "-" ]] || continue
+      for d in ${d_list//,/ }; do
+        case "$related" in
+          *" $d "*) ;;
+          *) related="$related$d "; grew=1 ;;
+        esac
+      done
+    done < <(printf '%s' "$dep_rows")
+  done
+
+  baseline_on=0
+  cfg_out="$(bash "$(dirname -- "${BASH_SOURCE[0]}")/config.sh" 2>/dev/null || true)"
+  cfg_out="${cfg_out//$'\r'/}"
+  case $'\n'"$cfg_out"$'\n' in
+    *$'\nbuild.baseline-tests: fast\n'*|*$'\nbuild.baseline-tests: full\n'*) baseline_on=1 ;;
+  esac
+
+  deferred_paths=""
+  set -f
+  for entry in $st_deferred; do
+    if [[ "${entry%%:*}" == "$dispatch_id" && "$entry" == *:* ]]; then
+      deferred_paths="${deferred_paths:+$deferred_paths, }${entry#*:}"
+    fi
+  done
+  set +f
+
+  prior_paths=""
+  for d in ${own_deps//,/ }; do
+    prior_paths="${prior_paths:+$prior_paths, }$dir/work/$d-coder.md"
+  done
+
+  decision_lines=""
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    d_rest="${line#decision:}"
+    d_rest="${d_rest# }"
+    case "$related" in *" ${d_rest%%:*} "*) decision_lines="$decision_lines$line"$'\n' ;; esac
+  done < <(printf '%s' "$st_decisions")
+
+  lessons=""
+  if [[ "$dispatch_form" == "coder" ]]; then
+    root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    if [[ -f "$root/.temp/viber/lessons" ]]; then
+      lessons="$(sed -n '2p' "$root/.temp/viber/lessons" 2>/dev/null || true)"
+      lessons="${lessons//$'\r'/}"
+      lessons="${lessons#lessons: }"
+    fi
+  fi
+
+  emit() { [[ -z "$2" ]] || printf '%s: %s\n' "$1" "$2"; }
+  emit task "$dir/tasks/$dispatch_id.md"
+  emit notes "$dir/work/$dispatch_id-coder.md"
+  emit out ".temp/viber/$dispatch_id/"
+  emit refs "$plugin_root/references"
+  if [[ "$dispatch_form" == "coder" ]]; then
+    emit extras "$dir/work/$dispatch_id-extra.md"
+    emit decide-file "$dir/work/$dispatch_id-options.md"
+  fi
+  [[ $baseline_on -eq 0 ]] || emit baseline "$dir/work/tests-baseline.md"
+  emit deferred "$deferred_paths"
+  [[ "$dispatch_form" != "coder" ]] || emit prior "$prior_paths"
+  printf '%s' "$decision_lines"
+  if [[ "$dispatch_form" == "coder" ]]; then
+    emit run-lessons "$lessons"
+  else
+    emit extras "$dir/work/$dispatch_id-extra-review.md"
+    emit scope "\"$plugin_root/scripts/plan-index.sh\" \"$plan\" --extra \"$dispatch_id\""
+  fi
+  exit 0
+fi
 
 # --split: the extras files of a task not done belong to a session that is over
 # (a done task keeps its files, committed in its trail). Task rows sit between
