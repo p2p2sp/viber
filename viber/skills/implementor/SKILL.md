@@ -111,9 +111,7 @@ Then clamp both tiers into the config block's `tiers.min` to `tiers.max` range (
 
 Start with every task whose `deps` are done, up to the cap, in one message. On every return, answer with ONE message carrying every dispatch now legal, the cap included, plus at most one commit. Never wait for a batch to drain; when a constraint forces a choice, start whatever unblocks the most tasks.
 
-Task loop: `"${CLAUDE_PLUGIN_ROOT}/scripts/task-step.sh" "<plan>" "<id>" "<started>" <event> [<flag>...]` answers each return of a task's agents with the directives to act on, `<started>` being the preloaded mark. It keeps the task's attempts, tiers and dispatch lines: count, climb and compose none yourself. One call per return; a non-zero exit -> report its stderr line and stop. Its stdout is blocks, each opening on a `NEXT:`, `RUN:`, `ASK:` or `STOP:` line, the lines after it its body: act on the blocks in order, one per message, a `NEXT: commit` and the `RUN:` after it being one action.
-
-- `run-lessons:` for the final-review fix coder and the step 5 repair coder: `"${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh" --lessons "<dir>"` run just before that dispatch, its list the value, `lessons: none` omitting the line; `task-step.sh` writes the same list into every task coder's lines, and a reviewer dispatch never carries it.
+Task loop: `"${CLAUDE_PLUGIN_ROOT}/scripts/task-step.sh" "<plan>" "<id>" "<started>" <event> [<flag>...]` answers each return of a task's agents with the directives to act on, `<started>` being the preloaded mark. It keeps the task's attempts, tiers and dispatch lines: count, climb and compose none yourself. One call per return; a non-zero exit -> report its stderr line and stop. Its stdout is blocks, each opening on a `NEXT:`, `RUN:`, `ASK:` or `STOP:` line, the lines after it its body: act on the blocks in order, one per message, a `NEXT: commit` and the `RUN:` after it being one action. A dispatch sends the lines its directive prints plus the `add:` lines it names, nothing else.
 
 Events:
 

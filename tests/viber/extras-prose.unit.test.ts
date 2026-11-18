@@ -57,6 +57,15 @@ test("implementor holds no coder or reviewer dispatch line: the extras, scope an
   assert.ok(!SKILL.includes("decide-file: <dir>"));
 });
 
+test("both baseline-run fragments end before a baseline dispatch line: plan-index.sh --dispatch prints it", () => {
+  for (const name of ["fast", "full"]) {
+    const fragment = read(`skills/implementor/fragments/baseline-run.${name}.md`);
+    assert.ok(!fragment.includes("baseline: <dir>/work/tests-baseline.md"));
+    assert.ok(!fragment.includes("Every coder and reviewer dispatch"));
+    assert.ok(fragment.trimEnd().endsWith("`accept` going on with no baseline."));
+  }
+});
+
 test("a coder return hands the EXTRA paths of the attempt to task-step.sh as --with, which commits them (a path an earlier attempt reverted must not sweep another task's change into this commit)", () => {
   assert.ok(STEP_4.includes("`--with \"<path>,...\"` for its `EXTRA:` paths"));
   assert.ok(STEP_4.includes("`--defer \"<id>:<path>,...\"` for its `DEFERRED:` lines"));

@@ -4,9 +4,10 @@
  *
  * `task-step.sh` writes the lessons file (`run-failures.sh --lessons "<dir>"` before the
  * session's first coder block and after every reviewer `VERDICT: FAIL`) that `plan-index.sh
- * --dispatch` prints as `run-lessons:` on every task coder's lines; `implementor` runs the call
- * itself for the final-review fix coder's dispatch (`final-review.true.md`) and the step 5 repair
- * coder's (`parts/close.md`), left out on `lessons: none`, and on no reviewer dispatch. `task-coder` reads those rules first and checks
+ * --dispatch` prints as `run-lessons:` on every task coder's lines; step 4 of `implementor` holds no
+ * lessons bookkeeping, and the close runs the call itself right before the final-review fix coder's
+ * dispatch (`final-review.true.md`) and the step 5 repair coder's (`parts/close.md`), left out on
+ * `lessons: none`, and on no final reviewer dispatch. `task-coder` reads those rules first and checks
  * every test it wrote or changed against them before PASS; the README and both languages of
  * `help.html` say later coders get them. The files read here are shipped prompts and guides,
  * whose text is the behaviour. Nothing is spawned.
@@ -34,7 +35,6 @@ const README = shipped("README.md");
 const HELP = shipped("skills/setup/assets/help.html");
 
 const STEP_4 = SKILL.slice(SKILL.indexOf("## 4. Run the plan"), SKILL.indexOf("## 5 to 7. Close and archive"));
-const LESSONS_BULLET = STEP_4.split(/\r?\n/).find((line) => line.startsWith("- `run-lessons:`")) ?? "";
 const FIX_ROUND = FINAL_REVIEW.slice(FINAL_REVIEW.indexOf("fix round 1"), FINAL_REVIEW.indexOf("- Fix coder `VERDICT: DENIED`"));
 const REVIEWERS_OF_FINAL_REVIEW =
   FINAL_REVIEW.slice(0, FINAL_REVIEW.indexOf("fix round 1")) + FINAL_REVIEW.slice(FINAL_REVIEW.indexOf("- Otherwise dispatch"));
@@ -42,37 +42,28 @@ const REPAIR_DISPATCH = CLOSE.slice(CLOSE.indexOf("Repair dispatch:"), CLOSE.ind
 const CODER_INPUT = CODER.slice(CODER.indexOf("\n## Input\n"), CODER.indexOf("\n## Implement\n"));
 const CODER_PROVE = CODER.slice(CODER.indexOf("\n## Prove it green\n"), CODER.indexOf("\n## Leave your notes\n"));
 
-const LINE = "run-lessons: <list of the last lessons: line>";
+const LESSONS_CALL = '"${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh" --lessons "<dir>"';
 const GUIDE_SENTENCE_EN = "Later coders of the run get the test rules that earlier reviews of the run raised.";
 const GUIDE_SENTENCE_PL = "Kolejni wykonawcy builda dostają reguły testów, które podniosły wcześniejsze recenzje tego builda.";
 
-test("implementor builds no run-lessons line of a task coder: task-step.sh writes the lessons file and plan-index.sh --dispatch prints the line", () => {
-  assert.ok(!STEP_4.includes("run-lessons: <Name> x<n>"));
-  assert.ok(LESSONS_BULLET.includes("`task-step.sh` writes the same list into every task coder's lines"));
+test("step 4 holds no run-lessons bookkeeping: a dispatch sends the lines its directive prints plus the add: lines it names", () => {
+  assert.ok(!STEP_4.includes("run-lessons"));
+  assert.ok(!STEP_4.includes("--lessons"));
+  assert.ok(STEP_4.includes("A dispatch sends the lines its directive prints plus the `add:` lines it names"));
 });
 
-test("implementor runs the lessons call for the final-review fix coder and the step 5 repair coder just before their dispatch", () => {
-  assert.ok(
-    LESSONS_BULLET.includes(
-      "for the final-review fix coder and the step 5 repair coder: `\"${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh\" --lessons \"<dir>\"` run just before that dispatch",
-    ),
-  );
+test("the final-review fix coder's dispatch carries the run-lessons line of a lessons call made right before it", () => {
+  assert.ok(FIX_ROUND.includes("run-lessons: "));
+  assert.ok(FIX_ROUND.includes(`Make \`${LESSONS_CALL}\` right before this dispatch`));
 });
 
-test("a lessons line reading none leaves the run-lessons line out of the dispatch", () => {
-  assert.ok(LESSONS_BULLET.includes("`lessons: none` omitting the line"));
+test("a lessons line reading none leaves the run-lessons line out of the fix coder's dispatch", () => {
+  assert.ok(FIX_ROUND.includes("`lessons: none` leaves the line out"));
 });
 
-test("a reviewer dispatch never carries run-lessons", () => {
-  assert.ok(LESSONS_BULLET.includes("a reviewer dispatch never carries it"));
-});
-
-test("the final-review fix coder's dispatch carries the run-lessons line", () => {
-  assert.ok(FIX_ROUND.includes(LINE));
-});
-
-test("the step 5 repair coder's dispatch carries the run-lessons line unless the lessons line reads none", () => {
-  assert.ok(REPAIR_DISPATCH.includes(`\`${LINE}\` unless that line reads \`lessons: none\``));
+test("the step 5 repair coder's dispatch carries the run-lessons list of a lessons call made right before it, omitted on none", () => {
+  assert.ok(REPAIR_DISPATCH.includes(`the \`run-lessons:\` list of a \`${LESSONS_CALL}\` call made right before this dispatch`));
+  assert.ok(REPAIR_DISPATCH.includes("omitted when it reads `lessons: none`"));
 });
 
 test("no final reviewer dispatch carries run-lessons", () => {

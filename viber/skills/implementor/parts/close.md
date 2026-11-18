@@ -10,7 +10,7 @@ Dispatch `viber:test-runner` with report path `<dir>/work/tests-<round>.md`, rou
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" build.baseline-tests "${CLAUDE_SKILL_DIR}" baseline-close
 ```
 
-Repair dispatch: `viber:task-coder` (model `sonnet` clamped into the tiers range) with `spec: <dir>/spec.md`, the last `REPORT` path as `report:`, `notes: <dir>/work/repair-<round>-coder.md`, `out: .temp/viber/repair-<round>/` and `refs: ${CLAUDE_PLUGIN_ROOT}/references`, plus `run-lessons: <list of the last lessons: line>` unless that line reads `lessons: none`.
+Repair dispatch: `viber:task-coder` (model `sonnet` clamped into the tiers range) with `spec: <dir>/spec.md`, the last `REPORT` path as `report:`, `notes: <dir>/work/repair-<round>-coder.md`, `out: .temp/viber/repair-<round>/` and `refs: ${CLAUDE_PLUGIN_ROOT}/references`, plus the `run-lessons:` list of a `"${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh" --lessons "<dir>"` call made right before this dispatch, the line omitted when it reads `lessons: none`.
 
 Repair commit, every path on the coder's `FILES:` line through the form that owns it:
 
