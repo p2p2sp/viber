@@ -434,6 +434,7 @@ test("stdout is the summary line, then the fill block with one entry line per fu
         result.stdout,
         [
           "summary: units 3 | hunts 3 | confirmed 2 | not investigated 0",
+          `last-line: /viber:intent ${ws}/findings.md`,
           `NEXT: fill | findings: ${ws}/findings.md`,
           `entry: 1 | reports: ${ws}/reports/U1-1.md | verdict: VERIFIED | observed: segfault seen`,
           `entry: 2 | reports: ${ws}/reports/U2-1.md | verdict: INCONCLUSIVE | observed: no oracle`,
@@ -567,6 +568,7 @@ test("a merge group becomes one finding with the first member's title, class and
       result.stdout,
       [
         "summary: units 0 | hunts 3 | confirmed 1 | not investigated 0",
+        `last-line: /viber:intent ${ws}/findings.md`,
         `NEXT: fill | findings: ${ws}/findings.md`,
         `entry: 1 | reports: ${ws}/reports/U1-1.md, ${ws}/reports/U2-1.md, ${ws}/reports/A-first-1.md | verdict: VERIFIED | observed: o2`,
         "",
@@ -648,5 +650,135 @@ test("a merge id naming no finding exits 2 with one error line, writes no findin
     assert.match(result.stderr, /^error: [^\n]+\n$/);
     assert.ok(!fs.existsSync(path.join(ws, "findings.md")));
     assert.deepEqual(ledgerLines(ws), before);
+  });
+});
+
+const ASK = "ASK: run the variant wave -> wave | end the run -> end";
+
+const waveRows: [string, Fixture, boolean][] = [
+  ["the diff scope with a confirmed finding", { scope: "diff", findings: [verified("A-first-1")] }, true],
+  [
+    "a repository scope with a unit not investigated",
+    { scope: "repo", units: ["U1", "U2"], findings: [verified("U1-1")] },
+    true,
+  ],
+  [
+    "a repository scope with every unit investigated",
+    { scope: "repo", units: ["U1"], findings: [verified("U1-1")] },
+    false,
+  ],
+  ["the diff scope with no confirmed finding", { scope: "diff", findings: [{ id: "A-first-1", verdict: "INCONCLUSIVE" }] }, false],
+];
+for (const [name, fx, asked] of waveRows) {
+  test(`${name}: the variant wave ${asked ? "is offered, seeded and recorded" : "is not offered"}`, async () => {
+    await inRun(fx, async (shell, ws) => {
+      const result = await synthesize(shell, ws);
+      assert.equal(result.status, 0, result.stderr);
+      assert.deepEqual(
+        [result.stdout.includes(ASK), ledgerLines(ws).includes("wave-offered"), fs.existsSync(path.join(ws, "seeds.md"))],
+        [asked, asked, asked],
+      );
+    });
+  });
+}
+
+test("the wave question closes the fill block and the seeds file holds one line per distinct confirmed class", async () => {
+  await inRun(
+    {
+      scope: "diff",
+      findings: [
+        verified("A-first-1", { cls: "bugs: unchecked cast", observed: "boom" }),
+        verified("A-first-2", { cls: "bugs: unchecked cast" }),
+        verified("A-second-1", { cls: "perf: n+1 query" }),
+        { id: "U1-1", verdict: "INCONCLUSIVE", cls: "style: naming" },
+      ],
+    },
+    async (shell, ws) => {
+      const result = await synthesize(shell, ws);
+      assert.equal(result.status, 0, result.stderr);
+      assert.ok(result.stdout.endsWith(`observed: it failed\n${ASK}\n`), `stdout: ${result.stdout}`);
+      assert.equal(fs.readFileSync(path.join(ws, "seeds.md"), "utf8"), "Seed: bugs: unchecked cast\nSeed: perf: n+1 query\n");
+    },
+  );
+});
+
+test("a wave already offered is never offered again", async () => {
+  await inRun({ scope: "diff", findings: [verified("A-first-1")] }, async (shell, ws) => {
+    await synthesize(shell, ws);
+    const result = await synthesize(shell, ws);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(
+      [result.stdout.includes("ASK:"), ledgerLines(ws).filter((l) => l === "wave-offered").length],
+      [false, 1],
+    );
+  });
+});
+
+/** Runs the script, fills the one entry by hand, files a later wave's finding and runs the script again. */
+async function rebuiltAfterWave(check: (ws: string, result: RunResult, text: string) => void) {
+  await inRun({ findings: [{ id: "U1-1", verdict: "INCONCLUSIVE", sev: "5.0", conf: "high" }] }, async (shell, ws) => {
+    await synthesize(shell, ws);
+    const file = path.join(ws, "findings.md");
+    const filled = fs
+      .readFileSync(file, "utf8")
+      .replace("<!-- oracle -->", "needs a database oracle")
+      .replace("<!-- fill -->", "The cause is a stale cache.\n\nFix: drop the cache.");
+    fs.writeFileSync(file, filled);
+    addFinding(ws, verified("V-1-1", { sev: "9.0" }));
+    const result = await synthesize(shell, ws);
+    assert.equal(result.status, 0, result.stderr);
+    check(ws, result, fs.readFileSync(file, "utf8"));
+  });
+}
+
+test("a rebuild after the wave ranks both waves and keeps the paragraphs and the filled status of an entry already filled", async () => {
+  await rebuiltAfterWave((_ws, _r, text) => {
+    assert.ok(
+      text.includes(
+        [
+          "## 2. Title U1-1",
+          "SEVERITY: 5.0",
+          "CONFIDENCE: medium",
+          "VERDICT: INCONCLUSIVE",
+          "STATUS: INCONCLUSIVE - needs a database oracle",
+          "LOCATION: src/U1-1.ts:L10-L20",
+          "CLASS: bugs: class U1-1",
+          "<!-- finding: U1-1 -->",
+          "The cause is a stale cache.",
+          "",
+          "Fix: drop the cache.",
+          "",
+          "## Further findings (0)",
+        ].join("\n"),
+      ),
+      text,
+    );
+    assert.deepEqual(markers(text), ["V-1-1", "U1-1"]);
+  });
+});
+
+test("a rebuild after the wave prints an entry line for the new entry alone, not for the filled one", async () => {
+  await rebuiltAfterWave((ws, result, text) => {
+    assert.deepEqual(entry(text, 1).slice(-3), [
+      "<!-- finding: V-1-1 -->",
+      "Severity adopted from the critic: 9.0 (filed 9.0)",
+      "<!-- fill -->",
+    ]);
+    assert.equal(
+      result.stdout,
+      [
+        "summary: units 0 | hunts 2 | confirmed 1 | not investigated 0",
+        `last-line: /viber:intent ${ws}/findings.md`,
+        `NEXT: fill | findings: ${ws}/findings.md`,
+        `entry: 1 | reports: ${ws}/reports/V-1-1.md | verdict: VERIFIED | observed: it failed`,
+        "",
+      ].join("\n"),
+    );
+  });
+});
+
+test("with no confirmed finding stdout carries no closing line", async () => {
+  await scenario({ findings: [{ id: "U1-1", verdict: "INCONCLUSIVE" }] }, (_ws, result) => {
+    assert.ok(!result.stdout.includes("last-line:"), `stdout: ${result.stdout}`);
   });
 });

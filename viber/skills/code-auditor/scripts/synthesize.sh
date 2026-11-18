@@ -42,12 +42,18 @@
 #            ## Units section), <ws>/ledger.md (the hunt:, merge: and apart:
 #            lines), the first five lines of each <ws>/reports/<hunt id>-<k>.md,
 #            each <ws>/verdicts/<hunt id>-<k>.md and the ## Hunts angle headings of
-#            the lens file. A report of another hunt never counts: hunt A-x owns
-#            A-x-<digit>.md only, never A-x-y-1.md. Writes <ws>/findings.md whole;
-#            a call with --merge also appends to <ws>/ledger.md one merge: line
-#            per group, then one apart: line per pair it printed that no group
-#            joins (--merge none: every printed pair). Nothing else is written, and
-#            nothing at all while a pair is undecided and no --merge came.
+#            the lens file, and the wave-offered line of the ledger. A report of
+#            another hunt never counts: hunt A-x owns A-x-<digit>.md only, never
+#            A-x-y-1.md. Writes <ws>/findings.md whole; an entry whose
+#            <!-- finding: <id> --> marker already holds paragraphs there keeps
+#            them and its STATUS: line, whatever its new number. A call with --merge
+#            also appends to <ws>/ledger.md one merge: line per group, then one
+#            apart: line per pair it printed that no group joins (--merge none:
+#            every printed pair). When it offers the variant wave it writes
+#            <ws>/seeds.md (one Seed: line per distinct CLASS of a confirmed
+#            finding, in rank order) and appends wave-offered to the ledger. Nothing
+#            else is written, and nothing at all while a pair is undecided and no
+#            --merge came.
 #   stdout : with an undecided pair and no --merge, only:
 #              NEXT: merge
 #              merge?: <id> <id>
@@ -56,11 +62,15 @@
 #            one merge?: line and its two finding: lines per pair. Otherwise
 #            report lines, then one directive block:
 #              summary: units <U> | hunts <H> | confirmed <K> | not investigated <J>
+#              last-line: /viber:intent <ws>/findings.md
 #              NEXT: fill | findings: <ws>/findings.md
 #              entry: <n> | reports: <path>[, <path>] | verdict: <VERDICT> | observed: <OBSERVED or none>
-#            one entry: line per full entry, <n> its heading number, the reports
-#            of every member of a merged entry listed. With no full
-#            entry the block is the single line NEXT: none.
+#              ASK: run the variant wave -> wave | end the run -> end
+#            last-line: only with K of 1 or more. One entry: line per full entry not
+#            filled yet, <n> its heading number, the reports of every member of a
+#            merged entry listed. With none the block is the single line NEXT: none.
+#            ASK: only with K of 1 or more, no wave-offered line in the ledger, and
+#            the diff scope or J of 1 or more; it follows the fill block.
 #            U counts the map units, H the distinct hunts of the ledger, K the
 #            findings left after folding whose verdict is VERIFIED or PARTIALLY
 #            VERIFIED, J the mapped units no hunt left a report for (0 on the diff
@@ -204,6 +214,58 @@ samegroup(a, b) {
   return grp[sid[a]] == grp[sid[b]]
 }
 function \
+keepflush(    a, b, i) {
+  if (curid != "" && !hasfill) {
+    a = 1
+    b = bn
+    while (a <= b && bl[a] == "") a++
+    while (b >= a && bl[b] == "") b--
+    if (a <= b) {
+      keepn[curid] = b - a + 1
+      for (i = a; i <= b; i++) keepl[curid, i - a + 1] = bl[i]
+      keepstat[curid] = stat
+    }
+  }
+  curid = ""
+  bn = 0
+  hasfill = 0
+}
+function \
+readkept(file,    line) {
+  inent = 0
+  stat = ""
+  curid = ""
+  bn = 0
+  hasfill = 0
+  while ( (getline line < file) > 0) {
+    sub(/\r$/, "", line)
+    if (line ~ /^## /) {
+      keepflush()
+      inent = (line ~ /^## [0-9]+\. /)
+      stat = ""
+      continue
+    }
+    if (!inent) continue
+    if (curid == "") {
+      if (line ~ /^STATUS: /) stat = line
+      else if (line ~ /^<!-- finding: .* -->$/) {
+        curid = substr(line, 15, length(line) - 18)
+        skipsev = 1
+      }
+      continue
+    }
+    if (skipsev && line ~ /^Severity adopted from the critic:/) {
+      skipsev = 0
+      continue
+    }
+    if (line != "") skipsev = 0
+    if (line == "<!-- fill -->") hasfill = 1
+    bl[++bn] = line
+  }
+  close(file)
+  keepflush()
+}
+function \
 addgroup(n, ids,    i, j, lab, old) {
   lab = ++nlab
   for (i = 1; i <= n; i++) if (ids[i] in grp) old[grp[ids[i]]] = 1
@@ -274,6 +336,10 @@ BEGIN {
     apart[aq[1] " " aq[2]] = 1
     apart[aq[2] " " aq[1]] = 1
   }
+}
+
+/^wave-offered[ \t]*$/ {
+  waveoffered = 1
 }
 
 END {
@@ -502,6 +568,7 @@ END {
   }
 
   out = ws "/findings.md"
+  readkept(out)
   print "# Findings - " runid " (" lens ", " scope ")" > out
   print lens " " dot " " scope " " dot " " nu " units mapped " dot " " nh " hunts " dot " " confirmed " confirmed findings " dot " " jn " units not investigated." > out
   print "" > out
@@ -511,12 +578,21 @@ END {
     print "SEVERITY: " fmt(seff[i]) > out
     print "CONFIDENCE: " cname(sconf[i]) > out
     print "VERDICT: " vname[sv[i]] > out
-    if (sv[i] == 2) print "STATUS: INCONCLUSIVE - " sstat[i] > out
+    kept = (sid[i] in keepn)
+    if (sv[i] == 2) {
+      if (kept && keepstat[sid[i]] != "") print keepstat[sid[i]] > out
+      else print "STATUS: INCONCLUSIVE - " sstat[i] > out
+    }
     print "LOCATION: " sloc[i] > out
     print "CLASS: " sclass[i] > out
     print "<!-- finding: " sid[i] " -->" > out
     if (sv[i] < 2) print "Severity adopted from the critic: " fmt(seff[i]) " (filed " fmt(sfiled[i]) ")" > out
-    print "<!-- fill -->" > out
+    if (kept) {
+      for (y = 1; y <= keepn[sid[i]]; y++) print keepl[sid[i], y] > out
+    } else {
+      print "<!-- fill -->" > out
+      tofill[++ntofill] = e
+    }
     print "" > out
   }
   print "## Further findings (" nfurther ")" > out
@@ -532,14 +608,33 @@ END {
   close(out)
 
   print "summary: units " nu " | hunts " nh " | confirmed " confirmed " | not investigated " jn
-  if (nfull == 0) {
+  if (confirmed >= 1) print "last-line: /viber:intent " out
+  if (ntofill == 0) {
     print "NEXT: none"
   } else {
     print "NEXT: fill | findings: " out
-    for (e = 1; e <= nfull; e++) {
+    for (t = 1; t <= ntofill; t++) {
+      e = tofill[t]
       i = full[e]
       print "entry: " e " | reports: " sreps[i] " | verdict: " vname[sv[i]] " | observed: " (sobs[i] == "" ? "none" : sobs[i])
     }
+  }
+
+  if (confirmed >= 1 && !waveoffered && (diff || jn > 0)) {
+    seeds = ws "/seeds.md"
+    printf "" > seeds
+    for (r = 1; r <= ns; r++) {
+      i = ord[r]
+      if (i in dead) continue
+      if (sv[i] >= 2 || sclass[i] == "" || (sclass[i] in seeded)) continue
+      seeded[sclass[i]] = 1
+      print "Seed: " sclass[i] > seeds
+    }
+    close(seeds)
+    ledger = ws "/ledger.md"
+    print "wave-offered" >> ledger
+    close(ledger)
+    print "ASK: run the variant wave -> wave | end the run -> end"
   }
 }
 ' "$ws/ledger.md"

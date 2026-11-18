@@ -1,0 +1,6 @@
+- A filled entry is found by its `<!-- finding: <id> -->` marker: the lines after it (minus the `Severity adopted` line) up to the next `## ` heading, kept only when no `<!-- fill -->` remains; its `STATUS:` line is the one before the marker. Entry numbers are regenerated, so a kept entry may move.
+- When every full entry is already filled the block is `NEXT: none` (no `NEXT: fill` without an `entry:` line); C6 does not name this case.
+- `ASK:` follows the fill block (or `NEXT: none`); it carries no body lines. Seeds come from the surviving confirmed findings after merging (a merged group seeds its lead's CLASS only), in rank order.
+- Wave offer: K >= 1, no `wave-offered` ledger line, and the diff scope or J >= 1. The script appends `wave-offered` itself when it prints the ASK.
+- `keep-units.sh` and its test show as modified in the tree: not mine, left alone.
+- Red evidence: red.log was taken before any production edit (8 failing).
