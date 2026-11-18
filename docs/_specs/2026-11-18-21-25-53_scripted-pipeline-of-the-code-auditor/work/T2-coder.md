@@ -1,0 +1,5 @@
+- Group tokens (`performance`, `quality`) count with lens tokens toward "one lens": a group beside a lens, or two groups, print the argument stop line.
+- With no lens, a scope token is carried as given (`scope: <token>`) and never validated: the directory checks run only once a lens is settled, as the old Frame order did.
+- A relative directory is read against `<root>`, not the cwd; an absolute one outside `<root>` textually is also tried through `pwd -P` so a symlinked temp dir on macOS still counts as under the root.
+- A directory resolving to the root itself is recorded as `Scope: .`.
+- `frame.sh` runs `diff-files.sh` through `sh` from its own `scripts/` directory; the skill dir in the `RUN:` line is the parent of that directory, taken from `$0`.
