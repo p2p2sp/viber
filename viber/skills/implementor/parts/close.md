@@ -12,10 +12,7 @@ Dispatch `viber:test-runner` with report path `<dir>/work/tests-<round>.md`, rou
 
 Repair dispatch: `viber:task-coder` (model `sonnet` clamped into the tiers range) with `spec: <dir>/spec.md`, the last `REPORT` path as `report:`, `notes: <dir>/work/repair-<round>-coder.md`, `out: .temp/viber/repair-<round>/` and `refs: ${CLAUDE_PLUGIN_ROOT}/references`, plus the `run-lessons:` list of a `"${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh" --lessons "<dir>"` call made right before this dispatch, the line omitted when it reads `lessons: none`.
 
-Repair commit, every path on the coder's `FILES:` line through the form that owns it:
-
-- A path the index's `files` column claims -> `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" "<plan>" "<id>" "<round>" "<file>" ["<file>"...]`, one call per task.
-- A path no column claims -> one `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --repair "<plan>" "<round>" "<file>" ["<file>"...]` for all of them. Never borrow a task id for such a file.
+Repair commit: one `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --repair "<plan>" "<round>" "<file>" ["<file>"...]` call per round, naming every path on the coder's `FILES:` line. It commits each path with the task that owns it, or in a repair commit of its own.
 
 Returns:
 
@@ -24,7 +21,7 @@ Returns:
 - Test-runner `VERDICT: FAIL`, round 6 -> the arbiter with `case: tests`, `options: accept`, `report:` that run's `REPORT` path. Record its ruling with subject `tests`, then go to step 6, that failing run named in the final summary.
 - Test-runner `VERDICT: DENIED` -> `AskUserQuestion`: retry / accept / abort.
 - Repair coder `PASS` or `FAIL` -> repair commit, then test-runner at the next round.
-- Repair coder with no `FILES:` line, or every repair commit call of the round exiting 4 (no changes) -> the tree is the one that failed: no next round, the arbiter as on round 6, `report:` the last `REPORT` path.
+- Repair coder with no `FILES:` line, or the round's `--repair` call exiting 4 (no changes) -> the tree is the one that failed: no next round, the arbiter as on round 6, `report:` the last `REPORT` path.
 - Repair coder `VERDICT: DENIED` -> commit nothing; `AskUserQuestion`: retry / accept / abort.
 
 ## 6. Record what the build taught

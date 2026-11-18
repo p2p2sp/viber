@@ -84,11 +84,18 @@
 # post-test fix), subject "T1(2) - <title>", staging only the files the caller
 # names and leaving the plan's progress counter alone.
 #
-# --repair commits a post-test fix that lands OUTSIDE the plan's file map - a
-# regression in a file no task's "Files:" line names, so there is no task id to
-# attribute it to. It takes the plan for its Refs footer only, leaves progress
-# alone, and its subject is DERIVED ("fix(viber): post-test repair (round 2)"),
-# so no caller borrows another task's heading to get the fix committed.
+# --repair commits one post-test repair round in one call and routes every named
+# file itself: a file some task's "Files:" line lists goes to the fix-number
+# commit of the highest-numbered such task (a skipped one included), subject
+# "T1(2) - <title>", one commit per task in task order; every other file - a
+# regression no task's map names, so no task id to attribute it to - goes to one
+# commit last, its subject DERIVED ("fix(viber): post-test repair (round 2)"), so
+# no caller borrows another task's heading. A group with no change is skipped; the
+# call exits 4 only when no group had one. The round's trail rides in the first
+# commit of the call. A commit failing mid-call exits 5 with the groups before it
+# committed and printed, then one "uncommitted: <path>" line per named path of the
+# failed group and of every group after it; the same call run again commits what
+# is left. It leaves progress alone.
 #
 # --chore commits the knowledge files a build's close produced - the project
 # memory and rule files. It takes no task id, because no task owns those files,
@@ -223,7 +230,8 @@
 #   task (--unreviewed / --with / --defer): "committed: <sha>", "progress: x/N"
 #   --landed:                    "committed: <sha>", "subject: <line>", "progress: x/N"
 #   <fix-number>:                "committed: <sha>", "progress: unchanged"
-#   --repair:                    "committed: <sha>", "subject: <line>", "progress: unchanged"
+#   --repair:                    "committed: <sha>", "subject: <line>" per commit, then
+#                                "progress: unchanged"; on exit 5 "uncommitted: <path>" lines instead
 #   --chore, --qa, --e2e:        "committed: <sha>", "subject: <line>"
 #   --review, --outside, --extension: "committed: <sha>", "subject: <line>"
 #   --skip:                      "skipped: <id>", "progress: unchanged" (no commit)
@@ -859,6 +867,34 @@ intask && /^###[[:space:]]/ {
 ' "$1"
 }
 
+# The ids of every task the plan defines in task order - ascending by the number
+# in the id, the plan order breaking a tie - one per line.
+tasks_in_order() {
+  local id n i=0
+  {
+    while IFS= read -r id; do
+      [[ -n "$id" ]] || continue
+      n="${id//[^0-9]/}"
+      i=$(( i + 1 ))
+      printf '%s %s %s\n' "$(( 10#${n:-0} ))" "$i" "$id"
+    done < <(task_ids_of "$1")
+  } | sort -n -k1,1 -k2,2 | sed 's/^[0-9]* [0-9]* //'
+}
+
+# The heading of one task without its "###", e.g. "T1 - <title>": task_heading <plan> <id>
+task_heading() {
+  TASK_WANT="$2" awk '
+function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+BEGIN { want = ENVIRON["TASK_WANT"] }
+/^[[:space:]]*<!--[[:space:]]*TASK[[:space:]]*-->[[:space:]]*$/   { intask = 1; next }
+/^[[:space:]]*<!--[[:space:]]*\/TASK[[:space:]]*-->[[:space:]]*$/ { intask = 0; next }
+intask && /^###[[:space:]]/ {
+  h = trim(substr($0, 4)); p = index(h, " - ")
+  if ((p ? trim(substr(h, 1, p - 1)) : h) == want) { print h; exit }
+}
+' "$1"
+}
+
 # The ids on one of status.md's id-list lines, one per line - nothing when the
 # run has no status file yet or the list is empty.
 status_ids() {
@@ -1117,13 +1153,156 @@ if [[ "${1:-}" == "--drop" ]]; then
   exit 0
 fi
 
-# --- the forms no task owns: a post-test fix outside the plan's file map, and
-# --- the knowledge, QA and test files a run produced beside its task map ---
-if [[ "${1:-}" == "--repair" || "${1:-}" == "--chore" || "${1:-}" == "--qa" || "${1:-}" == "--e2e" || "${1:-}" == "--review" || "${1:-}" == "--outside" || "${1:-}" == "--extension" ]]; then
+# --- a post-test repair round: every named file in the commit of its owner ---
+# A file some task Files line lists goes to the fix-number commit of the
+# highest-numbered such task (a skipped one included), one commit per task in task
+# order; every other file goes to one commit of its own, last. A group with no
+# change is skipped, so the same call run again commits only what is left.
+if [[ "${1:-}" == "--repair" ]]; then
+  shift
+  plan="$(plan_arg "${1:-}")"
+  [[ -n "$plan" ]] || usage
+  if [[ ! -f "$plan" ]]; then
+    echo "error: plan file not found: $plan" >&2
+    exit 2
+  fi
+  shift
+  round="${1:-}"
+  [[ "$round" =~ ^[0-9]+$ ]] || usage
+  shift
+  [[ $# -gt 0 ]] || usage
+
+  order=()
+  while IFS= read -r id; do
+    [[ -n "$id" ]] && order+=("$id")
+  done < <(tasks_in_order "$plan")
+
+  owned_ids=()
+  owned_files=()
+  other_files=""
+  for f in "$@"; do
+    f="$(named_path "$f")"
+    [[ -n "$f" ]] || continue
+    case "$f" in
+      .temp|.temp/*)
+        echo "warning: refused $f - .temp is machine state, never committed" >&2
+        continue
+        ;;
+    esac
+    owner=""
+    claimed_by="$(claimants "$plan" "$f")"
+    for id in ${order[@]+"${order[@]}"}; do
+      if printf '%s\n' "$claimed_by" | grep -Fxq -- "$id"; then owner="$id"; fi
+    done
+    if [[ -z "$owner" ]]; then
+      printf '%s' "$other_files" | grep -Fxq -- "$f" || other_files="$other_files$f"$'\n'
+      continue
+    fi
+    k=0
+    slot=-1
+    while [[ $k -lt ${#owned_ids[@]} ]]; do
+      if [[ "${owned_ids[$k]}" == "$owner" ]]; then slot=$k; fi
+      k=$(( k + 1 ))
+    done
+    if [[ $slot -lt 0 ]]; then
+      owned_ids+=("$owner")
+      owned_files+=("$f"$'\n')
+    elif ! printf '%s' "${owned_files[$slot]}" | grep -Fxq -- "$f"; then
+      owned_files[$slot]="${owned_files[$slot]}$f"$'\n'
+    fi
+  done
+
+  run_ids=()
+  run_files=()
+  for id in ${order[@]+"${order[@]}"}; do
+    k=0
+    while [[ $k -lt ${#owned_ids[@]} ]]; do
+      if [[ "${owned_ids[$k]}" == "$id" ]]; then
+        run_ids+=("$id")
+        run_files+=("${owned_files[$k]}")
+      fi
+      k=$(( k + 1 ))
+    done
+  done
+  if [[ -n "$other_files" ]]; then
+    run_ids+=("")
+    run_files+=("$other_files")
+  fi
+
+  # a failed group leaves its own files and every later group's uncommitted
+  repair_fail() {
+    local from="$1" k line
+    k=$from
+    while [[ $k -lt ${#run_ids[@]} ]]; do
+      while IFS= read -r line; do
+        [[ -n "$line" ]] && echo "uncommitted: $line"
+      done <<< "${run_files[$k]}"
+      k=$(( k + 1 ))
+    done
+    exit 5
+  }
+
+  committed_any=0
+  trail_done=0
+  g=0
+  while [[ $g -lt ${#run_ids[@]} ]]; do
+    id="${run_ids[$g]}"
+    named=()
+    while IFS= read -r f; do
+      [[ -n "$f" ]] && named+=("$f")
+    done <<< "${run_files[$g]}"
+    paths=()
+    staged="$(stage_named ${named[@]+"${named[@]}"})" || repair_fail "$g"
+    while IFS= read -r f; do
+      [[ -n "$f" ]] && paths+=("$f")
+    done <<< "$staged"
+    g=$(( g + 1 ))
+    if [[ ${#paths[@]} -eq 0 ]] || git_paths diff --cached --quiet -- "${paths[@]}"; then
+      continue
+    fi
+
+    if [[ -n "$id" ]]; then
+      heading="$(task_heading "$plan" "$id")"
+      subject="$id($round) - ${heading#* - }"
+      refs="Refs: $plan task $id fix $round"
+    else
+      subject="fix(viber): post-test repair (round $round)"
+      refs="Refs: $plan post-test fix $round"
+    fi
+    # the round's test report and the notes of the coder that repaired it ride in
+    # the first commit of the call
+    if [[ $trail_done -eq 0 ]]; then
+      while IFS= read -r t; do
+        [[ -n "$t" ]] || continue
+        stage_path "$t" && paths+=("$t")
+      done < <(trail_paths "$(run_dir "$plan")" "tests-$round.md" "repair-$round-coder.md")
+    fi
+    while IFS= read -r t; do
+      [[ -n "$t" ]] && paths+=("$t")
+    done < <(stage_rulings "$plan")
+
+    commit_named -m "$subject" -m "$(footer "$plan" "$refs")" -- "${paths[@]}" >&2 || repair_fail $(( g - 1 ))
+    trail_done=1
+    committed_any=1
+    echo "committed: $(git rev-parse --short HEAD)"
+    echo "subject: $subject"
+  done
+
+  if [[ $committed_any -eq 0 ]]; then
+    echo "error: the named files produced no changes to commit" >&2
+    exit 4
+  fi
+  echo "progress: unchanged"
+  warn_unclaimed "$plan"
+  exit 0
+fi
+
+# --- the forms no task owns: the knowledge, QA and test files a run produced
+# --- beside its task map ---
+if [[ "${1:-}" == "--chore" || "${1:-}" == "--qa" || "${1:-}" == "--e2e" || "${1:-}" == "--review" || "${1:-}" == "--outside" || "${1:-}" == "--extension" ]]; then
   form="$1"
   shift
 
-  round=""
   ext=""
   plan=""
   if [[ "$form" != "--e2e" ]]; then
@@ -1134,11 +1313,6 @@ if [[ "${1:-}" == "--repair" || "${1:-}" == "--chore" || "${1:-}" == "--qa" || "
       exit 2
     fi
     shift
-    if [[ "$form" == "--repair" ]]; then
-      round="${1:-}"
-      [[ "$round" =~ ^[0-9]+$ ]] || usage
-      shift
-    fi
     if [[ "$form" == "--extension" ]]; then
       ext="${1:-}"
       if [[ ! "$ext" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]]; then
@@ -1173,15 +1347,9 @@ if [[ "${1:-}" == "--repair" || "${1:-}" == "--chore" || "${1:-}" == "--qa" || "
     exit 4
   fi
 
-  # a post-test round leaves its own trail: the run's test report and the notes
-  # of the coder that repaired it; the final review leaves every reviewer's
-  # and recheck's report plus the notes of every fix round's coder
-  if [[ "$form" == "--repair" ]]; then
-    while IFS= read -r t; do
-      [[ -n "$t" ]] || continue
-      stage_path "$t" && paths+=("$t")
-    done < <(trail_paths "$(run_dir "$plan")" "tests-$round.md" "repair-$round-coder.md")
-  elif [[ "$form" == "--review" ]]; then
+  # the final review leaves every reviewer's and recheck's report plus the notes
+  # of every fix round's coder
+  if [[ "$form" == "--review" ]]; then
     while IFS= read -r t; do
       [[ -n "$t" ]] || continue
       stage_path "$t" && paths+=("$t")
@@ -1197,9 +1365,6 @@ if [[ "${1:-}" == "--repair" || "${1:-}" == "--chore" || "${1:-}" == "--qa" || "
   # close records in the plan which half of it is now done
   closed=""
   case "$form" in
-    --repair)
-      subject="fix(viber): post-test repair (round $round)"
-      ;;
     --chore)
       mem=0
       rul=0
@@ -1253,7 +1418,6 @@ if [[ "${1:-}" == "--repair" || "${1:-}" == "--chore" || "${1:-}" == "--qa" || "
   fi
 
   case "$form" in
-    --repair)     commit_named -m "$subject" -m "$(footer "$plan" "Refs: $plan post-test fix $round")" -- "${paths[@]}" >&2 || exit 5 ;;
     --chore|--qa|--extension) commit_named -m "$subject" -m "$(footer "$plan" "Refs: $plan close")" -- "${paths[@]}" >&2 || exit 5 ;;
     --e2e)        commit_named -m "$subject" -- "${paths[@]}" >&2 || exit 5 ;;
     --review)     commit_named -m "$subject" -m "$(footer "$plan" "Refs: $plan final review")" -- "${paths[@]}" >&2 || exit 5 ;;
@@ -1267,10 +1431,6 @@ if [[ "${1:-}" == "--repair" || "${1:-}" == "--chore" || "${1:-}" == "--qa" || "
 
   echo "committed: $(git rev-parse --short HEAD)"
   echo "subject: $subject"
-  if [[ "$form" == "--repair" ]]; then
-    echo "progress: unchanged"
-    warn_unclaimed "$plan"
-  fi
   exit 0
 fi
 

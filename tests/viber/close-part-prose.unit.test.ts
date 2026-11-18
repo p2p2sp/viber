@@ -180,9 +180,17 @@ function stepFiveBullet(opening: string): string {
 
 test("a repair round that changed nothing goes to the tests arbiter at once, never to another test run (an empty repair commit looped on the same failure up to round 6)", () => {
   const bullet = stepFiveBullet("Repair coder with no `FILES:` line");
-  assert.ok(bullet.includes("every repair commit call of the round exiting 4"));
+  assert.ok(bullet.includes("the round's `--repair` call exiting 4 (no changes)"));
   assert.ok(bullet.includes("the arbiter as on round 6"));
   assert.ok(bullet.includes("`report:` the last `REPORT` path"));
+});
+
+test("step 5 commits a repair round with one --repair call naming every FILES path, routing nothing by hand", () => {
+  const step = section(PART, "5.");
+  const commit = lines(step).find((line) => line.startsWith("Repair commit:")) ?? "";
+  assert.ok(commit.includes('"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --repair "<plan>" "<round>" "<file>" ["<file>"...]` call per round, naming every path on the coder\'s `FILES:` line'));
+  assert.ok(!step.includes('commit-task.sh" "<plan>" "<id>"'));
+  assert.ok(!step.includes("Never borrow a task id"));
 });
 
 test("a repair coder with no FILES line no longer leads to a test run at the next round", () => {

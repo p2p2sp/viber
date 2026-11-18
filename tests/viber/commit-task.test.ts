@@ -27,12 +27,14 @@
  * heading, the plan untouched, and nothing the caller did not name - `.temp/`
  * reports above all - reaching the history.
  *
- * `commit-task.sh --repair <plan-file> <round> <file>...` is that same repair when
- * the failing file belongs to no task at all: a DERIVED subject
- * (`fix(viber): post-test repair (round 2)`) instead of a borrowed heading, so a
- * regression in code the plan never touched is committable without inventing a
- * task id. It shares its staging loop with `--chore`, `--qa` and `--e2e`, whose
- * cases below prove the `.temp/` refusal for all of them.
+ * `commit-task.sh --repair <plan-file> <round> <file>...` is a whole repair round in
+ * one call: each file a task lists lands in that task's fix commit (the
+ * highest-numbered task when several list it), every other file in a DERIVED
+ * commit (`fix(viber): post-test repair (round 2)`) instead of a borrowed heading,
+ * so a regression in code the plan never touched is committable without inventing
+ * a task id. A group with no change is skipped, and a commit failing mid-call lists
+ * the paths still uncommitted. The cases below prove the `.temp/` refusal for it and
+ * for `--chore`, `--qa` and `--e2e`.
  *
  * `--chore`, `--qa` and `--e2e` are the three forms for what a run produces beside
  * its task map - the knowledge files a close wrote, that close's QA documents, and
@@ -1288,6 +1290,144 @@ test("--repair without a numeric round, without a file, or against a missing pla
     assert.match(noPlan.stderr, /plan file not found/);
 
     assert.deepEqual(await subjects(repo), ["seed"]);
+  });
+});
+
+/** A `git` function that makes the `failing`-th "git commit" of the call fail, the
+ *  way a rejected signature does, while every other git call runs as it is. */
+function failingCommitEnv(repo: GitRepo, failing: number): Record<string, string> {
+  const gitDir = path.join(repo.dir, ".git").replace(/\\/g, "/");
+  const file = path.join(repo.dir, ".git", "commit-fail-shim.sh");
+  fs.writeFileSync(path.join(repo.dir, ".git", "commit-calls.txt"), "");
+  fs.writeFileSync(
+    file,
+    [
+      "git() {",
+      '  if [ "$1" = commit ]; then',
+      `    echo x >> "${gitDir}/commit-calls.txt"`,
+      `    if [ "$(wc -l < "${gitDir}/commit-calls.txt")" -eq ${failing} ]; then`,
+      "      return 1",
+      "    fi",
+      "  fi",
+      '  command git "$@"',
+      "}",
+      "",
+    ].join("\n"),
+  );
+  return { ...repo.env, BASH_ENV: file.replace(/\\/g, "/") };
+}
+
+const REPAIR_TASKS: Array<[string, string, string?]> = [
+  ["T1", "src/a.ts", "first"],
+  ["T2", "src/b.ts", "second"],
+  ["T3", "src/b.ts, src/c.ts", "third"],
+];
+
+async function filesOf(repo: GitRepo, rev: string): Promise<string[]> {
+  return (await repo.git("show", "--name-only", "--format=", rev)).stdout
+    .trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .sort();
+}
+
+test("--repair lands a file a task lists in that task's fix commit, the highest-numbered task when several list it (a skipped one included), and every other file in the post-test commit, one commit per task in task order, the round's trail in the first commit", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, REPAIR_TASKS);
+    await run(repo.dir, repo.env, ["--skip", PLAN_REL, "T3"]);
+    write(repo.dir, "src/legacy.ts", "outside every map\n");
+    write(repo.dir, "src/b.ts", "listed by T2 and T3\n");
+    write(repo.dir, "src/a.ts", "listed by T1\n");
+    write(repo.dir, `${RUN_DIR}/work/tests-2.md`, "the failing run\n");
+    write(repo.dir, `${RUN_DIR}/work/repair-2-coder.md`, "what the repair changed\n");
+
+    const result = await run(repo.dir, repo.env, ["--repair", PLAN_REL, "2", "src/legacy.ts", "src/b.ts", "src/a.ts"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(result.stdout.match(/^subject: .*$/gm), [
+      "subject: T1(2) - first",
+      "subject: T3(2) - third",
+      "subject: fix(viber): post-test repair (round 2)",
+    ]);
+    assert.equal(result.stdout.match(/^committed: [0-9a-f]{7,}$/gm)?.length, 3);
+    assert.match(result.stdout, /^progress: unchanged$/m);
+
+    assert.deepEqual((await subjects(repo)).slice(0, 3), [
+      "fix(viber): post-test repair (round 2)",
+      "T3(2) - third",
+      "T1(2) - first",
+    ]);
+    assert.deepEqual(await filesOf(repo, "HEAD~2"), [`${RUN_DIR}/work/repair-2-coder.md`, `${RUN_DIR}/work/tests-2.md`, "src/a.ts"].sort());
+    assert.deepEqual(await filesOf(repo, "HEAD~1"), ["src/b.ts"]);
+    assert.deepEqual(await filesOf(repo, "HEAD"), ["src/legacy.ts"]);
+    assert.match((await repo.git("log", "-1", "--format=%b", "HEAD~1")).stdout, /Refs: docs\/_specs\/\S+ task T3 fix 2/);
+    assert.match((await repo.git("log", "-1", "--format=%b", "HEAD")).stdout, /Refs: docs\/_specs\/\S+ post-test fix 2/);
+  });
+});
+
+test("--repair skips a group with no change and exits 4 only when every group had none (the trail then rides in the first group that did change)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, REPAIR_TASKS);
+    write(repo.dir, "src/a.ts", "listed by T1\n");
+    await repo.git("add", "-A");
+    await repo.git("commit", "-m", "already committed");
+    write(repo.dir, "src/c.ts", "listed by T3\n");
+    write(repo.dir, `${RUN_DIR}/work/tests-1.md`, "the failing run\n");
+
+    const result = await run(repo.dir, repo.env, ["--repair", PLAN_REL, "1", "src/a.ts", "src/c.ts", "src/none.ts"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(result.stdout.match(/^subject: .*$/gm), ["subject: T3(1) - third"]);
+    assert.deepEqual(await filesOf(repo, "HEAD"), [`${RUN_DIR}/work/tests-1.md`, "src/c.ts"].sort());
+
+    const again = await run(repo.dir, repo.env, ["--repair", PLAN_REL, "1", "src/a.ts", "src/c.ts"]);
+    assert.equal(again.status, 4);
+    assert.equal(again.stdout, "");
+    assert.deepEqual((await subjects(repo)).slice(0, 2), ["T3(1) - third", "already committed"]);
+  });
+});
+
+test("--repair failing on a later group's commit exits 5 with the earlier groups committed and printed, one uncommitted line per path of the failed and later groups, and the same call run again commits what is left", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, REPAIR_TASKS);
+    write(repo.dir, "src/a.ts", "listed by T1\n");
+    write(repo.dir, "src/c.ts", "listed by T3\n");
+    write(repo.dir, "src/legacy.ts", "outside every map\n");
+    write(repo.dir, "src/other.ts", "outside every map\n");
+    write(repo.dir, `${RUN_DIR}/work/tests-3.md`, "the failing run\n");
+    const args = ["--repair", PLAN_REL, "3", "src/a.ts", "src/c.ts", "src/legacy.ts", "src/other.ts"];
+
+    const failed = await run(repo.dir, failingCommitEnv(repo, 2), args);
+    assert.equal(failed.status, 5, `stderr: ${failed.stderr}`);
+    assert.deepEqual(failed.stdout.match(/^subject: .*$/gm), ["subject: T1(3) - first"]);
+    assert.deepEqual(failed.stdout.match(/^uncommitted: .*$/gm), [
+      "uncommitted: src/c.ts",
+      "uncommitted: src/legacy.ts",
+      "uncommitted: src/other.ts",
+    ]);
+    assert.doesNotMatch(failed.stdout, /progress:/);
+    assert.deepEqual((await subjects(repo)).slice(0, 2), ["T1(3) - first", "seed"]);
+    assert.deepEqual(await filesOf(repo, "HEAD"), [`${RUN_DIR}/work/tests-3.md`, "src/a.ts"].sort());
+
+    const again = await run(repo.dir, repo.env, args);
+    assert.equal(again.status, 0, `stderr: ${again.stderr}`);
+    assert.deepEqual(again.stdout.match(/^subject: .*$/gm), ["subject: T3(3) - third", "subject: fix(viber): post-test repair (round 3)"]);
+    assert.deepEqual(await filesOf(repo, "HEAD~1"), ["src/c.ts"]);
+    assert.deepEqual(await filesOf(repo, "HEAD"), ["src/legacy.ts", "src/other.ts"]);
+  });
+});
+
+test("--repair failing on the first commit lists every named path as uncommitted and the status of the run is left alone", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, REPAIR_TASKS);
+    write(repo.dir, "src/a.ts", "listed by T1\n");
+    write(repo.dir, "src/legacy.ts", "outside every map\n");
+    const before = readStatus(repo);
+
+    const result = await run(repo.dir, failingCommitEnv(repo, 1), ["--repair", PLAN_REL, "1", "src/legacy.ts", "src/a.ts"]);
+    assert.equal(result.status, 5, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "uncommitted: src/a.ts\nuncommitted: src/legacy.ts\n");
+    assert.deepEqual(await subjects(repo), ["seed"]);
+    assert.equal(readStatus(repo), before);
   });
 });
 
