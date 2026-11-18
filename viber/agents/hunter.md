@@ -54,4 +54,4 @@ Final message: the paths you wrote, one per line.
 - Never drive a live external service. The target repository and its local build are the whole arena.
 - `CLASS:` opens with one angle slug of the lens. Calibrate `SEVERITY:` against the run file's `## Map` -> `## Severity calibration`, and against the lens's `## Severity` only when that section holds no band line.
 - Keep each report self-contained and under a page, in your own words; quote only the minimal lines that point at the defect.
-- Every report and sidecar ends on its own last line of content: a trailing bare closing tag (`</content>`, `</parameter>`) is a write-call artifact and the sidecar is parsed. Read the tail of each back after its write and delete such a line.
+- Every report and sidecar ends on its own last line of content, never on a bare closing tag line.
