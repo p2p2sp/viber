@@ -1,0 +1,6 @@
+- `profile:` lines print under `--split` only (an explicit `profile` env flag, not `awk_mode`, which is also `--split` on a plain call of a landed plan); `--split` now runs `config.sh` for `tiers.min`/`tiers.max`.
+- The script never reads a `verify:` line: `waive?` marks eligibility and the model confirms the build/tests command. A `haiku?` line's `else:` part reads `sonnet waive? sonnet` or, on a task feeding 3 or more, `sonnet review opus`.
+- A clamp that lifts a `waive?` task above sonnet still prints `waive? <clamped tier>`; the skill's word cap held (SKILL.md now 2791 words, cap unchanged at 2867).
+- `plan-index.test.ts` profile cases seed as many criteria as their tasks cover (`planBody`'s default of 2 refuses a one-task plan with exit 4); the two exact `--split` output tests now carry the `profile:` lines.
+- Red log `.temp/viber/T5/red-2.log`: revert-route run of `red-evidence-prose.unit.test.ts` (2 failing) with the old step 3 text temporarily restored. The older `red.log` there is not this task's.
+- The old red-evidence test pinning `nor on a TDD: required task.` was replaced: the never-waive rule for `TDD: required` now lives in the script (a plan-index case proves a `TDD: required` task prints no `waive?`).

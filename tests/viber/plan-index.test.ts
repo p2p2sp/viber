@@ -1292,6 +1292,152 @@ test("feeds names a contract block one task writes with the count of other tasks
   });
 });
 
+// --- the profile lines of --split --------------------------------------------
+
+/** T1 holds the file C1 lives in; T2 to T4 consume it, so T1 feeds three tasks. */
+const FEEDING_THREE: TaskFields[] = [
+  { id: "T2", covers: "AC2", uses: "C1", deps: "T1", files: "src/b.ts" },
+  { id: "T3", uses: "C1", deps: "T1", files: "src/c.ts" },
+  { id: "T4", uses: "C1", deps: "T1", files: "src/d.ts" },
+];
+
+/** The `profile:` lines of a --split run over the plan, under an optional tiers config. */
+async function profileLines(
+  tasks: TaskFields[],
+  contracts: string[] = CONTRACT,
+  config = "",
+  status: Record<string, string> | null = null,
+): Promise<string[]> {
+  return withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody(tasks, new Set(tasks.map((t) => t.covers ?? "AC1")).size, contracts));
+    if (config !== "") write(dir, ".claude/viber.yml", config);
+    if (status !== null) seedStatus(dir, status);
+    const result = await run(dir, {}, [PLAN_REL, "--split"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    return result.stdout.split("\n").filter((l) => l.startsWith("profile: "));
+  });
+}
+
+const THREE_FILES = "src/login.ts,src/x.ts,src/y.ts";
+const MIN_SONNET = "tiers:\n  min: sonnet\n";
+const MAX_SONNET = "tiers:\n  max: sonnet\n";
+
+const PROFILE_CASES: [string, TaskFields[], string[], string, string[]][] = [
+  [
+    "a hard task prints opus and a review tier of opus",
+    [{ id: "T1", title: "Race", hard: "lockout races" }],
+    CONTRACT,
+    "",
+    ["profile: T1 | tier: opus | review: opus | subject: T1 [TDD] - Race"],
+  ],
+  [
+    "a TDD none task over one file and not hard prints haiku? with its mechanical and other tiers, the mechanical review raised to sonnet",
+    [{ id: "T1", tdd: "none" }],
+    CONTRACT,
+    "",
+    ["profile: T1 | haiku? | mechanical: haiku review sonnet | else: sonnet waive? sonnet | subject: T1 - do the thing"],
+  ],
+  [
+    "a TDD none task over two files is still a haiku? line",
+    [{ id: "T1", tdd: "none", files: "src/a.ts,src/b.ts" }],
+    CONTRACT,
+    "",
+    ["profile: T1 | haiku? | mechanical: haiku review sonnet | else: sonnet waive? sonnet | subject: T1 - do the thing"],
+  ],
+  [
+    "a sonnet task with TDD none over three files and feeding nothing prints waive? before its tier",
+    [{ id: "T1", tdd: "none", files: THREE_FILES }],
+    CONTRACT,
+    "",
+    ["profile: T1 | tier: sonnet | review: waive? sonnet | subject: T1 - do the thing"],
+  ],
+  [
+    "a TDD required task prints its review tier with no waive? and [TDD] after its id",
+    [{ id: "T1", title: "Add the handler" }],
+    CONTRACT,
+    "",
+    ["profile: T1 | tier: sonnet | review: sonnet | subject: T1 [TDD] - Add the handler"],
+  ],
+  [
+    "a task feeding three tasks gets a review tier of opus and no waive?",
+    [{ id: "T1", tdd: "none", files: THREE_FILES, uses: "C1" }, ...FEEDING_THREE],
+    ownedContract("src/login.ts"),
+    "",
+    [
+      "profile: T1 | tier: sonnet | review: opus | subject: T1 - do the thing",
+      "profile: T2 | tier: sonnet | review: sonnet | subject: T2 [TDD] - do the thing",
+      "profile: T3 | tier: sonnet | review: sonnet | subject: T3 [TDD] - do the thing",
+      "profile: T4 | tier: sonnet | review: sonnet | subject: T4 [TDD] - do the thing",
+    ],
+  ],
+  [
+    "a mechanical task feeding three tasks raises both alternatives to a review of opus",
+    [{ id: "T1", tdd: "none", files: "src/login.ts", uses: "C1" }, ...FEEDING_THREE],
+    ownedContract("src/login.ts"),
+    "",
+    [
+      "profile: T1 | haiku? | mechanical: haiku review opus | else: sonnet review opus | subject: T1 - do the thing",
+      "profile: T2 | tier: sonnet | review: sonnet | subject: T2 [TDD] - do the thing",
+      "profile: T3 | tier: sonnet | review: sonnet | subject: T3 [TDD] - do the thing",
+      "profile: T4 | tier: sonnet | review: sonnet | subject: T4 [TDD] - do the thing",
+    ],
+  ],
+  [
+    "a haiku? line under tiers.min sonnet prints its mechanical tiers as sonnet with no waiver and keeps the other alternative",
+    [{ id: "T1", tdd: "none" }],
+    CONTRACT,
+    MIN_SONNET,
+    ["profile: T1 | haiku? | mechanical: sonnet review sonnet | else: sonnet waive? sonnet | subject: T1 - do the thing"],
+  ],
+  [
+    "a hard task under tiers.max sonnet prints sonnet for its tier and its review",
+    [{ id: "T1", title: "Race", hard: "lockout races" }],
+    CONTRACT,
+    MAX_SONNET,
+    ["profile: T1 | tier: sonnet | review: sonnet | subject: T1 [TDD] - Race"],
+  ],
+];
+
+for (const [name, tasks, contracts, config, expected] of PROFILE_CASES) {
+  test(`--split profile: ${name}`, async () => {
+    assert.deepEqual(await profileLines(tasks, contracts, config), expected);
+  });
+}
+
+test("--split prints no profile line for a done or a skipped task (nothing dispatches it again)", async () => {
+  const lines = await profileLines(
+    [
+      { id: "T1", title: "First" },
+      { id: "T2", title: "Second", covers: "AC2", files: "src/b.ts" },
+      { id: "T3", title: "Third", files: "src/c.ts" },
+    ],
+    CONTRACT,
+    "",
+    { done: "T1", skipped: "T2" },
+  );
+  assert.deepEqual(lines, ["profile: T3 | tier: sonnet | review: sonnet | subject: T3 [TDD] - Third"]);
+});
+
+test("--split prints the profile lines after the verify lines and before a dirty line", async () => {
+  await withGitRepo(async (repo) => {
+    write(repo.dir, PLAN_REL, planBody([{ id: "T1" }], 1));
+    write(repo.dir, "src/a.ts", "x\n");
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "--split"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const kinds = result.stdout.split("\n").map((l) => l.split(":")[0]).filter((k) => ["verify", "profile", "dirty"].includes(k));
+    assert.deepEqual(kinds, ["verify", "profile", "dirty"]);
+  });
+});
+
+test("a plain call prints no profile line (the index of the planner stays as it was)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody([{ id: "T1" }], 1));
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /^profile:/m);
+  });
+});
+
 /** T1 writes C1 (it holds the block's file and names it), T2 consumes C1 with
  *  no dependency on T1 - it would run beside its own writer. */
 const CONSUMER_WITHOUT_WRITER: TaskFields[] = [
@@ -3690,7 +3836,16 @@ test("--split with a committed extras file of a task not done prints the orphan 
     const result = await run(repo.dir, repo.env, [PLAN_REL, "--split"]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.ok(
-      result.stdout.endsWith("verify: T4 | npm test\ndirty: T2 | src/todo.ts\norphan: lib/x.ts\n"),
+      result.stdout.endsWith(
+        [
+          "verify: T4 | npm test",
+          "profile: T2 | tier: sonnet | review: sonnet | subject: T2 [TDD] - do the thing",
+          "profile: T3 | tier: sonnet | review: sonnet | subject: T3 [TDD] - do the thing",
+          "dirty: T2 | src/todo.ts",
+          "orphan: lib/x.ts",
+          "",
+        ].join("\n"),
+      ),
       `stdout: ${result.stdout}`,
     );
   });
@@ -3814,6 +3969,8 @@ test("the plain index and the --split index are the same lines as before the sco
         "verify: T2 | npm test",
         "verify: T3 | npm test",
         "verify: T4 | npm test",
+        "profile: T2 | tier: sonnet | review: sonnet | subject: T2 [TDD] - do the thing",
+        "profile: T3 | tier: sonnet | review: sonnet | subject: T3 [TDD] - do the thing",
         "",
       ].join("\n"),
     );

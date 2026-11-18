@@ -53,9 +53,17 @@ test("implementor maps the RED: line to --red and --red-log and judges no red ev
   assert.ok(!has(SKILL, "`RED: 0 failing`"));
 });
 
-test("implementor step 3 never waives the review of a TDD: required task (red-check judges the whole command, so only a reviewer tells which tests failed)", () => {
-  assert.ok(has(SKILL, "nor on a `TDD: required` task."));
+test("implementor step 3 takes tier, review and subject from the profile: line and waives a review only on a waive? line whose verify: runs the build or the tests (plan-index.sh never prints waive? for a TDD: required task, whose red-check judges the whole command)", () => {
+  assert.ok(has(SKILL, "take its tier, review tier and subject from it"));
+  assert.ok(has(SKILL, "`waive?` -> waive the review only when the task's `verify:` line runs the project's build or its tests"));
+  assert.ok(has(SKILL, "`haiku?` -> its `mechanical:` tiers"));
   assert.ok(!has(SKILL, "unless the config block's `build.red-check` reads `true`"));
+});
+
+test("implementor step 3 names no tier rule of the index columns (plan-index.sh decides them and prints the profile: line)", () => {
+  assert.ok(!has(SKILL, "`hard` reads `yes`"));
+  assert.ok(!has(SKILL, "a `feeds` entry counting 3 or more"));
+  assert.ok(!has(SKILL, "raised to `sonnet` from `haiku`"));
 });
 
 test("implementor reports an exit-4 commit whose error names --landed with --landed (commit-task.sh refuses --landed with --with)", () => {

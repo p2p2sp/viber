@@ -65,7 +65,7 @@ A `target:` line following `branch:` and differing from the branch makes the run
 
 ## 2. Validate and decompose
 
-Run `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh" "<plan>" --split`. It validates, decomposes and commits the plan, and returns the index: title, progress counter, one line per task (id, state, TDD, `excl`, `hard`, `deps`, `feeds`, `files`, title), then one `verify:` line per task naming its Verification command. `feeds` names the contract blocks that task writes and other tasks consume, each as `<id>:<count of consuming tasks>`, `-` when none. That index is your whole view of the plan; a coder gets its one task file, never the specification.
+Run `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh" "<plan>" --split`. It validates, decomposes and commits the plan, and returns the index: title, progress counter, one line per task (id, state, TDD, `excl`, `hard`, `deps`, `feeds`, `files`, title), then one `verify:` line per task naming its Verification command and one `profile:` line per open task. `feeds` names the contract blocks that task writes and other tasks consume, each as `<id>:<count of consuming tasks>`, `-` when none. That index is your whole view of the plan; a coder gets its one task file, never the specification.
 
 Non-zero exit -> report the error and stop; repairing the plan belongs to the planner.
 
@@ -82,20 +82,13 @@ Never dispatch a `done` or `skipped` task again. Also on the index:
 
 ## 3. Profile the tasks
 
-Take both decisions from the index's own fields, never a field it does not carry.
+Each open task has a `profile:` line on the index: take its tier, review tier and subject from it. Decide only:
 
-Tier:
+- `haiku?` -> its `mechanical:` tiers for config, scaffolding, a rename or docs, else its `else:` tiers.
+- `waive?` -> waive the review only when the task's `verify:` line runs the project's build or its tests, else review at the tier after `waive?`.
+- A floor the host's instructions declare for a kind of task (a minimum tier, a mandatory review) raises both decisions to it, within `tiers.min` to `tiers.max` of the config block.
 
-- `hard` reads `yes` -> `opus`.
-- Mechanical and bounded: config, scaffolding, a rename, docs, `TDD: none` over one or two files -> `haiku`.
-- Every other task -> `sonnet`.
-- A floor the host's instructions declare for a kind of task (a minimum tier, a mandatory review) raises both decisions to it.
-
-Review: the reviewer is waived only on a `sonnet` task whose `verify:` line runs the project's build or its tests, never on `haiku` or `opus`, nor on a load-bearing task: a `feeds` entry counting 3 or more, nor on a `TDD: required` task. Its review tier is the task's tier, raised to `sonnet` from `haiku`, and to `opus` on a load-bearing task.
-
-Then clamp both tiers into the config block's `tiers.min` to `tiers.max` range (`haiku` < `sonnet` < `opus` < `fable`). The review waiver is decided before the clamp.
-
-`TaskCreate` the remaining tasks, then these entries in this order, each created from the config block: `Final review` when `build.final-review` reads `true`, `Final test run` always, `Update project memory` when `build.memory` reads `true`, `Update project rules` when `build.rules` reads `true`, `Write QA and E2E scenarios` when `build.qa` reads `true`, `Run extensions` unless `build.extensions` and `build.extensions-missing` both read `none`, `Archive the run` when `build.cleanup` reads `true`. A plan task's subject: `<id> - <title> (<tier>)`, or `(<tier>, review <review tier>)` when reviewed, with `[TDD]` after `<id>` when its TDD is `required`: `<id> [TDD] - <title> ...`.
+`TaskCreate` the remaining tasks, then these entries in this order, each created from the config block: `Final review` when `build.final-review` reads `true`, `Final test run` always, `Update project memory` when `build.memory` reads `true`, `Update project rules` when `build.rules` reads `true`, `Write QA and E2E scenarios` when `build.qa` reads `true`, `Run extensions` unless `build.extensions` and `build.extensions-missing` both read `none`, `Archive the run` when `build.cleanup` reads `true`. A plan task's subject: its profile `subject:` plus ` (<tier>)`, or ` (<tier>, review <review tier>)` when reviewed.
 
 ## 4. Run the plan
 
@@ -125,7 +118,7 @@ Events:
 
 Directives:
 
-- `NEXT: coder`: `viber:task-coder` (Agent tool, `model` = its `model:` field), the block's body lines verbatim as its prompt, then one line per label of its `add:` field: `reason: <the returned REASON>` (the commit's error after a refused commit), `repair: <one line: the problem this pass fixes>`. `TaskUpdate` -> in progress; past attempt 1 its subject is rewritten `<id> - <title> (<model>, review <review>)` with the tiers its `model:` and `review:` fields name (`(<model>)` when `review` reads `waived`, `[TDD]` after `<id>` as in step 3). A `repair: 1` field opens `TaskCreate` `R<n> - repair <id> (<tier>, review <review tier>)`, `<n>` counting from 1 in the session, completed with that task's `NEXT: done` or its `cap` ruling.
+- `NEXT: coder`: `viber:task-coder` (Agent tool, `model` = its `model:` field), the block's body lines verbatim as its prompt, then one line per label of its `add:` field: `reason: <the returned REASON>` (the commit's error after a refused commit), `repair: <one line: the problem this pass fixes>`. `TaskUpdate` -> in progress; past attempt 1 its subject is rewritten as in step 3 with the tiers its `model:` and `review:` fields name (`(<model>)` when `review` reads `waived`). A `repair: 1` field opens `TaskCreate` `R<n> - repair <id> (<tier>, review <review tier>)`, `<n>` counting from 1 in the session, completed with that task's `NEXT: done` or its `cap` ruling.
 - `NEXT: review`: `viber:task-reviewer` (Agent tool, `model` = its `model:` field), its prompt built the same way, `add: repair` taking the same `repair:` line.
 - `NEXT: commit`: run the `RUN:` line after it in the message carrying its `TaskUpdate` -> completed, then report its exit; the `ASK:` or `NEXT: coder` answering a refused commit sets the task back to in progress. Warnings off the commit never stop the build: carry `refused <path> - claimed by task <id>`, `took <path> - claimed by committed task <id>` and `changed, claimed by no task in the plan` to the final summary.
 - `NEXT: done`: nothing more for the task; its dependents are ready.

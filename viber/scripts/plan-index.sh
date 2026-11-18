@@ -37,6 +37,10 @@
 #   T2 | todo | required | yes | yes | T1 | -    | src/a.ts,src/b.ts     | Add the retry loop
 #   verify: T1 | node --test tests/settings.test.ts
 #   verify: T2 | grep -n "retry" src/a.ts
+#   profile: T2 | tier: opus | review: opus | subject: T2 [TDD] - Add the retry loop
+#                                   --split only: one per task neither done nor
+#                                   skipped, in task order, after the verify:
+#                                   lines (below)
 #   dirty: T2 | src/a.ts            only for a task not done whose own files are
 #                                   dirty (its "Repro:" path excepted)
 #   orphan: lib/x.ts                one line per changed path claimed by no task
@@ -126,6 +130,23 @@
 # printed unchanged). The "recheck:" value is the same. The command is always the last field,
 # so a "|" inside it (a shell pipeline) is part of the command, not a column
 # break.
+#
+# "profile:" (--split only) is the model tier of each open task and of its review, so
+# the orchestrator decides only what needs the project. Three shapes:
+#   profile: <id> | tier: <tier> | review: <tier> | subject: <subject>
+#   profile: <id> | tier: <tier> | review: waive? <tier> | subject: <subject>
+#   profile: <id> | haiku? | mechanical: <tier> review <tier> | else: <tier> review <tier> | subject: <subject>
+#   (the last one's "else:" part reads "<tier> waive? <tier>" when the review may be waived)
+# Rules, before the clamp: "hard" yes -> opus; "TDD: none" over at most 2 Files and not
+# hard -> the "haiku?" line (mechanical haiku, else sonnet); any other task -> sonnet.
+# The review tier is the task tier raised to sonnet from haiku and to opus on a task
+# whose feeds entry counts 3 or more. "waive?" marks a sonnet task with TDD none and no
+# feeds entry of 3 or more: its review is waived when its "verify:" line runs the
+# project build or its tests, else it runs at the tier printed after "waive?". Every
+# printed tier is clamped into config.sh tiers.min..tiers.max (haiku < sonnet < opus <
+# fable) after that is decided; a "haiku?" line keeps both alternatives whatever the
+# clamp makes of them. The subject is "<id> - <title>", "<id> [TDD] - <title>" on a
+# "TDD: required" task.
 #
 # The run's state is read from status.md beside the plan - "done", "skipped",
 # "unreviewed", "deferred" and "closed", one key per line,
@@ -365,7 +386,8 @@
 #   cwd    : the repository root - the plan path and every path in the index are
 #            relative to it; a plan path given absolute, or with a leading
 #            "./", inside it is read as its relative form.
-#   env    : none.
+#   env    : none. --split reads tiers.min and tiers.max from config.sh (no usable
+#            value: haiku and opus) for the profile lines.
 #   exit   : 0 on a valid plan; a git failure during the --split commit never
 #            changes that, the decomposed files are already on disk.
 #
@@ -600,11 +622,29 @@ if [[ "$awk_mode" != "--split" && -d "$tpl_dir" ]]; then
   fi
 fi
 
+# The profile lines (--split only) clamp their tiers into the config block's
+# tiers.min..tiers.max, read from config.sh; no usable value keeps haiku..opus.
+profile_on=0
+tier_min="haiku"
+tier_max="opus"
+if [[ "$mode" == "--split" ]]; then
+  profile_on=1
+  cfg_tiers="$(bash "$(dirname -- "${BASH_SOURCE[0]}")/config.sh" 2>/dev/null || true)"
+  cfg_tiers="${cfg_tiers//$'\r'/}"
+  while IFS= read -r line; do
+    case "$line" in
+      "tiers.min: "*) tier_min="${line#tiers.min: }" ;;
+      "tiers.max: "*) tier_max="${line#tiers.max: }" ;;
+    esac
+  done < <(printf '%s\n' "$cfg_tiers")
+fi
+
 # The path travels through ENVIRON, not -v: awk -v expands escape sequences and
 # would mangle a Windows path containing backslashes. The output is held until
 # the awk pass has exited 0, so a plan refused for any reason prints nothing and
 # --split below touches nothing.
 index_out="$(plan="$plan" changed="$changed" mode="$awk_mode" rundir="$dir" memory_on="$memory_on" slots="$slots" \
+profile="$profile_on" tier_min="$tier_min" tier_max="$tier_max" \
 extra="$extra_id" extra_paths="$extra_paths" dispatch="$dispatch_id" \
 st_done="$st_done" st_skipped="$st_skipped" st_unreviewed="$st_unreviewed" \
 st_deferred="$st_deferred" st_closed="$st_closed" st_decisions="$st_decisions" st_rulings="$st_rulings" \
@@ -843,6 +883,28 @@ function verifycmd(s,   p, v) {
   return v
 }
 
+# tier ranks and names (haiku < sonnet < opus < fable), 0 and "" for anything else
+function trank(t) { return (t == "haiku" ? 1 : (t == "sonnet" ? 2 : (t == "opus" ? 3 : (t == "fable" ? 4 : 0)))) }
+function tname(r) { return (r == 1 ? "haiku" : (r == 2 ? "sonnet" : (r == 3 ? "opus" : "fable"))) }
+
+# the tier t raised to floor when it ranks below it
+function raise(t, floor) { return (trank(t) < trank(floor) ? floor : t) }
+
+# the tier t clamped into the range tmin..tmax (ranks set in BEGIN)
+function clampt(t,   r) {
+  r = trank(t)
+  if (r < tmin) r = tmin
+  if (r > tmax) r = tmax
+  return tname(r)
+}
+
+# the review tier of a task run at tier t: raised to sonnet from haiku, to opus when
+# the task is load-bearing (heavy)
+function reviewtier(t, heavy,   r) {
+  r = raise(t, "sonnet")
+  return (heavy ? raise(r, "opus") : r)
+}
+
 # the criterion numbers of a "Covers:" value: tokens split on commas and
 # whitespace, only "AC<n>" counting, so "#3", "3" and an annotation like
 # "(see S3)" name no criterion. c and m are locals: the callers loop on globals.
@@ -965,6 +1027,10 @@ BEGIN {
   rulings = ENVIRON["st_rulings"]
   rundir = ENVIRON["rundir"]
   if (rundir == ".") rundir = ""
+  profile = (ENVIRON["profile"] == "1")
+  tmin = trank(ENVIRON["tier_min"]); if (tmin == 0) tmin = 1
+  tmax = trank(ENVIRON["tier_max"]); if (tmax == 0) tmax = 3
+  if (tmin > tmax) { tmin = 1; tmax = 3 }
   nslot = split(ENVIRON["slots"], slot, "\n")
   nch = split(ENVIRON["changed"], ch, /\n/)
   for (k = 1; k <= nch; k++) if (ch[k] != "") chg[ch[k]] = 1
@@ -1485,6 +1551,27 @@ END {
     printf "%s | %s | %s | %s | %s | %s | %s | %s | %s\n", id[i], state, tdd[i], x, hd, dnorm[i], fd, f, ttl[i]
   }
   for (i = 1; i <= n; i++) printf "verify: %s | %s\n", id[i], verifycmd(verif[i])
+
+  # the profile of every open task, under --split only: tier and review tier from
+  # the rules of the header, clamped after the waiver is decided
+  if (profile)
+    for (i = 1; i <= n; i++) {
+      if ((id[i] in isdone) || (id[i] in isskipped)) continue
+      fmax = 0
+      for (c = 1; c <= ncon; c++) if (((i, corder[c]) in feeds) && feeds[i, corder[c]] > fmax) fmax = feeds[i, corder[c]]
+      heavy = (fmax >= 3)
+      subj = (tdd[i] == "required" ? id[i] " [TDD]" : id[i]) " - " ttl[i]
+      if (hashard[i]) {
+        printf "profile: %s | tier: %s | review: %s | subject: %s\n", id[i], clampt("opus"), clampt(reviewtier("opus", heavy)), subj
+      } else if (tdd[i] == "none" && nf[i] <= 2) {
+        alt = (heavy ? "review " clampt(reviewtier("sonnet", heavy)) : "waive? " clampt("sonnet"))
+        printf "profile: %s | haiku? | mechanical: %s review %s | else: %s %s | subject: %s\n", id[i], clampt("haiku"), clampt(reviewtier("haiku", heavy)), clampt("sonnet"), alt, subj
+      } else if (tdd[i] == "none" && !heavy) {
+        printf "profile: %s | tier: %s | review: waive? %s | subject: %s\n", id[i], clampt("sonnet"), clampt("sonnet"), subj
+      } else {
+        printf "profile: %s | tier: %s | review: %s | subject: %s\n", id[i], clampt("sonnet"), clampt(reviewtier("sonnet", heavy)), subj
+      }
+    }
 
   # a task whose own files carry uncommitted work: an earlier session was cut
   # off inside it, and a fresh coder would land on top of what it left. The
