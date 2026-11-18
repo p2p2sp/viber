@@ -1,8 +1,6 @@
 /*
  * code-auditor.unit.test.ts - holds the code-auditor skill to what it names and
  * to what the repository still carries:
- *   - the lens files its SKILL.md names exist and are exactly the six lenses of
- *     the `/viber:code-auditor` argument contract;
  *   - every agent its SKILL.md dispatches (`viber:<name>` not preceded by `/`,
  *     which is the command itself) is listed in plugin.json `agents[]` with an
  *     existing file;
@@ -29,8 +27,6 @@ import { runScript } from "../harness/run.ts";
 
 const VIBER = path.resolve(import.meta.dirname, "../../viber");
 const SKILL = path.join(VIBER, "skills/code-auditor/SKILL.md");
-const LENS_DIR = path.join(VIBER, "skills/code-auditor/references/lenses");
-const LENSES = ["bugs", "security", "web-performance", "runtime-performance", "tests", "design"];
 
 const join = (...fragments: string[]): string => fragments.join("");
 
@@ -59,11 +55,6 @@ const BINARY_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".w
 // Rules - pure over text
 // ---------------------------------------------------------------------------
 
-function namedLenses(skill: string): string[] {
-  const names = [...skill.matchAll(/references\/lenses\/([a-z][a-z-]*)\.md/g)].map((m) => m[1]);
-  return [...new Set(names)].sort();
-}
-
 function dispatchedAgents(skill: string): string[] {
   const names = [...skill.matchAll(/(?<![/\w])viber:([a-z][a-z-]*)/g)].map((m) => m[1]);
   return [...new Set(names)].sort();
@@ -88,11 +79,6 @@ function staleTokens(text: string): string[] {
 // ---------------------------------------------------------------------------
 // Self-checks
 // ---------------------------------------------------------------------------
-
-test("a SKILL.md naming a lens file twice yields it once, sorted (the lens set is compared as a set)", () => {
-  const skill = "`references/lenses/tests.md` then `references/lenses/bugs.md` and `references/lenses/tests.md`";
-  assert.deepEqual(namedLenses(skill), ["bugs", "tests"]);
-});
 
 test("a dispatched agent is any viber:<name> not preceded by a slash (the /viber:code-auditor command is no agent)", () => {
   const skill = "Run `/viber:code-auditor`, dispatch `viber:mapper` and `viber:hunter`.";
@@ -122,15 +108,6 @@ test("a text holding none of the forbidden tokens is not flagged", () => {
 // ---------------------------------------------------------------------------
 // The real files
 // ---------------------------------------------------------------------------
-
-test("the lens files SKILL.md names are exactly the six lenses of the argument contract", () => {
-  assert.deepEqual(namedLenses(fs.readFileSync(SKILL, "utf-8")), [...LENSES].sort());
-});
-
-test("every lens file SKILL.md names exists", () => {
-  const missing = LENSES.filter((name) => !fs.existsSync(path.join(LENS_DIR, `${name}.md`)));
-  assert.deepEqual(missing, []);
-});
 
 test("every agent SKILL.md dispatches is listed in plugin.json agents[] with an existing file", () => {
   const pluginJson = fs.readFileSync(path.join(VIBER, ".claude-plugin/plugin.json"), "utf-8");

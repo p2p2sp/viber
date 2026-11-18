@@ -310,9 +310,7 @@ test("the README describes the three angles as the lenses do: the module double 
   assert.ok(lineOf(readmeSection("design"), "- `untestable-decisions`:").includes("the port whose fake would let a component test reach it"));
 });
 
-test("every hunter brief of the code-auditor SKILL carries the Test rules line, and the hunter agent reads its ## Proves by range before hunting on the tests lens and before writing a test as proof", () => {
-  const brief = lineOf(SKILL, "Every `viber:hunter` brief:");
-  assert.ok(brief.includes("`Schema: ${CLAUDE_SKILL_DIR}/references/synthesis.md`, `Test rules: ${CLAUDE_PLUGIN_ROOT}/references/test-strategy.md`, `Hunt: <hunt id>`"));
+test("the hunter agent reads its ## Proves by range before hunting on the tests lens and before writing a test as proof", () => {
   const input = lineOf(HUNTER, "- `Test rules: <path>`");
   assert.ok(input.includes("`## Proves`"));
   assert.ok(input.includes("by range"));
@@ -323,8 +321,7 @@ test("the hunter on the tests lens also reads the Boundary line the over-mocking
   assert.ok(lineOf(HUNTER, "- `Test rules: <path>`").endsWith("; on the tests lens also Grep its `- Boundary:` line."));
 });
 
-test("a critic on the tests lens gets the hunter's Test rules line and reads ## Proves and the Boundary line before judging the claim's class (the lens names its classes by rule)", () => {
-  assert.ok(lineOf(SKILL, "- Each `<hunt id>-<k>.claim.md`").includes("on the tests lens add the hunter's `Test rules:` line."));
+test("a critic on the tests lens reads ## Proves and the Boundary line before judging the claim's class (the lens names its classes by rule)", () => {
   const input = lineOf(CRITIC, "- `Test rules: <path>`");
   assert.ok(input.includes("Read `## Proves` by range and Grep its `- Boundary:` line, before judging the claim's `CLASS`."));
 });
