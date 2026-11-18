@@ -45,15 +45,26 @@
 #      (`{"unit":"U<n>","score":1-5,...}`) is skipped.
 #   4. Otherwise `NEXT: none`.
 #
+# With `--wave` (the variant wave, after synthesize.sh wrote <ws>/seeds.md) the map
+# gate and the wave 1 steps are skipped. A ledger already holding a wave 2 `hunt:`
+# line, a missing seeds.md or one with no `Seed:` line prints `NEXT: none`. Otherwise,
+# on the diff scope one hunter block per `Seed: <angle slug>: <class>` line, hunt id
+# `V-<n>` with n from 1, carrying `Angle: <that slug>` and that `Seed:` line. On a
+# directory or repo scope one block per unit no ledger `hunt:` line names yet, best
+# first as in step 3 (without scores, in map order), up to the budget, each carrying
+# every `Seed:` line. Each printed hunt is appended to the ledger as a wave 2 `hunt:`
+# line; no hunt to print answers `NEXT: none`.
+#
 # Contract:
 #   argv   : <ws>, the run workspace holding run.md and map.md. Absent or empty is a
-#            usage error (exit 2). Any further argument is ignored.
+#            usage error (exit 2). The second argument `--wave` selects the variant
+#            wave; any other further argument is ignored.
 #   cwd    : irrelevant: every path derives from argv and the files it names, cwd
 #            only resolves a relative <ws>.
 #   env    : TMPDIR, read by strip-tag.sh; nothing else.
 #   files  : reads <ws>/run.md (the header lines before its first `## ` heading:
-#            Lens:, Lens file:, Scope:), <ws>/map.md, <ws>/scores/*.md, <ws>/ledger.md
-#            and the lens file. Writes: map.md and the score files (a trailing closing
+#            Lens:, Lens file:, Scope:), <ws>/map.md, <ws>/scores/*.md, <ws>/ledger.md,
+#            <ws>/seeds.md (--wave) and the lens file. Writes: map.md and the score files (a trailing closing
 #            tag stripped), run.md (the map appended once) and <ws>/ledger.md (lines
 #            appended, never rewritten).
 #   stdout : exactly one answer, in the auditor directive format:
@@ -65,7 +76,8 @@
 #                lines Run file:, Lens file:, Out:, and one Unit: line per unit
 #              hunters-at-once: <n>, then per hunt NEXT: hunter | id: <id> |
 #                background and the lines Run file:, Lens file:, Schema:, Test
-#                rules:, Hunt:, Unit: or Angle:, Reports:, and for a lens reading
+#                rules:, Hunt:, Unit: or Angle:, Seed: per seed (--wave only),
+#                Reports:, and for a lens reading
 #                Worktree: required Worktree script:, Worktree:, and on the diff
 #                scope Overlay script:
 #              NEXT: none
@@ -88,6 +100,8 @@ if [ -z "$ws" ]; then
   fail "usage: keep-units.sh <ws>"
 fi
 ws=${ws%/}
+wave_mode=0
+[ "${2:-}" != "--wave" ] || wave_mode=1
 run_file=$ws/run.md
 map_file=$ws/map.md
 ledger=$ws/ledger.md
@@ -117,7 +131,7 @@ in_ledger() {
   [ -f "$ledger" ] && grep -Eq "$1" "$ledger"
 }
 
-if ! in_ledger '^map-appended$'; then
+if [ "$wave_mode" -eq 0 ] && ! in_ledger '^map-appended$'; then
   sh "$script_dir/strip-tag.sh" "$map_file"
 
   gate_ok=1
@@ -168,7 +182,7 @@ if ! in_ledger '^map-appended$'; then
   printf 'map-appended\n' >> "$ledger"
 fi
 
-if in_ledger '^hunt: .* \| wave: 1 \|'; then
+if [ "$wave_mode" -eq 0 ] && in_ledger '^hunt: .* \| wave: 1 \|'; then
   printf 'NEXT: none\n'
   exit 0
 fi
@@ -176,13 +190,18 @@ fi
 worktree=0
 grep -q '^Worktree: required' "$lens_file" 2>/dev/null && worktree=1
 
-# hunter_block <hunt id> <unit line | ""> <angle | ""> <unit id | ""> prints one hunter
-# block and records the hunt in the ledger.
+# The wave a printed hunt is recorded under.
+hunt_wave=1
+[ "$wave_mode" -eq 0 ] || hunt_wave=2
+
+# hunter_block <hunt id> <unit line | ""> <angle | ""> <unit id | ""> <seed lines | ""> prints
+# one hunter block and records the hunt in the ledger.
 hunter_block() {
   hid=$1
   unit_line=$2
   angle=$3
   unit_id=$4
+  seed_lines=$5
   printf 'NEXT: hunter | id: %s | background\n' "$hid"
   printf 'Run file: %s\n' "$run_file"
   printf 'Lens file: %s\n' "$lens_file"
@@ -191,6 +210,7 @@ hunter_block() {
   printf 'Hunt: %s\n' "$hid"
   [ -z "$unit_line" ] || printf 'Unit: %s\n' "$unit_line"
   [ -z "$angle" ] || printf 'Angle: %s\n' "$angle"
+  [ -z "$seed_lines" ] || printf '%s\n' "$seed_lines"
   printf 'Reports: %s/reports/%s\n' "$ws" "$hid"
   if [ "$worktree" -eq 1 ]; then
     printf 'Worktree script: %s/scripts/worktree.sh\n' "$skill_dir"
@@ -199,7 +219,7 @@ hunter_block() {
       printf 'Overlay script: %s/scripts/diff-overlay.sh\n' "$skill_dir"
     fi
   fi
-  printf 'hunt: %s | wave: 1 | unit: %s | angle: %s\n' "$hid" "${unit_id:-none}" "${angle:-none}" >> "$ledger"
+  printf 'hunt: %s | wave: %s | unit: %s | angle: %s\n' "$hid" "$hunt_wave" "${unit_id:-none}" "${angle:-none}" >> "$ledger"
 }
 
 # batch_ids <unit count> prints S1,S2,... one id per batch of up to 8 units.
@@ -261,6 +281,82 @@ scored_units() {
 at_once=16
 [ "$lens" != tests ] || at_once=4
 
+budget=8
+[ "$scope" != repo ] || budget=16
+
+# unit_lines prints the unit lines of map.md's `## Units`, in map order.
+unit_lines() {
+  awk '
+    /^## / { insec = ($0 ~ /^## Units[ \t\r]*$/); next }
+    insec && /^- U[0-9]+ \|/ { print }
+  ' "$map_file"
+}
+
+# kept_units <unit lines> <scored units> <hunted ids> prints, among the unit lines whose
+# id is not in <hunted ids> (one per line), the budget's count with the highest score
+# first, equal scores in map order, units with no score after every scored one.
+kept_units() {
+  printf '%s\n' "$1" | SCORED="$2" HUNTED="$3" BUDGET="$budget" awk '
+    BEGIN {
+      n = split(ENVIRON["SCORED"], a, "\n")
+      for (i = 1; i <= n; i++) { split(a[i], p, " "); if (p[1] != "") s[p[1]] = p[2] + 0 }
+      n = split(ENVIRON["HUNTED"], a, "\n")
+      for (i = 1; i <= n; i++) if (a[i] != "") h[a[i]] = 1
+      limit = ENVIRON["BUDGET"] + 0
+    }
+    $2 in h { next }
+    { m++; line[m] = $0; rank[m] = ($2 in s) ? s[$2] : 0 }
+    END {
+      for (k = 5; k >= 0; k--)
+        for (i = 1; i <= m; i++)
+          if (rank[i] == k && taken < limit) { print line[i]; taken++ }
+    }
+  '
+}
+
+# print_unit_hunts <unit lines> <seed lines> prints hunters-at-once, then one hunter
+# block per unit line, each carrying the seed lines.
+print_unit_hunts() {
+  printf 'hunters-at-once: %s\n' "$at_once"
+  printf '%s\n' "$1" | while IFS= read -r line; do
+    id=${line#- }
+    id=${id%% *}
+    hunter_block "$id" "$line" "" "$id" "$2"
+  done
+}
+
+if [ "$wave_mode" -eq 1 ]; then
+  seeds=
+  [ ! -f "$ws/seeds.md" ] || seeds=$(awk '/^Seed: / { sub(/\r$/, ""); print }' "$ws/seeds.md")
+  if [ -z "$seeds" ] || in_ledger '^hunt: .* \| wave: 2 \|'; then
+    printf 'NEXT: none\n'
+    exit 0
+  fi
+  if [ "$scope" = diff ]; then
+    printf 'hunters-at-once: %s\n' "$at_once"
+    printf '%s\n' "$seeds" | {
+      n=0
+      while IFS= read -r seed; do
+        n=$((n + 1))
+        slug=${seed#Seed: }
+        slug=${slug%%: *}
+        hunter_block "V-$n" "" "$slug" "" "$seed"
+      done
+    }
+    exit 0
+  fi
+  hunted=$(awk '
+    /^hunt: / && match($0, /unit: U[0-9]+/) { print substr($0, RSTART + 6, RLENGTH - 6) }
+  ' "$ledger" 2>/dev/null)
+  kept=$(kept_units "$(unit_lines)" "$(scored_units)" "$hunted")
+  if [ -z "$kept" ]; then
+    printf 'NEXT: none\n'
+    exit 0
+  fi
+  print_unit_hunts "$kept" "$seeds"
+  exit 0
+fi
+
 if [ "$scope" = diff ]; then
   angles=$(awk '
     /^## / { insec = ($0 ~ /^## Hunts[ \t\r]*$/); next }
@@ -274,25 +370,15 @@ if [ "$scope" = diff ]; then
   if [ -n "$angles" ]; then
     printf 'hunters-at-once: %s\n' "$at_once"
     printf '%s\n' "$angles" | while IFS= read -r slug; do
-      hunter_block "A-$slug" "" "$slug" ""
+      hunter_block "A-$slug" "" "$slug" "" ""
     done
     exit 0
   fi
 else
-  budget=8
-  [ "$scope" != repo ] || budget=16
-  units=$(awk '
-    /^## / { insec = ($0 ~ /^## Units[ \t\r]*$/); next }
-    insec && /^- U[0-9]+ \|/ { print }
-  ' "$map_file")
+  units=$(unit_lines)
   count=$(printf '%s' "$units" | awk 'END { print NR }')
   if [ "$count" -gt 0 ] && [ "$count" -le "$budget" ]; then
-    printf 'hunters-at-once: %s\n' "$at_once"
-    printf '%s\n' "$units" | while IFS= read -r line; do
-      id=${line#- }
-      id=${id%% *}
-      hunter_block "$id" "$line" "" "$id"
-    done
+    print_unit_hunts "$units" ""
     exit 0
   fi
   if [ "$count" -gt "$budget" ]; then
@@ -316,25 +402,8 @@ else
         exit 0
       fi
     fi
-    kept=$(printf '%s\n' "$units" | SCORED="$scored" BUDGET="$budget" awk '
-      BEGIN {
-        n = split(ENVIRON["SCORED"], a, "\n")
-        for (i = 1; i <= n; i++) { split(a[i], p, " "); if (p[1] != "") s[p[1]] = p[2] + 0 }
-        limit = ENVIRON["BUDGET"] + 0
-      }
-      { m++; line[m] = $0; rank[m] = ($2 in s) ? s[$2] : 0 }
-      END {
-        for (k = 5; k >= 0; k--)
-          for (i = 1; i <= m; i++)
-            if (rank[i] == k && taken < limit) { print line[i]; taken++ }
-      }
-    ')
-    printf 'hunters-at-once: %s\n' "$at_once"
-    printf '%s\n' "$kept" | while IFS= read -r line; do
-      id=${line#- }
-      id=${id%% *}
-      hunter_block "$id" "$line" "" "$id"
-    done
+    kept=$(kept_units "$units" "$scored" "")
+    print_unit_hunts "$kept" ""
     exit 0
   fi
 fi

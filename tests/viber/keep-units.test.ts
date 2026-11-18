@@ -14,6 +14,10 @@
  * after that prints the hunter blocks of the kept units: highest score first, equal
  * scores in map order, still unscored units after every scored one. Score files that
  * end on a closing tag or hold a line that is no score line still yield their scores.
+ * `--wave` prints the hunts of the variant wave from seeds.md: on the diff scope one
+ * `V-<n>` per `Seed:` line with that seed's angle, on a directory or repo scope one
+ * `U<n>` per unit no hunt took on yet in kept order within the budget, each carrying
+ * every seed; each is a wave 2 `hunt:` ledger line and a second call prints `NEXT: none`.
  *
  * keep-units.sh is `#!/bin/sh` and the skill invokes it through `sh`, so every case
  * runs through forEachShell("posix", ...) via opts.shell. Each case builds its own
@@ -539,6 +543,161 @@ const NOISY_SCORE_FILES: [string, string[]][] = [
     [score(1, 1), "```json", score(2, 5), "no score for this unit", score(3, 4), score(4, 1), score(5, 1), score(6, 1), score(7, 1), score(8, 3)],
   ],
 ];
+
+async function runWave(shell: Shell, ws: string): Promise<RunResult> {
+  return await runScript(SUT, [ws, "--wave"], { shell, cwd: path.dirname(ws) });
+}
+
+function writeSeeds(ws: string, rows: string[]): void {
+  fs.writeFileSync(path.join(ws, "seeds.md"), lines(...rows));
+}
+
+/** The hunter block keep-units.sh prints for a hunt, `unit` and `angle` empty when the hunt has none. */
+function hunterBlock(ws: string, lensFile: string, id: string, unit: string, angle: string, seeds: string[]): string {
+  return lines(
+    `NEXT: hunter | id: ${id} | background`,
+    `Run file: ${ws}/run.md`,
+    `Lens file: ${lensFile}`,
+    `Schema: ${SKILL_DIR}/references/synthesis.md`,
+    `Test rules: ${PLUGIN_ROOT}/references/test-strategy.md`,
+    `Hunt: ${id}`,
+    ...(unit ? [`Unit: ${unit}`] : []),
+    ...(angle ? [`Angle: ${angle}`] : []),
+    ...seeds,
+    `Reports: ${ws}/reports/${id}`,
+  );
+}
+
+const DIFF_SEEDS = ["Seed: wrong-result: swallows the parse error", "Seed: race-state: counter updated without the lock"];
+
+/** A diff-scope run whose wave 1 hunts are printed, seeds.md written. */
+async function diffRunWithSeeds(shell: Shell, dir: string) {
+  const framed = frame(dir, { angles: ["wrong-result", "race-state"] });
+  await run(shell, framed.ws);
+  writeSeeds(framed.ws, DIFF_SEEDS);
+  return framed;
+}
+
+/** A directory-scope run of `count` units: every unit scored `score(n)`, the kept wave 1 hunts printed. */
+async function dirRunAfterWaveOne(shell: Shell, dir: string, count: number, scoreOf: (unit: number) => number) {
+  const framed = frame(dir, { scope: "src", map: mapOf(unitLines(count)) });
+  await run(shell, framed.ws);
+  writeScores(framed.ws, "S1", Array.from({ length: count }, (_, i) => score(i + 1, scoreOf(i + 1))));
+  await run(shell, framed.ws);
+  return framed;
+}
+
+test("on the diff scope --wave prints one V-<n> hunt per Seed line, n from 1, carrying Angle: with the seed's slug and that Seed line", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("keep-units-", async (dir) => {
+      const { ws, lensFile } = await diffRunWithSeeds(shell, dir);
+      const result = await runWave(shell, ws);
+      assert.equal(result.status, 0, `stderr=${result.stderr}`);
+      assert.equal(
+        slash(result.stdout),
+        `hunters-at-once: 16\n${hunterBlock(ws, lensFile, "V-1", "", "wrong-result", [DIFF_SEEDS[0]])}${hunterBlock(ws, lensFile, "V-2", "", "race-state", [DIFF_SEEDS[1]])}`,
+      );
+    });
+  });
+});
+
+test("on a directory scope --wave prints one U<n> hunt per unit no hunt took on yet, in kept order, each carrying every Seed line", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("keep-units-", async (dir) => {
+      const { ws, lensFile } = await dirRunAfterWaveOne(shell, dir, 10, (unit) => (unit <= 8 ? 4 : unit === 10 ? 3 : 2));
+      writeSeeds(ws, DIFF_SEEDS);
+      const result = await runWave(shell, ws);
+      assert.equal(result.status, 0, `stderr=${result.stderr}`);
+      assert.equal(
+        slash(result.stdout),
+        `hunters-at-once: 16\n${hunterBlock(ws, lensFile, "U10", "- U10 | src/m10 | why 10", "", DIFF_SEEDS)}${hunterBlock(ws, lensFile, "U9", "- U9 | src/m9 | why 9", "", DIFF_SEEDS)}`,
+      );
+    });
+  });
+});
+
+test("a directory scope --wave stops at the budget of 8 hunts, the best unhunted units first", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("keep-units-", async (dir) => {
+      const { ws } = await dirRunAfterWaveOne(shell, dir, 20, () => 3);
+      writeSeeds(ws, DIFF_SEEDS);
+      const result = await runWave(shell, ws);
+      assert.deepEqual(hunterIds(result.stdout), ["U9", "U10", "U11", "U12", "U13", "U14", "U15", "U16"]);
+    });
+  });
+});
+
+test("a repo scope --wave stops at the budget of 16 hunts", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("keep-units-", async (dir) => {
+      const framed = frame(dir, { scope: "repo", map: mapOf(unitLines(40)) });
+      await run(shell, framed.ws);
+      writeScores(framed.ws, "S1", Array.from({ length: 40 }, (_, i) => score(i + 1, 3)));
+      await run(shell, framed.ws);
+      writeSeeds(framed.ws, DIFF_SEEDS);
+      const result = await runWave(shell, framed.ws);
+      assert.equal(hunterIds(result.stdout).length, 16);
+      assert.equal(hunterIds(result.stdout)[0], "U17");
+    });
+  });
+});
+
+test("a diff scope hunt of --wave is a wave 2 hunt ledger line with no unit and its angle", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("keep-units-", async (dir) => {
+      const { ws } = await diffRunWithSeeds(shell, dir);
+      await runWave(shell, ws);
+      assert.equal(
+        ledgerOf(ws),
+        lines(
+          "map-appended",
+          "hunt: A-wrong-result | wave: 1 | unit: none | angle: wrong-result",
+          "hunt: A-race-state | wave: 1 | unit: none | angle: race-state",
+          "hunt: V-1 | wave: 2 | unit: none | angle: wrong-result",
+          "hunt: V-2 | wave: 2 | unit: none | angle: race-state",
+        ),
+      );
+    });
+  });
+});
+
+test("a unit hunt of --wave is a wave 2 hunt ledger line with its unit and no angle", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("keep-units-", async (dir) => {
+      const { ws } = await dirRunAfterWaveOne(shell, dir, 10, (unit) => (unit <= 8 ? 4 : 2));
+      writeSeeds(ws, DIFF_SEEDS);
+      await runWave(shell, ws);
+      const waveRows = ledgerOf(ws).split("\n").filter((row) => row.includes("wave: 2"));
+      assert.deepEqual(waveRows, ["hunt: U9 | wave: 2 | unit: U9 | angle: none", "hunt: U10 | wave: 2 | unit: U10 | angle: none"]);
+    });
+  });
+});
+
+test("a second --wave call prints NEXT: none and adds no ledger line", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("keep-units-", async (dir) => {
+      const { ws } = await diffRunWithSeeds(shell, dir);
+      await runWave(shell, ws);
+      const ledgerAfterFirst = ledgerOf(ws);
+      const second = await runWave(shell, ws);
+      assert.equal(second.status, 0, `stderr=${second.stderr}`);
+      assert.equal(second.stdout, "NEXT: none\n");
+      assert.equal(ledgerOf(ws), ledgerAfterFirst);
+    });
+  });
+});
+
+test("--wave on a directory scope whose units were all hunted prints NEXT: none", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("keep-units-", async (dir) => {
+      const { ws } = frame(dir, { scope: "src", map: mapOf(unitLines(3)) });
+      await run(shell, ws);
+      writeSeeds(ws, DIFF_SEEDS);
+      const result = await runWave(shell, ws);
+      assert.equal(result.stdout, "NEXT: none\n");
+    });
+  });
+});
 
 for (const [label, rows] of NOISY_SCORE_FILES) {
   test(`a score file ${label} still yields its score lines`, async () => {

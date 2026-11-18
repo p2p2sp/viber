@@ -1,0 +1,5 @@
+- `--wave` skips the map gate and the wave 1 check; seeds.md lines are `Seed: <angle slug>: <class>` (the slug is the text before the first `: `), printed verbatim on the hunt.
+- Directory/repo wave: unhunted = units whose id no ledger `hunt:` line names in `unit:`; ranked by the same kept order as wave 1 (kept_units, now shared), then cut at the budget (8 or 16).
+- A missing seeds.md, one with no `Seed:` line, a wave 2 `hunt:` already in the ledger, or no unhunted unit all print `NEXT: none` with nothing recorded.
+- `hunters-at-once:` is printed before the wave hunts, as for wave 1.
+- Red: `.temp/viber/T6/red.log` (6 failing; the all-units-hunted case passes before the change because wave 1 hunts already make it `NEXT: none`, kept as a guard).
