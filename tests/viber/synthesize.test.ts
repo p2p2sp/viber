@@ -4,7 +4,10 @@
  * each report and each critic's verdict file become the title line, the header
  * line, the full entries (cap of ten, severity 4.0 or more), the further
  * findings and the coverage notes, and stdout is the `summary:` line followed by
- * the `NEXT: fill` block with one `entry:` line per full entry.
+ * the `NEXT: fill` block with one `entry:` line per full entry; and for the merge
+ * step: the undecided pairs of findings close in one file print as a `NEXT: merge`
+ * block before anything is written, each `--merge` group becomes one finding, and
+ * every printed pair is recorded in the ledger as merged or apart.
  *
  * synthesize.sh is `#!/bin/sh` and the skill calls it as
  * `sh "${CLAUDE_SKILL_DIR}/scripts/synthesize.sh" ...`, so every case runs
@@ -147,8 +150,28 @@ function build(dir: string, fx: Fixture): string {
   return ws;
 }
 
-async function synthesize(shell: Shell, ws: string): Promise<RunResult> {
-  return await runScript(SUT, [ws], { shell, cwd: path.dirname(ws) });
+async function synthesize(shell: Shell, ws: string, args: string[] = []): Promise<RunResult> {
+  return await runScript(SUT, [ws, ...args], { shell, cwd: path.dirname(ws) });
+}
+
+/** Builds the fixture and hands the shell and the workspace to `check`, which runs the script itself. */
+async function inRun(fx: Fixture, check: (shell: Shell, ws: string) => Promise<void>) {
+  await assertPosix(async (shell) => {
+    await withTempDir("p2p2-synth-", async (dir) => {
+      await check(shell, build(dir, fx));
+    });
+  });
+}
+
+function ledgerLines(ws: string): string[] {
+  return fs.readFileSync(path.join(ws, "ledger.md"), "utf8").trimEnd().split("\n");
+}
+
+/** Files a report the way a later wave would: its report, its verdict file and its ledger line. */
+function addFinding(ws: string, f: Finding) {
+  put(path.join(ws, "reports", `${f.id}.md`), report(f));
+  if (f.verdict !== undefined) put(path.join(ws, "verdicts", `${f.id}.md`), verdictFile(f));
+  fs.appendFileSync(path.join(ws, "ledger.md"), huntLine(huntOf(f.id)) + "\n");
 }
 
 /** Builds the fixture, runs the script, hands both to `check`. */
@@ -456,5 +479,174 @@ test("a missing ledger exits 2 with one error line on stderr and nothing on stdo
       assert.equal(result.stdout, "");
       assert.match(result.stderr, /^error: [^\n]+\n$/);
     });
+  });
+});
+
+const NEAR = { loc: "src/a.ts:L10-L20" };
+
+test("two findings of one file with overlapping ranges print one merge pair with a finding line each, and write nothing", async () => {
+  await inRun(
+    {
+      findings: [
+        verified("U1-1", { loc: "src/a.ts:L10-L20", cls: "bugs: c1", observed: "seg" }),
+        { id: "U2-1", loc: "src/a.ts:L15-L25", cls: "perf: c2" },
+      ],
+    },
+    async (shell, ws) => {
+      const before = ledgerLines(ws);
+      const result = await synthesize(shell, ws);
+      assert.equal(result.status, 0);
+      assert.equal(
+        result.stdout,
+        [
+          "NEXT: merge",
+          "merge?: U1-1 U2-1",
+          "finding: U1-1 | src/a.ts:L10-L20 | bugs: c1 | seg",
+          "finding: U2-1 | src/a.ts:L15-L25 | perf: c2 | none",
+          "",
+        ].join("\n"),
+      );
+      assert.ok(!fs.existsSync(path.join(ws, "findings.md")), "no findings.md before the pairs are decided");
+      assert.deepEqual(ledgerLines(ws), before);
+    },
+  );
+});
+
+test("a gap of 5 lines between two ranges of one file still prints a merge pair", async () => {
+  await inRun(
+    { findings: [verified("U1-1", NEAR), verified("U2-1", { loc: "src/a.ts:L26-L30" })] },
+    async (shell, ws) => {
+      const result = await synthesize(shell, ws);
+      assert.ok(result.stdout.startsWith("NEXT: merge\nmerge?: U1-1 U2-1\n"));
+    },
+  );
+});
+
+const apartRows: [string, string][] = [
+  ["a gap of 6 lines between the ranges", "src/a.ts:L27-L30"],
+  ["a range in another file", "src/b.ts:L12-L18"],
+  ["a LOCATION that is no path with a line range", "somewhere in a.ts"],
+];
+for (const [name, loc] of apartRows) {
+  test(`${name} prints no merge pair`, async () => {
+    await inRun({ findings: [verified("U1-1", NEAR), verified("U2-1", { loc })] }, async (shell, ws) => {
+      const result = await synthesize(shell, ws);
+      assert.equal(result.status, 0);
+      assert.ok(result.stdout.startsWith("summary: units 0 | hunts 2 |"), `stdout: ${result.stdout}`);
+      assert.ok(fs.existsSync(path.join(ws, "findings.md")));
+    });
+  });
+}
+
+const GROUP: Fixture = {
+  findings: [
+    { id: "U1-1", verdict: "INCONCLUSIVE", sev: "5.0", conf: "low", cls: "bugs: c1", loc: "src/a.ts:L10-L20", observed: "o1" },
+    verified("U2-1", { sev: "7.0", crit: "7.5", conf: "high", cls: "perf: c2", loc: "src/a.ts:L22-L30", observed: "o2" }),
+    { id: "A-first-1", verdict: "PARTIALLY VERIFIED", sev: "3.0", crit: "3.0", conf: "medium", cls: "x: c3", loc: "src/a.ts:L32-L40", observed: "o3" },
+  ],
+};
+
+test("a merge group becomes one finding with the first member's title, class and name, every location, the strongest verdict and the highest severity and confidence", async () => {
+  await inRun(GROUP, async (shell, ws) => {
+    const result = await synthesize(shell, ws, ["--merge", "A-first-1,U2-1,U1-1"]);
+    assert.equal(result.status, 0, result.stderr);
+    const text = fs.readFileSync(path.join(ws, "findings.md"), "utf8");
+    assert.deepEqual(entry(text, 1), [
+      "## 1. Title U1-1",
+      "SEVERITY: 7.5",
+      "CONFIDENCE: high",
+      "VERDICT: VERIFIED",
+      "LOCATION: src/a.ts:L10-L20, src/a.ts:L22-L30, src/a.ts:L32-L40",
+      "CLASS: bugs: c1",
+      "<!-- finding: U1-1 -->",
+      "Severity adopted from the critic: 7.5 (filed 7.0)",
+      "<!-- fill -->",
+    ]);
+    assert.deepEqual(markers(text), ["U1-1"]);
+    assert.equal(
+      result.stdout,
+      [
+        "summary: units 0 | hunts 3 | confirmed 1 | not investigated 0",
+        `NEXT: fill | findings: ${ws}/findings.md`,
+        `entry: 1 | reports: ${ws}/reports/U1-1.md, ${ws}/reports/U2-1.md, ${ws}/reports/A-first-1.md | verdict: VERIFIED | observed: o2`,
+        "",
+      ].join("\n"),
+    );
+  });
+});
+
+test("a merged group takes one slot against the cap of ten", async () => {
+  const others = ["9.1", "9.2", "9.3", "9.4", "9.5", "9.6", "9.7", "9.8", "9.9"].map((s, i) => verified(`U${i + 3}-1`, { sev: s }));
+  await inRun(
+    { findings: [verified("U1-1", { sev: "5.0", loc: "src/a.ts:L10-L20" }), verified("U2-1", { sev: "5.0", loc: "src/a.ts:L12-L22" }), ...others] },
+    async (shell, ws) => {
+      const result = await synthesize(shell, ws, ["--merge", "U1-1,U2-1"]);
+      assert.equal(result.status, 0, result.stderr);
+      const text = fs.readFileSync(path.join(ws, "findings.md"), "utf8");
+      assert.equal(markers(text).length, 10);
+      assert.ok(text.includes("## Further findings (0)\n"));
+    },
+  );
+});
+
+const TRIPLE: Fixture = {
+  findings: [
+    verified("U1-1", { loc: "src/a.ts:L10-L20" }),
+    verified("U2-1", { loc: "src/a.ts:L12-L22" }),
+    verified("U3-1", { loc: "src/a.ts:L14-L24" }),
+  ],
+};
+
+test("a call with a merge group records the group and every printed pair it does not merge as apart", async () => {
+  await inRun(TRIPLE, async (shell, ws) => {
+    const before = ledgerLines(ws);
+    const result = await synthesize(shell, ws, ["--merge", "U1-1,U2-1"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(ledgerLines(ws), [...before, "merge: U1-1,U2-1", "apart: U1-1 U3-1", "apart: U2-1 U3-1"]);
+  });
+});
+
+test("merge none records every printed pair as apart and the run goes on to findings.md", async () => {
+  await inRun({ findings: [verified("U1-1", NEAR), verified("U2-1", { loc: "src/a.ts:L12-L22" })] }, async (shell, ws) => {
+    const before = ledgerLines(ws);
+    const result = await synthesize(shell, ws, ["--merge", "none"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(ledgerLines(ws), [...before, "apart: U1-1 U2-1"]);
+    assert.deepEqual(markers(fs.readFileSync(path.join(ws, "findings.md"), "utf8")), ["U1-1", "U2-1"]);
+  });
+});
+
+test("a later call prints only the pairs not decided yet", async () => {
+  await inRun({ findings: [verified("U1-1", NEAR), verified("U2-1", { loc: "src/a.ts:L12-L22" })] }, async (shell, ws) => {
+    await synthesize(shell, ws, ["--merge", "none"]);
+    addFinding(ws, verified("U3-1", { loc: "src/a.ts:L14-L24" }));
+    const result = await synthesize(shell, ws);
+    assert.equal(result.status, 0);
+    assert.deepEqual(
+      result.stdout.split("\n").filter((l) => l.startsWith("merge?:")),
+      ["merge?: U1-1 U3-1", "merge?: U2-1 U3-1"],
+    );
+  });
+});
+
+test("a merge group stays one finding on a later call that prints no pair", async () => {
+  await inRun(TRIPLE, async (shell, ws) => {
+    await synthesize(shell, ws, ["--merge", "U1-1,U2-1"]);
+    const result = await synthesize(shell, ws);
+    assert.equal(result.status, 0);
+    assert.ok(result.stdout.startsWith("summary: units 0 | hunts 3 | confirmed 2 |"), `stdout: ${result.stdout}`);
+    assert.deepEqual(markers(fs.readFileSync(path.join(ws, "findings.md"), "utf8")), ["U1-1", "U3-1"]);
+  });
+});
+
+test("a merge id naming no finding exits 2 with one error line, writes no findings.md and leaves the ledger alone", async () => {
+  await inRun({ findings: [verified("U1-1", NEAR), verified("U2-1", { loc: "src/a.ts:L12-L22" })] }, async (shell, ws) => {
+    const before = ledgerLines(ws);
+    const result = await synthesize(shell, ws, ["--merge", "U1-1,U9-1"]);
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^error: [^\n]+\n$/);
+    assert.ok(!fs.existsSync(path.join(ws, "findings.md")));
+    assert.deepEqual(ledgerLines(ws), before);
   });
 });

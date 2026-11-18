@@ -23,32 +23,53 @@
 # lens angle order, V-<n> by n, then k). The first ten findings of severity 4.0 or
 # more get a full entry; every other one goes to the further findings.
 #
+# Merging: two surviving findings of one file whose LOCATION ranges overlap or have
+# at most 5 lines between them (any CLASS) are a merge pair for the model to judge.
+# Every pair not decided by the ledger is printed before anything is written. A
+# --merge group becomes one finding: the title, CLASS and name of its first member
+# in hunt order, every member LOCATION joined on one line, the highest severity, the
+# strongest verdict and the highest confidence, one slot against the cap.
+#
 # Contract:
-#   argv   : <ws> - the run workspace, <root>/.temp/viber/code-auditor/<run-id>.
-#            Nothing else is accepted.
+#   argv   : <ws> - the run workspace, <root>/.temp/viber/code-auditor/<run-id> -
+#            then any number of --merge <id>,<id>[,<id>]... (a group of two or
+#            more distinct finding ids, each <hunt id>-<k>), or one --merge none,
+#            never both. Nothing else is accepted.
 #   cwd    : irrelevant: every path derives from <ws>, so cwd only resolves a
 #            relative one.
 #   env    : none read beyond what the shell itself reads.
 #   files  : reads <ws>/run.md (Lens:, Lens file:, Scope: and the units of its
-#            ## Units section), <ws>/ledger.md (the hunt: lines), the first five
-#            lines of each <ws>/reports/<hunt id>-<k>.md, each
-#            <ws>/verdicts/<hunt id>-<k>.md and the ## Hunts angle headings of the
-#            lens file. A report of another hunt never counts: hunt A-x owns
-#            A-x-<digit>.md only, never A-x-y-1.md. Writes <ws>/findings.md whole,
-#            nothing else.
-#   stdout : report lines, then one directive block:
+#            ## Units section), <ws>/ledger.md (the hunt:, merge: and apart:
+#            lines), the first five lines of each <ws>/reports/<hunt id>-<k>.md,
+#            each <ws>/verdicts/<hunt id>-<k>.md and the ## Hunts angle headings of
+#            the lens file. A report of another hunt never counts: hunt A-x owns
+#            A-x-<digit>.md only, never A-x-y-1.md. Writes <ws>/findings.md whole;
+#            a call with --merge also appends to <ws>/ledger.md one merge: line
+#            per group, then one apart: line per pair it printed that no group
+#            joins (--merge none: every printed pair). Nothing else is written, and
+#            nothing at all while a pair is undecided and no --merge came.
+#   stdout : with an undecided pair and no --merge, only:
+#              NEXT: merge
+#              merge?: <id> <id>
+#              finding: <id> | <LOCATION> | <CLASS> | <OBSERVED or none>
+#              finding: <id> | <LOCATION> | <CLASS> | <OBSERVED or none>
+#            one merge?: line and its two finding: lines per pair. Otherwise
+#            report lines, then one directive block:
 #              summary: units <U> | hunts <H> | confirmed <K> | not investigated <J>
 #              NEXT: fill | findings: <ws>/findings.md
-#              entry: <n> | reports: <path> | verdict: <VERDICT> | observed: <OBSERVED or none>
-#            one entry: line per full entry, <n> its heading number. With no full
+#              entry: <n> | reports: <path>[, <path>] | verdict: <VERDICT> | observed: <OBSERVED or none>
+#            one entry: line per full entry, <n> its heading number, the reports
+#            of every member of a merged entry listed. With no full
 #            entry the block is the single line NEXT: none.
 #            U counts the map units, H the distinct hunts of the ledger, K the
 #            findings left after folding whose verdict is VERIFIED or PARTIALLY
 #            VERIFIED, J the mapped units no hunt left a report for (0 on the diff
 #            scope, where the angle hunts take on every unit).
 #   exit   : 0 on success. 2 with one error: line on stderr and nothing on stdout
-#            when <ws> is missing or names no run.md or ledger.md, or on any
-#            argument other than <ws>.
+#            when <ws> is missing or names no run.md or ledger.md, on any
+#            argument other than <ws> and --merge, on --merge none beside a group,
+#            on a group of fewer than two distinct ids, or on a --merge id naming
+#            no surviving finding; nothing is written then.
 set -u
 set -f
 
@@ -57,15 +78,35 @@ fail() {
   exit 2
 }
 
+nl='
+'
 ws=""
+merges=""
+none=""
 while [ $# -gt 0 ]; do
-  if [ -n "$ws" ]; then
-    fail "unexpected argument: $1"
-  fi
-  ws=$1
-  shift
+  case $1 in
+    --merge)
+      [ $# -ge 2 ] || fail "--merge needs a value"
+      if [ "$2" = none ]; then
+        none=1
+      else
+        merges="$merges$2$nl"
+      fi
+      shift 2
+      ;;
+    *)
+      if [ -n "$ws" ]; then
+        fail "unexpected argument: $1"
+      fi
+      ws=$1
+      shift
+      ;;
+  esac
 done
-[ -n "$ws" ] || fail "usage: synthesize.sh <ws>"
+[ -n "$ws" ] || fail "usage: synthesize.sh <ws> [--merge <id>,<id>[,<id>]...]... | [--merge none]"
+if [ -n "$none" ] && [ -n "$merges" ]; then
+  fail "--merge none cannot join merge groups"
+fi
 case $ws in
   */) ws=${ws%/} ;;
 esac
@@ -78,7 +119,7 @@ runid=${ws##*/}
 # The portability sweep reads a line holding the word function and a name as the
 # bash keyword, so each awk function below breaks its line after the word, and a
 # getline condition opens with a spaced parenthesis for the same reason.
-WS=$ws RUNID=$runid DOT=$dot awk '
+WS=$ws RUNID=$runid DOT=$dot MERGES=$merges NONE=$none awk '
 function \
 trim(s) {
   sub(/^[ \t]+/, "", s)
@@ -122,6 +163,52 @@ isort(n, keys, ord,    i, j, x) {
 function \
 joined(list) {
   return list == "" ? "none" : list
+}
+function \
+die(msg,    cmd) {
+  cmd = "cat 1>&2"
+  print "error: " msg | cmd
+  close(cmd)
+  exit 2
+}
+function \
+fline(i) {
+  return sid[i] " | " sloc[i] " | " sclass[i] " | " (sobs[i] == "" ? "none" : sobs[i])
+}
+function \
+parseloc(i,    loc, f, rng, n, q) {
+  pok[i] = 0
+  loc = sloc[i]
+  if (!match(loc, /:L[0-9]+(-L[0-9]+)?$/)) return
+  f = substr(loc, 1, RSTART - 1)
+  sub(/^\.\//, "", f)
+  if (f == "") return
+  rng = substr(loc, RSTART + 2)
+  n = split(rng, q, "-L")
+  ps[i] = q[1] + 0
+  pe[i] = (n > 1) ? q[2] + 0 : ps[i]
+  if (ps[i] > pe[i]) return
+  pfile[i] = f
+  pok[i] = 1
+}
+function \
+near(a, b,    hi, lo) {
+  if (!pok[a] || !pok[b] || pfile[a] != pfile[b]) return 0
+  hi = (ps[a] > ps[b]) ? ps[a] : ps[b]
+  lo = (pe[a] < pe[b]) ? pe[a] : pe[b]
+  return hi - lo <= 6
+}
+function \
+samegroup(a, b) {
+  if (!(sid[a] in grp) || !(sid[b] in grp)) return 0
+  return grp[sid[a]] == grp[sid[b]]
+}
+function \
+addgroup(n, ids,    i, j, lab, old) {
+  lab = ++nlab
+  for (i = 1; i <= n; i++) if (ids[i] in grp) old[grp[ids[i]]] = 1
+  for (j in grp) if (grp[j] in old) grp[j] = lab
+  for (i = 1; i <= n; i++) grp[ids[i]] = lab
 }
 
 BEGIN {
@@ -174,6 +261,19 @@ BEGIN {
   nh++
   hid[nh] = id
   hunit[nh] = unit
+}
+
+/^merge: / {
+  sub(/\r$/, "")
+  mgl[++nmg] = trim(substr($0, 8))
+}
+
+/^apart: / {
+  sub(/\r$/, "")
+  if (split(trim(substr($0, 8)), aq, " ") == 2) {
+    apart[aq[1] " " aq[2]] = 1
+    apart[aq[2] " " aq[1]] = 1
+  }
 }
 
 END {
@@ -262,12 +362,107 @@ END {
       sconf[ns] = crank(conf)
       if (sv[ns] == 2 && sconf[ns] < 2) sconf[ns]++
       sstat[ns] = (verdict == "none") ? "critic returned no verdict" : "<!-- oracle -->"
-      skey[ns] = sprintf("k%06d%d%d", 100000 - seff[ns], sv[ns], sconf[ns]) hk[h] k
+      sreps[ns] = ws "/reports/" sid[ns] ".md"
+      stail[ns] = hk[h] k
+      skey[ns] = sprintf("k%06d%d%d", 100000 - seff[ns], sv[ns], sconf[ns]) stail[ns]
+      sidx[sid[ns]] = ns
+      parseloc(ns)
     }
     if (nfiles == 0) hstate[h] = "none"
     else if (nfind == 0) hstate[h] = "nofinding"
     else hstate[h] = "found"
     if (hstate[h] != "none" && unit != "") inv[unit] = 1
+  }
+
+  isort(ns, stail, horder)
+  for (m = 1; m <= nmg; m++) {
+    n = split(mgl[m], mid, ",")
+    c = 0
+    for (x = 1; x <= n; x++) {
+      v = trim(mid[x])
+      if (v in sidx) lid[++c] = v
+    }
+    if (c >= 2) addgroup(c, lid)
+  }
+
+  npair = 0
+  for (r = 1; r <= ns; r++) {
+    for (t = r + 1; t <= ns; t++) {
+      a = horder[r]
+      b = horder[t]
+      if (!near(a, b)) continue
+      if (samegroup(a, b)) continue
+      pk = sid[a] " " sid[b]
+      if (pk in apart) continue
+      npair++
+      pa[npair] = a
+      pb[npair] = b
+    }
+  }
+
+  nargs = 0
+  hasarg = (ENVIRON["NONE"] != "" || ENVIRON["MERGES"] != "")
+  ng = split(ENVIRON["MERGES"], mline, "\n")
+  for (x = 1; x <= ng; x++) {
+    if (mline[x] == "") continue
+    n = split(mline[x], mid, ",")
+    c = 0
+    split("", uniq)
+    for (y = 1; y <= n; y++) {
+      v = trim(mid[y])
+      if (!(v in sidx)) die("merge id names no finding: " v)
+      if (v in uniq) continue
+      uniq[v] = 1
+      c++
+      argid[nargs + 1, c] = v
+    }
+    if (c < 2) die("merge group needs two findings: " trim(mline[x]))
+    argn[++nargs] = c
+  }
+
+  if (!hasarg && npair > 0) {
+    print "NEXT: merge"
+    for (pp = 1; pp <= npair; pp++) {
+      print "merge?: " sid[pa[pp]] " " sid[pb[pp]]
+      print "finding: " fline(pa[pp])
+      print "finding: " fline(pb[pp])
+    }
+    exit 0
+  }
+
+  if (hasarg) {
+    ledger = ws "/ledger.md"
+    for (x = 1; x <= nargs; x++) {
+      for (y = 1; y <= argn[x]; y++) lid[y] = argid[x, y]
+      addgroup(argn[x], lid)
+      line = argid[x, 1]
+      for (y = 2; y <= argn[x]; y++) line = line "," argid[x, y]
+      print "merge: " line >> ledger
+    }
+    for (pp = 1; pp <= npair; pp++) {
+      if (!samegroup(pa[pp], pb[pp])) print "apart: " sid[pa[pp]] " " sid[pb[pp]] >> ledger
+    }
+    close(ledger)
+  }
+
+  for (r = 1; r <= ns; r++) {
+    i = horder[r]
+    if (!(sid[i] in grp)) continue
+    g = grp[sid[i]]
+    if (!(g in lead)) {
+      lead[g] = i
+      continue
+    }
+    f = lead[g]
+    dead[i] = 1
+    sloc[f] = sloc[f] ", " sloc[i]
+    sreps[f] = sreps[f] ", " sreps[i]
+    if (seff[i] > seff[f]) seff[f] = seff[i]
+    if (sfiled[i] > sfiled[f]) sfiled[f] = sfiled[i]
+    if (sconf[i] < sconf[f]) sconf[f] = sconf[i]
+    if (sv[i] < sv[f] || (sv[i] == sv[f] && sobs[f] == "")) sobs[f] = sobs[i]
+    if (sv[i] < sv[f]) sv[f] = sv[i]
+    skey[f] = sprintf("k%06d%d%d", 100000 - seff[f], sv[f], sconf[f]) stail[f]
   }
 
   isort(ns, skey, ord)
@@ -279,6 +474,7 @@ END {
   nfurther = 0
   for (r = 1; r <= ns; r++) {
     i = ord[r]
+    if (i in dead) continue
     if (sv[i] < 2) confirmed++
     if (seff[i] >= 40 && nfull < 10) full[++nfull] = i
     else further[++nfurther] = i
@@ -326,7 +522,7 @@ END {
   print "## Further findings (" nfurther ")" > out
   for (r = 1; r <= nfurther; r++) {
     i = further[r]
-    print fmt(seff[i]) " " dot " " sloc[i] " " dot " " sclass[i] " " dot " " stitle[i] " " dot " " ws "/reports/" sid[i] ".md" > out
+    print fmt(seff[i]) " " dot " " sloc[i] " " dot " " sclass[i] " " dot " " stitle[i] " " dot " " sreps[i] > out
   }
   print "" > out
   print "## Coverage notes" > out
@@ -342,10 +538,11 @@ END {
     print "NEXT: fill | findings: " out
     for (e = 1; e <= nfull; e++) {
       i = full[e]
-      print "entry: " e " | reports: " ws "/reports/" sid[i] ".md | verdict: " vname[sv[i]] " | observed: " (sobs[i] == "" ? "none" : sobs[i])
+      print "entry: " e " | reports: " sreps[i] " | verdict: " vname[sv[i]] " | observed: " (sobs[i] == "" ? "none" : sobs[i])
     }
   }
 }
 ' "$ws/ledger.md"
+status=$?
 
-exit 0
+exit $status
