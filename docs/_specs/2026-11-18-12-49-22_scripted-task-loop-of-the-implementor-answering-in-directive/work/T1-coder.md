@@ -1,5 +1,0 @@
-- `--dispatch` reuses the awk index pass under `--split` validation, then reads the `tasks:` rows' deps column in the shell (no associative arrays: bash 3.2).
-- `run-lessons:` accepts the lessons file's second line with or without a `lessons: ` prefix, since C2 and C3 word it differently.
-- `<plugin root>` reads `$0` with backslashes turned into `/` first (Windows hands `C:\...`), then cuts `/scripts/<name>.sh`; a `..` detour in the spelling stays.
-- Red evidence: the new cases were run red by temporarily renaming the `--dispatch` case label (revert route), 12 failing in `.temp/viber/T1/red.log`.
-- Not done: the CLAUDE.md nodes and `implementor/SKILL.md` step 4 still describe the hand-built lines (out of scope per the task).

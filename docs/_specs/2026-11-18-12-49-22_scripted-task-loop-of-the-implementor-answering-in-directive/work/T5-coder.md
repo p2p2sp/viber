@@ -1,6 +1,0 @@
-- `--red-timeout` is read as "the earlier call of this return ran out of time in the check": the script never runs the check under it and answers `UNRUNNABLE timeout`; the model re-reports the same `coder PASS` with the flag (the timed-out call saved no state, so the round count is unharmed).
-- A check that ran always goes to review, even under a waived review (a `TDD: required` review is never waived); an unusable answer (no `red-check:` line with `NEXT: review`, or an unknown `NEXT:` word) reads as `UNRUNNABLE no NEXT: line`.
-- State gains `rc` (the check's line without its prefix, cleared by the next attempt) so `retry reviewer` reprints the `red-check:` line.
-- `PASSED-WITHOUT-CHANGE` on attempt 5 holds the task and the hold directive carries `red-check: PASSED-WITHOUT-CHANGE` (C2); no test pins that row.
-- Tests run red-check.sh for real in a committed temp repo for the FAIL-AS-EXPECTED and PASSED-WITHOUT-CHANGE rows; the non-zero exit and missing `NEXT:` rows run a copy of the scripts beside a stub `red-check.sh`.
-- Red evidence: 6 failing, `.temp/viber/T5/red.log`, taken by temporarily forcing `red_check_on=0` (production was written before its tests, so the revert route was used).

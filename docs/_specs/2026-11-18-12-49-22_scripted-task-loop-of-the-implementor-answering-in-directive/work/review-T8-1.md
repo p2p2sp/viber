@@ -1,2 +1,0 @@
-- Blocking [task] viber/docs/files.md:17 - Verification mismatch: `grep -n -e "/state" -e "viber/lessons" viber/docs/files.md viber/scripts/task-step.sh` declares "both rows of the doc", but it prints only files.md:18 (the lessons row); the `.temp/viber/<task id>/` row spells the file as a bare `state`, so "/state" never matches it (DoD.3)
-  Name the full path in that row, e.g. "`state` (`.temp/viber/<task id>/state`), the step state of the task ...", so the declared grep prints line 17 as well as line 18.

@@ -1,5 +1,0 @@
-- Earlier tasks had already removed the step 4 dispatch templates and step 2's `deferred:`/`decision:` bullets; T11 removed the last `run-lessons` bullet of step 4 and moved the lessons call into the two close files.
-- `IMPLEMENTOR_WORD_CAP` is 2867, counted by whitespace split as `wc -w` does (SKILL.md was 2898 before this task).
-- `repair-prose` pins `repair: <one line: the problem this pass fixes>` in step 4, so the `add:` labels of `NEXT: coder` keep their template spelling.
-- The baseline-fragment test sits in `extras-prose.unit.test.ts`; `previous-review`, `red-evidence` and `ruling` prose tests needed no change.
-- Red evidence is the revert route (5 failing, `.temp/viber/T11/red.log`).

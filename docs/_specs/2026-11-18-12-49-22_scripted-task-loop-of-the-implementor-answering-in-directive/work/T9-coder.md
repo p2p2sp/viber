@@ -1,7 +1,0 @@
-- The final-review fix coder and the step 5 repair coder still carry `run-lessons:` from `fragments/final-review.true.md` and `parts/close.md` (not in Files): step 4 keeps one `run-lessons:` bullet running `run-failures.sh --lessons` for those two dispatches, since the model no longer holds a `lessons:` line.
-- `parts/close.md` and the close fragments say "Record its ruling with subject <x>": step 4's arbiter paragraph now reports that through `task-step.sh ruled --case <x> --options ...` (decide and cap take no --options). The text is unedited there.
-- Step 4 holds the one `Arbiter dispatch` paragraph (the `NEXT: arbiter` block and the close cases share it); `ruling-prose` counts exactly one `viber:arbiter` line in SKILL.md plus close.md.
-- Dropped the index `deferred:` and `decision:` bullets of step 2: `plan-index.sh --dispatch` reads them from status.md itself.
-- Word cap: SKILL.md is 2828 words (was 3626), pinned `< 3626` in close-part-prose.unit.test.ts.
-- Red evidence: 42 failing, `.temp/viber/T9/red.log`.
-- CLAUDE.md nodes naming `red-check.true.md` (viber/CLAUDE.md, scripts/CLAUDE.md, tests/viber/CLAUDE.md) left for the memory step.

@@ -1,7 +1,0 @@
-- Repair state: `mode` (0, 1, 2) and the last failure (`lf_reason`, `lf_add`, `lf_rpt`, `lf_review`) are kept in the state file by every failure, the hold included, so `repair` replays it; the cap arbiter's report line for the last review report is `lastrev`, which outlives the attempt that produced it.
-- `ruled --case cap` prints `NEXT: carry-out: <option>[ | mismatch]` right after its `--rule` RUN, then the blocks carrying it out (accept: `NEXT: commit` with `--unreviewed` and the attempt's `--with` paths; skip: the skip chain), so `mismatch` has a home on both outcomes. The task file left that spot open.
-- Options of the cap ruling come from the state (`accept | skip` after a review failure, `skip` otherwise); `--options` overrides. A commit refused after `accept` clears the review flag, which is what turns the next cap arbiter into `options: skip`.
-- `skip` needs no state: it only reads the plan.
-- In repair mode the `red-check:` directive field of the attempt form is dropped; the repair form of C2 has none.
-- The test file runs about 3 minutes (165 cases, each spawning bash); do not edit task-step.sh while it runs.
-- Red evidence: 26 failing, `.temp/viber/T7/red.log` (tests written before the production code; the header, the state variables and the event names were in the tree, no behaviour).
