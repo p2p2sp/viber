@@ -10,6 +10,8 @@
 #                                        the reviewer's scope for one task (below)
 #   plan-index.sh <plan-file> --dispatch <task-id> coder|reviewer
 #                                        the labelled lines of one dispatch (below)
+#   plan-index.sh <plan-file> --slice <id>[,<id>]...
+#                                        the commits and files of a final-review slice (below)
 #
 # stdout (the orchestrator's only view of the plan - the decomposed files are read
 # by agents):
@@ -108,6 +110,22 @@
 #             scope: "<plugin root>/scripts/plan-index.sh" "<plan>" --extra "<id>"
 # An id the plan does not hold, a form other than coder or reviewer, or --dispatch
 # with --split or --extra, exits 2.
+#
+# --slice <id>[,<id>]... prints, instead of the index, what a final review of those
+# tasks reads, over the commits since the oldest commit that added the plan file:
+#   commit: T3 | 1a2b3c4 | T3(2) - Add the retry loop
+#                                   one per commit whose subject is "<id> - <title>"
+#                                   or "<id>(<n>) - <title>" of a slice task (the
+#                                   title as the plan holds it), oldest first, the
+#                                   short sha as git rev-parse --short prints it
+#   file: src/a.ts                  one per path those commits changed or removed,
+#                                   in byte order, each once, minus every path a
+#                                   commit of a task outside the slice also changed
+#                                   when that task is numbered below the slice
+#                                   task of the highest number
+# Nothing at all, exit 0, when no commit matches or no commit added the plan. The
+# plan is validated as under --split and no file is written. An id the plan does
+# not hold, or --slice beside --split, --extra or --dispatch, exits 2.
 #
 # --split removes, once the plan is validated and decomposed and before the index
 # is printed, the coder and reviewer extras files of every task not done; a done
@@ -264,7 +282,8 @@
 #   2 - plan file missing or unusable, an argument that is not --split or
 #       --extra <task-id>, --extra beside --split, a --extra id the plan does not
 #       hold, a --dispatch with an unknown id or form or beside --split or
-#       --extra, or a --split pointed at anything but the run's own <dir>/plan.md
+#       --extra, a --slice with an unknown id or beside --split, --extra or
+#       --dispatch, or a --split pointed at anything but the run's own <dir>/plan.md
 #   3 - no <!-- TASK --> blocks
 #   4 - broken task contract (<!-- TASK --> blocks under no "## Tasks" heading,
 #       where the cut would leave tasks/ empty while the index still lists
@@ -381,8 +400,8 @@
 #       could not stage).
 #
 # Contract:
-#   argv   : the plan file, optionally --split, --extra <task-id> or --dispatch
-#            <task-id> coder|reviewer, never two of them.
+#   argv   : the plan file, optionally --split, --extra <task-id>, --dispatch
+#            <task-id> coder|reviewer or --slice <id>[,<id>]..., never two of them.
 #   cwd    : the repository root - the plan path and every path in the index are
 #            relative to it; a plan path given absolute, or with a leading
 #            "./", inside it is read as its relative form.
@@ -400,8 +419,10 @@ has_extra=0
 has_dispatch=0
 dispatch_id=""
 dispatch_form=""
+has_slice=0
+slice_arg=""
 [[ $# -eq 0 ]] || shift
-usage="error: usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer]"
+usage="error: usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer | --slice <id>[,<id>]...]"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --split) mode="--split" ;;
@@ -417,6 +438,12 @@ while [[ $# -gt 0 ]]; do
       dispatch_id="$2"
       dispatch_form="$3"
       shift 2
+      ;;
+    --slice)
+      if [[ $# -lt 2 || -z "$2" ]]; then echo "$usage" >&2; exit 2; fi
+      has_slice=1
+      slice_arg="$2"
+      shift
       ;;
     *) echo "$usage" >&2; exit 2 ;;
   esac
@@ -442,6 +469,11 @@ if [[ "$has_dispatch" -eq 1 ]]; then
     echo "error: --dispatch form must be coder or reviewer, got: $dispatch_form" >&2
     exit 2
   fi
+fi
+
+if [[ "$has_slice" -eq 1 && ( "$has_extra" -eq 1 || "$has_dispatch" -eq 1 || "$mode" == "--split" ) ]]; then
+  echo "error: --slice cannot be combined with --split, --extra or --dispatch" >&2
+  exit 2
 fi
 
 if [[ ! -f "$plan" ]]; then
@@ -549,6 +581,7 @@ fi
 awk_mode="$mode"
 [[ "$has_extra" -eq 0 ]] || awk_mode="--split"
 [[ "$has_dispatch" -eq 0 ]] || awk_mode="--split"
+[[ "$has_slice" -eq 0 ]] || awk_mode="--split"
 # A plain call on a landed plan (status.md beside it) is validated the same way:
 # the plan is frozen, so a rule added after it landed must not refuse it.
 [[ ! -f "$dir/status.md" ]] || awk_mode="--split"
@@ -1632,6 +1665,101 @@ END {
   }
 }
 ' "$plan")"
+
+# --slice: the commits and files of a final-review slice, read off the validated
+# index above (its id and title columns) and the history since the oldest commit
+# that added the plan. Nothing is written.
+if [[ "$has_slice" -eq 1 ]]; then
+  # Every path handed to git below is literal: a bracketed path stays one file.
+  export GIT_LITERAL_PATHSPECS=1
+
+  t_ids=()
+  t_titles=()
+  in_rows=0
+  while IFS= read -r row; do
+    case "$row" in
+      "tasks: "*) in_rows=1 ;;
+      "verify: "*) in_rows=0 ;;
+      *)
+        if [[ $in_rows -eq 1 ]]; then
+          row_rest="$row"
+          for _ in 1 2 3 4 5 6 7 8; do row_rest="${row_rest#* | }"; done
+          t_ids+=("${row%% | *}")
+          t_titles+=("$row_rest")
+        fi
+        ;;
+    esac
+  done < <(printf '%s\n' "$index_out")
+
+  slice_ords=" "
+  max_ord=0
+  set -f
+  for want in ${slice_arg//,/ }; do
+    found=0
+    for ((i = 0; i < ${#t_ids[@]}; i++)); do
+      if [[ "${t_ids[$i]}" == "$want" ]]; then
+        found=1
+        slice_ords="$slice_ords$((i + 1)) "
+        [[ $((i + 1)) -le $max_ord ]] || max_ord=$((i + 1))
+      fi
+    done
+    if [[ $found -eq 0 ]]; then
+      set +f
+      echo "error: --slice: no such task: $want" >&2
+      exit 2
+    fi
+  done
+  set +f
+  if [[ "$slice_ords" == " " ]]; then echo "$usage" >&2; exit 2; fi
+
+  slice_base=""
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    slice_base="$(git log --diff-filter=A --reverse --format=%H -- "$plan" 2>/dev/null | sed -n '1p')"
+  fi
+  [[ -n "$slice_base" ]] || exit 0
+
+  slice_commits=""
+  slice_files=""
+  other_files=$'\n'
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    c_sha="${line%% *}"
+    c_subject="${line#* }"
+    c_ord=0
+    for ((i = 0; i < ${#t_ids[@]}; i++)); do
+      t_id="${t_ids[$i]}"
+      t_title="${t_titles[$i]}"
+      if [[ "$c_subject" == "$t_id - $t_title" ]]; then c_ord=$((i + 1)); break; fi
+      if [[ "$c_subject" == "$t_id("* ]]; then
+        c_rest="${c_subject#"$t_id("}"
+        c_num="${c_rest%%)*}"
+        case "$c_num" in '' | *[!0-9]*) continue ;; esac
+        if [[ "$c_rest" == "$c_num) - $t_title" ]]; then c_ord=$((i + 1)); break; fi
+      fi
+    done
+    [[ $c_ord -gt 0 ]] || continue
+    case "$slice_ords" in
+      *" $c_ord "*) in_slice=1 ;;
+      *) in_slice=0 ;;
+    esac
+    if [[ $in_slice -eq 0 && $c_ord -ge $max_ord ]]; then continue; fi
+    if [[ $in_slice -eq 1 ]]; then
+      slice_commits="${slice_commits}commit: ${t_ids[$((c_ord - 1))]} | $c_sha | $c_subject"$'\n'
+    fi
+    while IFS= read -r -d '' f; do
+      if [[ $in_slice -eq 1 ]]; then slice_files="$slice_files$f"$'\n'; else other_files="$other_files$f"$'\n'; fi
+    done < <(git diff-tree -r -z --no-commit-id --no-renames --root --name-only "$c_sha" 2>/dev/null || true)
+  done < <(git log --reverse --format='%h %s' "$slice_base..HEAD" 2>/dev/null || true)
+
+  [[ -n "$slice_commits" ]] || exit 0
+  printf '%s' "$slice_commits"
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    case "$other_files" in *$'\n'"$f"$'\n'*) continue ;; esac
+    printf 'file: %s\n' "$f"
+  done < <(printf '%s' "$slice_files" | LC_ALL=C sort -u)
+  exit 0
+fi
 
 # --dispatch: the labelled lines of one task's coder or reviewer dispatch, read off
 # the validated index above (its deps column) and the state beside the plan. The

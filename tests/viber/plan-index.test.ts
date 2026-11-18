@@ -4510,3 +4510,107 @@ for (const [label, args] of [
     });
   });
 }
+
+// --- the slice lines: plan-index.sh <plan> --slice <id>[,<id>]... --------------
+
+const SLICE_TASKS: TaskFields[] = [
+  { id: "T1", title: "First", files: "src/one.ts" },
+  { id: "T2", title: "Second", files: "src/two.ts" },
+  { id: "T3", title: "Third", files: "src/three.ts" },
+  { id: "T4", title: "Fourth", files: "src/four.ts" },
+];
+
+/** A landed run in a fresh repository: the plan and its status committed as the
+ *  decomposition commit, the test's own git config kept out of every later `git add -A`. */
+async function landRun(repo: GitRepo): Promise<void> {
+  seed(repo.dir, planBody(SLICE_TASKS, 1));
+  write(repo.dir, `${PLAN_DIR}/status.md`, "# status\n\nprogress: 0/4\ndone: none\n");
+  write(repo.dir, ".git/info/exclude", ".gitconfig-global\n");
+  await repo.git("add", "-A");
+  await repo.git("commit", "-m", "chore(viber): decompose plan");
+}
+
+/** One commit of `subject` writing each `files` entry (an empty content removes the file); returns its short sha. */
+async function commitAs(repo: GitRepo, subject: string, files: Record<string, string>): Promise<string> {
+  for (const [rel, content] of Object.entries(files)) {
+    if (content === "") fs.rmSync(path.join(repo.dir, rel), { force: true });
+    else write(repo.dir, rel, content);
+  }
+  await repo.git("add", "-A");
+  await repo.git("commit", "-m", subject);
+  return (await repo.git("rev-parse", "--short", "HEAD")).stdout.trim();
+}
+
+test("--slice prints one commit line per commit of a slice task, a fix-number commit included, oldest first, and no other commit", async () => {
+  await withGitRepo(async (repo) => {
+    await landRun(repo);
+    await commitAs(repo, "T1 - First", { "src/one.ts": "1\n" });
+    const t2 = await commitAs(repo, "T2 - Second", { "src/two.ts": "2\n" });
+    await commitAs(repo, "chore(viber): record T2 done, landed in abc", { [`${PLAN_DIR}/status.md`]: "done: T2\n" });
+    const fix = await commitAs(repo, "T2(2) - Second", { "src/two.ts": "2b\n" });
+    const t3 = await commitAs(repo, "T3 - Third", { "src/three.ts": "3\n" });
+    await commitAs(repo, "T4 - Fourth", { "src/four.ts": "4\n" });
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "--slice", "T2,T3"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      [
+        `commit: T2 | ${t2} | T2 - Second`,
+        `commit: T2 | ${fix} | T2(2) - Second`,
+        `commit: T3 | ${t3} | T3 - Third`,
+        "file: src/three.ts",
+        "file: src/two.ts",
+        "",
+      ].join("\n"),
+    );
+  });
+});
+
+test("--slice lists each path once in byte order, a removed path included, minus a path a lower-numbered task outside the slice also changed (a higher one excludes nothing)", async () => {
+  await withGitRepo(async (repo) => {
+    await landRun(repo);
+    await commitAs(repo, "T1 - First", { "src/one.ts": "1\n", "shared.ts": "1\n" });
+    await commitAs(repo, "T2 - Second", { "src/two.ts": "2\n", "shared.ts": "2\n", "src/gone.ts": "x\n", "Zed.ts": "z\n" });
+    await commitAs(repo, "T2(2) - Second", { "src/gone.ts": "", "src/two.ts": "2b\n" });
+    await commitAs(repo, "T3 - Third", { "src/two.ts": "3\n" });
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "--slice", "T2"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(
+      result.stdout,
+      /\nfile: Zed\.ts\nfile: src\/gone\.ts\nfile: src\/two\.ts\n$/,
+    );
+    assert.doesNotMatch(result.stdout, /shared\.ts/);
+  });
+});
+
+test("--slice with no matching commit prints nothing and leaves the tree as it was", async () => {
+  await withGitRepo(async (repo) => {
+    await landRun(repo);
+    await commitAs(repo, "T1 - First", { "src/one.ts": "1\n" });
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "--slice", "T3,T4"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.equal((await repo.git("status", "--porcelain")).stdout, "");
+  });
+});
+
+for (const [label, args] of [
+  ["an id the plan does not hold", [PLAN_REL, "--slice", "T1,T9"]],
+  ["--split beside it", [PLAN_REL, "--split", "--slice", "T1"]],
+  ["--extra beside it", [PLAN_REL, "--slice", "T1", "--extra", "T1"]],
+  ["--dispatch beside it", [PLAN_REL, "--slice", "T1", "--dispatch", "T1", "coder"]],
+] as const) {
+  test(`--slice with ${label} exits 2 with nothing on stdout and no decomposition`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seedDispatch(dir);
+
+      const result = await run(dir, {}, [...args]);
+      assert.equal(result.status, 2, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, "");
+      assert.equal(fs.existsSync(path.join(dir, PLAN_DIR, "tasks")), false);
+    });
+  });
+}
