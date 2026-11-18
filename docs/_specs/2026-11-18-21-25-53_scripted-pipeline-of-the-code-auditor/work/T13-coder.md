@@ -1,6 +1,0 @@
-- `SKILL.md` no longer names a lens file (`frame.sh` owns the path), so the two lens-file checks and the `namedLenses` helper left `code-auditor.unit.test.ts`; the lens list with its group numbers stays in `SKILL.md` because `lenses.unit.test.ts` still pins its `5.` and `6.` lines.
-- `SKILL.md` has 878 words (cap 900), `synthesis.md` 657 (cap 700); the agent caps equal their current counts (critic 610, scout 306, hunter 854, mapper 758).
-- `synthesis.md` heads: `Run file`, `Hunter report schema`, `Claim sidecar schema`, `Critic verdict file`, `Fill rules`; the folding, merge, severity and `findings.md` shape sections left, their rules live in `synthesize.sh`.
-- `SKILL.md` reads `## Fill rules` only at the `NEXT: fill` directive, so a run without an entry to fill never reads `synthesis.md`.
-- A critic's `id:` field is already `<hunt id>-<k>`, so `hunt-return.sh <ws> critic` takes that value as given.
-- The `README.md` and the `CLAUDE.md` nodes of the auditor (`CLAUDE.code-auditor.md` still names Frame step 1 and 4 and the map gate in `SKILL.md`) are stale until the build's memory step.

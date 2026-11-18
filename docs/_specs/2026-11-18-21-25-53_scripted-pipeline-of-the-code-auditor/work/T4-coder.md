@@ -1,7 +1,0 @@
-- `Unit:` carries the whole map line verbatim, leading `- ` included (`Unit: - U3 | src/m3 | why`), the form the scout and hunter agents already read.
-- The plugin root of the `Test rules:` line is the skill dir minus `/skills/code-auditor`, taken from `$0` as `frame.sh` does.
-- Once the ledger holds `map-appended` the gate is skipped on every later call, so a later edit of map.md is never re-gated or re-appended.
-- A `none:` Units section stops before the append: run.md and the ledger stay untouched.
-- Units above the budget (directory over 8, repo over 16) fall through to `NEXT: none` here: the scout path is T5's. `--wave` is ignored, and answers `NEXT: none` once wave 1 hunts are in the ledger.
-- The test file is the integration tier (spawns the script); red.log holds the run against an empty stub (18 failing on assertions, the 18th being the missing-run.md case since removed: no DoD clause asks for it).
-- The exit 2 path of keep-units.sh stays as C4 states it, untested until a DoD clause asks for it.

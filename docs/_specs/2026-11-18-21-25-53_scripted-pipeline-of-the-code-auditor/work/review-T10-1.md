@@ -1,4 +1,0 @@
-- Blocking [task] tests/viber/synthesize.test.ts:546 - DoD.3 "the strongest verdict" has no test that fails when it breaks: in the GROUP fixture the first member in hunt order (U1-1) is already the VERIFIED one, so code that kept the lead's own verdict (and its OBSERVED) instead of the strongest of the group would still print `VERDICT: VERIFIED` and `observed: o1`
-  Change the merge-group fixture so the first member in hunt order holds a weaker verdict than a later member (e.g. U1-1 INCONCLUSIVE or PARTIALLY VERIFIED, U2-1 VERIFIED with its own OBSERVED), and assert the entry's `VERDICT:` line, the absence of a `STATUS:` line and the `observed:` value of the entry: line come from the strongest member
-- Minor viber/skills/code-auditor/scripts/synthesize.sh:197 - `near()` assigns `hi` and `lo` as awk globals instead of declaring them as locals in its parameter list, as `parseloc()` and `die()` do
-  Declare them after the parameters: `near(a, b,    hi, lo)`

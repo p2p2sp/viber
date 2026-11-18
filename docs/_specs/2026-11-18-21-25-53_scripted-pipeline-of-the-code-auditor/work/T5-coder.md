@@ -1,7 +1,0 @@
-- The scout block follows C4 literally: `NEXT: scout | id: S<b>[-retry][ | model: sonnet]`, no separate `retry` field (C1 lists one; the `-retry` id carries it).
-- When every unit is scored after the first scout call, no retry block is printed and `scouts-retried` is not written: the same call prints the hunters.
-- Score parsing is lenient on purpose: a line counts only when it starts with `{` and holds `"unit":"U<n>"` and `"score":<1-5>`; the first score of a unit wins across files; ids not in the map are ignored.
-- Score files get strip-tag.sh on every call that reaches the scores (they are rewritten in place, like map.md).
-- `$((($1 + 7) / 8))` fails the portability bashism sweep (reads `((`): the sum is taken in its own `$(( ))` first.
-- Red: `.temp/viber/T5/red-3.log` (9 failing on assertions); `red-4.log` is the revert-route red of the two split security-lens tests (sonnet line disabled, 2 failing); red.log and red-2.log predate this task.
-- `--wave` is still ignored (not in any T5 clause).

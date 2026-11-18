@@ -1,7 +1,0 @@
-- A merge pair is computed on the surviving findings as filed (each member's own LOCATION), so a pair stays stable across calls; a pair is decided when its ids share a ledger `merge:` group or carry an `apart:` line (either order).
-- A merged finding's `filed` severity is the highest filed one of the group; its `observed:` is the first member holding the strongest verdict; its further-findings line and `reports:` list every member report, joined by ", ".
-- `--merge none` beside a group, a group of fewer than two distinct ids, and a `--merge` with no value all exit 2 (same one-line `error:` form); `--merge` ids name surviving findings only, so a REFUTED finding names none.
-- A `--merge` call with no undecided pair still applies its groups and appends their `merge:` lines.
-- Awk traps hit: `p` and `q` are arrays in the `hunt:` rule, so the new END code uses `pp` and `aq`; the `die` function prints through `cat 1>&2` so stdout stays empty.
-- Red evidence: red.log was taken by temporarily disabling the pair test, the group fold and the id check in the finished code (revert route); red-2.log by making every pair match, for the DoD.2 cases; red-3.log by dropping the verdict and OBSERVED fold, so the GROUP lead (INCONCLUSIVE) kept its own.
-- Not done (T11): wave ASK, seeds.md, `last-line:`, filled-entry keep.

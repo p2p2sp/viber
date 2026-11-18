@@ -1,5 +1,0 @@
-- Word counts after the edit: critic 610 (<613), scout 306 (<308), hunter 854 (<877), mapper 758 (<882).
-- Scout's `Unit:` lines carry the map line verbatim, `- U<n> | ...`, as keep-units.sh prints them.
-- Hunter and mapper no longer read their tail back: hunt-return.sh and keep-units.sh strip a trailing closing tag (strip-tag.sh) before parsing.
-- The mapper's `Signals:` file holds `empty` / `error:` results in `text` blocks: it counts both as an empty signal.
-- The agents' `CLAUDE.md` nodes (read-only scout, mapper `Signals file:`, `critic` writing nothing) are stale until the build's memory step.

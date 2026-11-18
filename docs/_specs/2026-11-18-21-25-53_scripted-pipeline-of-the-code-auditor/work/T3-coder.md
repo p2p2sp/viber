@@ -1,6 +1,0 @@
-- Blocks run under `bash` (lens blocks use `[`/`read` idioms the lens test runs under bash), the script itself is POSIX sh.
-- The portability sweep flags awk `function NAME` and `((` inside a `#!/bin/sh` script as bashisms: the awk cutter is written inline, with a `while (1)` loop for the `<scope>` substitution.
-- A failing block under `Base: none` or with no commit reads `empty` even when it printed stdout; exit 1 with empty stderr reads `empty` the same way (DoD.2 taken literally).
-- An empty stderr on another failure prints `error: exit <code>` with no trailing colon.
-- A missing lens file, signals file, `Scope:` or `Target root:` line also exits 2 with one `error:` line (beyond the DoD).
-- The test file is the integration tier (spawns the script) and Verification runs it; red.log holds the run before the script existed (14 failing).
