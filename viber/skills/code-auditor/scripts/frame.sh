@@ -29,7 +29,9 @@
 #            <ws>/run.md, <ws> = <root>/.temp/viber/code-auditor/<date +%Y%m%d-%H%M%S>.
 #            run.md holds `Lens:`, `Lens file:`, `Scope:` (diff, repo or a
 #            root-relative directory: an absolute one is rewritten, a leading `./`
-#            dropped, `diff` and `repo` recorded as `./diff` and `./repo`),
+#            dropped, `diff` and `repo` recorded as `./diff` and `./repo`; an
+#            absolute token read with `\` as `/`, a `/c/` or `C:/` form and the
+#            case of its drive letter folded to the root's own form first),
 #            `Target root:` and, on the diff scope, `Base:` and `## Changed files`.
 #   stdout : exactly one answer:
 #              NEXT: ask-lens | numbers: 1-6|3,4|5,6    no lens given, then the
@@ -121,6 +123,39 @@ needs_clean() {
   grep -q '^Worktree: required' "$lens_file"
 }
 
+# same_drive_form <absolute token> prints the token spelled as the root is: a
+# `/c/...` token under a `C:/...` root becomes `C:/...`, a `C:/...` token under
+# a `/c/...` root becomes `/c/...`, and the drive letter of a token on the
+# root's own drive takes the root's case. Any other token prints unchanged.
+same_drive_form() {
+  sd_t=$1
+  sd_rest=
+  sd_drive=
+  case $root in
+    [A-Za-z]:|[A-Za-z]:/*) sd_rootform=win; sd_root=${root%"${root#?}"} ;;
+    /[A-Za-z]|/[A-Za-z]/*) sd_rootform=msys; sd_root=${root#/}; sd_root=${sd_root%"${sd_root#?}"} ;;
+    *) printf '%s\n' "$sd_t"; return 0 ;;
+  esac
+  case $sd_t in
+    [A-Za-z]:|[A-Za-z]:/*)
+      sd_drive=${sd_t%"${sd_t#?}"}
+      sd_rest=${sd_t#??} ;;
+    /[A-Za-z]|/[A-Za-z]/*)
+      [ "$sd_rootform" = win ] || { printf '%s\n' "$sd_t"; return 0; }
+      sd_drive=${sd_t#/}
+      sd_drive=${sd_drive%"${sd_drive#?}"}
+      sd_rest=${sd_t#??} ;;
+    *) printf '%s\n' "$sd_t"; return 0 ;;
+  esac
+  sd_lower_a=$(printf '%s' "$sd_drive" | tr 'A-Z' 'a-z')
+  sd_lower_b=$(printf '%s' "$sd_root" | tr 'A-Z' 'a-z')
+  [ "$sd_lower_a" != "$sd_lower_b" ] || sd_drive=$sd_root
+  case $sd_rootform in
+    win) printf '%s:%s\n' "$sd_drive" "$sd_rest" ;;
+    msys) printf '/%s%s\n' "$sd_drive" "$sd_rest" ;;
+  esac
+}
+
 # resolve_dir <token> -> sets rel to the root-relative directory, status 1 when
 # the token holds an apostrophe or a .. segment, lies outside the root or names
 # no directory.
@@ -129,11 +164,15 @@ resolve_dir() {
   case $t in
     *\'*) return 1 ;;
   esac
+  case $t in
+    [A-Za-z]:[/\\]*) t=$(printf '%s' "$t" | tr '\\' '/') ;;
+  esac
   case "/$t/" in
     */../*) return 1 ;;
   esac
   case $t in
     /*|[A-Za-z]:/*)
+      t=$(same_drive_form "$t")
       abs=${t%/}
       case $abs in
         "$root") rel="" ;;

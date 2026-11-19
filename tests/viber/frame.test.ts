@@ -378,6 +378,50 @@ for (const row of SCOPE_ROWS) {
   });
 }
 
+// An absolute area token on Windows names the same directory in three spellings: the root's `C:/` form,
+// a `C:\` form and the `/c/` form, and a drive letter of either case. Each is read as the root's own form.
+const flipDrive = (p: string) => p.replace(/^([A-Za-z]):/, (_, drive: string) => `${drive === drive.toLowerCase() ? drive.toUpperCase() : drive.toLowerCase()}:`);
+
+const WINDOWS_FORM_ROWS: Array<{ label: string; token: (root: string) => string }> = [
+  { label: "the root in /c/ form", token: (root) => `${MSYS(root)}/src` },
+  { label: "the root in C:\\ form", token: (root) => `${slash(root).replace(/\//g, "\\")}\\src` },
+  { label: "the root with the other case of its drive letter", token: (root) => `${flipDrive(slash(root))}/src` },
+  { label: "the root in /c/ form with a trailing slash", token: (root) => `${MSYS(root)}/src/` },
+];
+
+for (const row of WINDOWS_FORM_ROWS) {
+  test(`a src directory given as ${row.label} frames with Scope: src`, { skip: WINDOWS_ONLY }, async () => {
+    await assertPosix(async (shell) => {
+      await withGitRepo(async (repo) => {
+        await commitFiles(repo, { "src/a.txt": "1\n" });
+        const root = await rootOf(repo);
+        const ws = workspaceOf(await frame(shell, repo, ["bugs", row.token(root)]), root);
+        assert.equal(
+          runFile(ws),
+          lines("Lens: bugs", `Lens file: ${SKILL_DIR}/references/lenses/bugs.md`, "Scope: src", `Target root: ${slash(root)}`),
+        );
+      });
+    });
+  });
+}
+
+test("an existing directory outside the root given in /c/ form keeps the directory stop", { skip: WINDOWS_ONLY }, async () => {
+  await assertPosix(async (shell) => {
+    await withGitRepo(async (repo) => {
+      await withTempDir("p2p2-outside-", async (outside) => {
+        await commitFiles(repo, { "src/a.txt": "1\n" });
+        const root = await rootOf(repo);
+        const token = MSYS(outside);
+        assertStdout(
+          await frame(shell, repo, ["bugs", token]),
+          lines(`STOP: code-auditor: area directory not found under ${root}: ${token} ${LENS_LIST}`),
+        );
+        assertWroteNothing(repo);
+      });
+    });
+  });
+});
+
 test("a framed diff run records the merge base and every changed path under Changed files", async () => {
   await assertPosix(async (shell) => {
     await withGitRepo(async (repo) => {

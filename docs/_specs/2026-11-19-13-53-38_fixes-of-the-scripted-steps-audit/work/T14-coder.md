@@ -1,0 +1,3 @@
+- frame.sh folds only drive-form tokens (`C:\`, `C:/`) for backslashes, so a relative token holding a backslash is untouched; a `/c/` token is converted only under a drive-form root (a `/a/b` POSIX root never converts a `/c/...` token, DoD.3).
+- git prints the root as `C:/...` on Windows while `pwd -P` prints `/c/...`: the old phys fallback could never match the root, so the fold happens before the string comparison.
+- The four Windows-form cases and the outside-root /c/ case skip off Windows (the spellings name no file there).
