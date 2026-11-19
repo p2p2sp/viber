@@ -113,8 +113,8 @@ function huntLine(id: string): string {
 }
 
 /** Builds a run workspace under `dir` and returns its path. */
-function build(dir: string, fx: Fixture): string {
-  const ws = path.join(dir, "20260101-000000");
+function build(dir: string, fx: Fixture, name = "20260101-000000"): string {
+  const ws = path.join(dir, name);
   const lensFile = path.join(dir, "bugs.md");
   const angles = fx.angles ?? ["first", "second"];
   put(lensFile, ["# Bugs lens", "", "## Hunts", ...angles.flatMap((a) => [`### ${a}`, "text", ""]), "## Excluded", "- nothing", ""].join("\n"));
@@ -406,6 +406,40 @@ test("the title line, the header line and the three coverage lines hold the run'
       );
     },
   );
+});
+
+const WINDOWS = process.platform === "win32";
+const RUN_TITLE = "# Findings - 20260101-000000 (bugs, repo)";
+const SPELLINGS: [string, (ws: string) => string][] = [
+  ["backslash separators", (ws) => ws.replaceAll("/", "\\")],
+  ["backslash separators and a trailing backslash", (ws) => ws.replaceAll("/", "\\") + "\\"],
+  ["slash separators and a trailing slash", (ws) => ws.replaceAll("\\", "/") + "/"],
+  ["slash separators and a trailing backslash", (ws) => ws.replaceAll("\\", "/") + "\\"],
+  ["backslash separators and a trailing slash", (ws) => ws.replaceAll("/", "\\") + "/"],
+];
+
+for (const [spelling, spell] of SPELLINGS) {
+  test(`a workspace written with ${spelling} gets the run id of its last component in findings.md`, { skip: WINDOWS ? false : "a Windows path resolves only on win32" }, async () => {
+    await assertPosix(async (shell) => {
+      await withTempDir("p2p2-synth-", async (dir) => {
+        const ws = build(dir, { findings: [verified("U1-1")] });
+        const result = await runScript(SUT, [spell(ws)], { shell, cwd: dir });
+        assert.equal(result.status, 0, `unexpected exit status: stderr=${result.stderr}`);
+        assert.equal(fs.readFileSync(path.join(ws, "findings.md"), "utf8").split("\n")[0], RUN_TITLE);
+      });
+    });
+  });
+}
+
+test("a workspace whose last component holds a backslash gets the run id after the backslash", { skip: WINDOWS ? "a backslash is a separator on win32, never a file name character" : false }, async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("p2p2-synth-", async (dir) => {
+      const ws = build(dir, { findings: [verified("U1-1")] }, "code-auditor\\20260101-000000");
+      const result = await runScript(SUT, [ws], { shell, cwd: dir });
+      assert.equal(result.status, 0, `unexpected exit status: stderr=${result.stderr}`);
+      assert.equal(fs.readFileSync(path.join(ws, "findings.md"), "utf8").split("\n")[0], RUN_TITLE);
+    });
+  });
 });
 
 test("on a directory scope a unit hunt with no report counts as not investigated and under hunts with no report", async () => {

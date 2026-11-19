@@ -32,7 +32,9 @@
 # strongest verdict and the highest confidence, one slot against the cap.
 #
 # Contract:
-#   argv   : <ws> - the run workspace, <root>/.temp/viber/code-auditor/<run-id> -
+#   argv   : <ws> - the run workspace, <root>/.temp/viber/code-auditor/<run-id>,
+#            written with / or \ separators, a trailing separator ignored; the
+#            run id is its last component -
 #            then any number of --merge <id>,<id>[,<id>]... (a group of two or
 #            more distinct finding ids, each <hunt id>-<k>), or one --merge none,
 #            never both. Nothing else is accepted.
@@ -118,14 +120,19 @@ done
 if [ -n "$none" ] && [ -n "$merges" ]; then
   fail "--merge none cannot join merge groups"
 fi
-case $ws in
-  */) ws=${ws%/} ;;
-esac
+while :; do
+  case $ws in
+    */) ws=${ws%/} ;;
+    *\\) ws=${ws%\\} ;;
+    *) break ;;
+  esac
+done
 [ -f "$ws/run.md" ] || fail "run file not found: $ws/run.md"
 [ -f "$ws/ledger.md" ] || fail "ledger not found: $ws/ledger.md"
 
 dot=$(printf '\302\267')
 runid=${ws##*/}
+runid=${runid##*\\}
 
 # The portability sweep reads a line holding the word function and a name as the
 # bash keyword, so each awk function below breaks its line after the word, and a

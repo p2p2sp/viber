@@ -1,0 +1,2 @@
+- A real backslash workspace resolves only on win32, so the five spelling cases skip elsewhere; a POSIX-only case (dir literally named `code-auditor\<id>`) covers the backslash split on Linux/macOS and skips on win32.
+- Trailing separators are stripped in a loop (any mix of `/` and `\`), so `<ws>/findings.md` in `last-line:` and `NEXT: fill` never carries a doubled or trailing separator.
