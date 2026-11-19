@@ -133,7 +133,7 @@ Each script reads an input more narrowly than its documented contract. Path spel
 ### Out of scope
 
 - Part 2: hooks, setup and the commit skill (findings 8, 9, 10, U18-1, U18-2, U9-2, U9-3, U10-1, U13-1, U13-2, U13-3, U16-1).
-- Part 3: remaining skills, release and devtools (findings 3, 5, U22-2, U14-1, U14-2, U15-1, U15-2, U15-3, U20-1, U20-2, U19-1, U19-2, U19-3).
+- Part 3: remaining skills and release (findings U22-2, U14-1, U14-2, U15-1, U15-2, U15-3, U20-1, U20-2, U19-1, U19-2, U19-3).
 - `viber/agents/task-reviewer.md`: it keeps appending to its extras file unchanged.
 - `pr-facts.sh`'s own pull request lookup by head name: it keeps its current lookup.
 - `skill-part.sh`'s fence handling: it keeps its exact block shape.

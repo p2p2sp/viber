@@ -1,5 +1,5 @@
 # Findings - 20261021-161143 (bugs, repo)
-bugs · repo · 22 units mapped · 22 hunts · 39 confirmed findings · 0 units not investigated.
+bugs · repo · 22 units mapped · 22 hunts · 37 confirmed findings · 0 units not investigated.
 
 ## 1. A signal during link creation lets the forced worktree remove delete the main tree's node_modules on Windows
 SEVERITY: 7.0
@@ -31,21 +31,6 @@ Reproduction: two-task plan (T1 owns `src/a.ts`, T2 owns `src/b.ts`), T2's work 
 
 Fix sketch: fold `\` to `/` in `named_path` before the `./` strip and `cwd_relative`, and the same in plan-index.sh's extras reader so the reviewer's scope agrees. Limit the fold to Git Bash if literal-backslash names on POSIX matter.
 
-## 3. query ignores an explicit --since when the payload file carries start/end
-SEVERITY: 6.0
-CONFIDENCE: high
-VERDICT: VERIFIED
-LOCATION: devtools/skills/signoz/scripts/signoz.mjs:L101-L101
-CLASS: contract-mismatch: parseArgs default for --since makes an explicit --since indistinguishable from no flag, so the file's stale range wins
-
-Severity adopted from the critic (6; filed 5.0).
-
-Root cause: `since` carries `default: "1h"` in `TIME` (L210), so `opts.since` is always set, and `prepareQueryPayload` overrides the file's range only on `--start`/`--end` or a missing `p.start` (L101). SKILL.md says `start`/`end` are filled from the flags, and references/logs-query.md prescribes `query FILE --since 1h` while its own template body carries `start`/`end`, so a body copied from the doc silently queries a stale window.
-
-Reproduction: local mock HTTP server recording the POST body; a query file with `start:1790600000000,end:1790603600000`; `run(['query', file, '--since', '2d'])` sends `end-start = 3600000` with `start = 2026-09-28T12:53:20.000Z` instead of a two-day window ending now.
-
-Fix sketch: drop the `since` default for `query` (or detect it with `parseArgs({tokens:true})`) and add `opts.since` to the override condition; `timeRange` already falls back to `1h`. Change the unit test that passes `{ since: "1h" }` to stand in for the default to `{}`.
-
 ## 4. A path reverted after review stays in the reviewer's extras file and sweeps another task's change into the task commit
 SEVERITY: 6.0
 CONFIDENCE: medium
@@ -60,21 +45,6 @@ Root cause: 80d8396b made `task-coder` remove reverted paths from its extras fil
 Reproduction: T1 round-1 reviewer lists `lib/shared.ts`; T1 attempt 2 reverts it; T2 edits `lib/shared.ts`; `commit-task.sh` for T1 with no `--with` commits `lib/shared.ts` holding `T2 half-done change`. With the reviewer file empty the path stays out.
 
 Fix sketch: give the reviewer the coder's rule (drop listed paths that no longer differ from HEAD), or have `commit-task.sh` skip an extras path with no change since the attempt started or listed by another not-done task. Keep the ownership warnings.
-
-## 5. release.sh never bumps the devtools plugin's version, so devtools users never receive a release
-SEVERITY: 6.0
-CONFIDENCE: medium
-VERDICT: VERIFIED
-LOCATION: .github/scripts/release.sh:L26-L56
-CLASS: contract-mismatch: marketplace lists two plugins but the release bumps only viber's manifest version
-
-Severity adopted from the critic (6; filed 6.5).
-
-Root cause: `.claude-plugin/marketplace.json` publishes `viber` and `devtools`, and `.claude/rules/plugin-manifests.md` says every `*/.claude-plugin/plugin.json` version is written only by `release.sh`. But `release.sh` bumps a hard-coded `manifests=(viber/.claude-plugin/plugin.json)`, so `devtools/.claude-plugin/plugin.json` stays at `0.1.0`. The plugin cache is keyed by that version (`cache/p2p2/devtools/0.1.0`), so installed devtools likely never updates.
-
-Reproduction: `repro.sh` builds a temp repository with viber 1.2.3, devtools 0.1.0, tag `1.2.3`, a bare origin and a stub `gh`, commits one devtools-only fix and runs `release.sh patch`: it prints `viber=1.2.4 devtools=0.1.0`. With devtools added to `manifests=` it prints `devtools=1.2.4`.
-
-Fix sketch: build `manifests` from the marketplace (`jq -r '.plugins[].source'` plus `/.claude-plugin/plugin.json`), or bump a plugin only when its directory changed since the last tag. The fixture in `tests/github/release.test.ts` must then write every listed manifest.
 
 ## 6. An extras line with surrounding whitespace is gated by the reviewer but left out of the task commit, which still exits 0
 SEVERITY: 5.0

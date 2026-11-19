@@ -25,7 +25,7 @@ A developer of viber gets one command that reads the subagent transcripts Claude
 
 - The reach script for `impact-mapper` and every change to `viber/agents/impact-mapper.md` or `viber/skills/planner/SKILL.md`: dropped after measuring that the agent's grep output is the evidence it confirms references from.
 - Plan slices for the plan reviewers, the split of any agent, the host memory budgets and the `omitClaudeMd` field.
-- Any file under `viber/` or `devtools/`: the tool ships with neither plugin.
+- Any file under `viber/`: the tool does not ship with the plugin.
 - Any CI change: the workflow already runs `tests/**/*.test.ts`.
 - Output tokens, turn counts, cost, a JSON or chart output, an option naming another agent prefix and an error exit for a missing directory.
 - Every `CLAUDE.md`: the build's close owns the nodes, the root is the user's file.
