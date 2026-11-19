@@ -36,5 +36,5 @@ Owns every automated check in the repository: the per-plugin suites, the `releas
 ## Traps
 
 - Sweeps read the git index: a new, untracked script or `SKILL.md` is not checked until it is `git add`ed.
-- CI on push and pull request runs Linux only; macOS and Windows run only on a manual `workflow_dispatch` of the CI workflow, so a cross-OS regression stays green until someone dispatches it.
+- CI on push and pull request runs Linux and Windows; macOS runs only on a manual `workflow_dispatch` of the CI workflow, so a bash 3.2 regression stays green until someone dispatches it. A path-spelling case that names a file only under Git Bash (`C:\...`, `/c/...`) skips off Windows, so the Windows leg alone runs it.
 - `docs/` is outside both sweeps: the archived superdev sources there are never checked.
