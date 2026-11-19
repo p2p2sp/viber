@@ -41,7 +41,10 @@ for file in "$@"; do
   last=${last%"$cr"}
   printf '%s\n' "$last" | grep -Eq '^[[:blank:]]*</[A-Za-z][A-Za-z0-9_.:-]*>[[:blank:]]*$' || continue
   tmp=$(mktemp "${TMPDIR:-/tmp}/strip-tag.XXXXXX") || { tmp=""; continue; }
-  if sed '$d' "$file" > "$tmp" 2>/dev/null; then
+  total=$(wc -c < "$file" 2>/dev/null) || total=""
+  tail_bytes=$(tail -n 1 "$file" 2>/dev/null | wc -c) || tail_bytes=""
+  if [ -n "$total" ] && [ -n "$tail_bytes" ] \
+    && head -c "$((total - tail_bytes))" "$file" > "$tmp" 2>/dev/null; then
     cat "$tmp" > "$file" 2>/dev/null
   fi
   rm -f "$tmp"

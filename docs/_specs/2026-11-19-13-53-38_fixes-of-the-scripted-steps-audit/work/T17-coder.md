@@ -1,0 +1,2 @@
+- The CR loss came from `sed '$d'` on Windows Git Bash (the carriage returns of the kept lines were dropped); the fix cuts bytes instead: `head -c <file size - last line bytes>`, sizes from `wc -c`.
+- The tests for DoD.1-3 were already in tests/viber/strip-tag.test.ts and the CR case was red before the script edit (.temp/viber/T17/red.log); no test was changed.
