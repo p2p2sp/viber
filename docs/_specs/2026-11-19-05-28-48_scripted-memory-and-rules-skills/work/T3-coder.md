@@ -1,0 +1,7 @@
+- `--reconcile` reads the working tree alone (`-e`), never git: an untracked node counts exactly when it is a planned path or on a write wave `--files`. Paths hold no comma (the sets are comma-joined lists).
+- "The deepest depth not named by a `--done` flag" is read as: drop the `--done` nodes from the off set, then take the deepest depth left. A `--done` node is never dispatched again, even while still off.
+- A node written by two write dispatches is judged against the union of what those dispatches created below it.
+- A `--fix`/`--create` with no `--files` is read as an empty list; only a `--files` with no open dispatch, or a second one for the same dispatch, is an error.
+- `usage_error` and `is_node` moved above their old spots (before the repository-root block) so `--reconcile` reuses them; the map and `--targets` output is untouched.
+- `red.log` holds the 14 new cases failing before any production edit; `red-2.log` the review fix's case (a `--done` deletion) failing before the fix.
+- The off judgement reads the tree as the write waves left it: a CLAUDE.md a `--done` dispatch deleted counts as present, one it created (present, outside `--planned`) does not; `planned:` alone reads the tree as it stands. A planned path a `--done` dispatch brought into the tree cannot be told from one it only edited, so it counts as written before (C4's created rule).

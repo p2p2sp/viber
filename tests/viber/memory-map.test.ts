@@ -1437,3 +1437,292 @@ test("--id without --keep exits 2 with one error line and an empty stdout", asyn
     assert.match(result.stderr, /^error: [^\n]+\n$/);
   });
 });
+
+/** Puts a CLAUDE.md at each path, tracked nowhere: the reconcile call reads the tree alone. */
+function present(repo: GitRepo, ...paths: string[]): void {
+  write(repo, Object.fromEntries(paths.map((p) => [p, node(40)])));
+}
+
+/** `--reconcile --planned <planned> ...rest`, the call the memory command makes after its write waves. */
+function reconcile(repo: GitRepo, planned: string[], ...rest: string[]) {
+  return run(repo, ["--reconcile", "--planned", planned.join(","), ...rest]);
+}
+
+/** stdout lines with the plugin-root path of each `refs:` line replaced by a fixed word. */
+function reconciled(stdout: string): string[] {
+  return lines(stdout).map((l) => (/^refs: .+\/viber\/references$/.test(l) ? "refs: REFS" : l));
+}
+
+/** The reconcile writer block of `node` for `wave`, `planned` being its `planned:` value. */
+function writerBlock(wave: number, nodePath: string, planned: string): string[] {
+  return [
+    `NEXT: memory-node-writer | wave: ${wave}`,
+    "mode: fix",
+    `node: ${nodePath}`,
+    "findings: none",
+    `planned: ${planned}`,
+    "refs: REFS",
+  ];
+}
+
+test("--reconcile counts a planned path present in the tree and a present CLAUDE.md of a write wave --files outside the plan, an untracked one among them, and never another untracked node", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, { "CLAUDE.md": node(40), "docs/CLAUDE.md": node(40) });
+    present(repo, "lib/CLAUDE.md", "api/CLAUDE.md", "docs/new/CLAUDE.md", "docs/ghost/CLAUDE.md");
+
+    const result = await reconcile(
+      repo,
+      ["CLAUDE.md", "docs/CLAUDE.md", "docs/a/CLAUDE.md", "lib/CLAUDE.md"],
+      "--fix", "docs/CLAUDE.md", "--files", "docs/CLAUDE.md,api/CLAUDE.md,docs/new/CLAUDE.md",
+    );
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(
+      reconciled(result.stdout),
+      writerBlock(1, "docs/CLAUDE.md", "CLAUDE.md,api/CLAUDE.md,docs/CLAUDE.md,lib/CLAUDE.md,docs/new/CLAUDE.md"),
+    );
+  });
+});
+
+test("--reconcile never marks a node absent from the tree off, whatever was created below it", async () => {
+  await withGitRepo(async (repo) => {
+    present(repo, "CLAUDE.md", "src/x/CLAUDE.md");
+
+    const result = await reconcile(
+      repo,
+      ["CLAUDE.md", "src/CLAUDE.md", "src/x/CLAUDE.md"],
+      "--create", "src/x/CLAUDE.md", "--files", "src/x/CLAUDE.md",
+    );
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), ["NEXT: none"]);
+  });
+});
+
+test("--reconcile marks a node its dispatch wrote off when a planned node below it never came into being", async () => {
+  await withGitRepo(async (repo) => {
+    present(repo, "CLAUDE.md", "docs/CLAUDE.md");
+
+    const result = await reconcile(
+      repo,
+      ["CLAUDE.md", "docs/CLAUDE.md", "docs/a/CLAUDE.md"],
+      "--fix", "docs/CLAUDE.md", "--files", "docs/CLAUDE.md",
+    );
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(reconciled(result.stdout), writerBlock(1, "docs/CLAUDE.md", "CLAUDE.md,docs/CLAUDE.md"));
+  });
+});
+
+test("--reconcile leaves a node its dispatch wrote alone when the nodes below it are the planned ones plus the ones that dispatch created", async () => {
+  await withGitRepo(async (repo) => {
+    present(repo, "CLAUDE.md", "docs/CLAUDE.md", "docs/new/CLAUDE.md");
+
+    const result = await reconcile(
+      repo,
+      ["CLAUDE.md", "docs/CLAUDE.md"],
+      "--fix", "docs/CLAUDE.md", "--files", "docs/CLAUDE.md,docs/new/CLAUDE.md",
+    );
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), ["NEXT: none"]);
+  });
+});
+
+test("--reconcile marks a node off when the node below it was created by another dispatch (only the nodes its own dispatch created are counted)", async () => {
+  await withGitRepo(async (repo) => {
+    present(repo, "CLAUDE.md", "docs/CLAUDE.md", "docs/a/CLAUDE.md", "docs/a/b/CLAUDE.md");
+
+    const result = await reconcile(
+      repo,
+      ["CLAUDE.md", "docs/CLAUDE.md", "docs/a/CLAUDE.md"],
+      "--fix", "docs/CLAUDE.md", "--files", "docs/CLAUDE.md",
+      "--fix", "docs/a/CLAUDE.md", "--files", "docs/a/CLAUDE.md,docs/a/b/CLAUDE.md",
+    );
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(
+      reconciled(result.stdout),
+      writerBlock(1, "docs/CLAUDE.md", "CLAUDE.md,docs/CLAUDE.md,docs/a/CLAUDE.md,docs/a/b/CLAUDE.md"),
+    );
+  });
+});
+
+test("--reconcile marks a node no dispatch wrote off when a dispatch created a node below it, and never the root", async () => {
+  await withGitRepo(async (repo) => {
+    present(repo, "CLAUDE.md", "docs/CLAUDE.md", "docs/a/CLAUDE.md");
+
+    const result = await reconcile(
+      repo,
+      ["CLAUDE.md", "docs/CLAUDE.md", "docs/a/CLAUDE.md"],
+      "--create", "docs/a/CLAUDE.md", "--files", "docs/a/CLAUDE.md",
+    );
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(
+      reconciled(result.stdout),
+      writerBlock(1, "docs/CLAUDE.md", "CLAUDE.md,docs/CLAUDE.md,docs/a/CLAUDE.md"),
+    );
+  });
+});
+
+test("--reconcile marks a node no dispatch wrote off when a dispatch deleted a node below it", async () => {
+  await withGitRepo(async (repo) => {
+    present(repo, "CLAUDE.md", "docs/CLAUDE.md", "docs/b/CLAUDE.md");
+
+    const result = await reconcile(
+      repo,
+      ["CLAUDE.md", "docs/CLAUDE.md", "docs/a/CLAUDE.md", "docs/b/CLAUDE.md"],
+      "--fix", "docs/b/CLAUDE.md", "--files", "docs/b/CLAUDE.md,docs/a/CLAUDE.md",
+    );
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(
+      reconciled(result.stdout),
+      writerBlock(1, "docs/CLAUDE.md", "CLAUDE.md,docs/CLAUDE.md,docs/b/CLAUDE.md"),
+    );
+  });
+});
+
+/** The planned set of a tree two branches deep, each branch holding a leaf below an inner node. */
+const BRANCHES = [
+  "CLAUDE.md",
+  "a/CLAUDE.md",
+  "a/x/CLAUDE.md",
+  "a/x/w/CLAUDE.md",
+  "b/CLAUDE.md",
+  "b/y/CLAUDE.md",
+  "b/y/z/CLAUDE.md",
+];
+const BRANCH_CREATES = ["--create", "a/x/w/CLAUDE.md", "--files", "a/x/w/CLAUDE.md", "--create", "b/y/z/CLAUDE.md", "--files", "b/y/z/CLAUDE.md"];
+const BRANCHES_PLANNED = "CLAUDE.md,a/CLAUDE.md,b/CLAUDE.md,a/x/CLAUDE.md,b/y/CLAUDE.md,a/x/w/CLAUDE.md,b/y/z/CLAUDE.md";
+
+test("--reconcile prints one writer block per off node of the deepest depth alone, each with its wave", async () => {
+  await withGitRepo(async (repo) => {
+    present(repo, ...BRANCHES);
+
+    const result = await reconcile(repo, BRANCHES, ...BRANCH_CREATES);
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(reconciled(result.stdout), [
+      ...writerBlock(2, "a/x/CLAUDE.md", BRANCHES_PLANNED),
+      ...writerBlock(2, "b/y/CLAUDE.md", BRANCHES_PLANNED),
+    ]);
+  });
+});
+
+test("--reconcile moves to the next depth up once the nodes of the deepest one are named by --done", async () => {
+  await withGitRepo(async (repo) => {
+    present(repo, ...BRANCHES);
+
+    const result = await reconcile(
+      repo,
+      BRANCHES,
+      ...BRANCH_CREATES,
+      "--done", "a/x/CLAUDE.md", "--files", "",
+      "--done", "b/y/CLAUDE.md", "--files", "",
+    );
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(reconciled(result.stdout), [
+      ...writerBlock(1, "a/CLAUDE.md", BRANCHES_PLANNED),
+      ...writerBlock(1, "b/CLAUDE.md", BRANCHES_PLANNED),
+    ]);
+  });
+});
+
+test("--reconcile prints NEXT: none once every off node is named by --done", async () => {
+  await withGitRepo(async (repo) => {
+    present(repo, ...BRANCHES);
+
+    const result = await reconcile(
+      repo,
+      BRANCHES,
+      ...BRANCH_CREATES,
+      "--done", "a/x/CLAUDE.md", "--files", "",
+      "--done", "b/y/CLAUDE.md", "--files", "",
+      "--done", "a/CLAUDE.md", "--files", "",
+      "--done", "b/CLAUDE.md", "--files", "",
+    );
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), ["NEXT: none"]);
+  });
+});
+
+test("--reconcile counts in planned: the nodes a --done dispatch created and leaves out the ones it deleted", async () => {
+  await withGitRepo(async (repo) => {
+    present(repo, ...BRANCHES, "a/x/n/CLAUDE.md");
+    fs.rmSync(path.join(repo.dir, "b/y/z/CLAUDE.md"));
+
+    const result = await reconcile(
+      repo,
+      BRANCHES,
+      ...BRANCH_CREATES,
+      "--done", "a/x/CLAUDE.md", "--files", "a/x/CLAUDE.md,a/x/n/CLAUDE.md",
+      "--done", "b/y/CLAUDE.md", "--files", "b/y/CLAUDE.md,b/y/z/CLAUDE.md",
+    );
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(reconciled(result.stdout), [
+      ...writerBlock(1, "a/CLAUDE.md", "CLAUDE.md,a/CLAUDE.md,b/CLAUDE.md,a/x/CLAUDE.md,b/y/CLAUDE.md,a/x/n/CLAUDE.md,a/x/w/CLAUDE.md"),
+      ...writerBlock(1, "b/CLAUDE.md", "CLAUDE.md,a/CLAUDE.md,b/CLAUDE.md,a/x/CLAUDE.md,b/y/CLAUDE.md,a/x/n/CLAUDE.md,a/x/w/CLAUDE.md"),
+    ]);
+  });
+});
+
+test("--reconcile judges the off nodes from the write wave alone: a node a --done dispatch created below another makes none off", async () => {
+  await withGitRepo(async (repo) => {
+    present(repo, "CLAUDE.md", "docs/CLAUDE.md", "docs/a/CLAUDE.md", "docs/a/n/CLAUDE.md");
+
+    const result = await reconcile(
+      repo,
+      ["CLAUDE.md", "docs/CLAUDE.md", "docs/a/CLAUDE.md"],
+      "--fix", "docs/a/CLAUDE.md", "--files", "docs/a/CLAUDE.md",
+      "--done", "docs/a/CLAUDE.md", "--files", "docs/a/CLAUDE.md,docs/a/n/CLAUDE.md",
+    );
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), ["NEXT: none"]);
+  });
+});
+
+test("--reconcile judges the off nodes from the write wave alone: a node a --done dispatch deleted below a node a write dispatch wrote makes none off", async () => {
+  await withGitRepo(async (repo) => {
+    present(repo, "CLAUDE.md", "docs/CLAUDE.md", "docs/a/CLAUDE.md", "docs/a/new/CLAUDE.md");
+
+    const result = await reconcile(
+      repo,
+      ["CLAUDE.md", "docs/CLAUDE.md", "docs/a/CLAUDE.md", "docs/a/b/CLAUDE.md"],
+      "--fix", "docs/CLAUDE.md", "--files", "docs/CLAUDE.md,docs/a/new/CLAUDE.md",
+      "--done", "docs/a/CLAUDE.md", "--files", "docs/a/CLAUDE.md,docs/a/b/CLAUDE.md",
+    );
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), ["NEXT: none"]);
+  });
+});
+
+test("--reconcile without --planned exits 2 with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    present(repo, "CLAUDE.md");
+
+    const result = await run(repo, ["--reconcile", "--fix", "CLAUDE.md", "--files", "CLAUDE.md"]);
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^error: [^\n]+\n$/);
+  });
+});
+
+test("--reconcile with a --files no dispatch flag opens exits 2 with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    present(repo, "CLAUDE.md");
+
+    const result = await reconcile(repo, ["CLAUDE.md"], "--files", "CLAUDE.md");
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^error: [^\n]+\n$/);
+  });
+});

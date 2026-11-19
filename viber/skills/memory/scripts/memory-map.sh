@@ -17,6 +17,13 @@
 #            any --targets call + --id <map id> --keep <node path>
 #            [--keep <node path>...]    -> the kept targets, briefed (see "keep"
 #                                          below).
+#            --reconcile --planned <node>,<node>,...
+#            [--fix <node> --files <path>,<path>,...]...
+#            [--create <node> --files <path>,<path>,...]...
+#            [--done <node> --files <path>,...|""]...
+#                                       -> the reconcile wave of the nodes the
+#                                          write waves left off (see
+#                                          "reconcile" below).
 #   cwd    : any directory inside the host project - the repository root is
 #            resolved here, every path printed is relative to it, and every
 #            path handed to --reset is read relative to it. Outside a
@@ -60,6 +67,14 @@
 #              shape: <file>: empty heading: <heading>
 #              NEXT: none             (alone after planned:, when no kept target
 #                                      is a fix target)
+#            --reconcile, one block per off node of the deepest depth no --done
+#            flag names, or NEXT: none alone when no such node remains:
+#              NEXT: memory-node-writer | wave: <depth>
+#              mode: fix
+#              node: <node>
+#              findings: none
+#              planned: <the existing nodes, root first, then by depth>
+#              refs: <plugin root>/references
 #   exit   : map mode ALWAYS 0. It is a `!` preload, where a non-zero exit
 #            aborts the whole skill load, so a directory that is no repository
 #            at all is the empty map rather than an error.
@@ -71,6 +86,10 @@
 #            --id, --id without --keep, any other argument) or a --keep path
 #            that is no target of the mode, with one "error: <reason>" line on
 #            stderr and nothing on stdout.
+#            --reconcile: 0; 2 on unusable argv (no --planned, --planned twice,
+#            a --files with no --fix, --create or --done before it, --files
+#            twice for one dispatch, any other argument), with one
+#            "error: <reason>" line on stderr and nothing on stdout.
 #
 # excluded - memory never maps a path below a directory whose name starts
 #            with ".", nor a file the host repository's own ignore rules
@@ -152,6 +171,30 @@
 #           Terms, Relationships, Contracts, Commands, Change together, Traps,
 #           Sections - the last one only in a node, never in a section.
 #
+# reconcile - judges the nodes the write waves left off, from the tree as it
+#           stands: it reads the working tree alone (a node is there or not,
+#           tracked or not) and never the map. A --fix or --create dispatch is
+#           a write wave one that returned VERDICT: UPDATED, a --done one a
+#           reconcile dispatch that returned, any verdict; --files names the
+#           paths its return listed, only the CLAUDE.md among them counting.
+#           Each dispatch created every CLAUDE.md of its --files present in
+#           the tree that is its own node on --create or lies outside
+#           --planned, deleted every one absent from it, and wrote every one
+#           present. The existing nodes are the --planned paths present plus
+#           the present CLAUDE.md of a write wave --files outside --planned;
+#           the root is never off, and only an existing node is. An existing
+#           node a write wave dispatch wrote is off when the existing nodes
+#           below its directory differ from the --planned ones below it plus
+#           the ones that dispatch created; one no write wave dispatch wrote
+#           is off when any write wave dispatch created or deleted a node below
+#           its directory. A --done return never changes which nodes are off,
+#           judged from the tree as the write waves left it (a node a --done
+#           dispatch deleted counted, one it created not): it only keeps its
+#           node out of the next call, and planned: counts the nodes it
+#           created and drops the ones it deleted. The call prints the off nodes of the deepest
+#           depth no --done flag names, a block each; the depth of a node is
+#           the number of path segments of its directory, the root being 0.
+#
 # A kind of line with nothing to report prints none at all; "total:" always
 # prints, counting nodes only. --reset takes a node or a section; a node
 # takes every tracked section beside it along. It judges every file it would
@@ -172,22 +215,78 @@ if [ "$#" -gt 0 ]; then
   case "$1" in
     --reset) mode="reset"; shift ;;
     --targets) mode="targets"; shift ;;
+    --reconcile) mode="reconcile"; shift ;;
     *) printf 'usage: memory-map.sh [--reset <path> [<path>...]]\n' >&2; exit 2 ;;
   esac
 fi
 
-# --targets argv is judged before anything else, so a refused call prints
-# nothing on stdout.
+usage_error() {
+  printf 'error: %s\n' "$1" >&2
+  exit 2
+}
+
+# The --targets and --reconcile argv are judged before anything else, so a
+# refused call prints nothing on stdout.
 tmode=""
 removed_paths=""
 map_id=""
 keep_paths=""
 plugin_root=""
+rc_planned=""
+rc_have_planned=0
+rc_raw=""
+rc_open=0
+rc_kind=""
+rc_node=""
+rc_files=""
+rc_files_given=0
+
+# Closes the dispatch being read: one raw record of kind, node and files, the
+# fields joined by the unit separator, a byte no path holds.
+US="$(printf '\037')"
+rc_flush() {
+  [ "$rc_open" = "1" ] || return 0
+  rc_raw="$rc_raw$rc_kind$US$rc_node$US$rc_files$NL"
+  rc_open=0
+}
+
+if [ "$mode" = "reconcile" ]; then
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --planned)
+        [ "$#" -ge 2 ] && [ -n "$2" ] || usage_error "--planned needs a node list"
+        [ "$rc_have_planned" = "0" ] || usage_error "--planned given twice"
+        rc_have_planned=1
+        rc_planned="$2"
+        shift 2
+        ;;
+      --fix | --create | --done)
+        [ "$#" -ge 2 ] && [ -n "$2" ] || usage_error "$1 needs a node path"
+        rc_flush
+        rc_open=1
+        rc_kind="${1#--}"
+        rc_node="${2#./}"
+        rc_files=""
+        rc_files_given=0
+        shift 2
+        ;;
+      --files)
+        [ "$rc_open" = "1" ] || usage_error "--files needs a --fix, --create or --done before it"
+        [ "$rc_files_given" = "0" ] || usage_error "--files given twice for $rc_node"
+        [ "$#" -ge 2 ] || usage_error "--files needs a path list, \"\" for none"
+        rc_files="$2"
+        rc_files_given=1
+        shift 2
+        ;;
+      *) usage_error "unknown argument $1" ;;
+    esac
+  done
+  rc_flush
+  [ "$rc_have_planned" = "1" ] || usage_error "--reconcile needs --planned"
+  plugin_root="$(cd "$(dirname "$0")/../../.." 2>/dev/null && pwd)"
+fi
+
 if [ "$mode" = "targets" ]; then
-  usage_error() {
-    printf 'error: %s\n' "$1" >&2
-    exit 2
-  }
   [ "$#" -gt 0 ] || usage_error "--targets needs a mode: review, extend, both or reset"
   tmode="$1"
   shift
@@ -237,6 +336,238 @@ if [ -z "$root" ] || [ ! -d "$root" ]; then
 fi
 cd "$root" || exit 0
 
+is_node() {
+  case "$1" in
+    CLAUDE.md | */CLAUDE.md) return 0 ;;
+  esac
+  return 1
+}
+
+# --- reconcile mode --------------------------------------------------------
+# Every set is a comma-joined list of paths, which hold no comma: --files and
+# --planned arrive that way, and a node is told from another by its path alone.
+# The helpers answer in $rc_out, never by a command substitution, so they run
+# in this shell. Each loop is fed through a process substitution, one item per
+# line, the final newline kept so that read returns the last item too.
+csv_has() {
+  case ",$1," in
+    *",$2,"*) return 0 ;;
+  esac
+  return 1
+}
+
+# $1 with the item $2 added once.
+csv_add() {
+  if [ -z "$1" ]; then
+    rc_out="$2"
+  elif csv_has "$1" "$2"; then
+    rc_out="$1"
+  else
+    rc_out="$1,$2"
+  fi
+}
+
+# $1 with every item of $2 added once.
+csv_merge() {
+  rc_acc="$1"
+  while IFS= read -r rc_item; do
+    [ -n "$rc_item" ] || continue
+    csv_add "$rc_acc" "$rc_item"
+    rc_acc="$rc_out"
+  done < <(printf '%s\n' "$2" | tr ',' '\n')
+  rc_out="$rc_acc"
+}
+
+# The items of $1 strictly below the directory prefix $2 (ending in "/"), the
+# node $3 left out.
+csv_below() {
+  rc_acc=""
+  while IFS= read -r rc_item; do
+    [ -n "$rc_item" ] || continue
+    [ "$rc_item" != "$3" ] || continue
+    case "$rc_item" in
+      "$2"*) csv_add "$rc_acc" "$rc_item"; rc_acc="$rc_out" ;;
+    esac
+  done < <(printf '%s\n' "$1" | tr ',' '\n')
+  rc_out="$rc_acc"
+}
+
+# True when every item of $1 is an item of $2.
+csv_within() {
+  while IFS= read -r rc_item; do
+    [ -n "$rc_item" ] || continue
+    csv_has "$2" "$rc_item" || return 1
+  done < <(printf '%s\n' "$1" | tr ',' '\n')
+  return 0
+}
+
+# The items of $1 as one comma-joined list, root first then by depth, each
+# depth in path order.
+csv_by_depth() {
+  rc_sorted=""
+  while IFS= read -r rc_line; do
+    [ -n "$rc_line" ] || continue
+    rc_sorted="$rc_sorted${rc_line#* },"
+  done < <(
+    while IFS= read -r rc_item; do
+      [ -n "$rc_item" ] || continue
+      rc_slashes="${rc_item//[!\/]/}"
+      printf '%03d %s\n' "${#rc_slashes}" "$rc_item"
+    done < <(printf '%s\n' "$1" | tr ',' '\n') | LC_ALL=C sort
+  )
+  rc_out="${rc_sorted%,}"
+}
+
+if [ "$mode" = "reconcile" ]; then
+  planned=""
+  while IFS= read -r rc_item; do
+    [ -n "${rc_item#./}" ] || continue
+    csv_add "$planned" "${rc_item#./}"
+    planned="$rc_out"
+  done < <(printf '%s\n' "$rc_planned" | tr ',' '\n')
+
+  # The --done dispatches first: the nodes they name, the CLAUDE.md of their
+  # --files they created (present, outside the plan) and the ones they
+  # deleted (absent). The write wave records below read the tree as the write
+  # waves left it, a node a --done dispatch deleted counting as present.
+  done_nodes=""
+  done_made=""
+  done_gone=""
+  while IFS="$US" read -r kind dnode files; do
+    [ "$kind" = "done" ] || continue
+    csv_add "$done_nodes" "$dnode"
+    done_nodes="$rc_out"
+    while IFS= read -r file; do
+      file="${file#./}"
+      [ -n "$file" ] || continue
+      is_node "$file" || continue
+      if [ ! -e "$file" ]; then
+        csv_add "$done_gone" "$file"
+        done_gone="$rc_out"
+      elif ! csv_has "$planned" "$file"; then
+        csv_add "$done_made" "$file"
+        done_made="$rc_out"
+      fi
+    done < <(printf '%s\n' "$files" | tr ',' '\n')
+  done < <(printf '%s' "$rc_raw")
+
+  # One record per write wave dispatch: kind, node, then the CLAUDE.md of its
+  # --files present (written), the ones it created and the ones it deleted.
+  records=""
+  extra=""
+  while IFS="$US" read -r kind dnode files; do
+    [ -n "$kind" ] || continue
+    [ "$kind" != "done" ] || continue
+    written=""
+    created=""
+    deleted=""
+    while IFS= read -r file; do
+      file="${file#./}"
+      [ -n "$file" ] || continue
+      is_node "$file" || continue
+      if [ -e "$file" ] || csv_has "$done_gone" "$file"; then
+        csv_add "$written" "$file"
+        written="$rc_out"
+        if { [ "$kind" = "create" ] && [ "$file" = "$dnode" ]; } || ! csv_has "$planned" "$file"; then
+          csv_add "$created" "$file"
+          created="$rc_out"
+        fi
+      else
+        csv_add "$deleted" "$file"
+        deleted="$rc_out"
+      fi
+    done < <(printf '%s\n' "$files" | tr ',' '\n')
+    records="$records$kind$US$dnode$US$written$US$created$US$deleted$NL"
+    while IFS= read -r file; do
+      [ -n "$file" ] || continue
+      csv_has "$planned" "$file" || { csv_add "$extra" "$file"; extra="$rc_out"; }
+    done < <(printf '%s\n' "$written" | tr ',' '\n')
+  done < <(printf '%s' "$rc_raw")
+
+  # The existing nodes the off judgement reads: the planned paths plus the
+  # write wave ones outside the plan, present as the write waves left the
+  # tree. The planned: line of the next wave counts the tree as it stands:
+  # those present now plus the nodes a --done dispatch created.
+  existing=""
+  now=""
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    if [ -e "$file" ]; then
+      csv_add "$now" "$file"
+      now="$rc_out"
+    elif ! csv_has "$done_gone" "$file"; then
+      continue
+    fi
+    csv_add "$existing" "$file"
+    existing="$rc_out"
+  done < <(printf '%s\n' "$planned,$extra" | tr ',' '\n')
+  csv_merge "$now" "$done_made"
+  csv_by_depth "$rc_out"
+  next_planned="$rc_out"
+
+  off=""
+  while IFS= read -r target; do
+    [ -n "$target" ] || continue
+    [ "$target" != "CLAUDE.md" ] || continue
+    dir="${target%CLAUDE.md}"
+    csv_below "$existing" "$dir" "$target"
+    below_now="$rc_out"
+    wrote=0
+    touched=0
+    made_below=""
+    while IFS="$US" read -r kind dnode written created deleted; do
+      [ -n "$kind" ] || continue
+      csv_below "$created" "$dir" "$target"
+      made="$rc_out"
+      csv_below "$deleted" "$dir" "$target"
+      [ -z "$made$rc_out" ] || touched=1
+      if csv_has "$written" "$target"; then
+        wrote=1
+        csv_merge "$made_below" "$made"
+        made_below="$rc_out"
+      fi
+    done < <(printf '%s' "$records")
+    if [ "$wrote" = "1" ]; then
+      csv_below "$planned" "$dir" "$target"
+      csv_merge "$rc_out" "$made_below"
+      if csv_within "$below_now" "$rc_out" && csv_within "$rc_out" "$below_now"; then
+        continue
+      fi
+      csv_add "$off" "$target"
+      off="$rc_out"
+    elif [ "$touched" = "1" ]; then
+      csv_add "$off" "$target"
+      off="$rc_out"
+    fi
+  done < <(printf '%s\n' "$existing" | tr ',' '\n')
+
+  # The off nodes no --done flag names, the deepest depth of them alone.
+  pending=""
+  while IFS= read -r target; do
+    [ -n "$target" ] || continue
+    csv_has "$done_nodes" "$target" || { csv_add "$pending" "$target"; pending="$rc_out"; }
+  done < <(printf '%s\n' "$off" | tr ',' '\n')
+  csv_by_depth "$pending"
+  pending="$rc_out"
+  deepest=-1
+  while IFS= read -r target; do
+    [ -n "$target" ] || continue
+    slashes="${target//[!\/]/}"
+    deepest="${#slashes}"
+  done < <(printf '%s\n' "$pending" | tr ',' '\n')
+  if [ "$deepest" -lt 0 ]; then
+    printf 'NEXT: none\n'
+    exit 0
+  fi
+  while IFS= read -r target; do
+    [ -n "$target" ] || continue
+    slashes="${target//[!\/]/}"
+    [ "${#slashes}" = "$deepest" ] || continue
+    printf 'NEXT: memory-node-writer | wave: %s\nmode: fix\nnode: %s\nfindings: none\nplanned: %s\nrefs: %s/references\n' "$deepest" "$target" "$next_planned" "$plugin_root"
+  done < <(printf '%s\n' "$pending" | tr ',' '\n')
+  exit 0
+fi
+
 # --- the tracked tree ------------------------------------------------------
 # Read with -z: without it git C-quotes and octal-escapes any path carrying a
 # non-ASCII character, which would hide that path behind an opening quote.
@@ -274,13 +605,6 @@ is_excluded() {
 is_tracked() {
   case "$NL$tracked" in
     *"$NL$1$NL"*) return 0 ;;
-  esac
-  return 1
-}
-
-is_node() {
-  case "$1" in
-    CLAUDE.md | */CLAUDE.md) return 0 ;;
   esac
   return 1
 }
