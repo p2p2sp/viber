@@ -25,6 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { runScript, type RunResult } from "../harness/run.ts";
+import { slash } from "../harness/paths.ts";
 import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
 import { coreUtilsPath, withStub } from "../harness/stub.ts";
 import { forEachShell, type Shell } from "../harness/shells.ts";
@@ -978,6 +979,59 @@ test("BODY_FILE= names a stamped file under the repository root's .temp/viber/pr
       const match = /^(.+)\/\.temp\/viber\/pr-create\/body-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.md$/.exec(body);
       assert.ok(match, `BODY_FILE=${body}`);
       assert.equal(fs.realpathSync(match[1]), fs.realpathSync(scene.work.dir));
+    });
+  });
+});
+
+// --- ASK, RERUN ------------------------------------------------------------------------
+
+/** The plugin root RERUN= opens on: the directory above the scripts directory. */
+const PLUGIN_ROOT = slash(path.resolve(import.meta.dirname, "../../viber"));
+
+test("MODE=off with no target asks for the target and names the --target rerun command (DoD 1)", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      await onBranch(scene, "feature/x");
+      const result = await runFacts(shell, scene);
+      assert.equal(value(result, "MODE"), "off");
+      assert.equal(value(result, "ASK"), "target");
+      assert.equal(value(result, "RERUN"), `"${PLUGIN_ROOT}/scripts/pr-facts.sh" --target "<branch>"`);
+    });
+  });
+});
+
+test("MODE=allowed with no entry asks for the entry and names the --entry rerun command (DoD 2)", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      writeConfig(scene, branching("allowed", [FEATURE, HOTFIX]));
+      await onBranch(scene, "wip/x");
+      const result = await runFacts(shell, scene);
+      assert.equal(value(result, "MODE"), "allowed");
+      assert.equal(value(result, "ASK"), "entry");
+      assert.equal(value(result, "RERUN"), `"${PLUGIN_ROOT}/scripts/pr-facts.sh" --entry "<key>"`);
+    });
+  });
+});
+
+test("a branch matching one entry resolves ENTRY= and prints neither ASK= nor RERUN= (DoD 3)", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      writeConfig(scene, branching("allowed", [FEATURE, HOTFIX]));
+      await onBranch(scene, "feature/7-add-thing");
+      const result = await runFacts(shell, scene);
+      assert.equal(value(result, "ENTRY"), "feature");
+      assert.deepEqual([values(result, "ASK"), values(result, "RERUN")], [[], []]);
+    });
+  });
+});
+
+test("RERUN= opens on the invoked path cut before /scripts/, not on a resolved one (DoD 4)", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      await onBranch(scene, "feature/x");
+      const invoked = `${slash(path.dirname(SUT))}/../scripts/pr-facts.sh`;
+      const result = await runScript(invoked, [], { shell, cwd: scene.work.dir, env: scene.work.env, stubDirs: [scene.stubDir] });
+      assert.equal(value(result, "RERUN"), `"${slash(path.dirname(SUT))}/../scripts/pr-facts.sh" --target "<branch>"`);
     });
   });
 });

@@ -61,6 +61,10 @@
 #              TITLE_TEMPLATE=<TITLE_PATTERN filled | empty when TITLE= is set>
 #              FOOTER=Closes #<n> | Refs #<n>      (one per ISSUE=, same order; Closes when CLOSES=yes)
 #              BODY_FILE=<root>/.temp/viber/pr-create/body-<yyyy-mm-dd-HH-MM-SS>.md   (only named, never created here)
+#              ASK=target|entry                    (only with ENTRY and TARGET empty: target on MODE=off, else entry)
+#              RERUN="<plugin root>/scripts/pr-facts.sh" --target "<branch>" | ... --entry "<key>"   (with ASK=)
+#            <plugin root> is the invoked path cut before /scripts/ (never pwd);
+#            <branch> and <key> stay literal slots the caller fills with the answer.
 #            Filling replaces {type}, {issue-number} (the first ISSUE, empty
 #            with none) and {entry}, collapses each run of blanks to one and
 #            trims; {summary} stays for the caller.
@@ -120,6 +124,10 @@ case $# in
 esac
 
 here=$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)
+case $0 in
+  */scripts/*) plugin_root=${0%/scripts/*} ;;
+  *) plugin_root=$(dirname -- "$here") ;;
+esac
 
 stop() {
   case $1 in
@@ -483,4 +491,13 @@ printf '%s\n' "$issues" | while IFS= read -r n; do
   echo "FOOTER=$footer_word #$n"
 done
 echo "BODY_FILE=$root/.temp/viber/pr-create/body-$(date +%Y-%m-%d-%H-%M-%S).md"
+if [ -z "$entry" ] && [ -z "$target" ]; then
+  if [ "$mode" = off ]; then
+    echo "ASK=target"
+    echo "RERUN=\"$plugin_root/scripts/pr-facts.sh\" --target \"<branch>\""
+  else
+    echo "ASK=entry"
+    echo "RERUN=\"$plugin_root/scripts/pr-facts.sh\" --entry \"<key>\""
+  fi
+fi
 exit 0
