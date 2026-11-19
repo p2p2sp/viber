@@ -30,6 +30,10 @@ const SCRIPT_RULES = read("references/plan-rules-script.md");
 const PLANNER = read("skills/planner/SKILL.md");
 const REVIEWERS = ["planner-review", "planner-spec-review", "planner-graph-review", "planner-task-review"];
 
+function allowedToolsLine(text: string): string {
+  return text.split(/\r?\n/).find((line) => line.startsWith("allowed-tools:")) ?? "";
+}
+
 function lines(text: string): string[] {
   return text.split(/\r?\n/);
 }
@@ -260,14 +264,73 @@ test("planner step 2 asks the threshold question again only on a threshold: line
   assert.ok(section(PLANNER, "2. Write the plan").includes("Ask the step 1 question again only on a `threshold:` line of that output, and only when its count is above the accepted count, if the user accepted one"));
 });
 
-const DISPATCH_PHRASES = [
-  "Dispatch exactly the `dispatch:` lines of the last `plan-index.sh` run",
-  "`viber:planner-task-review`: `memory: <value>` as above and its line's `tasks:` value",
+const INPUT_FLAG = '--input "<summary file>"';
+
+for (const step of ["2. Write the plan", "3. Review gate", "4. Hand off"]) {
+  test(`planner step ${step.slice(0, 1)} runs plan-index.sh with ${INPUT_FLAG} on a summary file input`, () => {
+    assert.ok(section(PLANNER, step).includes(INPUT_FLAG));
+  });
+}
+
+const STEP_TWO_PHRASES = [
+  "fix every `FIX:` line",
+  "split every task a `SPLIT:` line names",
 ];
 
-for (const phrase of DISPATCH_PHRASES) {
-  test(`planner step 3 dispatches the dispatch: lines of the last plan-index.sh run as written: ${phrase}`, () => {
+for (const phrase of STEP_TWO_PHRASES) {
+  test(`planner step 2 acts on the defect lines of plan-index.sh: ${phrase}`, () => {
+    assert.ok(section(PLANNER, "2. Write the plan").includes(phrase));
+  });
+}
+
+const REVIEW_ROUND_CALL = '"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>"';
+
+const STEP_THREE_PHRASES = [
+  `${REVIEW_ROUND_CALL} start`,
+  "`--fresh` after a user's answer and after any plan write following `NEXT: exit-plan`",
+  "Dispatch every block in one message",
+  "then the text of each `add:` field",
+  `${REVIEW_ROUND_CALL} returned <k>=<word>`,
+  "`NEXT: redispatch`",
+  "`NEXT: fix`",
+  "`NEXT: exit-plan`",
+  "`ASK:`",
+  "`STOP:`",
+  `${REVIEW_ROUND_CALL} override <k>`,
+  "never a `SendMessage` to an earlier reviewer",
+];
+
+for (const phrase of STEP_THREE_PHRASES) {
+  test(`planner step 3 runs review-round.sh and follows its directives as written: ${phrase}`, () => {
     assert.ok(section(PLANNER, "3. Review gate").includes(phrase));
+  });
+}
+
+const OWN_ROUND_RULES = [
+  "when any member returned it",
+  "one more dispatch",
+  "From round 2 on",
+  "dispatch the `dispatch:` lines",
+  "as a fresh round 1",
+];
+
+for (const phrase of OWN_ROUND_RULES) {
+  test(`planner step 3 keeps no verdict ranking, retry count or round prompt rule of its own: ${phrase}`, () => {
+    assert.ok(!section(PLANNER, "3. Review gate").includes(phrase));
+  });
+}
+
+test("planner step 4 re-reviews after a later write with start --fresh", () => {
+  assert.ok(section(PLANNER, "4. Hand off").includes("start --fresh"));
+});
+
+test("planner allows its review-round.sh call through the skill directory", () => {
+  assert.ok(allowedToolsLine(PLANNER).includes("Bash(${CLAUDE_SKILL_DIR}/scripts/review-round.sh:*)"));
+});
+
+for (const name of ["allowed", "required"]) {
+  test(`the ${name} branching-fix fragment opens on a fix after NEXT: fix`, () => {
+    assert.ok(read(`skills/planner/fragments/branching-fix.${name}.md`).startsWith("After a `NEXT: fix` fix"));
   });
 }
 

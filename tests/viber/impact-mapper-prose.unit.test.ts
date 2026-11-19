@@ -81,8 +81,8 @@ test("the planner says reach.sh writes one file under .temp/ and that write is e
   assert.ok(has(PLANNER, "Its one write under `.temp/viber/planner/` is expected in plan mode."));
 });
 
-test("step 2 names the reach file as the one write allowed beside the plan file", () => {
-  assert.ok(has(PLANNER, "the only file you may write while planning besides the candidates file `reach.sh` wrote under `.temp/viber/planner/`"));
+test("step 2 names the reach file as a write allowed beside the plan file", () => {
+  assert.ok(has(PLANNER, "the only file you may write while planning besides the candidates file `reach.sh` wrote and the state file `review-round.sh` writes, both under `.temp/viber/planner/` (expected in plan mode)"));
 });
 
 test("the planner dispatches impact-mapper with the plan and candidates lines before the targets block", () => {
