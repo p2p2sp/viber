@@ -18,9 +18,14 @@
 #              An earlier record is replaced.
 #            --check [<reproduction test path>]
 #              the paths git status reports now, under the same rules, that are neither in the
-#              record nor the given path (a leading ./ dropped once). A recorded path changed
-#              further is never listed: a path is recorded by name, not by content.
-#   cwd    : any directory inside the repository; the script moves to its root.
+#              record nor the given path. The given path is turned into its repo-relative form
+#              first: a leading ./ dropped once, an absolute path under the root (on Windows in
+#              the /c/, C:/ or C:\ form, the drive letter's case ignored) losing the root, a
+#              relative path gaining the cwd's prefix inside the repository; an absolute path
+#              outside the root is compared as given. A recorded path changed further is never
+#              listed: a path is recorded by name, not by content.
+#   cwd    : any directory inside the repository; the script moves to its root. A relative
+#            --check argument is read against it.
 #   env    : none.
 #   reads  : git status; for --check, the record file.
 #   writes : the record file, by --save only.
@@ -58,6 +63,7 @@ esac
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -n "$root" ] || fail "not inside a git repository"
+prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
 cd "$root" || fail "cannot enter the repository root: $root"
 
 record=".temp/viber/fixer/tree-record"
@@ -98,8 +104,41 @@ fi
 
 [ -f "$record" ] || fail "no record file: run tree-record.sh --save before the first edit"
 recorded="$(cat "$record")"
+
+# Prints the lower-case form of a one-letter drive prefix: c:/x for C:/x.
+lower_drive() {
+  printf '%s%s' "$(printf '%s' "${1:0:1}" | tr 'A-Z' 'a-z')" "${1:1}"
+}
+
+# Prints the repo-relative form of the path $1: a leading ./ dropped once; on Windows an absolute
+# path in the /c/, C:/ or C:\ form under the root loses the root, the drive letter's case ignored;
+# a relative path gains the cwd's prefix inside the repository. An absolute path outside the root
+# stays as given.
+repo_relative() {
+  local p="${1#./}" r="$root"
+  case "$r" in
+    [A-Za-z]:/*)
+      case "$p" in
+        [A-Za-z]:[\\/]*) p="${p//\\//}" ;;
+        /[A-Za-z]/*) p="${p:1:1}:${p:2}" ;;
+      esac
+      case "$p" in
+        [A-Za-z]:/*) p="$(lower_drive "$p")" ;;
+      esac
+      r="$(lower_drive "$r")"
+      ;;
+  esac
+  case "$p" in
+    "$r"/*) printf '%s' "${p#"$r"/}" ;;
+    /* | [A-Za-z]:/*) printf '%s' "$p" ;;
+    *) printf '%s%s' "$prefix" "$p" ;;
+  esac
+}
+
 given="${2:-}"
-given="${given#./}"
+if [ -n "$given" ]; then
+  given="$(repo_relative "$given")"
+fi
 
 extra=""
 while IFS= read -r path; do
