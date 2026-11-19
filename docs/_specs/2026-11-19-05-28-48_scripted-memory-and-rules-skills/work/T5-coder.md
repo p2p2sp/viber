@@ -1,5 +1,0 @@
-- memory-auditor.md held 784 words after T4 (cap needed below 736), so DoD.9 forced a trim of it outside Files (EXTRA); wording only, every finding line and the AUDIT line are unchanged. Its cap is 732, tight.
-- The test file did not exist; it holds the memory caps only (1900 for SKILL.md at 1878 words). T10 adds the rules caps to the same file.
-- review and both still go through step 5 and the step 6 confirm even when `--keep` answers `NEXT: none` (create targets only), as before; reset and extend skip to step 7.
-- After a reset no remap runs: the preloaded map is used for its `id:` only, the `--targets reset` call reads the tree itself.
-- `--files` carries the writer's whole `FILES:` list (deleted paths included), as the script reads deletions from absent files.

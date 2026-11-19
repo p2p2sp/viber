@@ -1,6 +1,0 @@
-- `--confirm` shares the argv, id and target validation of `--brief` (one block, `$mode` picks the branch), so both exit 2 alike.
-- The targets given are the kept ones: a rule dropped on `VERDICT: DENIED` must be left out of the call, else its `rule:` line and counters reach the writer.
-- A `confirm:` counter line names the target as given (a directory keeps its spelling); the findings slug strips a leading `./` and a trailing `/`.
-- Test trap: a root rule whose globs all open on one literal directory (`src/*.ts`) is `misplaced`, so confirm cases that expect the stop line use `**/*.ts`.
-- `memory-map.sh` has no `--confirm`; only the rules layer is delivered here.
-- Keep-set red (red-2.log, 2 failing): dead filter dropped and OVER-FILE branch run on every rule line, the `rule:` filter kept so each case fails on its own gap.

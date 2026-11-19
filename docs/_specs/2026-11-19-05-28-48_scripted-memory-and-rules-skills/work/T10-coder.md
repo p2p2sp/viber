@@ -1,5 +1,0 @@
-- rules/SKILL.md is 1670 words (cap 1700); rules-auditor.md is untouched at 1446 (cap 1460), so DoD.9 needed no trim.
-- The verification grep finds no `--brief)` / `--confirm)` case pattern in rules-map.sh: it dispatches both modes with `[ "${1:-}" = "--brief" ]` tests, so only the other grep patterns match there.
-- The `ENFORCE:` sentence stays in step 6 (and its test) because the script never sees an `ENFORCE:` line, so only the model can wrongly dispatch the writer on one.
-- Step 1 no longer names area moves itself: the `misplaced:` bullet is the only place, and the old area paragraph is gone with its derivation.
-- Step 6 passes the same targets as step 5 minus those dropped on `VERDICT: DENIED`; with none left it stops, as `--confirm` would exit 2 on no target.

@@ -1,5 +1,0 @@
-- The existing trail-order test used `src/*.ts` root rules, which now print `misplaced:` lines; its fixtures now declare `**/*.ts` so it still checks trail/waiting order only.
-- A root rule whose globs share a segment prints that segment even when its name also opens on an area (one line per rule, DoD.1 wins).
-- When a root rule's name opens on several areas, the first in C-locale order is printed.
-- An area rule is judged by its top-level directory at any depth, and `<area>` is any direct subdirectory of `.claude/rules/`, with or without `.md` files.
-- The header-contract test was not extended: it reads source text, which test-strategy's Source rule forbids.

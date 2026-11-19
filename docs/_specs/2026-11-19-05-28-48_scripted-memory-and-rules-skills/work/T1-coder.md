@@ -1,7 +1,0 @@
-- `--targets` argv is judged before the repo is resolved, so a refused call prints nothing; errors go to stderr as one `error:` line. `--id` and `--keep` (C2 with --keep) are not built: they read as `unknown argument` (a later task).
-- Open choice: create lines come in form order (candidates, unlinked, removed, root), not by directory.
-- Open choice: `reset` prints the root form never; the root shows only as `create CLAUDE.md removed` when a removed path sits at the root.
-- Open choice: a removed section whose node still stands (present tracked node in that directory) gives no create line, since it emptied nothing; the call is meant to run on the map taken after `--reset`.
-- A removed path that is neither node nor section, or lies below a dot directory or an ignored path, is skipped silently.
-- The reset cases arrange the removal with `fs.rmSync` (the tracked-but-missing state `--reset` leaves), so `--targets` is their one act; the lone removed-section case reddened in `red-3.log` with that branch reverted.
-- Map mode output untouched: the 43 pre-existing cases of memory-map.test.ts still pass.
