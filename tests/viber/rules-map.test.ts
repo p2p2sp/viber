@@ -1088,6 +1088,281 @@ test("brief refuses a directory target escaping the repository through a parent 
   });
 });
 
+/** Writes one findings file of a run under `.temp/viber/<id>/`, after the seed
+ *  so the tree stays what the map is taken of. */
+function findings(repo: GitRepo, id: string, name: string, body: string): void {
+  write(repo, `.temp/viber/${id}/${name}`, body);
+}
+
+const STOP_LINE = "STOP: rules: the layer already holds, no writer dispatched";
+const ASK_LINE = "ASK: fold in -> write | stop -> stop";
+
+/** A scope with no shared literal first segment, so a root rule holding it is
+ *  never named misplaced. */
+const ANY_TS = "**/*.ts";
+
+test("confirm prints the stop line alone when no findings file exists, each counter reading 0", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, { "src/a.ts": "a\n", ".claude/rules/code.md": rule([ANY_TS]) });
+
+    const result = await run(repo, ["--confirm", "run1", ".claude/rules/code.md"]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(lines(result.stdout), [STOP_LINE]);
+  });
+});
+
+test("confirm names a rule's counters, asks to fold in and hands the writer the map lines of the kept rule", async () => {
+  await withGitRepo(async (repo) => {
+    const body = rule([ANY_TS]);
+    await seed(repo, { "src/a.ts": "a\n", ".claude/rules/code.md": body });
+    findings(
+      repo,
+      "run1",
+      "code-audit.md",
+      'STALE: "a" -> b\nDROP: "c" -> d\nMISS: e\nMISS: f\nUSED: g\nOK: h\n',
+    );
+
+    const result = await run(repo, ["--confirm", "run1", ".claude/rules/code.md"]);
+
+    assert.equal(result.status, 0);
+    const out = lines(result.stdout);
+    assert.deepEqual(out.slice(0, -1), [
+      "confirm: .claude/rules/code.md stale 1 gone 0 drop 1 miss 2",
+      ASK_LINE,
+      "NEXT: rules-writer",
+      "map:",
+      "id: run1",
+      "state: complete",
+      `rule: .claude/rules/code.md ${Buffer.byteLength(body)} paths **/*.ts matches 1 ok`,
+      `total: ${Buffer.byteLength(body)} ok`,
+      "notes: .temp/viber/run1/",
+    ]);
+    assert.match(out[out.length - 1], REFS_TAIL);
+  });
+});
+
+test("confirm hands the writer the rule and dead lines of the kept rules only, a dead rule counted gone from its findings file", async () => {
+  await withGitRepo(async (repo) => {
+    const kept = rule([ANY_TS]);
+    const dead = rule(["**/legacy/*.ts"]);
+    await seed(repo, {
+      "src/a.ts": "a\n",
+      ".claude/rules/kept.md": kept,
+      ".claude/rules/left.md": rule([ANY_TS], "# left\n"),
+      ".claude/rules/old.md": dead,
+      ".claude/rules/dropped.md": rule(["**/vendor/*.ts"]),
+    });
+    findings(repo, "run1", "kept-audit.md", "STALE: x -> y\n");
+    findings(repo, "run1", "old-audit.md", "GONE: the rule's globs match no tracked file\n");
+
+    const result = await run(repo, [
+      "--confirm",
+      "run1",
+      ".claude/rules/old.md",
+      ".claude/rules/kept.md",
+    ]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(
+      lines(result.stdout).filter((line) => /^(confirm|rule|dead): /.test(line)),
+      [
+        "confirm: .claude/rules/old.md stale 0 gone 1 drop 0 miss 0",
+        "confirm: .claude/rules/kept.md stale 1 gone 0 drop 0 miss 0",
+        `rule: .claude/rules/kept.md ${Buffer.byteLength(kept)} paths **/*.ts matches 1 ok`,
+        `rule: .claude/rules/old.md ${Buffer.byteLength(dead)} paths **/legacy/*.ts matches 0 ok`,
+        "dead: .claude/rules/old.md",
+      ],
+    );
+  });
+});
+
+test("confirm reads a directory target's counters from new--<path> with each separator doubled", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, { "src/deep/a.ts": "a\n" });
+    findings(repo, "run1", "new--src--deep-audit.md", "MISS: a convention\nUSED: u\n");
+
+    const result = await run(repo, ["--confirm", "run1", "src/deep"]);
+
+    assert.equal(result.status, 0);
+    assert.equal(lines(result.stdout)[0], "confirm: src/deep stale 0 gone 0 drop 0 miss 1");
+    assert.equal(lines(result.stdout)[1], ASK_LINE);
+  });
+});
+
+test("confirm reads the repository root target's counters from new--root", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, { "src/a.ts": "a\n" });
+    findings(repo, "run1", "new--root-audit.md", "MISS: one\nMISS: two\n");
+
+    const result = await run(repo, ["--confirm", "run1", "."]);
+
+    assert.equal(result.status, 0);
+    assert.equal(lines(result.stdout)[0], "confirm: . stale 0 gone 0 drop 0 miss 2");
+  });
+});
+
+test("confirm names the trail's miss, ignored and rejected counts and hands the writer every trail line", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "README.md": "# repo\n",
+      "docs/specs/2026-01-01-00-00-00_a/failures.md": failures(["convention | review-T1-1 | a"]),
+      "docs/specs/2026-02-01-00-00-00_b/failures.md": failures(["convention | review-T1-1 | b"]),
+    });
+    findings(
+      repo,
+      "run1",
+      "_trail-audit.md",
+      "MISS: m | runs a, b\nUSED: u\nIGNORED: i\nREJECTED: r1\nREJECTED: r2\n",
+    );
+
+    const result = await run(repo, ["--confirm", "run1", "trail"]);
+
+    assert.equal(result.status, 0);
+    const out = lines(result.stdout);
+    assert.deepEqual(out.slice(0, -1), [
+      "confirm: trail miss 1 ignored 1 rejected 2",
+      ASK_LINE,
+      "NEXT: rules-writer",
+      "map:",
+      "id: run1",
+      "state: none",
+      "trail: docs/specs/2026-01-01-00-00-00_a/failures.md convention 1 other 0",
+      "trail: docs/specs/2026-02-01-00-00-00_b/failures.md convention 1 other 0",
+      "total: 0 ok",
+      "notes: .temp/viber/run1/",
+    ]);
+    assert.match(out[out.length - 1], REFS_TAIL);
+  });
+});
+
+test("confirm sends the writer a kept trail holding other entries though every counter reads 0", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "README.md": "# repo\n",
+      "docs/specs/2026-01-01-00-00-00_a/failures.md": failures([
+        "task | review-T1-1 | a",
+        "plan | review-T2-1 | b",
+      ]),
+    });
+
+    const result = await run(repo, ["--confirm", "run1", "trail"]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(
+      lines(result.stdout).filter((line) => /^(confirm|ASK|NEXT|trail): /.test(line)),
+      [
+        "confirm: docs/specs/2026-01-01-00-00-00_a/failures.md other 2",
+        ASK_LINE,
+        "NEXT: rules-writer",
+        "trail: docs/specs/2026-01-01-00-00-00_a/failures.md convention 0 other 2",
+      ],
+    );
+  });
+});
+
+test("confirm ignores the other entries of a trail that is not kept and stops", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "src/a.ts": "a\n",
+      ".claude/rules/code.md": rule([ANY_TS]),
+      "docs/specs/2026-01-01-00-00-00_a/failures.md": failures(["task | review-T1-1 | a"]),
+    });
+
+    const result = await run(repo, ["--confirm", "run1", ".claude/rules/code.md"]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(lines(result.stdout), [STOP_LINE]);
+  });
+});
+
+test("confirm names a kept rule that is misplaced or past its file budget though every counter reads 0", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "server/a.ts": "a\n",
+      "src/a.ts": "a\n",
+      ".claude/rules/server-x.md": rule(["server/*.ts"]),
+      ".claude/rules/big.md": rule([ANY_TS], "y".repeat(4100)),
+    });
+
+    const result = await run(repo, [
+      "--confirm",
+      "run1",
+      ".claude/rules/server-x.md",
+      ".claude/rules/big.md",
+    ]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(
+      lines(result.stdout).filter((line) => /^(confirm|ASK): /.test(line)),
+      [
+        "confirm: .claude/rules/server-x.md misplaced server",
+        "confirm: .claude/rules/big.md OVER-FILE",
+        ASK_LINE,
+      ],
+    );
+  });
+});
+
+test("confirm names a rule it was not given neither misplaced nor over budget", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "server/a.ts": "a\n",
+      "src/a.ts": "a\n",
+      ".claude/rules/server-x.md": rule(["server/*.ts"]),
+      ".claude/rules/big.md": rule([ANY_TS], "y".repeat(4100)),
+      ".claude/rules/code.md": rule([ANY_TS]),
+    });
+
+    const result = await run(repo, ["--confirm", "run1", ".claude/rules/code.md"]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(lines(result.stdout), [STOP_LINE]);
+  });
+});
+
+test("confirm names OVER-DIR on the total when the layer is past its directory budget", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "src/a.ts": "a\n",
+      ".claude/rules/code.md": rule([ANY_TS]),
+      ".claude/rules/_big.md": "z".repeat(41000),
+    });
+
+    const result = await run(repo, ["--confirm", "run1", ".claude/rules/code.md"]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(
+      lines(result.stdout).filter((line) => /^(confirm|ASK|total): /.test(line)),
+      ["confirm: total OVER-DIR", ASK_LINE, `total: ${41000 + Buffer.byteLength(rule([ANY_TS]))} OVER-DIR`],
+    );
+  });
+});
+
+test("confirm refuses a frozen rule with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, { "src/a.ts": "a\n", ".claude/rules/_frozen.md": rule(["src/*.ts"]) });
+
+    const result = await run(repo, ["--confirm", "run1", ".claude/rules/_frozen.md"]);
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr.trim(), /^error: [^\n]+$/);
+  });
+});
+
+test("confirm refuses a call with no target, as brief does", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, { "src/a.ts": "a\n" });
+
+    const result = await run(repo, ["--confirm", "run1"]);
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr.trim(), /^error: [^\n]+$/);
+  });
+});
+
 /** The mode git records for a shipped script. Tracked: straight out of the
  *  index. Not committed yet - which is what it is in the build that creates
  *  it - git derives the bit on the way in, from the `#!` line on Windows

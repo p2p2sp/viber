@@ -27,6 +27,10 @@
 #                                      <target> a rule path under
 #                                      .claude/rules/, a repo-relative directory
 #                                      (`.` for the root) or the word `trail`.
+#            --confirm <id> <target> [...]
+#                                   -> confirm mode: <id> and <target> as in
+#                                      brief mode; the targets given are the
+#                                      kept ones.
 #            anything else          -> refused, exit 2.
 #   cwd    : any directory inside the host project - the repository root is
 #            resolved here and every printed path is relative to it. Outside a
@@ -48,7 +52,8 @@
 #            tree, and a subdirectory left empty by them is removed with it. In
 #            brief mode, once every target has passed, one findings file
 #            `.temp/viber/<id>/<slug>-audit.md` per rule matching no tracked
-#            file. Nothing is ever staged and nothing is ever committed.
+#            file. Nothing is ever staged and nothing is ever committed. In
+#            confirm mode nothing at all.
 #   stdout : map mode, in this order. A section with nothing to report prints
 #            no line at all; `total:` always prints.
 #              # viber rules map
@@ -120,6 +125,35 @@
 #              out: .temp/viber/<id>/
 #              refs: <plugin root>/references
 #            `<plugin root>` is resolved from this script's own path.
+#
+#            confirm mode reads the findings file of each target under
+#            `.temp/viber/<id>/` (`<slug>-audit.md` of a rule, `new--<slug>-audit.md`
+#            of a directory, `new--root` for `.`, `_trail-audit.md` of the trail)
+#            and counts its lines opening on `STALE:`, `GONE:`, `DROP:` and
+#            `MISS:` (rule, directory) or `MISS:`, `IGNORED:` and `REJECTED:`
+#            (trail); a missing file reads 0 everywhere. When every counter is 0,
+#            no kept rule is misplaced or `OVER-FILE`, `total:` carries no
+#            `OVER-DIR` and no kept `trail:` line has an `other` count above 0,
+#            stdout is the one line
+#              STOP: rules: the layer already holds, no writer dispatched
+#            otherwise, in this order:
+#              confirm: <target> stale <n> gone <n> drop <n> miss <n>
+#              confirm: trail miss <n> ignored <n> rejected <n>
+#              confirm: <rule path> misplaced <area>
+#              confirm: <rule path> OVER-FILE
+#              confirm: total OVER-DIR
+#              confirm: <trail path> other <n>
+#              ASK: fold in -> write | stop -> stop
+#              NEXT: rules-writer
+#              map:
+#              id: <id>
+#              state: <state>
+#              rule: / dead: lines of the kept rule targets, verbatim
+#              trail: lines, only with the trail kept, verbatim
+#              total: <chars> ok | OVER-DIR
+#              notes: .temp/viber/<id>/
+#              refs: <plugin root>/references
+#            a `confirm:` line prints only for a counter above 0.
 #            `scope: **` and `matches: none` mark a rule declaring no scope; a
 #            directory target is `target: none` with the directory (no trailing
 #            slash) as scope; the trail target lists every `trail:` path with a
@@ -134,10 +168,11 @@
 #   exit   : 0 - map mode, ALWAYS, whatever it finds: it is called as a `!`
 #                preload, where a non-zero exit aborts the whole skill load.
 #                Also a reset that deleted every target it was given, and a
-#                brief that answered.
-#            2 - unusable argv: a first argument that is not `--reset` or
-#                `--brief`, or `--reset` with no target at all. A brief with an
-#                unusable id, no target, a frozen rule or a target that is
+#                brief or a confirm that answered.
+#            2 - unusable argv: a first argument that is not `--reset`,
+#                `--brief` or `--confirm`, or `--reset` with no target at all. A
+#                brief or confirm with an unusable id, no target, a frozen rule
+#                or a target that is
 #                neither a rule, a directory nor `trail` exits 2 as well, with
 #                one `error: <reason>` line on stderr and an empty stdout.
 #            3 - the reset was refused. Nothing was deleted.
@@ -350,7 +385,7 @@ done < <(git status --porcelain -z --untracked-files=all -- "$rules_dir" 2>/dev/
 # Reset mode. The whole call is judged before a single file is deleted: a
 # partial delete would leave the layer in a state neither the user nor the
 # command that showed them the list can describe.
-if [ "$#" -gt 0 ] && [ "$1" != "--brief" ]; then
+if [ "$#" -gt 0 ] && [ "$1" != "--brief" ] && [ "$1" != "--confirm" ]; then
   if [ "$1" != "--reset" ]; then
     printf 'refused: %s unknown-mode\n' "$1"
     exit 2
@@ -581,12 +616,13 @@ fi
 # an unusable one leaves stdout empty and the layer untouched. Nothing prints
 # until the end: the `AUDIT:` lines of the rules that match nothing first, then
 # one block per target, in the order given.
-if [ "${1:-}" = "--brief" ]; then
+if [ "${1:-}" = "--brief" ] || [ "${1:-}" = "--confirm" ]; then
+  mode="$1"
   brief_fail() {
     printf 'error: %s\n' "$1" >&2
     exit 2
   }
-  [ "$#" -ge 3 ] || brief_fail "--brief takes a map id and at least one target"
+  [ "$#" -ge 3 ] || brief_fail "$mode takes a map id and at least one target"
   brief_id="$2"
   case "$brief_id" in
     "" | . | .. | *[!A-Za-z0-9._-]*) brief_fail "$brief_id is not a usable map id" ;;
@@ -645,6 +681,136 @@ if [ "${1:-}" = "--brief" ]; then
     plugin_root="$(cd "$script_dir/../../.." 2>/dev/null && pwd || true)"
   fi
   brief_out_dir=".temp/viber/$brief_id"
+
+  # Confirm mode: the counters of each target's findings file decide whether
+  # the layer already holds. A findings file a target never wrote reads as 0
+  # on every counter. The targets given are the kept ones.
+  if [ "$mode" = "--confirm" ]; then
+    count_of() {
+      c_found="$(grep -c "^$2" "$1" 2>/dev/null || true)"
+      printf '%s' "${c_found:-0}"
+    }
+    confirm_stop=1
+    counter_out=""
+    misplaced_out=""
+    over_file_out=""
+    other_out=""
+    kept_set=""
+    trail_kept=0
+    for target in "$@"; do
+      brief_kind "$target"
+      case "$kind" in
+        rule | dir)
+          if [ "$kind" = "rule" ]; then
+            kept_set="$kept_set$target
+"
+            rel="${target#"$rules_dir"/}"
+            slug="${rel%.md}"
+          else
+            slug="${dir#./}"
+            [ "$slug" != "." ] || slug="root"
+            slug="new--$slug"
+          fi
+          slug="${slug//\//--}"
+          n_stale="$(count_of "$brief_out_dir/$slug-audit.md" "STALE:")"
+          n_gone="$(count_of "$brief_out_dir/$slug-audit.md" "GONE:")"
+          n_drop="$(count_of "$brief_out_dir/$slug-audit.md" "DROP:")"
+          n_miss="$(count_of "$brief_out_dir/$slug-audit.md" "MISS:")"
+          if [ $(( n_stale + n_gone + n_drop + n_miss )) -gt 0 ]; then
+            confirm_stop=0
+            counter_out="$counter_out"'confirm: '"$target stale $n_stale gone $n_gone drop $n_drop miss $n_miss"'
+'
+          fi
+          ;;
+        trail)
+          trail_kept=1
+          n_miss="$(count_of "$brief_out_dir/_trail-audit.md" "MISS:")"
+          n_ignored="$(count_of "$brief_out_dir/_trail-audit.md" "IGNORED:")"
+          n_rejected="$(count_of "$brief_out_dir/_trail-audit.md" "REJECTED:")"
+          if [ $(( n_miss + n_ignored + n_rejected )) -gt 0 ]; then
+            confirm_stop=0
+            counter_out="$counter_out"'confirm: '"trail miss $n_miss ignored $n_ignored rejected $n_rejected"'
+'
+          fi
+          ;;
+      esac
+    done
+
+    # The map lines of the kept rules, in the map's own order.
+    kept_rules=""
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      line_path="${line#rule: }"
+      line_path="${line_path%% *}"
+      contains_line "$kept_set" "$line_path" || continue
+      kept_rules="$kept_rules$line
+"
+      case "$line" in
+        *" OVER-FILE")
+          confirm_stop=0
+          over_file_out="$over_file_out"'confirm: '"$line_path OVER-FILE"'
+'
+          ;;
+      esac
+    done < <(printf '%s' "$rule_lines")
+    kept_dead=""
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      contains_line "$kept_set" "${line#dead: }" || continue
+      kept_dead="$kept_dead$line
+"
+    done < <(printf '%s' "$dead_lines")
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      line_path="${line#misplaced: }"
+      line_path="${line_path%% *}"
+      contains_line "$kept_set" "$line_path" || continue
+      confirm_stop=0
+      misplaced_out="$misplaced_out"'confirm: '"$line_path misplaced ${line##* }"'
+'
+    done < <(printf '%s' "$misplaced_lines")
+
+    total_out=""
+    total_verdict="ok"
+    if [ "$total" -gt "$dir_cap" ]; then
+      confirm_stop=0
+      total_verdict="OVER-DIR"
+      total_out='confirm: total OVER-DIR
+'
+    fi
+    kept_trails=""
+    if [ "$trail_kept" -eq 1 ]; then
+      kept_trails="$trail_lines"
+      while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        n_other="${line##* other }"
+        [ "$n_other" -gt 0 ] || continue
+        confirm_stop=0
+        line_path="${line#trail: }"
+        other_out="$other_out"'confirm: '"${line_path%% convention *} other $n_other"'
+'
+      done < <(printf '%s' "$trail_lines")
+    fi
+
+    if [ "$confirm_stop" -eq 1 ]; then
+      printf 'STOP: rules: the layer already holds, no writer dispatched\n'
+      exit 0
+    fi
+    printf '%s' "$counter_out"
+    printf '%s' "$misplaced_out"
+    printf '%s' "$over_file_out"
+    printf '%s' "$total_out"
+    printf '%s' "$other_out"
+    printf 'ASK: fold in -> write | stop -> stop\n'
+    printf 'NEXT: rules-writer\nmap:\nid: %s\nstate: %s\n' "$brief_id" "$state"
+    printf '%s' "$kept_rules"
+    printf '%s' "$kept_dead"
+    printf '%s' "$kept_trails"
+    printf 'total: %s %s\n' "$total" "$total_verdict"
+    printf 'notes: %s/\nrefs: %s/references\n' "$brief_out_dir" "$plugin_root"
+    exit 0
+  fi
+
   audit_out=""
   block_out=""
   for target in "$@"; do
