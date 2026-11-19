@@ -1,0 +1,8 @@
+- Red: .temp/viber/T14/red.log (6 failing on assertions, exit 2 where 0 or 1 was expected); green: verify.log, 77/77 pass; portability sweep green.
+- pr-reply.test.ts is integration tier but its Verification runs it, and its stub gh keeps it off the network.
+- Only `--list` of C6 is built; `--all` is not in this task's DoD.
+- `--list` reads `<cwd>/.temp/viber/pr-feedback/<N>/review.md` as C6 says (cwd, not the git toplevel); the git check only decides exit 1.
+- READY lines come first, then MISSING lines, each in section order (the C6 block order); an interleaved order was not asked for.
+- The awk block defines no function and has no `((` (portability trap): a sentinel `## end` heading closes the last section.
+- The RUN path strips `/scripts/pr-reply.sh` from `$0` with backslashes turned into `/` by `tr` (POSIX sh has no `${var//}`).
+- pr-feedback-reply/SKILL.md still lists by hand: another task owns it.

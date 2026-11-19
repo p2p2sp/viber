@@ -15,6 +15,11 @@
  * the body file left under .temp; exit 1 with one ERROR line and an empty
  * stdout when gh fails, returns no well-formed comment URL or is absent.
  *
+ * `pr-reply.sh --list <pull request>` reads the pr-feedback review.md of the cwd
+ * and prints the ready and missing replies, the RUN line of the `--all` call and
+ * the skip reasons no-review and none-ready with their SAY sentences, calling no
+ * gh; exit 2 on a malformed pull request, exit 1 outside a git repository.
+ *
  * pr-reply.sh is `#!/bin/sh`, so every case runs through forEachShell("posix",
  * ...) via opts.shell, never executed directly. `gh` is always a withStub, or
  * absent - this test never shells out to the real gh. The stub answers a thread
@@ -34,7 +39,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { runScript, type RunResult } from "../harness/run.ts";
-import { withGitRepo } from "../harness/tmp.ts";
+import { withGitRepo, withTempDir } from "../harness/tmp.ts";
+import { slash } from "../harness/paths.ts";
 import { coreUtilsPath, withStub } from "../harness/stub.ts";
 import { forEachShell, type Shell } from "../harness/shells.ts";
 
@@ -480,3 +486,190 @@ test(
     });
   },
 );
+
+// --- --list: the ready and missing replies of a review.md ----------------------------
+
+interface Item {
+  k: number;
+  where: string;
+  key: string;
+  /** Whether the section's reply file exists. */
+  ready: boolean;
+}
+
+interface ListOpts {
+  /** The items of the review.md; absent writes no review.md. */
+  items?: Item[];
+  /** The pull request number whose pr-feedback directory holds the review. */
+  n?: number;
+  /** The script to run (default: the shipped one). */
+  script?: string;
+}
+
+const sectionOf = (dir: string, n: number, item: Item) =>
+  [
+    `## ${item.k} - problem - ${item.where}`,
+    `- Kind: ${item.key.startsWith("comment-") ? "conversation" : "thread"}`,
+    `- Comment: ${item.key}`,
+    `- Reply file: ${dir}/.temp/viber/pr-feedback/${n}/replies/${item.key}.md`,
+    "- Expected: rename the helper",
+    "",
+    "> Please rename this helper",
+    "",
+  ].join("\n");
+
+/** Runs `pr-reply.sh --list <pr>` in a fresh repo whose review.md holds `items`
+ *  (a reply file written for each ready one), the gh stub first on PATH. */
+async function runList(shell: Shell, pr: string, opts: ListOpts = {}): Promise<{ result: RunResult; calls: number }> {
+  const n = opts.n ?? 42;
+  return await withGitRepo((repo) =>
+    withStub("gh", GH_STUB, async (stubDir) => {
+      const dir = slash(repo.dir);
+      const argvFile = path.join(repo.dir, "argv.log");
+      fs.writeFileSync(argvFile, "");
+      if (opts.items) {
+        const feedback = path.join(repo.dir, `.temp/viber/pr-feedback/${n}`);
+        fs.mkdirSync(path.join(feedback, "replies"), { recursive: true });
+        fs.writeFileSync(
+          path.join(feedback, "review.md"),
+          `# Review of pull request ${n}\n\n${opts.items.map((item) => sectionOf(dir, n, item)).join("\n")}`,
+        );
+        for (const item of opts.items) {
+          if (item.ready) fs.writeFileSync(path.join(feedback, `replies/${item.key}.md`), "Done.\n");
+        }
+      }
+      const env = { ...repo.env, ARGV_FILE: argvFile };
+      const result = await runScript(opts.script ?? SUT, ["--list", pr], { shell, cwd: repo.dir, env, stubDirs: [stubDir] });
+      return { result, calls: fs.readFileSync(argvFile, "utf-8").length };
+    }),
+  );
+}
+
+const PLUGIN_ROOT = slash(path.resolve(import.meta.dirname, "../../viber"));
+const THREE_ITEMS: Item[] = [
+  { k: 1, where: "src/a.ts:10", key: "101", ready: true },
+  { k: 2, where: "review", key: "review-9", ready: false },
+  { k: 3, where: "conversation", key: "comment-55", ready: true },
+];
+
+test("--list of a review.md with three items, two holding a reply file, prints STATUS=ready, the two READY lines, the MISSING line and the RUN line, in section order", async () => {
+  await assertPosix(async (shell) => {
+    const { result } = await runList(shell, "42", { items: THREE_ITEMS });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      slash(result.stdout),
+      [
+        "STATUS=ready",
+        "READY=1 - src/a.ts:10 - 101",
+        "READY=3 - conversation - comment-55",
+        "MISSING=2 - review - review-9",
+        `RUN="${PLUGIN_ROOT}/scripts/pr-reply.sh" --all "42"`,
+        "",
+      ].join("\n"),
+    );
+  });
+});
+
+test("--list calls no gh", async () => {
+  await assertPosix(async (shell) => {
+    const { calls } = await runList(shell, "42", { items: THREE_ITEMS });
+    assert.equal(calls, 0);
+  });
+});
+
+test("--list of a review.md with no reply file prints the MISSING lines, REASON=none-ready and its SAY, and no RUN line", async () => {
+  await assertPosix(async (shell) => {
+    const items = THREE_ITEMS.map((item) => ({ ...item, ready: false }));
+    const { result } = await runList(shell, "42", { items });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      [
+        "STATUS=skip",
+        "MISSING=1 - src/a.ts:10 - 101",
+        "MISSING=2 - review - review-9",
+        "MISSING=3 - conversation - comment-55",
+        "REASON=none-ready",
+        "SAY=No reply file is written yet.",
+        "",
+      ].join("\n"),
+    );
+  });
+});
+
+test("--list with no review.md prints REASON=no-review and its SAY", async () => {
+  await assertPosix(async (shell) => {
+    const { result } = await runList(shell, "42");
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      "STATUS=skip\nREASON=no-review\nSAY=No /viber:pr-feedback run wrote a review file for this pull request.\n",
+    );
+  });
+});
+
+test("--list of a pull request url reads the review of its number, and the RUN line repeats the argument as given", async () => {
+  await assertPosix(async (shell) => {
+    const { result } = await runList(shell, GHE_URL, { items: [THREE_ITEMS[0]] });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      slash(result.stdout),
+      `STATUS=ready\nREADY=1 - src/a.ts:10 - 101\nRUN="${PLUGIN_ROOT}/scripts/pr-reply.sh" --all "${GHE_URL}"\n`,
+    );
+  });
+});
+
+const BAD_LIST_ARGS: Array<[string, string]> = [
+  ["an empty pull request", ""],
+  ["a word", "login"],
+  ["an issue url", "https://github.com/acme/widgets/issues/42"],
+  ["a pull request url with a non-numeric number", "https://github.com/acme/widgets/pull/x"],
+];
+
+for (const [name, pr] of BAD_LIST_ARGS) {
+  test(`--list of ${name} exits 2 with the usage and nothing on stdout`, async () => {
+    await assertPosix(async (shell) => {
+      const { result } = await runList(shell, pr, { items: THREE_ITEMS });
+      assert.equal(result.status, 2, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, "");
+      assert.match(result.stderr, /^ERROR pr-reply\.sh: usage: /m);
+    });
+  });
+}
+
+test("--list with no pull request exits 2 with the usage", async () => {
+  await assertPosix(async (shell) => {
+    await withGitRepo(async (repo) => {
+      const result = await runScript(SUT, ["--list"], { shell, cwd: repo.dir, env: repo.env });
+      assert.equal(result.status, 2, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, "");
+      assert.match(result.stderr, /^ERROR pr-reply\.sh: usage: /m);
+    });
+  });
+});
+
+test("--list outside a git repository exits 1 with one ERROR line and nothing on stdout", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("p2p2-pr-reply-", async (cwd) => {
+      const result = await runScript(SUT, ["--list", "42"], { shell, cwd });
+      assertOneError(result);
+      assert.match(result.stderr, /not inside a git repository/);
+    });
+  });
+});
+
+test("--list prints the RUN path as the invoked path cut before /scripts/", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("p2p2-pr-reply-", async (plugin) => {
+      fs.mkdirSync(path.join(plugin, "scripts"));
+      const copy = path.join(plugin, "scripts/pr-reply.sh");
+      fs.copyFileSync(SUT, copy);
+      const { result } = await runList(shell, "42", { items: [THREE_ITEMS[0]], script: copy });
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(
+        slash(result.stdout),
+        `STATUS=ready\nREADY=1 - src/a.ts:10 - 101\nRUN="${slash(plugin)}/scripts/pr-reply.sh" --all "42"\n`,
+      );
+    });
+  });
+});

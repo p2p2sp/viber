@@ -22,7 +22,7 @@
 #            of a review thread), `comment-<id>` (a Conversation comment) or
 #            `review-<id>` (a review body), `<id>` digits only; $3 = path of the
 #            reply file, which must exist.
-#            Exactly three arguments, else exit 2.
+#            Exactly three arguments (or the two of --list below), else exit 2.
 #   cwd    : any directory inside the host repository. It resolves a relative $3
 #            and, for a bare `<N>`, the repository gh talks to (the literal
 #            `{owner}/{repo}` placeholders of its endpoints). A URL names its
@@ -73,10 +73,27 @@
 #            reply landed is then unknown, so the caller reports and never retries;
 #            2 on bad arguments or a missing reply file.
 #
+#   --list : `pr-reply.sh --list <pull request>` (exactly two arguments, the pull
+#            request spelled as above) reads <cwd>/.temp/viber/pr-feedback/<N>/
+#            review.md, the file `viber:pr-feedback` writes, and calls no gh. A
+#            section is `## <k> - <problem|question> - <where>` with a
+#            `- Comment: <key>` and a `- Reply file: <path>` line; a heading
+#            without a `Comment:` is no item. stdout, exit 0:
+#              STATUS=ready|skip
+#              READY=<k> - <where> - <key>     each item whose reply file exists
+#              MISSING=<k> - <where> - <key>   each item whose reply file is absent
+#              RUN="<plugin root>/scripts/pr-reply.sh" --all "<pull request>"
+#              REASON=no-review|none-ready     STATUS=skip only
+#              SAY=<sentence>                  STATUS=skip only, stated as is
+#            READY and MISSING lines keep section order; RUN is printed with
+#            STATUS=ready only. <plugin root> is the invoked path cut before
+#            `/scripts/`, never resolved. Exit 2 with the usage on a malformed
+#            pull request; exit 1 with one ERROR line outside a git repository.
+#
 set -u
 
 usage() {
-  echo "ERROR pr-reply.sh: usage: pr-reply.sh <pull request number or url> <remark key> <reply file>" >&2
+  echo "ERROR pr-reply.sh: usage: pr-reply.sh <pull request number or url> <remark key> <reply file> | --list <pull request>" >&2
   exit 2
 }
 fail() {
@@ -84,8 +101,15 @@ fail() {
   exit 1
 }
 
-[ $# -eq 3 ] || usage
-ref=${1#\#}
+list=""
+if [ $# -eq 2 ] && [ "$1" = --list ]; then
+  list=yes
+  pr=$2
+else
+  [ $# -eq 3 ] || usage
+  pr=$1
+fi
+ref=${pr#\#}
 host=""
 slug="{owner}/{repo}"
 case $ref in
@@ -102,6 +126,62 @@ case $ref in
     ;;
   *) n=$ref ;;
 esac
+
+if [ -n "$list" ]; then
+  git rev-parse --show-toplevel >/dev/null 2>&1 || fail "not inside a git repository"
+  self=$(printf '%s' "$0" | tr '\\' '/')
+  review=".temp/viber/pr-feedback/$n/review.md"
+  if [ ! -f "$review" ]; then
+    printf 'STATUS=skip\nREASON=no-review\nSAY=%s\n' "No /viber:pr-feedback run wrote a review file for this pull request."
+    exit 0
+  fi
+  tab=$(printf '\t')
+  # One line per item, `<k> - <where> - <key>`, a tab, the reply file path; a
+  # sentinel heading closes the last section, since the awk block defines no function.
+  items=$(tr -d '\r' < "$review" | { cat; printf '## end\n'; } | awk '
+    /^## / {
+      if (key != "") print k " - " where " - " key "\t" rfile
+      head = substr($0, 4)
+      i = index(head, " - ")
+      k = head
+      if (i > 0) k = substr(head, 1, i - 1)
+      where = head
+      rest = head
+      while (1) {
+        j = index(rest, " - ")
+        if (j == 0) break
+        rest = substr(rest, j + 3)
+        where = rest
+      }
+      key = ""
+      rfile = ""
+      next
+    }
+    /^- Comment:/ { v = $0; sub(/^- Comment:[ \t]*/, "", v); sub(/[ \t]+$/, "", v); key = v; next }
+    /^- Reply file:/ { v = $0; sub(/^- Reply file:[ \t]*/, "", v); sub(/[ \t]+$/, "", v); rfile = v; next }
+  ')
+  classified=$(printf '%s\n' "$items" | while IFS=$tab read -r line file; do
+    [ -n "$line" ] || continue
+    if [ -n "$file" ] && [ -f "$file" ]; then
+      printf 'READY=%s\n' "$line"
+    else
+      printf 'MISSING=%s\n' "$line"
+    fi
+  done)
+  ready=$(printf '%s\n' "$classified" | grep '^READY=')
+  missing=$(printf '%s\n' "$classified" | grep '^MISSING=')
+  if [ -n "$ready" ]; then
+    printf 'STATUS=ready\n%s\n' "$ready"
+    [ -z "$missing" ] || printf '%s\n' "$missing"
+    printf 'RUN="%s/scripts/pr-reply.sh" --all "%s"\n' "${self%/scripts/pr-reply.sh}" "$pr"
+  else
+    printf 'STATUS=skip\n'
+    [ -z "$missing" ] || printf '%s\n' "$missing"
+    printf 'REASON=none-ready\nSAY=%s\n' "No reply file is written yet."
+  fi
+  exit 0
+fi
+
 key=$2
 case $key in
   ''|*[!0-9]*)
