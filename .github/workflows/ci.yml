@@ -10,11 +10,22 @@ jobs:
   Tests:
     strategy:
       fail-fast: false
-      # Every push and pull request runs on Linux and Windows, where the
-      # shell-portability and path-separator assumptions actually get
-      # exercised. A manual dispatch of this workflow adds macOS.
+      # Every run covers Linux and Windows, where the shell-portability and
+      # path-separator assumptions actually get exercised.
+      # Windows splits the suite into 4 shards (node --test-shard, one job
+      # each): a spawned script costs an order of magnitude more there, so one
+      # job would take several times the Linux one.
       matrix:
-        os: ${{ github.event_name == 'workflow_dispatch' && fromJSON('["ubuntu-latest", "macos-latest", "windows-latest"]') || fromJSON('["ubuntu-latest", "windows-latest"]') }}
+        os: [ubuntu-latest, windows-latest]
+        shard: [1, 2, 3, 4]
+        exclude:
+          - os: ubuntu-latest
+            shard: 2
+          - os: ubuntu-latest
+            shard: 3
+          - os: ubuntu-latest
+            shard: 4
+    name: ${{ matrix.os == 'windows-latest' && format('Tests ({0}, {1}/4)', matrix.os, matrix.shard) || format('Tests ({0})', matrix.os) }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -33,10 +44,11 @@ jobs:
       # --test-concurrency: the suite spends its time waiting on spawned
       # scripts, not on CPU, so it runs more files at once than the runner has
       # cores. Matters on windows-latest (4 vCPU, default concurrency 3), where
-      # process creation is an order of magnitude dearer than on Linux/macOS.
+      # process creation is an order of magnitude dearer than on Linux.
       # CI=true turns on the full shell matrix (tests/harness/shells.ts): every
       # POSIX shell and every bash major present, which a local run skips.
       - name: Run tests
         env:
           CI: "true"
-        run: node --test --test-concurrency=12 "tests/**/*.test.ts"
+          SHARD: ${{ matrix.os == 'windows-latest' && format('{0}/4', matrix.shard) || '1/1' }}
+        run: node --test --test-concurrency=12 --test-shard="$SHARD" "tests/**/*.test.ts"
