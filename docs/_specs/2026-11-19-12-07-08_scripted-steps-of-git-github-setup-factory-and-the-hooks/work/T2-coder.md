@@ -1,0 +1,3 @@
+- The target-to-ENTER tail of `answer` (moves, cursor check, ENTER, NEXT: done) is now `press`, shared with `approve`; T3 `reject` should call it after typing, or add the type step before ENTER.
+- Red evidence is .temp/viber/T2/red-4.log: the `approve) approve "$@" ;;` dispatch line removed, the 4 approve cases fail on their stdout assertions, 13 others pass. red.log to red-3.log there belong to an earlier run's T2.
+- approve matches `clear context` and `bypass permissions` as case-sensitive substrings of the row text, and `Yes` as a prefix.

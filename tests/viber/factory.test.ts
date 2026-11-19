@@ -1,7 +1,7 @@
 /*
  * factory.test.ts - proves viber/skills/factory/scripts/factory.sh (C1): `answer` on a one-question
- * single-select dialog (the keys it sends and the NEXT: lines it answers with), its refusals, and
- * the argument encoding every command passes to factory.ps1.
+ * single-select dialog and `approve` on a plan approval (the keys they send and the NEXT: lines they
+ * answer with), their refusals, and the argument encoding every command passes to factory.ps1.
  *
  * `powershell.exe` is a `withStub` standing in for factory.ps1: it appends every call (command and
  * the base64 argument string) to calls.log beside it, answers `pending` and `screen` from
@@ -153,6 +153,56 @@ test("answer whose factory.ps1 fails prints its ERROR line and exits 1", async (
   const run = await drive(["answer", "s1", "MySQL"], { "fail.txt": "ERROR: no enrolled session 's1'" });
   assert.equal(run.status, 1);
   assert.equal(run.stdout, "ERROR: no enrolled session 's1'\n");
+});
+
+const PLAN_PENDING = ["== pending s1: status waiting (dialog)", "tool: ExitPlanMode", "plan: Add a cache layer"].join("\n");
+const PLAN_HEAD = "== screen s1 (pid 4242), last 40 lines\n Ready to code? Here is Claude's plan.\n";
+const PLAN_BYPASS_ON_1 = `${PLAN_HEAD} ❯ 1. Yes, manually approve edits\n   2. Yes, clear context and bypass permissions\n   3. No, keep planning`;
+const PLAN_BYPASS_ON_2 = `${PLAN_HEAD}   1. Yes, manually approve edits\n ❯ 2. Yes, clear context and bypass permissions\n   3. No, keep planning`;
+const PLAN_YES_ON_3 = `${PLAN_HEAD}   1. No, keep planning\n   2. Yes, auto-accept edits\n ❯ 3. Yes, manually approve edits`;
+const PLAN_YES_ON_2 = `${PLAN_HEAD}   1. No, keep planning\n ❯ 2. Yes, auto-accept edits\n   3. Yes, manually approve edits`;
+const PLAN_CLOSED = "== screen s1 (pid 4242), last 40 lines\n Plan approved.";
+
+test("approve on a plan approval moves to the row holding clear context and bypass permissions, sends ENTER and prints NEXT: done", async () => {
+  const run = await drive(["approve", "s1"], {
+    "pending.txt": PLAN_PENDING,
+    "screen.txt": PLAN_BYPASS_ON_1,
+    "after-1.txt": PLAN_BYPASS_ON_2,
+    "after-2.txt": PLAN_CLOSED,
+  });
+  assert.equal(run.status, 0, `stderr: ${run.stderr}`);
+  assert.equal(run.stdout, `NEXT: done | sent: DOWN,ENTER\n${PLAN_CLOSED}\n`);
+  assert.deepEqual(run.calls, ["pending:s1", "screen:s1|40", "keys:s1|DOWN", "keys:s1|ENTER"]);
+});
+
+test("approve with the cursor already on the clear context and bypass permissions row makes no move call and prints NEXT: done | sent: ENTER", async () => {
+  const run = await drive(["approve", "s1"], {
+    "pending.txt": PLAN_PENDING,
+    "screen.txt": PLAN_BYPASS_ON_2,
+    "after-1.txt": PLAN_CLOSED,
+  });
+  assert.equal(run.status, 0, `stderr: ${run.stderr}`);
+  assert.equal(run.stdout, `NEXT: done | sent: ENTER\n${PLAN_CLOSED}\n`);
+  assert.deepEqual(run.calls, ["pending:s1", "screen:s1|40", "keys:s1|ENTER"]);
+});
+
+test("approve on a screen with no clear context and bypass permissions row takes the first Yes row", async () => {
+  const run = await drive(["approve", "s1"], {
+    "pending.txt": PLAN_PENDING,
+    "screen.txt": PLAN_YES_ON_3,
+    "after-1.txt": PLAN_YES_ON_2,
+    "after-2.txt": PLAN_CLOSED,
+  });
+  assert.equal(run.status, 0, `stderr: ${run.stderr}`);
+  assert.equal(run.stdout, `NEXT: done | sent: UP,ENTER\n${PLAN_CLOSED}\n`);
+  assert.deepEqual(run.calls, ["pending:s1", "screen:s1|40", "keys:s1|UP", "keys:s1|ENTER"]);
+});
+
+test("approve with no pending ExitPlanMode prints NEXT: keys | mismatch: not-asking and sends no key", async () => {
+  const run = await drive(["approve", "s1"], { "pending.txt": PENDING, "screen.txt": PLAN_BYPASS_ON_1 });
+  assert.equal(run.status, 0, `stderr: ${run.stderr}`);
+  assert.equal(run.stdout, `NEXT: keys | mismatch: not-asking\n${PLAN_BYPASS_ON_1}\n`);
+  assert.deepEqual(run.calls, ["pending:s1", "screen:s1|40"]);
 });
 
 test("screen still reaches factory.ps1 with its arguments decoded intact, non-ASCII text included", async () => {
