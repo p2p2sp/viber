@@ -1,0 +1,3 @@
+- Both scripts source `plugin-root.sh` at the top (before the `cd "$root"`), so a relative `$0` still resolves its sibling; a copy of either script with no `viber/scripts/plugin-root.sh` beside it (the `lonely` copies in `rules-map.test.ts`) prints one stderr error in map mode and still exits 0, since bash does not abort on a failed `.`.
+- The spelling cases run on every OS: three forms on Windows (`C:\`, `C:/`, `/c/`), the one absolute path elsewhere.
+- A relative invocation now prints a relative plugin root (the C1 contract), no longer an absolute one.

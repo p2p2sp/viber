@@ -1726,3 +1726,50 @@ test("--reconcile with a --files no dispatch flag opens exits 2 with one error l
     assert.match(result.stderr, /^error: [^\n]+\n$/);
   });
 });
+
+/** The ways a caller can spell the path it invokes the script by, each with the
+ *  plugin root the script must print for it: on Windows the native `C:\...`, the
+ *  mixed `C:/...` and the MSYS `/c/...` spellings, elsewhere the one absolute path. */
+function invocations(): { form: string; script: string; root: string }[] {
+  const plugin = path.resolve(import.meta.dirname, "../../viber");
+  if (process.platform !== "win32") return [{ form: "absolute", script: SUT, root: plugin }];
+  const mixed = (p: string) => p.replace(/\\/g, "/");
+  const msys = (p: string) => mixed(p).replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`);
+  return [
+    { form: "C:\\", script: path.win32.normalize(SUT), root: mixed(plugin) },
+    { form: "C:/", script: mixed(SUT), root: mixed(plugin) },
+    { form: "/c/", script: msys(SUT), root: msys(plugin) },
+  ];
+}
+
+for (const { form, script, root } of invocations()) {
+  test(`--targets with --keep invoked by a ${form} path prints the references path in that spelling`, async () => {
+    await withGitRepo(async (repo) => {
+      await commit(repo, { "CLAUDE.md": node(40), "src/a.ts": "x\n" });
+
+      const result = await runScript(
+        script,
+        ["--targets", "review", "--id", MAP_ID, "--keep", "CLAUDE.md"],
+        { cwd: repo.dir, env: repo.env, shell: "bash" },
+      );
+
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(pick(lines(result.stdout), "refs: "), [`refs: ${root}/references`]);
+    });
+  });
+
+  test(`--reconcile invoked by a ${form} path prints the references path in that spelling`, async () => {
+    await withGitRepo(async (repo) => {
+      present(repo, "CLAUDE.md", "docs/CLAUDE.md");
+
+      const result = await runScript(
+        script,
+        ["--reconcile", "--planned", "CLAUDE.md,docs/CLAUDE.md,docs/a/CLAUDE.md", "--fix", "docs/CLAUDE.md", "--files", "docs/CLAUDE.md"],
+        { cwd: repo.dir, env: repo.env, shell: "bash" },
+      );
+
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(pick(lines(result.stdout), "refs: "), [`refs: ${root}/references`]);
+    });
+  });
+}

@@ -29,6 +29,10 @@
 #            path handed to --reset is read relative to it. Outside a
 #            repository the cwd IS the root and nothing is tracked there.
 #   env    : none.
+#   plugin root : every `<plugin root>` printed is the invoked path cut three
+#            directories above this script's own (`scripts/plugin-root.sh`), read
+#            as text: never resolved against the cwd, so the spelling the caller
+#            invoked it by (`C:/...` or `/c/...`) is the spelling printed.
 #   stdout : map mode, in this order, one line each:
 #              # viber memory map
 #              id: 2026-09-22-17-06-39
@@ -203,6 +207,11 @@
 #
 set -u
 
+# plugin_root_of prints the plugin root of the `refs:` lines from the path this
+# script was invoked by, so a `C:\...` or `C:/...` call prints `C:/...` and a
+# `/c/...` call prints `/c/...`.
+. "$(dirname -- "$0")/../../../scripts/plugin-root.sh"
+
 NL='
 '
 ROOT_BUDGET=4000
@@ -283,7 +292,7 @@ if [ "$mode" = "reconcile" ]; then
   done
   rc_flush
   [ "$rc_have_planned" = "1" ] || usage_error "--reconcile needs --planned"
-  plugin_root="$(cd "$(dirname "$0")/../../.." 2>/dev/null && pwd)"
+  plugin_root="$(plugin_root_of "$0" 3)"
 fi
 
 if [ "$mode" = "targets" ]; then
@@ -325,9 +334,7 @@ if [ "$mode" = "targets" ]; then
   if [ -n "$map_id" ] && [ -z "$keep_paths" ]; then
     usage_error "--id needs at least one --keep path"
   fi
-  # The plugin root is three directories above this script's own, resolved
-  # before the cd to the repository root below.
-  plugin_root="$(cd "$(dirname "$0")/../../.." 2>/dev/null && pwd)"
+  plugin_root="$(plugin_root_of "$0" 3)"
 fi
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || true)"

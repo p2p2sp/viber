@@ -124,7 +124,11 @@
 #              matches: <n> | none
 #              out: .temp/viber/<id>/
 #              refs: <plugin root>/references
-#            `<plugin root>` is resolved from this script's own path.
+#            `<plugin root>` is the invoked path cut three directories above this
+#            script's own (`scripts/plugin-root.sh`), read as text and never
+#            resolved against the cwd: invoked by `C:\...` or `C:/...` it prints
+#            `C:/...`, invoked by `/c/...` it prints `/c/...`. The same root ends
+#            the `refs:` line of the confirm mode's writer block.
 #
 #            confirm mode reads the findings file of each target under
 #            `.temp/viber/<id>/` (`<slug>-audit.md` of a rule, `new--<slug>-audit.md`
@@ -178,6 +182,11 @@
 #            3 - the reset was refused. Nothing was deleted.
 #
 set -u
+
+# plugin_root_of prints the plugin root of the `refs:` lines from the path this
+# script was invoked by, so a `C:\...` or `C:/...` call prints `C:/...` and a
+# `/c/...` call prints `/c/...`.
+. "$(dirname -- "$0")/../../../scripts/plugin-root.sh"
 
 rules_dir=".claude/rules"
 file_cap=4000
@@ -676,10 +685,7 @@ if [ "${1:-}" = "--brief" ] || [ "${1:-}" = "--confirm" ]; then
     [ -z "$err" ] || brief_fail "$err"
   done
 
-  plugin_root=""
-  if [ -n "$script_dir" ]; then
-    plugin_root="$(cd "$script_dir/../../.." 2>/dev/null && pwd || true)"
-  fi
+  plugin_root="$(plugin_root_of "$0" 3)"
   brief_out_dir=".temp/viber/$brief_id"
 
   # Confirm mode: the counters of each target's findings file decide whether

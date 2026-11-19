@@ -1416,6 +1416,58 @@ test("the script ships directly invocable, LF-only, its header printing its own 
   );
 });
 
+/** The ways a caller can spell the path it invokes the script by, each with the
+ *  plugin root the script must print for it: on Windows the native `C:\...`, the
+ *  mixed `C:/...` and the MSYS `/c/...` spellings, elsewhere the one absolute path. */
+function invocations(): { form: string; script: string; root: string }[] {
+  const plugin = path.resolve(import.meta.dirname, "../../viber");
+  if (process.platform !== "win32") return [{ form: "absolute", script: SUT, root: plugin }];
+  const msys = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`);
+  return [
+    { form: "C:\\", script: path.win32.normalize(SUT), root: slash(plugin) },
+    { form: "C:/", script: slash(SUT), root: slash(plugin) },
+    { form: "/c/", script: msys(SUT), root: msys(plugin) },
+  ];
+}
+
+/** The `refs:` lines of a stdout, read raw: a backslash must not be normalized away. */
+function refsLines(stdout: string): string[] {
+  return stdout.trim().split("\n").filter((line) => line.startsWith("refs: "));
+}
+
+for (const { form, script, root } of invocations()) {
+  test(`brief invoked by a ${form} path prints the references path in that spelling`, async () => {
+    await withGitRepo(async (repo) => {
+      await seed(repo, { "src/a.ts": "a\n", ".claude/rules/code.md": rule([ANY_TS]) });
+
+      const result = await runScript(script, ["--brief", "run1", ".claude/rules/code.md"], {
+        cwd: repo.dir,
+        env: repo.env,
+        shell: "bash",
+      });
+
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(refsLines(result.stdout), [`refs: ${root}/references`]);
+    });
+  });
+
+  test(`confirm invoked by a ${form} path prints the writer block's references path in that spelling`, async () => {
+    await withGitRepo(async (repo) => {
+      await seed(repo, { "src/a.ts": "a\n", ".claude/rules/code.md": rule([ANY_TS]) });
+      findings(repo, "run1", "code-audit.md", "STALE: x -> y\n");
+
+      const result = await runScript(script, ["--confirm", "run1", ".claude/rules/code.md"], {
+        cwd: repo.dir,
+        env: repo.env,
+        shell: "bash",
+      });
+
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(refsLines(result.stdout), [`refs: ${root}/references`]);
+    });
+  });
+}
+
 test("the header's reads list names the archived failures.md files and the config.sh call", () => {
   const source = fs.readFileSync(SUT, "utf-8");
   const header = source.slice(0, source.indexOf("\nset -u"));
