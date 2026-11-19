@@ -197,6 +197,35 @@ test("issues-input.true.md names the summary file among the files written", () =
   assert.match(read("fragments/issues-input.true.md"), /an issue body, an issue comment and the summary file/);
 });
 
+for (const value of ["true", "false"]) {
+  test(`issues-input.${value}.md classifies the argument with the arg-kind.sh issue call, adding --more when other words follow, and holds no shape rule`, () => {
+    const text = read(`fragments/issues-input.${value}.md`);
+    assert.match(text, /"\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/arg-kind\.sh" issue "<first word>"/);
+    assert.match(text, /`--more`[^\n]*other words follow/);
+    assert.match(text, /`NEXT: issue`/);
+    assert.doesNotMatch(text, /token that is a number/);
+  });
+}
+
+test("issues-input.true.md runs issue-facts.sh with the ref: value on NEXT: issue and takes the argument as input on NEXT: text", () => {
+  const text = read("fragments/issues-input.true.md");
+  assert.match(text, /`NEXT: issue`[^\n]*issue-facts\.sh" "<ref>"` with the `ref:` value/);
+  assert.match(text, /`NEXT: text` -> the argument is the input to interview/);
+});
+
+test("issues-input.false.md says in one line that issue handling is off on NEXT: issue", () => {
+  assert.match(read("fragments/issues-input.false.md"), /on `NEXT: issue` say in one line issue handling is off/);
+});
+
+test("allowed-tools lists the arg-kind.sh Bash entry the issue check needs", () => {
+  assert.match(HEAD, /allowed-tools:[^\n]*Bash\(\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/arg-kind\.sh:\*\)/);
+});
+
+test("the start text (SKILL.md plus issues-input.false.md) ends below 968 words after the scripted argument check", () => {
+  const count = words(SKILL) + words(read("fragments/issues-input.false.md"));
+  assert.ok(count < 968, `${count} words, must stay below 968`);
+});
+
 test("the start text (SKILL.md plus issues-input.false.md) stays within its word cap", () => {
   const count = words(SKILL) + words(read("fragments/issues-input.false.md"));
   assert.ok(count <= START_TEXT_WORD_CAP, `${count} words, cap ${START_TEXT_WORD_CAP}`);

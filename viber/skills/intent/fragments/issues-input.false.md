@@ -1,3 +1,3 @@
 Issue handling is off: you write no issue body and no issue comment.
 
-An argument shaped like an issue reference is ordinary input text; say in one line that issue handling is off. Any other argument is the input to interview.
+Run `"${CLAUDE_PLUGIN_ROOT}/scripts/arg-kind.sh" issue "<first word>"` (`--more` added when other words follow): on `NEXT: issue` say in one line issue handling is off; the argument is the input to interview.

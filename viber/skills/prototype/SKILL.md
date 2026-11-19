@@ -2,7 +2,7 @@
 name: prototype
 description: HTML mockup of a UI change in the project's own look, one proposal or three variants. Use when the user wants to see or compare a UI change before planning it.
 argument-hint: "[the UI change, or an issue number/URL when github.issues is on]"
-allowed-tools: Read, Grep, Glob, Agent, Skill, AskUserQuestion, Edit(./.temp/viber/prototype/**), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-facts.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/post-comment.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/open-page.sh:*)
+allowed-tools: Read, Grep, Glob, Agent, Skill, AskUserQuestion, Edit(./.temp/viber/prototype/**), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/arg-kind.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-facts.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/post-comment.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/open-page.sh:*)
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -25,11 +25,11 @@ Every script run is one literal Bash line spelled as in this skill: never prefix
 
 ## 2. First question
 
-Open with one line naming what you take as settled from the conversation, the argument and the issue. Then ask one `AskUserQuestion`: one proposal, or three alternative scenarios to choose from?
+Open with one line naming what you take as settled from the conversation, argument and issue. Then ask one `AskUserQuestion`: one proposal, or three alternative scenarios to choose from?
 
 ## 3. UI conversation
 
-- Ask only what the conversation, the issue and the code leave open about the screen: layout, hierarchy, content, states, flow between screens, style. Read the screen concerned first: never spend a question on what the code states.
+- Ask only what the conversation, the issue and the code leave open about the screen: layout, hierarchy, content, states, flow between screens, style. Read the screen first: never spend a question on what the code states.
 - One question per message, never stacked in prose.
 - Data, logic, an API, persistence, performance or scope beyond the screen -> never pursue it: say in one line that it is parked as an open point for `intent`, and keep it for the conclusions.
 - Nothing left open about the screen -> dispatch the writer.
