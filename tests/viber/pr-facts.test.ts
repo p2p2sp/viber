@@ -153,6 +153,11 @@ function values(result: RunResult, key: string): string[] {
     .map((l) => l.slice(key.length + 1));
 }
 
+/** The output lines with the stamped BODY_FILE= value masked as `<stamped path>`. */
+function stampless(result: RunResult): string[] {
+  return lines(result).map((l) => (l.startsWith("BODY_FILE=") ? "BODY_FILE=<stamped path>" : l));
+}
+
 async function shortSha(repo: GitRepo, ref: string): Promise<string> {
   return (await repo.git("log", "-1", "--format=%h", ref)).stdout.trim();
 }
@@ -165,7 +170,7 @@ test("a ready block prints every C9 line in order, QA= right after SPEC=, for a 
       await onBranch(scene, "feature/x");
       const result = await runFacts(shell, scene, ["--target", "develop"]);
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(lines(result), [
+      assert.deepEqual(stampless(result), [
         "STATUS=ready",
         `REPO=${REPO_URL}`,
         "BRANCH=feature/x",
@@ -183,6 +188,7 @@ test("a ready block prints every C9 line in order, QA= right after SPEC=, for a 
         `COMMIT=${await shortSha(scene.work, "HEAD")} work`,
         "TITLE=",
         "TITLE_TEMPLATE=[] {summary}",
+        "BODY_FILE=<stamped path>",
       ]);
     });
   });
@@ -941,3 +947,37 @@ for (const row of TITLE_ROWS) {
     });
   });
 }
+
+// --- FOOTER, BODY_FILE -----------------------------------------------------------------
+
+const FOOTER_ROWS = [
+  { target: "main", footers: ["Closes #12", "Closes #30"] },
+  { target: "develop", footers: ["Refs #12", "Refs #30"] },
+];
+
+for (const row of FOOTER_ROWS) {
+  test(`issues 12 and 30 against --target ${row.target} give one FOOTER= per issue in ascending order (${row.footers[0]})`, async () => {
+    await assertPosix(async (shell) => {
+      await withScene(async (scene) => {
+        await scene.work.git("branch", "-f", "develop", "HEAD");
+        await onBranch(scene, "feature/x", { "a.txt": "a\n" }, "work", "Refs: #30", "Refs: #12");
+        const result = await runFacts(shell, scene, ["--target", row.target]);
+        assert.deepEqual(values(result, "FOOTER"), row.footers);
+      });
+    });
+  });
+}
+
+test("BODY_FILE= names a stamped file under the repository root's .temp/viber/pr-create/, also from a subdirectory", async () => {
+  await assertPosix(async (shell) => {
+    await withScene(async (scene) => {
+      await onBranch(scene, "feature/x", { "sub/a.txt": "a\n" });
+      const env = { ...scene.work.env };
+      const result = await runScript(SUT, ["--target", "develop"], { shell, cwd: path.join(scene.work.dir, "sub"), env, stubDirs: [scene.stubDir] });
+      const body = value(result, "BODY_FILE") ?? "";
+      const match = /^(.+)\/\.temp\/viber\/pr-create\/body-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.md$/.exec(body);
+      assert.ok(match, `BODY_FILE=${body}`);
+      assert.equal(fs.realpathSync(match[1]), fs.realpathSync(scene.work.dir));
+    });
+  });
+});

@@ -59,6 +59,8 @@
 #              COMMIT=<short sha> <subject>        (0+, TARGET..HEAD oldest first)
 #              TITLE=<[<first ISSUE>] <ISSUE_TITLE> | TITLE_PATTERN filled when it holds no {summary} | empty>
 #              TITLE_TEMPLATE=<TITLE_PATTERN filled | empty when TITLE= is set>
+#              FOOTER=Closes #<n> | Refs #<n>      (one per ISSUE=, same order; Closes when CLOSES=yes)
+#              BODY_FILE=<root>/.temp/viber/pr-create/body-<yyyy-mm-dd-HH-MM-SS>.md   (only named, never created here)
 #            Filling replaces {type}, {issue-number} (the first ISSUE, empty
 #            with none) and {entry}, collapses each run of blanks to one and
 #            trims; {summary} stays for the caller.
@@ -475,4 +477,10 @@ printf '%s\n' "$commits" | while IFS= read -r c; do
 done
 echo "TITLE=$title"
 echo "TITLE_TEMPLATE=$title_template"
+if [ "$closes" = yes ]; then footer_word=Closes; else footer_word=Refs; fi
+printf '%s\n' "$issues" | while IFS= read -r n; do
+  [ -n "$n" ] || continue
+  echo "FOOTER=$footer_word #$n"
+done
+echo "BODY_FILE=$root/.temp/viber/pr-create/body-$(date +%Y-%m-%d-%H-%M-%S).md"
 exit 0
