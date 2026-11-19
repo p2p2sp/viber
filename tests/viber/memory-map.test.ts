@@ -5,7 +5,9 @@
  * the `CLAUDE.<topic>.md` sections beside a node and the unlinked ones,
  * orphan nodes, directories that deserve a node, nodes and sections carrying
  * uncommitted work), and with `--reset` it deletes the nodes and sections it
- * is given, a node taking its sections along - all of them or none.
+ * is given, a node taking its sections along - all of them or none. With
+ * `--targets <mode>` it prints the target lines of a mode (fix lines, one
+ * create line per directory) and the `NEXT:` directive that ends them.
  *
  * Two properties carry the design. The map ALWAYS exits 0, because it is a
  * `!` preload where a non-zero exit aborts the whole skill load - a directory
@@ -922,5 +924,283 @@ test("an unknown argument is refused with no map printed", async () => {
 
     assert.equal(result.status, 2);
     assert.equal(result.stdout, "");
+  });
+});
+
+/** `--targets <mode> ...args`, the call a mode of the memory command makes. */
+function targets(repo: GitRepo, ...args: string[]) {
+  return run(repo, ["--targets", ...args]);
+}
+
+test("--targets review prints one fix line per node, root first then by depth, and no create line for a candidate", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(100),
+      "docs/CLAUDE.md": node(50),
+      "docs/deep/CLAUDE.md": node(30),
+      "api/v1/CLAUDE.md": node(12001),
+      "src/a.ts": "x\n",
+      "src/b.ts": "x\n",
+      "src/c.ts": "x\n",
+    });
+
+    const result = await targets(repo, "review");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), [
+      "target: fix CLAUDE.md 100 chain 100 ok",
+      "target: fix docs/CLAUDE.md 50 chain 150 ok",
+      "target: fix api/v1/CLAUDE.md 12001 chain 12101 OVER-NODE",
+      "target: fix docs/deep/CLAUDE.md 30 chain 180 ok",
+      "NEXT: approve",
+    ]);
+  });
+});
+
+test("--targets extend prints a create line per candidate and per unlinked section with no node beside it, never one for a section whose node exists", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "src/a.ts": "x\n",
+      "src/b.ts": "x\n",
+      "src/c.ts": "x\n",
+      "lib/CLAUDE.api.md": node(40),
+      "lib/a.ts": "x\n",
+      "docs/CLAUDE.md": node(40),
+      "docs/CLAUDE.tests.md": node(40),
+      "docs/g.md": "x\n",
+    });
+
+    const result = await targets(repo, "extend");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), [
+      "target: create src/CLAUDE.md files 3 bytes 6 plain",
+      "target: create lib/CLAUDE.md unlinked lib/CLAUDE.api.md",
+      "NEXT: approve",
+    ]);
+  });
+});
+
+test("--targets extend adds the repository root as a create target when the map carries no root node", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, { "src/CLAUDE.md": node(40), "src/a.ts": "x\n" });
+
+    const result = await targets(repo, "extend");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), ["target: create CLAUDE.md root", "NEXT: approve"]);
+  });
+});
+
+test("--targets both prints the fix lines, then the create lines of candidates, unlinked sections and the root", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "docs/CLAUDE.md": node(50),
+      "docs/g.md": "x\n",
+      "src/a.ts": "x\n",
+      "src/b.ts": "x\n",
+      "src/c.ts": "x\n",
+      "lib/CLAUDE.api.md": node(40),
+      "lib/a.ts": "x\n",
+    });
+
+    const result = await targets(repo, "both");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), [
+      "target: fix docs/CLAUDE.md 50 chain 50 ok",
+      "target: create src/CLAUDE.md files 3 bytes 6 plain",
+      "target: create lib/CLAUDE.md unlinked lib/CLAUDE.api.md",
+      "target: create CLAUDE.md root",
+      "NEXT: approve",
+    ]);
+  });
+});
+
+test("--targets reset prints a create line per candidate and per directory the removed nodes and sections emptied, the candidate form winning for a directory in both", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "docs/CLAUDE.md": node(40),
+      "docs/CLAUDE.tests.md": node(40),
+      "docs/a.md": "x\n",
+      "docs/b.md": "x\n",
+      "docs/c.md": "x\n",
+      "other/CLAUDE.md": node(40),
+      "other/x.md": "x\n",
+      "src/a.ts": "x\n",
+      "src/b.ts": "x\n",
+      "src/c.ts": "x\n",
+    });
+    fs.rmSync(path.join(repo.dir, "docs/CLAUDE.md"));
+    fs.rmSync(path.join(repo.dir, "docs/CLAUDE.tests.md"));
+    fs.rmSync(path.join(repo.dir, "other/CLAUDE.md"));
+
+    const result = await targets(
+      repo,
+      "reset",
+      "--removed",
+      "docs/CLAUDE.md",
+      "--removed",
+      "docs/CLAUDE.tests.md",
+      "--removed",
+      "other/CLAUDE.md",
+    );
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), [
+      "target: create docs/CLAUDE.md files 3 bytes 6 plain",
+      "target: create src/CLAUDE.md files 3 bytes 6 plain",
+      "target: create other/CLAUDE.md removed",
+      "NEXT: approve",
+    ]);
+  });
+});
+
+test("--targets reset names the root once when the root node and a root section are both removed", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "CLAUDE.release.md": node(40),
+      "README.md": "x\n",
+    });
+    fs.rmSync(path.join(repo.dir, "CLAUDE.md"));
+    fs.rmSync(path.join(repo.dir, "CLAUDE.release.md"));
+
+    const result = await targets(repo, "reset", "--removed", "CLAUDE.md", "--removed", "CLAUDE.release.md");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), ["target: create CLAUDE.md removed", "NEXT: approve"]);
+  });
+});
+
+test("--targets reset gives no create line to a directory whose node survives a removed section", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "a/CLAUDE.md": node(40),
+      "a/CLAUDE.tests.md": node(40),
+    });
+    fs.rmSync(path.join(repo.dir, "a/CLAUDE.tests.md"));
+
+    const result = await targets(repo, "reset", "--removed", "a/CLAUDE.tests.md");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "NEXT: none\n");
+  });
+});
+
+test("--targets reset gives a create line to the directory a removed section with no node beside it emptied", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "lib/CLAUDE.api.md": node(40),
+      "lib/a.ts": "x\n",
+    });
+    fs.rmSync(path.join(repo.dir, "lib/CLAUDE.api.md"));
+
+    const result = await targets(repo, "reset", "--removed", "lib/CLAUDE.api.md");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), ["target: create lib/CLAUDE.md removed", "NEXT: approve"]);
+  });
+});
+
+test("--targets reset with no --removed path exits 2 with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, { "CLAUDE.md": node(40) });
+
+    const result = await targets(repo, "reset");
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^error: [^\n]+\n$/);
+  });
+});
+
+test("a directory that is a candidate and holds an unlinked section gets the one candidate create line", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "lib/CLAUDE.api.md": node(40),
+      "lib/a.ts": "x\n",
+      "lib/b.ts": "x\n",
+      "lib/c.ts": "x\n",
+    });
+
+    const result = await targets(repo, "extend");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), [
+      "target: create lib/CLAUDE.md files 4 bytes 46 plain",
+      "NEXT: approve",
+    ]);
+  });
+});
+
+test("an unlinked root section wins over the root form, so the root gets the one unlinked create line", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, { "CLAUDE.release.md": node(40), "README.md": "x\n" });
+
+    const result = await targets(repo, "extend");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), [
+      "target: create CLAUDE.md unlinked CLAUDE.release.md",
+      "NEXT: approve",
+    ]);
+  });
+});
+
+test("a directory holding a section on a dirty line gets no create line (the section is the user's uncommitted work)", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "src/a.ts": "x\n",
+      "src/b.ts": "x\n",
+      "src/c.ts": "x\n",
+    });
+    write(repo, { "src/CLAUDE.notes.md": node(40) });
+
+    const result = await targets(repo, "extend");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "NEXT: none\n");
+  });
+});
+
+test("--targets review on a layer with no node prints NEXT: none alone", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, { "README.md": "x\n" });
+
+    const result = await targets(repo, "review");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "NEXT: none\n");
+  });
+});
+
+test("--targets with an unknown mode exits 2 with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, { "CLAUDE.md": node(40) });
+
+    const result = await targets(repo, "wipe");
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^error: [^\n]+\n$/);
+  });
+});
+
+test("a --removed path outside the reset mode exits 2 with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, { "CLAUDE.md": node(40) });
+
+    const result = await targets(repo, "extend", "--removed", "CLAUDE.md");
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^error: [^\n]+\n$/);
   });
 });

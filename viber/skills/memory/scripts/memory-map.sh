@@ -10,6 +10,10 @@
 #   argv   : none                       -> the map.
 #            --reset <path> [<path>...] -> delete those nodes and sections,
 #                                          all or none.
+#            --targets review|extend|both
+#            --targets reset --removed <path> [--removed <path>...]
+#                                       -> the target list of a mode, derived
+#                                          from the map (see "targets" below).
 #   cwd    : any directory inside the host project - the repository root is
 #            resolved here, every path printed is relative to it, and every
 #            path handed to --reset is read relative to it. Outside a
@@ -33,12 +37,24 @@
 #              removed: 2
 #            or, when the call is refused and NOTHING was deleted:
 #              refused: docs/CLAUDE.md modified | untracked | not-a-node
+#            --targets, the target lines, fix lines first, then create lines,
+#            then the directive line:
+#              target: fix <node> <own> chain <chain> ok | OVER-NODE | OVER-CHAIN
+#              target: create <dir>/CLAUDE.md files <n> bytes <n> toolchain | plain
+#              target: create <dir>/CLAUDE.md unlinked <section path>
+#              target: create <dir>/CLAUDE.md removed
+#              target: create CLAUDE.md root
+#              NEXT: approve          (or NEXT: none alone, when no target line)
 #   exit   : map mode ALWAYS 0. It is a `!` preload, where a non-zero exit
 #            aborts the whole skill load, so a directory that is no repository
 #            at all is the empty map rather than an error.
 #            --reset: 0 once every target is deleted; 2 on unusable argv (no
 #            path, or an unknown first argument - usage on stderr, nothing
 #            printed on stdout); 3 when the call was refused.
+#            --targets: 0; 2 on unusable argv (an unknown mode, a --removed
+#            path outside reset, reset with no --removed path, any other
+#            argument) with one "error: <reason>" line on stderr and nothing
+#            on stdout.
 #
 # excluded - memory never maps a path below a directory whose name starts
 #            with ".", nor a file the host repository's own ignore rules
@@ -92,6 +108,19 @@
 #           still treats its uncommitted deletion as "modified" and refuses to
 #           touch it again.
 #
+# targets - what the memory command audits or writes, derived from the map as
+#           it stands, so --targets reset runs on the map taken after the
+#           deletion. review: one fix line per node line. extend: the create
+#           lines. both: the fix lines, then the create lines. reset: the
+#           create lines of candidates and of --removed paths alone.
+#           A create line is one of four forms, one line per directory and the
+#           first form to claim the directory keeping it: a candidate; the
+#           directory of an unlinked section with no node beside it; a
+#           directory a --removed node or section emptied (the root among
+#           them), none when a node still stands there; the repository root
+#           when no root node stands (extend and both only). A directory
+#           holding a section on a dirty line gets no create line.
+#
 # A kind of line with nothing to report prints none at all; "total:" always
 # prints, counting nodes only. --reset takes a node or a section; a node
 # takes every tracked section beside it along. It judges every file it would
@@ -111,8 +140,41 @@ mode="map"
 if [ "$#" -gt 0 ]; then
   case "$1" in
     --reset) mode="reset"; shift ;;
+    --targets) mode="targets"; shift ;;
     *) printf 'usage: memory-map.sh [--reset <path> [<path>...]]\n' >&2; exit 2 ;;
   esac
+fi
+
+# --targets argv is judged before anything else, so a refused call prints
+# nothing on stdout.
+tmode=""
+removed_paths=""
+if [ "$mode" = "targets" ]; then
+  usage_error() {
+    printf 'error: %s\n' "$1" >&2
+    exit 2
+  }
+  [ "$#" -gt 0 ] || usage_error "--targets needs a mode: review, extend, both or reset"
+  tmode="$1"
+  shift
+  case "$tmode" in
+    review | extend | both | reset) ;;
+    *) usage_error "unknown mode $tmode: review, extend, both or reset" ;;
+  esac
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --removed)
+        [ "$#" -ge 2 ] && [ -n "$2" ] || usage_error "--removed needs a path"
+        [ "$tmode" = "reset" ] || usage_error "--removed belongs to the reset mode alone"
+        removed_paths="$removed_paths${2#./}$NL"
+        shift 2
+        ;;
+      *) usage_error "unknown argument $1" ;;
+    esac
+  done
+  if [ "$tmode" = "reset" ] && [ -z "$removed_paths" ]; then
+    usage_error "reset needs at least one --removed path"
+  fi
 fi
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
@@ -494,6 +556,82 @@ if [ "$nodes" -gt 0 ]; then
   if is_present_node "CLAUDE.md" && [ -z "$cand_out" ]; then
     state="complete"
   fi
+fi
+
+# --- the targets of a mode -------------------------------------------------
+# Fix targets are the node lines, create targets the other four forms. Each
+# directory gets one create line, and the form that claims it first keeps it:
+# candidate, then unlinked section, then removed, then root. $create_seen holds
+# the node path of every directory claimed, and a directory holding a section
+# on a dirty line is claimed up front: that section is the user's own work.
+create_seen=""
+while IFS= read -r entry; do
+  [ -n "$entry" ] || continue
+  path="${entry#dirty: }"
+  path="${path% *}"
+  is_section "$path" || continue
+  create_seen="$create_seen$(node_of "$path")$NL"
+done < <(printf '%s' "$dirty_out")
+
+# One create line for the node path $1, its text after the path being $2.
+create_target() {
+  case "$NL$create_seen" in
+    *"$NL$1$NL"*) return 0 ;;
+  esac
+  create_seen="$create_seen$1$NL"
+  create_out="$create_out$(printf 'target: create %s %s' "$1" "$2")$NL"
+}
+
+if [ "$mode" = "targets" ]; then
+  fix_out=""
+  create_out=""
+  if [ "$tmode" = "review" ] || [ "$tmode" = "both" ]; then
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      fix_out="$fix_out$(printf 'target: fix %s' "${entry#node: }")$NL"
+    done < <(printf '%s' "$node_out")
+  fi
+  if [ "$tmode" != "review" ]; then
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      rest="${entry#cand: }"
+      create_target "${rest%% *}/CLAUDE.md" "${rest#* }"
+    done < <(printf '%s' "$cand_out")
+  fi
+  if [ "$tmode" = "extend" ] || [ "$tmode" = "both" ]; then
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      section="${entry#unlinked: }"
+      is_present_node "$(node_of "$section")" && continue
+      create_target "$(node_of "$section")" "unlinked $section"
+    done < <(printf '%s' "$unlinked_out")
+  fi
+  if [ "$tmode" = "reset" ]; then
+    # A removed node or section empties its directory only when no node is
+    # left there: the removed section of a surviving node empties nothing.
+    while IFS= read -r removed; do
+      [ -n "$removed" ] || continue
+      if is_node "$removed"; then
+        owner="$removed"
+      elif is_section "$removed"; then
+        owner="$(node_of "$removed")"
+      else
+        continue
+      fi
+      ! is_excluded "$removed" || continue
+      ! is_present_node "$owner" || continue
+      create_target "$owner" "removed"
+    done < <(printf '%s' "$removed_paths")
+  fi
+  if [ "$tmode" = "extend" ] || [ "$tmode" = "both" ]; then
+    is_present_node "CLAUDE.md" || create_target "CLAUDE.md" "root"
+  fi
+  if [ -z "$fix_out$create_out" ]; then
+    printf 'NEXT: none\n'
+  else
+    printf '%s%sNEXT: approve\n' "$fix_out" "$create_out"
+  fi
+  exit 0
 fi
 
 # --- output ----------------------------------------------------------------

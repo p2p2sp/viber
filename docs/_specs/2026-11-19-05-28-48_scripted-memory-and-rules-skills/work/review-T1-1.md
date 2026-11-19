@@ -1,0 +1,6 @@
+- Blocking [task] tests/viber/memory-map.test.ts:1021 - DoD.3: no test fails if a --removed section path stopped emptying its directory
+  The section branch of the reset loop (viber/skills/memory/scripts/memory-map.sh:616, `elif is_section "$removed"`) is never the sole source of a create line in any test. In the first reset case docs/CLAUDE.tests.md lands on a directory the candidate form already claims. In the root case CLAUDE.release.md is deduped behind the removed CLAUDE.md node. The survivor case expects no line at all. Replacing that branch with `continue` keeps every case green. Add one reset case where a section with no node beside it (for example lib/CLAUDE.api.md with no lib/CLAUDE.md, lib not a candidate) is the only removed path, and expect `target: create lib/CLAUDE.md removed` then `NEXT: approve`.
+- Minor tests/viber/memory-map.test.ts:1021 - the reset cases arrange through a second `--reset` run of the script and assert on its status, so the body carries two acts of the code under test
+  Arrange the removal with a plain file deletion (the state `--reset` leaves: tracked, missing from the working tree) and keep `--targets` as the one act.
+- Minor viber/skills/memory/scripts/memory-map.sh:17 - the header label `#   cwd    :` lost its alignment and now reads `#   cwd   :`
+  Restore the original spacing so the Contract column lines up again.
