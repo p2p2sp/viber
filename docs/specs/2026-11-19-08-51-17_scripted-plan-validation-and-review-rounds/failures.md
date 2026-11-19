@@ -1,0 +1,7 @@
+# Failures
+
+- task | review-T1-1 | tests/viber/plan-index.test.ts:911 - test-strategy `Act`: "a missing plan file and an unknown argument keep their error: line and exit 2" carries two acts (one `run` on a missing plan, a second `run` with `--decompose`) in one body
+- task | review-T1-1 | tests/viber/plan-index.test.ts:900 - test-strategy `Single`: "a plan past both caps prints a SPLIT line for each and no error: line" fails on the same regressions as the updated cap tests at :3487 and :3498 (and the TDD: none one after them), which now pin each `SPLIT:` line anchored with `^...$`. Deleting it leaves every DoD.2 regression still caught
+- task | review-T2-1 | viber/scripts/plan-index.sh:1299 - a malformed task heading still raises a follow-on defect of its block (AC2, DoD.4): the badhead branch records Covers and Uses but not Files, and the contract file checks, now ungated at line 1569, then report the block's own file as created by no task
+- task | review-T6-1 | viber/skills/planner/scripts/review-round.sh:1 - the working-tree file is mode 100644 (`ls -l` shows `-rw-r--r--`, `git diff` shows `old mode 100755 / new mode 100644` against the index), so committing it records 100644 while `Delivers` requires mode 100755
+- task | review-T6-1 | docs/_specs/2026-11-19-08-51-17_scripted-plan-validation-and-review-rounds/work/T6-notes.md:1 - untracked scratch file left in the tree by this task's coder (holds only `placeholder`; the notes say it was created by mistake)

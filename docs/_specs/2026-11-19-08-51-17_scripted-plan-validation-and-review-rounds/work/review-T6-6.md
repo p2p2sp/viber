@@ -1,2 +1,0 @@
-- Blocking [task] docs/_specs/2026-11-19-08-51-17_scripted-plan-validation-and-review-rounds/work/T6-notes.md:1 - untracked scratch file left in the tree by this task's coder (holds only `placeholder`; the notes say it was created by mistake)
-  Report it on the coder's `SCRATCH:` line. It is still in the tree in round 6 (`git status` lists it untracked, created 09:23, holding only `placeholder`). It is not the task's notes file (`T6-coder.md`), and no other task left a `T*-notes.md`. Name this exact path on the `SCRATCH:` line of the coder's reply so the harness removes it.

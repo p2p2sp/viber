@@ -1,7 +1,0 @@
-- Red: `.temp/viber/T10/red.log` (13 failing across planner-words, plan-review-prose, root-cause-prose).
-- Final word counts (`wc -w`, frontmatter included): planner-review 1000, spec 757, graph 583, task 700, outside 468; the first, fourth and fifth sit exactly on or next to their caps, so any added word fails `planner-words.unit.test.ts`.
-- The four planner reviewers' Calibration now reads the same new shorter text (and `outside-plan-review`'s own): `agents/CLAUDE.md` says it is verbatim across the four, which still holds.
-- Wired bullet of `planner-review` and `planner-graph-review` was reworded to shed words; its three pinned phrases in `plan-review-prose` are unchanged.
-- Grounded now opens "an `add` path is plausibly new, a `modify` or `delete` path the tree lacks is left to `plan-index.sh`" in `planner-review` and `planner-task-review`.
-- `e2e-prose` and `test-pyramid-prose` needed no edit: the Grounded, Gate and test-strategy sentences they pin are untouched.
-- `work/T6-notes.md` (untracked) is not mine.

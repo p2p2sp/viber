@@ -1,6 +1,0 @@
-- State `answer:` gains `stop`; `stop` needs an open round for the plan (any answer), `retry-denied` needs `answer: ask` (clears the DENIED verdicts, sets `awaiting` to them), `override` needs `exit-plan`.
-- `override` prints its members sorted ascending whatever the order named; a duplicate or empty member is an exit 2 (beyond the task text).
-- Extra misuse errors: `stop`/`retry-denied` given an argument, `override` not given exactly one argument.
-- Shared helpers `open_round`, `adopt_state`, `emit_members` now also serve `returned`; its messages are unchanged.
-- DoD.3 (returned path) and DoD.4 behaviour already sat in `start` from T6/T7, so those tests passed at once; red for them: `.temp/viber/T8/red-2.log` (start branch temporarily accepting any answer: 4 failing). New-event red: `.temp/viber/T8/red.log` (12 failing).
-- `work/T6-notes.md` (untracked) is not mine; left untouched.

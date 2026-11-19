@@ -1,6 +1,0 @@
-- SKILL.md is at exactly 1800 words (`wc -w`, frontmatter and preload blocks included): any addition fails `planner-words.unit.test.ts` until the cap is raised on purpose.
-- To fit the cap, SKILL.md dropped the attachment-name charset (plan-index.sh rejects it with a `FIX:` line), the `hits:` mention of `reach.sh`, and merged the mapper `DENIED` and no-`VERDICT:` bullets into one.
-- `ASK:` bullet names the `retry-denied` and `stop` events of review-round.sh; step 3 re-runs `plan-index.sh` after each fix and then `start` (which runs it again and relays a refusal).
-- Old `DISPATCH_PHRASES` tests of plan-review-prose were replaced by pins of the new directives; the reach-file write test in impact-mapper-prose now also names the `review-round.sh` state file.
-- Red: `.temp/viber/T9/red.log` (25 failing of 131 across planner-words, plan-review-prose, impact-mapper-prose).
-- `work/T6-notes.md` (untracked) is not mine.

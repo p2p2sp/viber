@@ -1,6 +1,0 @@
-- The production edit was written before its tests; the red run (`.temp/viber/T5/red-2.log`) is the revert route: the `--input` option case renamed away, 12 of 13 matched cases failed on assertions, the one passing is the no-`--input` case (DoD.5 held before the change). The case was restored afterwards.
-- The input checks run whenever `--input` is given, whatever the plan state (a status.md beside the plan does not exempt them): the planner calls it on a fresh plan, and the combination with `--split`, `--extra` and the rest is refused anyway.
-- An attachments entry holds a path when its value (after the first ":" of the entry, one pair of wrapping quotes dropped) equals the input path exactly; no slash or drive-letter normalisation.
-- A `## Root cause` heading counts only outside a fence; an input `Root cause:` line counts with any value, even empty.
-- Input lines are read at line start only, `Attachment:`, `Root cause:` and `Repro:`, with the value trimmed; one FIX per distinct path.
-- A missing input file prints `error: input file not found: <path>` (exit 2); the combination error is checked before either file is looked at.

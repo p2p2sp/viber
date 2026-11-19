@@ -1,7 +1,0 @@
-- State gains `awaiting: <k>,<k>` (the members of the last dispatch still without a verdict): all after `start`, the redispatched ones after a redispatch, empty once answered. T8's `retry-denied` sets it to the DENIED members and clears their verdict; `override` needs `answer: exit-plan`.
-- The state's `answer:` word for each reply is `redispatch`, `ask`, `fix` or `exit-plan`; `start` reads only `plan`, `round` and `answer`, through the shared `load_state`.
-- A no-verdict FAIL is a member with verdict FAIL and none count >= 2; `no-verdict:` lists exactly those.
-- Extra misuse errors beyond the task text: a `returned` argument without `=`, and a member named twice in one call (exit 2).
-- Trap: an arithmetic syntax error inside a bash function does not exit the script, it lets it print and exit 0 - a quoted operand in `$(( ))` made every `returned` print nothing with status 0.
-- Red run: `.temp/viber/T7/red.log` (13 new cases failing on assertions, `returned` then unknown).
-- `work/T6-notes.md` (untracked placeholder) is not mine; left untouched.
