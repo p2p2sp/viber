@@ -159,8 +159,10 @@
 #              refs: <plugin root>/references
 #            a `confirm:` line prints only for a counter above 0.
 #            `scope: **` and `matches: none` mark a rule declaring no scope; a
-#            directory target is `target: none` with the directory (no trailing
-#            slash) as scope; the trail target lists every `trail:` path with a
+#            directory target is `target: none` with the directory as scope,
+#            one leading `./` and the trailing `/` removed (`./src/` prints
+#            `scope: src`), and `scope: .` is the repository root, whether the
+#            target was given as `.` or `./`; the trail target lists every `trail:` path with a
 #            `convention` count above 0 and prints no block when none has one.
 #            A rule whose globs match no tracked file - judged only when the
 #            repository tracks something - prints no block, its findings file
@@ -667,6 +669,7 @@ if [ "${1:-}" = "--brief" ] || [ "${1:-}" = "--confirm" ]; then
         ;;
     esac
     dir="${1%/}"
+    dir="${dir#./}"
     case "$dir" in
       "" | /* | .. | ../* | */.. | */../*) err="$1 is neither a rule, a directory nor trail" ;;
       *)
@@ -713,7 +716,7 @@ if [ "${1:-}" = "--brief" ] || [ "${1:-}" = "--confirm" ]; then
             rel="${target#"$rules_dir"/}"
             slug="${rel%.md}"
           else
-            slug="${dir#./}"
+            slug="$dir"
             [ "$slug" != "." ] || slug="root"
             slug="new--$slug"
           fi

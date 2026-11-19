@@ -25,7 +25,7 @@ out: .temp/viber/<id>/
 refs: <the plugin reference directory>
 ```
 
-`target` names a path or reads the literal `none` or `trail`, never anything else, and that value decides the direction below. Read `<refs>/rule-admission.md` before you score any line, in either direction: it owns the three criteria and the `Never a rule` list every line of a rule has to pass.
+`target` names a path or reads the literal `none` or `trail`, never anything else, and that value decides the direction below. `scope: .` is the repository root. Read `<refs>/rule-admission.md` before you score any line, in either direction: it owns the three criteria and the `Never a rule` list every line of a rule has to pass.
 
 A rule file whose basename starts with `_` is frozen: never open it as `target`, never score it against the code, never propose one for a scope it already gates.
 

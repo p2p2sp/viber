@@ -1202,6 +1202,44 @@ test("confirm reads the repository root target's counters from new--root", async
   });
 });
 
+test("brief prints a directory scope with one leading ./ and the trailing / removed", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, { "src/a.ts": "a\n" });
+
+    const result = await run(repo, ["--brief", "run1", "./src/"]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(blocks(result.stdout)[0].slice(0, 2), ["target: none", "scope: src"]);
+  });
+});
+
+test("brief prints the repository root target as scope . whether it is given as . or ./", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, { "src/a.ts": "a\n" });
+
+    for (const target of [".", "./"]) {
+      const result = await run(repo, ["--brief", "run1", target]);
+
+      assert.equal(result.status, 0, target);
+      assert.deepEqual(blocks(result.stdout)[0].slice(0, 2), ["target: none", "scope: ."], target);
+    }
+  });
+});
+
+test("a MISS written under the slug of the brief's scope counts in the confirm of the same ./ target (the auditor names its file from the scope it was briefed with)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, { "src/a.ts": "a\n" });
+
+    const brief = await run(repo, ["--brief", "run1", "./src/"]);
+    const scope = blocks(brief.stdout)[0][1].slice("scope: ".length);
+    findings(repo, "run1", `new--${scope.replaceAll("/", "--")}-audit.md`, "MISS: a convention\nUSED: u\n");
+    const result = await run(repo, ["--confirm", "run1", "./src/"]);
+
+    assert.equal(result.status, 0);
+    assert.equal(lines(result.stdout)[0], "confirm: ./src/ stale 0 gone 0 drop 0 miss 1");
+  });
+});
+
 test("confirm names the trail's miss, ignored and rejected counts and hands the writer every trail line", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo, {
