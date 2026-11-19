@@ -13,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
+import { forEachShell } from "../harness/shells.ts";
 import { withTempDir } from "../harness/tmp.ts";
 import { slash } from "../harness/paths.ts";
 
@@ -74,7 +75,7 @@ async function run(text: string, args: string[]) {
   });
 }
 
-function block(handoff: string, id: string): string {
+function block(handoff: string, id: string, refs: string = REFS): string {
   return [
     `NEXT: dispatch | id: ${id} | agent: viber:e2e-writer`,
     `handoff: ${handoff}`,
@@ -82,7 +83,7 @@ function block(handoff: string, id: string): string {
     "spec-dir: tests/e2e",
     "base-url: http://localhost:3000",
     "accounts: admin admin@example.test - vault",
-    `refs: ${REFS}`,
+    `refs: ${refs}`,
     "",
   ].join("\n");
 }
@@ -206,6 +207,30 @@ test("report keeps a blocked reason of exactly 60 characters whole", async () =>
   assert.equal(result.status, 0, `stderr: ${result.stderr}`);
   assert.ok(result.stdout.includes("| QA-01 | blocked | the checkout form keeps returning a server error after save. |\n"), result.stdout);
 });
+
+const ON_WINDOWS = process.platform === "win32";
+const ROOT = slash(path.resolve(import.meta.dirname, "../../viber"));
+const MSYS_ROOT = `/${ROOT[0].toLowerCase()}${ROOT.slice(2)}`;
+const SPELLINGS = [
+  { name: "a C:\\ path", sut: SUT.replace(/\//g, "\\"), root: ROOT },
+  { name: "a C:/ path", sut: SUT.replace(/\\/g, "/"), root: ROOT },
+  { name: "a /c/ path", sut: `${MSYS_ROOT}/skills/e2e/scripts/qa-ledger.sh`, root: MSYS_ROOT },
+];
+
+for (const row of SPELLINGS) {
+  test(`invoked by ${row.name}, the refs: line names the references directory under ${row.root} (a backslash spelling never reaches the dispatch block)`, { skip: ON_WINDOWS ? false : "the drive spellings exist only on Windows" }, async () => {
+    const skips = await forEachShell("bash", async (bash) => {
+      await withTempDir("p2p2-qa-ledger-", async (dir) => {
+        const handoff = path.join(dir, "qa.e2e.md");
+        fs.writeFileSync(handoff, HANDOFF);
+        const result = await runScript(row.sut, [handoff, "next", ...NEXT_ARGS], { shell: bash, cwd: dir });
+        assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+        assert.equal(result.stdout, block(slash(handoff), "QA-02", `${row.root}/references`));
+      });
+    });
+    assert.ok(skips.every((skip) => skip.reason.length > 0), "a skip must record a reason");
+  });
+}
 
 const REFUSALS: Array<[string, string[]]> = [
   ["an unknown mode", ["status"]],

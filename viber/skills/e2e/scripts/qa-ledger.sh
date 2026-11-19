@@ -47,7 +47,9 @@
 #              spec-dir: <as given>
 #              base-url: <as given>
 #              accounts: <as given>
-#              refs: <plugin root, three directories above this script>/references
+#              refs: <plugin root>/references
+#            <plugin root> is three directories above this script, cut from the invoked path by
+#            scripts/plugin-root.sh (C:/... for a C:\ or C:/ invocation, /c/... for a /c/ one).
 #            and, with none left:
 #              NEXT: commit
 #            The lines below the NEXT: line are the prompt of the dispatch, sent as printed.
@@ -57,6 +59,7 @@
 #            --accounts, a missing option value, or an --after naming no listed scenario.
 #
 set -u
+. "$(dirname -- "$0")/../../../scripts/plugin-root.sh"
 
 fail() {
   echo "error: $1" >&2
@@ -241,7 +244,7 @@ abs_dir() {
 }
 
 hdir="$(abs_dir "$(dirname "$handoff")")"
-root="$(abs_dir "$(dirname "$0")/../../..")"
+root="$(plugin_root_of "$0" 3)"
 
 echo "NEXT: dispatch | id: ${id} | agent: viber:e2e-writer"
 echo "handoff: ${hdir}/$(basename "$handoff")"

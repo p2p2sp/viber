@@ -404,6 +404,27 @@ test("mode missing: stdout is the one STOP line naming the missing paths, exit 0
   });
 });
 
+// --- the plugin root spelling of the RUN: line ---------------------------------
+
+const ON_WINDOWS = process.platform === "win32";
+const SPELLINGS = [
+  { name: "a C:\\ path", sut: SUT.replace(/\//g, "\\"), root: ROOT },
+  { name: "a C:/ path", sut: SUT.replace(/\\/g, "/"), root: ROOT },
+  { name: "a /c/ path", sut: `/${ROOT[0].toLowerCase()}${ROOT.slice(2)}/skills/commit/scripts/commit-context.sh`, root: `/${ROOT[0].toLowerCase()}${ROOT.slice(2)}` },
+];
+
+for (const row of SPELLINGS) {
+  test(`invoked by ${row.name}, the RUN: line names commit.sh under ${row.root} (a backslash spelling never reaches the printed command)`, { skip: ON_WINDOWS ? false : "the drive spellings exist only on Windows" }, async () => {
+    await assertBash(async (bash) => {
+      await withGitRepo(async (repo) => {
+        const result = await runScript(row.sut, [], { shell: bash, cwd: repo.dir, env: repo.env });
+        assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+        assert.equal(firstLine(result.stdout), `RUN: "${row.root}/skills/commit/scripts/commit.sh" "<message>"`);
+      });
+    });
+  });
+}
+
 // --- the SKILL.md preload line -------------------------------------------------
 
 function preloadBlock(): string {

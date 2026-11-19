@@ -31,7 +31,8 @@
 #            third argument; mode missing prints only STOP: Nothing committed -
 #            paths not found: <missing>. <message> is the slot the fork
 #            replaces; <plugin root> is three directories above this script's
-#            directory, cut from the invoked path. Then, always, the
+#            directory, cut from the invoked path by scripts/plugin-root.sh
+#            (C:/... for a C:\ or C:/ invocation, /c/... for a /c/ one). Then, always, the
 #            "## Issue footer" section whose one line is Refs: #<n>[, #<n>]...
 #            (the arguments' references when any, else the branch's single
 #            task.<n> or issue.<n> number, either case) or none; then the
@@ -51,9 +52,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/commit-args.sh"
 mode_raw="${1:-}"
 MAX_LINES=400
 # The plugin root is three directories above this script's own, cut from the
-# invoked path (never a pwd result), so the printed command keeps the caller's
-# spelling of the root.
-plugin_root="$(dirname "$(dirname "$(dirname "$(dirname "${BASH_SOURCE[0]}")")")")"
+# invoked path by the shared helper (never a pwd result).
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../../scripts/plugin-root.sh"
+plugin_root="$(plugin_root_of "${BASH_SOURCE[0]}" 3)"
 
 enter_repo_root
 resolve_commit_selector "$mode_raw"
