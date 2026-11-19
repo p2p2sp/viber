@@ -2,7 +2,7 @@
 name: e2e
 description: Generates and locally verifies Playwright tests for the QA scenarios of one viber run, then commits them. Use it after a build closed with a qa.e2e.md handoff file in its run directory.
 argument-hint: "[run directory, or a path to qa.e2e.md]"
-allowed-tools: Read, Grep, Glob, Bash, Agent, SendMessage, AskUserQuestion, TaskCreate, TaskUpdate, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-playwright.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_SKILL_DIR}/scripts/app-wait.sh:*)
+allowed-tools: Read, Grep, Glob, Bash, Agent, SendMessage, AskUserQuestion, TaskCreate, TaskUpdate, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-playwright.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_SKILL_DIR}/scripts/app-wait.sh:*), Bash(${CLAUDE_SKILL_DIR}/scripts/qa-ledger.sh:*)
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -63,15 +63,13 @@ This project's launch command, its config and its ports are never edited to make
 
 ## 5. Generate the tests
 
-The ID list is every `### QA-<nn> <title>` heading under `## UI scenarios` and `## API scenarios`, in file order; an ID named under `## Not automatable` gets no entry at all. Read each one's state off the handoff's `## Automation` section: a `file` line is done and this pass skips it, a `blocked` line is retried, no line at all is pending.
+Run `"${CLAUDE_SKILL_DIR}/scripts/qa-ledger.sh" "<dir>/qa.e2e.md" "list"`. `TaskCreate` one task per `id:` line, the `file` ones completed at creation. Then one scenario at a time, never two at once:
 
-`TaskCreate` one task per ID, the `file` ones completed at creation. Then one pending ID at a time in file order, never two at once:
-
-1. `TaskUpdate` -> in progress.
-2. `Agent` with `subagent_type: viber:e2e-writer`, one labelled line each and nothing else: `handoff: <dir>/qa.e2e.md`, `id: QA-<nn>`, `spec-dir: <the e2e test directory>`, `base-url: <the base URL>`, `accounts: <the test accounts and where their credentials live>`, `refs: ${CLAUDE_PLUGIN_ROOT}/references`. Every path absolute. Pass no `model:` - the writer's own frontmatter is its strength.
+1. Run `"${CLAUDE_SKILL_DIR}/scripts/qa-ledger.sh" "<dir>/qa.e2e.md" "next" "--spec-dir" "<the e2e test directory>" "--base-url" "<the base URL>" "--accounts" "<the test accounts and where their credentials live>"`, adding `"--after" "QA-<nn>"` for the scenario just handled. `NEXT: commit` -> go to step 6. Otherwise `TaskUpdate` -> in progress.
+2. `Agent` with `subagent_type: viber:e2e-writer`, the lines below `NEXT: dispatch` as printed and nothing else. Pass no `model:` - the writer's own frontmatter is its strength.
 3. `VERDICT: PASS` plus `FILE:` -> keep that path for step 6. `TaskUpdate` -> completed.
 4. `VERDICT: BLOCKED` plus `REASON:` -> the application, not the test, prevented a green run. The writer already deleted its file and wrote that ID's `blocked` line. Keep the reason for step 7, re-dispatch nothing, and change nothing in the application. `TaskUpdate` -> completed.
-5. `VERDICT: FAIL` plus `REASON:` -> dispatch once more with the same lines. A second FAIL -> `AskUserQuestion` naming the scenario: retry again, skip it (keep the reason for step 7; it wrote no status line, so the ID stays pending for a later pass), or abort (go to step 6 with the IDs already processed).
+5. `VERDICT: FAIL` plus `REASON:` -> dispatch once more with the same block. A second FAIL -> `AskUserQuestion` naming the scenario: retry again, skip it (keep the reason for step 7; it wrote no status line, so the ID stays pending for a later pass), or abort (go to step 6 with the IDs already processed).
 6. `VERDICT: DENIED` plus `REASON:` -> `AskUserQuestion` naming the scenario and the refused call from its `REASON:` line: permission added and retry, skip it (keep the reason for step 7; the ID stays pending), or abort (go to step 6 with the IDs already processed).
 
 The writer's completion notice saying it "stopped with background work of its own still running": hold its verdict and `SendMessage` it, once: `Stop every process you started that is still running, then return your output lines again.` Act on what it returns then. The same notice again -> act on the verdict as returned.

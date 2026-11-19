@@ -1,0 +1,6 @@
+- qa-ledger.sh was written before its tests; the red run (.temp/viber/T7/red.log, 24 failing) was taken with a temporary `exit 2` after `set -u`, removed afterwards.
+- The portability sweep flags an awk `function` keyword inside a `#!/bin/sh` script as a bashism, so the awk program holds no function definitions.
+- An option value that is empty or starts with `--` counts as a missing value (so `--spec-dir --base-url x` is refused); an accounts value starting with `--` cannot be passed.
+- Errors go to stderr (as in app-wait.sh); stdout stays empty on exit 2.
+- Step 5 of SKILL.md folds the `next` call into point 1 of the loop so the numbering the later points cite (point 5 for the second FAIL) is unchanged.
+- The exec bit needed both `git update-index --chmod=+x` and a disk chmod: the test harness spawns the script directly.
