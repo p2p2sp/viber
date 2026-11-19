@@ -1,6 +1,6 @@
 /*
  * skill-words.unit.test.ts - caps the words of the `SKILL.md` of `fixer`, `e2e`, `prototype`, `pr-feedback`,
- * `pr-feedback-reply` and `issue-create`.
+ * `pr-feedback-reply`, `issue-create`, `factory`, `commit`, `pr-create`, `setup` and `idea-validator`.
  *
  * Each skill reads its whole file on every run, so its words count against the user's usage limits: the mechanical
  * steps live in scripts that answer in directive lines, and the file keeps only the rule to run the script and follow
@@ -25,8 +25,13 @@ const SKILL_WORD_CAPS: [string, number, number][] = [
   ["e2e", 1189, 1213],
   ["prototype", 819, 821],
   ["pr-feedback", 664, 667],
-  ["pr-feedback-reply", 431, 433],
+  ["pr-feedback-reply", 363, 433],
   ["issue-create", 180, 195],
+  ["factory", 777, 789],
+  ["commit", 322, 397],
+  ["pr-create", 690, 824],
+  ["setup", 466, 470],
+  ["idea-validator", 1006, 1016],
 ];
 
 function words(text: string): number {
