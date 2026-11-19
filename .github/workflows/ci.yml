@@ -3,6 +3,10 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+# A new run of the same branch or pull request cancels the one still running.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 defaults:
   run:
     shell: bash
