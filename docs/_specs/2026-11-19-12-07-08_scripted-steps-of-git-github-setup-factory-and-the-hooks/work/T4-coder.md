@@ -1,0 +1,3 @@
+- SKILL.md was at exactly 789 words, so the three new modes were paid for by trimming existing prose (description, Rules, Workflow); it now ends at 777.
+- The "Windows and `powershell.exe` only" sentence left the Tool paragraph; the description still says "on this Windows machine".
+- `dialogs.md` keeps every key row unchanged and gained one opening paragraph on when to use it.

@@ -1,5 +1,7 @@
 # Dialog keys
 
+Use these keys only when `answer`, `approve` or `reject` printed `NEXT: keys`, and for every dialog they do not cover: several questions, multi-select, a free answer, a permission prompt, the permission mode. Read the screen first, then press the keys one step at a time.
+
 The cursor row starts with `❯`. Move it with `UP` / `DOWN` until it sits on the wanted row, confirm on the printed screen, then press `ENTER`. Prefer arrows over digits: a digit acts at once on some rows and only moves the cursor on others.
 
 ## AskUserQuestion
