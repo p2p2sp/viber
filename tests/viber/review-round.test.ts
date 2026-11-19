@@ -1,5 +1,5 @@
 /*
- * review-round.test.ts - proves the `start` event of
+ * review-round.test.ts - proves the `start` and `returned` events of
  * viber/skills/planner/scripts/review-round.sh.
  *
  * `review-round.sh <plan> start` runs plan-index.sh on the plan and prints one
@@ -10,6 +10,13 @@
  * one on no state, on the state of another plan or on `--fresh`), the refusal
  * of a start on a round still open, the refusal of a plan plan-index.sh refuses
  * and of an unknown event.
+ *
+ * `returned <k>=<word>...` takes the verdict word of each reply: a member at
+ * none is redispatched once and counts as FAIL at its second none, a member
+ * holding a verdict keeps it, and once every member holds one DENIED outranks
+ * FAIL outranks PASS in the answer (ASK:, NEXT: fix, NEXT: exit-plan). A wrong
+ * answer sends the planner to fix a plan that passed, or out of the review with
+ * one that failed.
  *
  * The plans are lite plans with no `## Behaviour` section and only `add` file
  * map lines, so plan-index.sh accepts them. Every case builds its own throwaway
@@ -249,5 +256,188 @@ test("an unknown event exits 2 with one error line and an empty stdout", async (
     assert.equal(result.status, 2);
     assert.equal(result.stdout, "");
     assert.equal(result.stderr, "error: unknown event: begin\n");
+  });
+});
+
+// The `returned` cases open a round through the script itself: a plan of 2 tasks is a round of
+// one member (planner-review), a plan of 13 tasks a set round of four (spec, graph, two task
+// reviewers). Every call before the last one of a case is arrangement.
+const SINGLE_BLOCK = [
+  "NEXT: review | member: 1 | agent: viber:planner-review | round: 1 | add: input | add: answered",
+  `plan: ${PLAN_REL}`,
+  `refs: ${REFS}`,
+  "memory: false",
+];
+
+const TASK_BLOCK_4 = [
+  "NEXT: review | member: 4 | agent: viber:planner-task-review | round: 1",
+  `plan: ${PLAN_REL}`,
+  `refs: ${REFS}`,
+  "memory: false",
+  "tasks: T8-T13",
+];
+
+async function begin(repo: GitRepo, tasks: number): Promise<void> {
+  write(repo.dir, PLAN_REL, litePlan(tasks));
+  const opened = await start(repo, PLAN_REL);
+  assert.equal(opened.status, 0, `stderr: ${opened.stderr}`);
+}
+
+async function returned(repo: GitRepo, ...words: string[]) {
+  return review(repo, [PLAN_REL, "returned", ...words]);
+}
+
+test("returned with the only member at none prints NEXT: redispatch naming it, then its block again", async () => {
+  await withGitRepo(async (repo) => {
+    await begin(repo, 2);
+
+    const result = await returned(repo, "1=none");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(slash(result.stdout), ["NEXT: redispatch | members: 1", ...SINGLE_BLOCK, ""].join("\n"));
+  });
+});
+
+test("returned leaving an awaited member unnamed redispatches it as a first none and only it (the others hold their verdict)", async () => {
+  await withGitRepo(async (repo) => {
+    await begin(repo, 13);
+
+    const result = await returned(repo, "1=PASS", "2=PASS", "3=PASS");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(slash(result.stdout), ["NEXT: redispatch | members: 4", ...TASK_BLOCK_4, ""].join("\n"));
+  });
+});
+
+test("a second none of a member counts as FAIL and is named on no-verdict", async () => {
+  await withGitRepo(async (repo) => {
+    await begin(repo, 2);
+    await returned(repo, "1=none");
+
+    const result = await returned(repo, "1=none");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "NEXT: fix | members: 1 | no-verdict: 1\n");
+  });
+});
+
+test("a redispatch after a fix keeps the round number and the previous findings addition on the block", async () => {
+  await withGitRepo(async (repo) => {
+    await begin(repo, 2);
+    await returned(repo, "1=FAIL");
+    const second = await start(repo, PLAN_REL);
+    assert.equal(second.status, 0, `stderr: ${second.stderr}`);
+
+    const result = await returned(repo, "1=none");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout.split("\n")[1],
+      "NEXT: review | member: 1 | agent: viber:planner-review | round: 2 | add: input | add: answered | add: previous",
+    );
+  });
+});
+
+test("returned 2=PASS naming the redispatched member alone prints NEXT: exit-plan, the others keeping their PASS", async () => {
+  await withGitRepo(async (repo) => {
+    await begin(repo, 13);
+    await returned(repo, "1=PASS", "2=none", "3=PASS", "4=PASS");
+
+    const result = await returned(repo, "2=PASS");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "NEXT: exit-plan\n");
+  });
+});
+
+test("returned 2=PASS after a round where member 1 failed keeps that FAIL and prints NEXT: fix naming it", async () => {
+  await withGitRepo(async (repo) => {
+    await begin(repo, 13);
+    await returned(repo, "1=FAIL", "2=none", "3=PASS", "4=PASS");
+
+    const result = await returned(repo, "2=PASS");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "NEXT: fix | members: 1\n");
+  });
+});
+
+const RANKED: { name: string; words: string[]; stdout: string }[] = [
+  {
+    name: "a DENIED member over a FAIL one prints ASK: with the retry-denied and stop answers",
+    words: ["1=PASS", "2=DENIED", "3=FAIL", "4=PASS"],
+    stdout: "ASK: permission added -> retry-denied | stop -> stop\n",
+  },
+  {
+    name: "FAIL members with no DENIED one print NEXT: fix naming every one of them in member order",
+    words: ["4=FAIL", "2=PASS", "3=PASS", "1=FAIL"],
+    stdout: "NEXT: fix | members: 1,4\n",
+  },
+  {
+    name: "every member PASS prints NEXT: exit-plan",
+    words: ["1=PASS", "2=PASS", "3=PASS", "4=PASS"],
+    stdout: "NEXT: exit-plan\n",
+  },
+];
+
+for (const row of RANKED) {
+  test(`returned once every member holds a verdict: ${row.name}`, async () => {
+    await withGitRepo(async (repo) => {
+      await begin(repo, 13);
+
+      const result = await returned(repo, ...row.words);
+
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, row.stdout);
+    });
+  });
+}
+
+test("returned with a verdict word outside PASS, FAIL, DENIED and none exits 2 with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    await begin(repo, 2);
+
+    const result = await returned(repo, "1=MAYBE");
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "error: returned: unknown verdict word: MAYBE\n");
+  });
+});
+
+test("returned naming a member the round does not hold exits 2 with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    await begin(repo, 2);
+
+    const result = await returned(repo, "2=PASS");
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "error: returned: member 2 is not in the round\n");
+  });
+});
+
+test("returned before any start exits 2 with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    write(repo.dir, PLAN_REL, litePlan(2));
+
+    const result = await returned(repo, "1=PASS");
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "error: returned: no round is open for this plan - run start first\n");
+  });
+});
+
+test("returned with no member awaiting a verdict exits 2 with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    await begin(repo, 2);
+    await returned(repo, "1=PASS");
+
+    const result = await returned(repo, "1=PASS");
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "error: returned: no member is awaiting a verdict\n");
   });
 });

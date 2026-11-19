@@ -83,9 +83,12 @@
 #   writes : the state file <repository root>/.temp/viber/planner/review-round,
 #            for one plan path: the plan, the round number, the last answer
 #            (review, redispatch, fix, exit-plan, ask or stop), the input path,
-#            the memory value, whether the round carries add: previous, and per
-#            member its agent, tasks slice, verdict and none count. A start
-#            replaces it; an error leaves it as it was.
+#            the memory value, whether the round carries add: previous, the
+#            members awaiting a verdict (all of them after a start, the
+#            redispatched ones after a redispatch, none once the round is
+#            answered) and per member its agent, tasks slice, verdict and none
+#            count. A start replaces it, a returned updates it; an error
+#            leaves it as it was.
 #   stdout : the blocks above, nothing on an error.
 #   stderr : on exit 2, one "error: <message>" line; a start on a plan
 #            plan-index.sh refuses prints "error: plan-index.sh refused the plan"
@@ -156,6 +159,87 @@ emit_block() {
   fi
 }
 
+# Sets root, statedir and state: the state file of the repository the cwd is in.
+locate_state() {
+  root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  [ -n "$root" ] || fail "not inside a git repository"
+  statedir="$root/.temp/viber/planner"
+  state="$statedir/review-round"
+}
+
+# Reads the state file into st_plan, st_round, st_answer, st_input, st_memory,
+# st_previous, st_awaiting and, per member, st_agents, st_slices, st_verdicts and
+# st_nones (indexed from 0), st_count of them. No file, or a round that is not a
+# number, leaves st_plan empty: no state.
+load_state() {
+  st_plan=""
+  st_round=""
+  st_answer=""
+  st_input=""
+  st_memory="false"
+  st_previous="no"
+  st_awaiting=""
+  st_count=0
+  st_agents=()
+  st_slices=()
+  st_verdicts=()
+  st_nones=()
+  if [ -f "$state" ]; then
+    local line rest mk v
+    while IFS= read -r line || [ -n "$line" ]; do
+      line="${line%$'\r'}"
+      case "$line" in
+        "plan: "*) st_plan="${line#plan: }" ;;
+        "round: "*) st_round="${line#round: }" ;;
+        "answer: "*) st_answer="${line#answer: }" ;;
+        "input: "*) st_input="${line#input: }" ;;
+        "memory: "*) st_memory="${line#memory: }" ;;
+        "previous: "*) st_previous="${line#previous: }" ;;
+        "awaiting: "*) st_awaiting="${line#awaiting: }" ;;
+        "member: "*)
+          rest="${line#member: }"
+          mk="${rest%% | *}"
+          mk=$((mk - 1))
+          rest="${rest#* | }"
+          v="${rest%% | *}"
+          st_agents[$mk]="${v#agent: }"
+          rest="${rest#* | }"
+          v="${rest%% | *}"
+          st_slices[$mk]="${v#tasks: }"
+          rest="${rest#* | }"
+          v="${rest%% | *}"
+          st_verdicts[$mk]="${v#verdict: }"
+          rest="${rest#* | }"
+          st_nones[$mk]="${rest#none: }"
+          st_count=$((st_count + 1))
+          ;;
+      esac
+    done < "$state"
+  fi
+  case "$st_round" in
+    "" | *[!0-9]*) st_plan="" ;;
+  esac
+}
+
+# Writes the state file from plan, round, answer, input, memory, previous,
+# awaiting and the count members of agents, slices, verdicts and nones.
+write_state() {
+  local k=1
+  {
+    printf 'plan: %s\n' "$plan"
+    printf 'round: %s\n' "$round"
+    printf 'answer: %s\n' "$answer"
+    printf 'input: %s\n' "$input"
+    printf 'memory: %s\n' "$memory"
+    printf 'previous: %s\n' "$previous"
+    printf 'awaiting: %s\n' "$awaiting"
+    while [ "$k" -le "$count" ]; do
+      printf 'member: %s | agent: %s | tasks: %s | verdict: %s | none: %s\n' "$k" "${agents[$((k - 1))]}" "${slices[$((k - 1))]}" "${verdicts[$((k - 1))]}" "${nones[$((k - 1))]}"
+      k=$((k + 1))
+    done
+  } > "$state" || fail "cannot write $state"
+}
+
 do_start() {
   local fresh=0
   while [ "$#" -gt 0 ]; do
@@ -178,10 +262,7 @@ do_start() {
     esac
   done
 
-  root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-  [ -n "$root" ] || fail "not inside a git repository"
-  statedir="$root/.temp/viber/planner"
-  state="$statedir/review-round"
+  locate_state
 
   mkdir -p "$statedir" || fail "cannot create $statedir"
   errfile="$statedir/review-round.err.$$"
@@ -218,22 +299,7 @@ do_start() {
   done < <(printf '%s\n' "$idx")
   [ "$count" -gt 0 ] || fail "plan-index.sh printed no dispatch: line - the plan is not a fresh one"
 
-  st_plan=""
-  st_round=""
-  st_answer=""
-  if [ -f "$state" ]; then
-    while IFS= read -r line || [ -n "$line" ]; do
-      line="${line%$'\r'}"
-      case "$line" in
-        "plan: "*) st_plan="${line#plan: }" ;;
-        "round: "*) st_round="${line#round: }" ;;
-        "answer: "*) st_answer="${line#answer: }" ;;
-      esac
-    done < "$state"
-  fi
-  case "$st_round" in
-    "" | *[!0-9]*) st_plan="" ;;
-  esac
+  load_state
 
   if [ "$fresh" -eq 1 ] || [ -z "$st_plan" ] || [ "$st_plan" != "$plan" ]; then
     round=1
@@ -253,25 +319,128 @@ do_start() {
     esac
   done < <(printf '%s\n' "$cfg")
 
+  awaiting=""
+  verdicts=()
+  nones=()
   k=1
   while [ "$k" -le "$count" ]; do
     emit_block "$k" "${agents[$((k - 1))]}" "${slices[$((k - 1))]}" "$round"
+    verdicts[$((k - 1))]="-"
+    nones[$((k - 1))]=0
+    awaiting="${awaiting:+$awaiting,}$k"
     k=$((k + 1))
   done
 
-  {
-    printf 'plan: %s\n' "$plan"
-    printf 'round: %s\n' "$round"
-    printf 'answer: review\n'
-    printf 'input: %s\n' "$input"
-    printf 'memory: %s\n' "$memory"
-    printf 'previous: %s\n' "$previous"
+  answer="review"
+  write_state
+}
+
+do_returned() {
+  [ "$#" -ge 1 ] || fail "returned: name at least one <k>=<PASS|FAIL|DENIED|none>"
+
+  locate_state
+  load_state
+  if [ -z "$st_plan" ] || [ "$st_plan" != "$plan" ]; then
+    fail "returned: no round is open for this plan - run start first"
+  fi
+  [ -n "$st_awaiting" ] || fail "returned: no member is awaiting a verdict"
+
+  local named=() arg k w
+  for arg in "$@"; do
+    case "$arg" in
+      *=*) ;;
+      *) fail "returned: expected <k>=<word>, got: $arg" ;;
+    esac
+    k="${arg%%=*}"
+    w="${arg#*=}"
+    case "$k" in
+      "" | *[!0-9]*) fail "returned: member $k is not in the round" ;;
+    esac
+    k=$((10#$k))
+    if [ "$k" -lt 1 ] || [ "$k" -gt "$st_count" ]; then
+      fail "returned: member $k is not in the round"
+    fi
+    case "$w" in
+      PASS | FAIL | DENIED | none) ;;
+      *) fail "returned: unknown verdict word: $w" ;;
+    esac
+    [ -z "${named[$k]-}" ] || fail "returned: member $k is named twice"
+    named[$k]="$w"
+  done
+
+  round="$st_round"
+  input="$st_input"
+  memory="$st_memory"
+  previous="$st_previous"
+  count="$st_count"
+  agents=(${st_agents[@]+"${st_agents[@]}"})
+  slices=(${st_slices[@]+"${st_slices[@]}"})
+  verdicts=(${st_verdicts[@]+"${st_verdicts[@]}"})
+  nones=(${st_nones[@]+"${st_nones[@]}"})
+
+  local redo="" i
+  k=1
+  while [ "$k" -le "$count" ]; do
+    i=$((k - 1))
+    case ",$st_awaiting," in
+      *",$k,"*)
+        w="${named[$k]-none}"
+        if [ "$w" = "none" ]; then
+          nones[$i]=$((${nones[$i]} + 1))
+          if [ "${nones[$i]}" -eq 1 ]; then
+            redo="${redo:+$redo,}$k"
+          else
+            verdicts[$i]="FAIL"
+          fi
+        else
+          verdicts[$i]="$w"
+        fi
+        ;;
+    esac
+    k=$((k + 1))
+  done
+
+  if [ -n "$redo" ]; then
+    awaiting="$redo"
+    answer="redispatch"
+    add_line "NEXT: redispatch | members: $redo"
     k=1
     while [ "$k" -le "$count" ]; do
-      printf 'member: %s | agent: %s | tasks: %s | verdict: - | none: 0\n' "$k" "${agents[$((k - 1))]}" "${slices[$((k - 1))]}"
+      case ",$redo," in
+        *",$k,"*) emit_block "$k" "${agents[$((k - 1))]}" "${slices[$((k - 1))]}" "$round" ;;
+      esac
       k=$((k + 1))
     done
-  } > "$state" || fail "cannot write $state"
+  else
+    awaiting=""
+    local denied=0 failed="" silent=""
+    k=1
+    while [ "$k" -le "$count" ]; do
+      i=$((k - 1))
+      case "${verdicts[$i]}" in
+        DENIED) denied=1 ;;
+        FAIL)
+          failed="${failed:+$failed,}$k"
+          if [ "${nones[$i]}" -ge 2 ]; then
+            silent="${silent:+$silent,}$k"
+          fi
+          ;;
+      esac
+      k=$((k + 1))
+    done
+    if [ "$denied" -eq 1 ]; then
+      answer="ask"
+      add_line "ASK: permission added -> retry-denied | stop -> stop"
+    elif [ -n "$failed" ]; then
+      answer="fix"
+      add_line "NEXT: fix | members: $failed${silent:+ | no-verdict: $silent}"
+    else
+      answer="exit-plan"
+      add_line "NEXT: exit-plan"
+    fi
+  fi
+
+  write_state
 }
 
 input=""
@@ -280,6 +449,7 @@ memory="false"
 
 case "$event" in
   start) do_start "$@" ;;
+  returned) do_returned "$@" ;;
   *) fail "unknown event: $event" ;;
 esac
 
