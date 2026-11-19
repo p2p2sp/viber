@@ -807,3 +807,29 @@ test(
     });
   },
 );
+
+test(
+  "--all with no gh on PATH outside a git repository exits 1 with the gh ERROR line, not the repository one, and nothing on stdout (gh is checked before the repository)",
+  { skip: ghOnCorePath ? "a real gh sits in the core utilities directory, so its absence cannot be staged" : false },
+  async () => {
+    await assertPosix(async (shell) => {
+      await withTempDir("p2p2-pr-reply-", async (cwd) => {
+        const result = await runScript(SUT, ["--all", "42"], { shell, cwd, env: { PATH: coreUtilsPath() } });
+        assertOneError(result);
+        assert.match(result.stderr, /^ERROR pr-reply\.sh: gh not found on PATH$/m);
+      });
+    });
+  },
+);
+
+test("--all with gh on PATH outside a git repository exits 1 with the not-inside-a-git-repository ERROR line and nothing on stdout", async () => {
+  await assertPosix(async (shell) => {
+    await withStub("gh", GH_STUB, async (stubDir) => {
+      await withTempDir("p2p2-pr-reply-", async (cwd) => {
+        const result = await runScript(SUT, ["--all", "42"], { shell, cwd, stubDirs: [stubDir] });
+        assertOneError(result);
+        assert.match(result.stderr, /not inside a git repository/);
+      });
+    });
+  });
+});

@@ -102,8 +102,8 @@
 #              SKIPPED=<key> <the SAY sentence of exists>
 #              FAILED=<key> <the error text after "ERROR pr-reply.sh: ">
 #              MISSING_COUNT=<n>               the items whose reply file is absent
-#            Exit 1 with one ERROR line when gh is not on PATH or the cwd is not
-#            inside a git repository, before any post; exit 2 with the usage on a
+#            Exit 1 with one ERROR line when gh is not on PATH (checked first) or
+#            the cwd is not inside a git repository, before any post; exit 2 with the usage on a
 #            malformed pull request and with one ERROR line when no review.md
 #            exists. A FAILED item may or may not have landed: the caller reports
 #            it and never retries.
@@ -252,10 +252,12 @@ if [ -z "$list" ] && [ -z "$all" ]; then
   exit $?
 fi
 
+if [ -n "$all" ]; then
+  command -v gh >/dev/null 2>&1 || fail "gh not found on PATH"
+fi
 git rev-parse --show-toplevel >/dev/null 2>&1 || fail "not inside a git repository"
 review=".temp/viber/pr-feedback/$n/review.md"
 if [ -n "$all" ]; then
-  command -v gh >/dev/null 2>&1 || fail "gh not found on PATH"
   if [ ! -f "$review" ]; then
     echo "ERROR pr-reply.sh: no review file for pull request $n: $review" >&2
     exit 2
