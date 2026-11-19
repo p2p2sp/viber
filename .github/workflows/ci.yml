@@ -10,12 +10,11 @@ jobs:
   Tests:
     strategy:
       fail-fast: false
-      # Automatic runs (push / pull_request) only cover Linux - the cheap,
-      # fastest lane. The full cross-OS matrix (macOS + Windows, where the
+      # Every push and pull request runs on Linux and Windows, where the
       # shell-portability and path-separator assumptions actually get
-      # exercised) runs on a manual dispatch of this workflow.
+      # exercised. A manual dispatch of this workflow adds macOS.
       matrix:
-        os: ${{ github.event_name == 'workflow_dispatch' && fromJSON('["ubuntu-latest", "macos-latest", "windows-latest"]') || fromJSON('["ubuntu-latest"]') }}
+        os: ${{ github.event_name == 'workflow_dispatch' && fromJSON('["ubuntu-latest", "macos-latest", "windows-latest"]') || fromJSON('["ubuntu-latest", "windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
