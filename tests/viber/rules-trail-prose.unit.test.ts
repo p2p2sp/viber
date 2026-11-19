@@ -21,11 +21,10 @@
  * file deleted with `rm`.
  *
  * `rules/SKILL.md` reports the `waiting:` and `trail:` lines with their `convention` and `other`
- * counts, offers the trail as one target on `extend`, `both` and `state: none`, dispatches the
- * auditor for it only over the trails with a convention count above 0, folds its counters into
- * the writer gate (a kept trail with an other count above 0 reaches the writer regardless),
- * passes its `trail:` lines in the writer's `map:` and reports the `failures.md` files the writer
- * changed. The writer removes every non-convention entry of each `trail:` file of its map.
+ * counts, offers the trail as one target on `extend`, `both` and `state: none`, and reports the
+ * `failures.md` files the writer changed. `rules-map.sh` composes the trail auditor brief, the
+ * writer gate and the writer's `map:`. The writer removes every non-convention entry of each
+ * `trail:` file of its map.
  *
  * Run directly by Node's type stripping:
  *   node --test tests/viber/rules-trail-prose.unit.test.ts
@@ -470,34 +469,6 @@ test("step 4 shows the trail target as one line carrying the waiting line and it
   );
 });
 
-test("step 5 dispatches one rules-auditor for a kept trail target with target trail", () => {
-  assert.ok(
-    AUDIT.some(
-      (line) =>
-        line.includes("A kept trail target gets one `viber:rules-auditor` call") &&
-        line.includes("`target: trail`"),
-    ),
-  );
-});
-
-test("step 5 dispatches the trail auditor only when a kept trail line has a convention count above 0", () => {
-  assert.ok(
-    AUDIT.some((line) =>
-      line.includes(
-        "A kept trail target gets one `viber:rules-auditor` call only when a kept `trail:` line has a `convention` count above 0",
-      ),
-    ),
-  );
-});
-
-test("step 5 passes those trail paths, comma-separated, as the trail scope", () => {
-  assert.ok(AUDIT.some((line) => line.includes("`scope` being those `trail:` paths, comma-separated")));
-});
-
-test("step 5 passes matches none for the trail target", () => {
-  assert.ok(AUDIT.some((line) => line.includes("`matches: none`") && line.includes("trail")));
-});
-
 test("step 5 lists the AUDIT trail return line", () => {
   assert.ok(
     AUDIT.some((line) =>
@@ -508,35 +479,6 @@ test("step 5 lists the AUDIT trail return line", () => {
 
 test("step 5 reports the trail AUDIT line verbatim", () => {
   assert.ok(AUDIT.some((line) => line.includes("Report the `AUDIT:` line for each target verbatim")));
-});
-
-test("step 6 reads a trail line with three zero counters as five zero counters", () => {
-  assert.ok(
-    CONFIRM.some((line) =>
-      line.includes("Every trail line has its three counters (`miss`, `ignored`, `rejected`) at 0"),
-    ),
-  );
-});
-
-test("step 6 dispatches the writer for a kept trail line with an other count above 0 even with every audit counter at 0", () => {
-  assert.ok(
-    CONFIRM.some((line) =>
-      line.includes(
-        "A kept `trail:` line with an `other` count above 0 reaches the writer even with every audit counter at 0",
-      ),
-    ),
-  );
-});
-
-test("step 6 stops without a writer on zero counters only when no kept trail line has an other count above 0", () => {
-  assert.ok(CONFIRM.some((line) => line.includes("No kept `trail:` line carries an `other` count above 0.")));
-  assert.ok(CONFIRM.some((line) => line.includes("All hold -> say so in one line, dispatch no writer, and stop")));
-});
-
-test("step 6 passes every trail line of a kept trail target in the writer's map", () => {
-  assert.ok(
-    skillLine(CONFIRM, "map: ").includes("every trail: line of a kept trail target"),
-  );
 });
 
 test("step 7 names the failures.md files the writer changed or deleted on the FILES bullet", () => {

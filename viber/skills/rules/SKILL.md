@@ -17,7 +17,9 @@ The block above is this host project's rules layer as the script measured it; a 
 
 It is self-verifying and trusted. Never re-count a rule, never glob the tree to check what a scope matches, never run git to decide what is dirty: every fact you route on is already above.
 
-Your whole tool set is `AskUserQuestion`, `Agent` and the two map lines of step 3. You open no file and you write none: every byte of the layer is written by `viber:rules-writer`, nothing here is staged and nothing is committed.
+Your whole tool set is `AskUserQuestion`, `Agent` and the map script calls of steps 3, 5 and 6. You open no file and you write none: every byte of the layer is written by `viber:rules-writer`, nothing here is staged and nothing is committed.
+
+Every map script call is one literal line, `"${CLAUDE_SKILL_DIR}/scripts/rules-map.sh"` first, every argument double-quoted, no interpreter word in front and nothing chained after. A call exiting 2 -> report its `error:` line and end the run. A call that prints `NEXT:` lines is answered by acting on its blocks: a block is its `NEXT:` line and the lines after it, up to the next `NEXT:` or `ASK:` line.
 
 ## 1. Report the layer
 
@@ -26,11 +28,10 @@ Before any question, one line per fact worth deciding on:
 - each `rule:` line with its size, its globs and its match count. `OVER-FILE` on a rule and `OVER-DIR` on `total:` are the map's budget flags. A rule already over a budget is reported here and compacted or split by the writer, never by you.
 - each `frozen:` line, named as a file this command reports and never scores, audits, resets or rewrites.
 - each `dead:` line, named as a rule whose declared scope matches no tracked file.
+- each `misplaced:` line, named as a rule the writer moves into the area it names.
 - each `dirty:` line with its `modified` or `untracked` word.
 - the `waiting:` line, the number of waiting trail entries per cause.
 - each `trail:` line, one archived `failures.md` with its `convention` and `other` counts. The `convention` entries are the only ones the auditor reads; the writer removes every other entry.
-
-The root of the directory holds the shared rules, each subdirectory one area's. Name each root `rule:` line whose globs all stay inside one area, or whose basename carries an area as a prefix: the writer moves it into that area's directory.
 
 A `rule:` line whose `paths` field reads `none` declares no scope: it binds the whole repository, is loaded on every task and is never dead.
 
@@ -57,7 +58,7 @@ The list is every `rule:` line, or the ones the user named. A `frozen:` line nev
 
 A path in the list that also carries a `dirty:` line refuses the whole call. Name each offending path with its own word, say the user commits or discards that work and runs the command again, and stop there. A refusal is never narrowed into a smaller reset that goes ahead, and uncommitted work is never corrected into something deletable.
 
-Otherwise one `AskUserQuestion` over that exact list. On anything but approval, stop. On approval, one literal line, every path double-quoted, no interpreter word in front of it and nothing chained after it:
+Otherwise one `AskUserQuestion` over that exact list. On anything but approval, stop. On approval:
 
 ```
 "${CLAUDE_SKILL_DIR}/scripts/rules-map.sh" --reset "<path>" "<path>"
@@ -73,23 +74,13 @@ Nothing is dispatched before the user has seen the target list and kept what bel
 
 Then one `AskUserQuestion` over that list: all of them, or the ones the user picks. Offer the targets themselves as options while the list is short enough to show; past that, offer all of them, none of them, and take the paths a free answer names verbatim. A target the user dropped reaches no auditor and no writer. Nothing kept -> stop, having dispatched nothing and written nothing.
 
-A dead rule is offered like any other: the auditor decides whether its scope really went, and the writer is what removes the file.
+A dead rule is offered like any other: the script writes its `GONE` finding, and the writer is what removes the file.
 
 ## 5. Audit
 
-One `Agent` call per approved target, `subagent_type: viber:rules-auditor`, no `model:` line - the agent's own frontmatter is its strength. The calls go out in batches: at most 16 in one message, run in parallel, the next message only after every call of the previous one returned. A call the harness refuses with `Concurrent subagent limit reached` never ran: it goes into the next message, no later message carries more calls than the previous one had accepted, and it is neither a missing output line nor a `VERDICT: DENIED`. Five labelled lines each and nothing else:
+Run `"${CLAUDE_SKILL_DIR}/scripts/rules-map.sh" --brief "<the id: value of the map above>" "<target>" "<target>"`, one target per approved target: a rule's own path, a directory to propose for (`.` for the root), or `trail`.
 
-```
-target: <the rule's own path, or the literal none for a scope with no rule>
-scope: <the globs the map printed for that rule, or the directory to propose for>
-matches: <the n of that rule's `matches <n>` field, or the literal none for a scope with no rule>
-out: .temp/viber/<id>/
-refs: ${CLAUDE_PLUGIN_ROOT}/references
-```
-
-`<id>` is the `id:` value of the map above. A rule whose `paths` field reads `none` gates the whole repository: pass `**` as its scope and `none` as its matches. A scope with no rule is the proposing direction: `target: none`, `scope` that directory, `matches: none`, and only missing conventions can come back.
-
-A kept trail target gets one `viber:rules-auditor` call only when a kept `trail:` line has a `convention` count above 0, the same five lines with `target: trail`, `scope` being those `trail:` paths, comma-separated, and `matches: none`.
+It prints the `AUDIT:` lines of the dead rules, already audited, then one `NEXT: rules-auditor` block per target left, or `NEXT: none` alone. One `Agent` call per block, `subagent_type: viber:rules-auditor`, no `model:` line - the agent's own frontmatter is its strength - and the block's body lines verbatim as its prompt, nothing added. The calls go out in batches: at most 16 in one message, run in parallel, the next message only after every call of the previous one returned. A call the harness refuses with `Concurrent subagent limit reached` never ran: it goes into the next message, no later message carries more calls than the previous one had accepted, and it is neither a missing output line nor a `VERDICT: DENIED`.
 
 Each call returns one `AUDIT:` line, then its `ENFORCE:` lines, if any:
 
@@ -100,7 +91,7 @@ AUDIT: trail miss <n> ignored <n> rejected <n> -> <findings file> | none
 
 The second form answers the trail target alone.
 
-Report the `AUDIT:` line for each target verbatim, and every `ENFORCE:` line after it verbatim, saying no rule and no code is written for it. Read none of those files - the writer does.
+Report the `AUDIT:` line for each target verbatim, the printed ones included, and every `ENFORCE:` line after it verbatim, saying no rule and no code is written for it. Read none of those files - the writer does.
 
 An `Agent` call here or in step 6 that returns none of its output lines (no `AUDIT:` line from an auditor, no `VERDICT:` line from the writer) is that step's `VERDICT: DENIED` with `REASON: no verdict returned`.
 
@@ -108,25 +99,12 @@ A call returning `VERDICT: DENIED` instead -> one `AskUserQuestion` naming the t
 
 ## 6. Confirm, then the writer
 
-The layer is already true when every condition holds:
+Run `"${CLAUDE_SKILL_DIR}/scripts/rules-map.sh" --confirm "<the id: value of the map above>"` with the targets of step 5 minus every one dropped on `VERDICT: DENIED`; none left -> stop.
 
-- Every returned `AUDIT:` line has its `stale`, `gone`, `drop` and `miss` counters at 0, or reads `-> none`; the writer keeps an `UNVERIFIABLE` line as it stands.
-- Every trail line has its three counters (`miss`, `ignored`, `rejected`) at 0.
-- No kept rule is named in step 1 as misplaced.
-- No kept rule is flagged `OVER-FILE`, and `total:` carries no `OVER-DIR`.
-- No kept `trail:` line carries an `other` count above 0.
+An `ENFORCE:` line is no counter: it never dispatches the writer alone.
 
-All hold -> say so in one line, dispatch no writer, and stop.
-
-An `ENFORCE:` line is no counter: it never dispatches the writer alone, and the writer's `map:` carries none.
-
-Otherwise one `AskUserQuestion` over the counters just reported, the over-budget flags, the moves named in step 1 and the `other` entries of each kept trail: fold them in, or stop. A kept `trail:` line with an `other` count above 0 reaches the writer even with every audit counter at 0. Only on approval, one `Agent` call, `subagent_type: viber:rules-writer`, no `model:` line, three labelled lines and nothing else:
-
-```
-map: <the map's id:, state: and total: lines plus every rule: and dead: line of a kept target and every trail: line of a kept trail target, verbatim>
-notes: .temp/viber/<id>/
-refs: ${CLAUDE_PLUGIN_ROOT}/references
-```
+- A `STOP:` line -> report it and stop, dispatching no writer.
+- Otherwise report each `confirm:` line, then one `AskUserQuestion` for the `ASK:` line, fold them in or stop. Only on `fold in`, one `Agent` call, `subagent_type: viber:rules-writer`, no `model:` line, the `NEXT: rules-writer` body lines verbatim as its prompt, nothing added. On `stop`, stop.
 
 `VERDICT: DENIED` -> one `AskUserQuestion` naming the refused call from its `REASON:` line: permission added and retry, or stop.
 
