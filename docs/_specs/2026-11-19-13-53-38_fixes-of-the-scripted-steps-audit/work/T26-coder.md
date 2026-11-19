@@ -1,0 +1,5 @@
+- Premise of the failed attempt: red-check can see the red. Checked directly: HEAD (T10, 8a379042) already holds `${BASH_SOURCE[0]//\\//}` in verdict-nudge.sh, so red-check runs the new tests on fixed code and always reports PASSED-WITHOUT-CHANGE; no edit of T26 can change that.
+- Red comes from the revert route only: that line reverted for one run, `.temp/viber/T26/red-2.log` (1 failing: the C:\ case), line restored, verdict-nudge.sh has no diff.
+- `runInRoot` now invokes by the `/` path by default (`invokedAs: "slashed"`), so the C:\ case is the only one a lost `\` separator fails (Single); before, on Windows every runInRoot case failed with it.
+- Repair pass: tests kept as they are; verdict-nudge.test.ts is integration tier, so under the dispatch's user-rule it was not re-run here: `.temp/viber/T26/green-5.log` (52 pass) postdates the last edit of both the test and the script.
+- DoD.2 is the first `unlistedEndings` row, renamed "an unlisted value, invoked by a / path,": a separate `/` case would duplicate it on every OS.

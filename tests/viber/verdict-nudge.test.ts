@@ -56,7 +56,14 @@ async function runMessage(message: string, agentType = NO_FILE): Promise<string>
 
 // Runs a copy of the script placed at <root>/hooks/scripts/, with <root>/agents/<name>.md written
 // from `agents`, so the script reads the fixture agent files the way it reads the plugin's own.
-async function runInRoot(agents: Record<string, string>, payload: Record<string, unknown>): Promise<string> {
+// `invokedAs` spells the path the copy is invoked by: the native one (`C:\` separators on Windows)
+// or the same path with every `\` turned into `/`. Every case but the one `C:\` case runs by the
+// `/` path, so only that case fails when the hook stops reading `\` as a separator.
+async function runInRoot(
+  agents: Record<string, string>,
+  payload: Record<string, unknown>,
+  invokedAs: "native" | "slashed" = "slashed",
+): Promise<string> {
   return await withTempDir("verdict-nudge-", async (root) => {
     const scripts = path.join(root, "hooks", "scripts");
     const agentsDir = path.join(root, "agents");
@@ -66,7 +73,8 @@ async function runInRoot(agents: Record<string, string>, payload: Record<string,
     fs.copyFileSync(SUT, copy);
     for (const [name, text] of Object.entries(agents)) fs.writeFileSync(path.join(agentsDir, `${name}.md`), text);
     const input = JSON.stringify({ hook_event_name: "SubagentStop", ...payload });
-    const result = await runScript(copy, [], { shell: "bash", input });
+    const invoked = invokedAs === "slashed" ? copy.replace(/\\/g, "/") : copy;
+    const result = await runScript(invoked, [], { shell: "bash", input });
     assert.equal(result.status, 0, `expected exit 0, got ${result.status}; stderr: ${result.stderr}`);
     return result.stdout;
   });
@@ -185,8 +193,9 @@ function listedPayload(message: string, extra: Record<string, unknown> = {}): Re
   return { agent_type: "viber:fixture-agent", stop_hook_active: false, last_assistant_message: message, ...extra };
 }
 
+// The first row is the `/` twin of the `C:\` case below, on every OS.
 const unlistedEndings: Array<[string, string]> = [
-  ["an unlisted value", "work done\nVERDICT: MAYBE"],
+  ["an unlisted value, invoked by a / path,", "work done\nVERDICT: MAYBE"],
   ["no verdict line", "work done and nothing else"],
   ["a listed value only before the last verdict line", "VERDICT: PASS\nthen I changed my mind\nVERDICT: MAYBE"],
   ["a lowercase value", "VERDICT: pass"],
@@ -198,6 +207,14 @@ for (const [label, message] of unlistedEndings) {
     assert.equal(await runInRoot({ "fixture-agent": AGENT_FILE }, listedPayload(message)), LISTED);
   });
 }
+
+test(
+  "DoD.1: invoked by a C:\\ path, an agent ending on an unlisted value is blocked with the reason listing its agent file's values (the hook reads a backslash as a separator when it finds the agent file)",
+  { skip: process.platform === "win32" ? false : "a C:\\ invoked path exists on Windows only" },
+  async () => {
+    assert.equal(await runInRoot({ "fixture-agent": AGENT_FILE }, listedPayload("work done\nVERDICT: MAYBE"), "native"), LISTED);
+  },
+);
 
 const listedEndings: Array<[string, string]> = [
   ["VERDICT: FAIL", "work done\nVERDICT: FAIL\nREASON: x"],
