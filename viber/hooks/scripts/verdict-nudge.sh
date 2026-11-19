@@ -7,14 +7,22 @@
 # without one leaves the dispatching skill to compose a second reply by hand. This
 # hook blocks the stop once with a short nudge, so the agent itself returns the
 # line; stop_hook_active (set by the harness on the second stop) ends the loop.
+# The agent's own file names the VERDICT: values it may end on, so a last VERDICT:
+# line whose value is none of them is sent back too, with the values listed.
 #
 # Contract:
 #   argv   : none - every input arrives on stdin.
 #   cwd    : irrelevant; no path is read or written.
 #   env    : none read; LC_ALL=C is set so the message is scanned by byte, in linear
 #            time (a UTF-8 locale makes each character lookup scan from the start).
-#   reads  : nothing but stdin. A call whose agent_type is not a nudged viber:
-#            agent returns before any external command runs (bash builtins only).
+#   reads  : stdin, and the agent file <plugin root>/agents/<name>.md (<name> the
+#            agent_type after "viber:", <plugin root> two directories above this
+#            script's directory) once a nudged agent's message is read. A call whose
+#            agent_type is not a nudged viber: agent returns before any external
+#            command runs (bash builtins only).
+#            Values of the agent file: every "VERDICT: " followed by V( | V)*, V being
+#            capitals and hyphens in words split by single spaces; each V is one value,
+#            deduplicated in file order.
 #   stdin  : SubagentStop JSON. Read: the top-level "agent_type", "stop_hook_active"
 #            and "last_assistant_message" (JSON-unescaped: \n, \r, \t, \", \\).
 #            Empty, malformed or truncated input, no agent_type, no message -> nothing printed.
@@ -24,6 +32,12 @@
 #            after optional leading whitespace and any leading "`", "*" or "-"
 #            characters, starts "VERDICT:" or "AUDIT:":
 #            {"decision":"block","reason":"Finish your task, then return your output lines."}
+#            When the agent file names values, the block holds instead when the message
+#            has no VERDICT: or AUDIT: line, or its last such line opens VERDICT: with a
+#            value (the V after "VERDICT: ") that is none of them; the reason is
+#            "Finish your task, then end on one of these lines: VERDICT: <v1>, VERDICT: <v2>, ...".
+#            A last such line opening AUDIT: passes. No agent file, or none naming a
+#            value: the test and reason above.
 #   exit 0 : always (fail-open: a broken hook must never hold an agent).
 #            JSON is read with bash regexes; jq is not assumed.
 set -u
@@ -33,7 +47,8 @@ IFS= read -r -d '' input || true
 
 type_re='"agent_type"[[:space:]]*:[[:space:]]*"(viber:[^"\\]*)"'
 [[ "$input" =~ $type_re ]] || exit 0
-case "${BASH_REMATCH[1]}" in
+agent="${BASH_REMATCH[1]}"
+case "$agent" in
   viber:scout | viber:mapper | viber:hunter) exit 0 ;;
 esac
 
@@ -69,7 +84,52 @@ BEGIN {
 nl=$'\n'
 
 line_re='(^|'"$nl"')[[:blank:]`*-]*(VERDICT|AUDIT):'
-[[ "$msg" =~ $line_re ]] && exit 0
+has_line=0
+[[ "$msg" =~ $line_re ]] && has_line=1
 
-printf '%s\n' '{"decision":"block","reason":"Finish your task, then return your output lines."}'
+# The VERDICT: values the agent's own file names, one per line in file order.
+values=""
+name="${agent#viber:}"
+if [[ "$name" =~ ^[A-Za-z0-9_-]+$ ]]; then
+  src="${BASH_SOURCE[0]}"
+  dir="."
+  [[ "$src" == */* ]] && dir="${src%/*}"
+  file="$dir/../../agents/$name.md"
+  if [[ -r "$file" ]]; then
+    values="$(awk '
+    {
+      s = $0
+      while (match(s, /VERDICT: [A-Z][A-Z-]*( [A-Z][A-Z-]*)*( [|] [A-Z][A-Z-]*( [A-Z][A-Z-]*)*)*/)) {
+        t = substr(s, RSTART + 9, RLENGTH - 9)
+        s = substr(s, RSTART + RLENGTH)
+        n = split(t, p, " [|] ")
+        for (i = 1; i <= n; i++) if (!(p[i] in seen)) { seen[p[i]] = 1; print p[i] }
+      }
+    }' "$file" 2>/dev/null)" || values=""
+  fi
+fi
+
+if [[ -z "$values" ]]; then
+  [[ "$has_line" == 1 ]] && exit 0
+  printf '%s\n' '{"decision":"block","reason":"Finish your task, then return your output lines."}'
+  exit 0
+fi
+
+if [[ "$has_line" == 1 ]]; then
+  last="$(printf '%s' "$msg" | awk '
+  { if ($0 ~ /^[[:blank:]`*-]*(VERDICT|AUDIT):/) last = $0 }
+  END {
+    if (last == "") { print "N"; exit }
+    match(last, /(VERDICT|AUDIT):/)
+    if (substr(last, RSTART, 1) == "A") { print "A"; exit }
+    rest = substr(last, RSTART + RLENGTH)
+    if (match(rest, /^ [A-Z][A-Z-]*( [A-Z][A-Z-]*)*/)) print "V" substr(rest, 2, RLENGTH - 1)
+    else print "V"
+  }' 2>/dev/null)" || exit 0
+  [[ "$last" == A ]] && exit 0
+  value="${last#V}"
+  [[ "$last" == V* && -n "$value" && "$nl$values$nl" == *"$nl$value$nl"* ]] && exit 0
+fi
+
+printf '%s\n' '{"decision":"block","reason":"Finish your task, then end on one of these lines: VERDICT: '"${values//$nl/, VERDICT: }"'"}'
 exit 0

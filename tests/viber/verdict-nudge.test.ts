@@ -8,7 +8,11 @@
  * true and `last_assistant_message` holds no line starting (after whitespace and
  * leading backtick, asterisk or hyphen characters) with `VERDICT:` or `AUDIT:`,
  * print the one-line block object. Every other case prints nothing, and every case
- * exits 0. The last case pins its registration in hooks/hooks.json.
+ * exits 0. When the agent's file (<plugin root>/agents/<name>.md, the plugin root
+ * two directories above the script) names VERDICT: values, the last output line must
+ * carry one of them, else the reason lists them in file order; a throwaway plugin
+ * root holding fixture agent files proves it. The last cases pin the registration
+ * and description in hooks/hooks.json.
  *
  * Payloads are built as JS objects through JSON.stringify, never hand-escaped:
  * the script reads raw text and has to unescape the message itself.
@@ -24,6 +28,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
+import { withTempDir } from "../harness/tmp.ts";
 
 const SUT = path.resolve(import.meta.dirname, "../../viber/hooks/scripts/verdict-nudge.sh");
 const HOOKS_JSON = path.resolve(import.meta.dirname, "../../viber/hooks/hooks.json");
@@ -42,15 +47,36 @@ async function runPayload(payload: Record<string, unknown>): Promise<string> {
   return await run(JSON.stringify({ hook_event_name: "SubagentStop", ...payload }));
 }
 
-async function runMessage(message: string, agentType = "viber:task-coder"): Promise<string> {
+// An agent type with no file under the plugin root's agents/ directory: the legacy test and reason apply.
+const NO_FILE = "viber:no-agent-file";
+
+async function runMessage(message: string, agentType = NO_FILE): Promise<string> {
   return await runPayload({ agent_type: agentType, stop_hook_active: false, last_assistant_message: message });
 }
 
-test("DoD.1: a viber:task-coder message with no VERDICT or AUDIT line prints the block object", async () => {
+// Runs a copy of the script placed at <root>/hooks/scripts/, with <root>/agents/<name>.md written
+// from `agents`, so the script reads the fixture agent files the way it reads the plugin's own.
+async function runInRoot(agents: Record<string, string>, payload: Record<string, unknown>): Promise<string> {
+  return await withTempDir("verdict-nudge-", async (root) => {
+    const scripts = path.join(root, "hooks", "scripts");
+    const agentsDir = path.join(root, "agents");
+    fs.mkdirSync(scripts, { recursive: true });
+    fs.mkdirSync(agentsDir, { recursive: true });
+    const copy = path.join(scripts, "verdict-nudge.sh");
+    fs.copyFileSync(SUT, copy);
+    for (const [name, text] of Object.entries(agents)) fs.writeFileSync(path.join(agentsDir, `${name}.md`), text);
+    const input = JSON.stringify({ hook_event_name: "SubagentStop", ...payload });
+    const result = await runScript(copy, [], { shell: "bash", input });
+    assert.equal(result.status, 0, `expected exit 0, got ${result.status}; stderr: ${result.stderr}`);
+    return result.stdout;
+  });
+}
+
+test("DoD.1: a viber agent message with no VERDICT or AUDIT line prints the block object", async () => {
   assert.equal(await runMessage("I changed three files and the tests pass."), BLOCK);
 });
 
-test("DoD.1: an empty last_assistant_message from a viber:task-coder prints the block object", async () => {
+test("DoD.1: an empty last_assistant_message from a viber agent prints the block object", async () => {
   assert.equal(await runMessage(""), BLOCK);
 });
 
@@ -65,7 +91,7 @@ test("DoD.1: a very long message with no output line still prints the block obje
 test("DoD.2: a 17.8 KB message of quoted lines with no output line prints the block object inside the 10 s hook timeout under a UTF-8 locale (the unescape must not scan by character)", async () => {
   const message = Array.from({ length: 240 }, (_, i) => `Step ${i}: the "build" step said "ok" and the run went on to the next task.`).join("\n");
   assert.ok(message.length > 17000 && message.length < 18500, `message size ${message.length}`);
-  const input = JSON.stringify({ hook_event_name: "SubagentStop", agent_type: "viber:task-coder", stop_hook_active: false, last_assistant_message: message });
+  const input = JSON.stringify({ hook_event_name: "SubagentStop", agent_type: NO_FILE, stop_hook_active: false, last_assistant_message: message });
   const result = await runScript(SUT, [], {
     shell: "bash",
     input,
@@ -142,6 +168,85 @@ test("DoD.8: the block case exits 0", async () => {
     input: JSON.stringify({ agent_type: "viber:task-coder", last_assistant_message: "no line" }),
   });
   assert.equal(result.status, 0);
+});
+
+const AGENT_FILE = [
+  "Return one of these lines:",
+  "- `VERDICT: PASS`",
+  "- `VERDICT: FAIL`",
+  "- `VERDICT: DENIED` then `REASON: <tool>`",
+  "A second `VERDICT: PASS` mention changes nothing.",
+].join("\n");
+
+const LISTED =
+  '{"decision":"block","reason":"Finish your task, then end on one of these lines: VERDICT: PASS, VERDICT: FAIL, VERDICT: DENIED"}\n';
+
+function listedPayload(message: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return { agent_type: "viber:fixture-agent", stop_hook_active: false, last_assistant_message: message, ...extra };
+}
+
+const unlistedEndings: Array<[string, string]> = [
+  ["an unlisted value", "work done\nVERDICT: MAYBE"],
+  ["no verdict line", "work done and nothing else"],
+  ["a listed value only before the last verdict line", "VERDICT: PASS\nthen I changed my mind\nVERDICT: MAYBE"],
+  ["a lowercase value", "VERDICT: pass"],
+  ["a prefix of a listed value", "VERDICT: PAS"],
+];
+
+for (const [label, message] of unlistedEndings) {
+  test(`DoD.1: an agent ending on ${label} is blocked with the reason listing its file's values in file order`, async () => {
+    assert.equal(await runInRoot({ "fixture-agent": AGENT_FILE }, listedPayload(message)), LISTED);
+  });
+}
+
+const listedEndings: Array<[string, string]> = [
+  ["VERDICT: FAIL", "work done\nVERDICT: FAIL\nREASON: x"],
+  ["an AUDIT: line", "review done\nAUDIT: 3 findings"],
+  ["a listed value after an unlisted one", "VERDICT: MAYBE\nno wait\n**VERDICT: DENIED**"],
+];
+
+for (const [label, message] of listedEndings) {
+  test(`DoD.2: an agent whose file names values passes when it ends on ${label}`, async () => {
+    assert.equal(await runInRoot({ "fixture-agent": AGENT_FILE }, listedPayload(message)), "");
+  });
+}
+
+const ALTERNATIVES_FILE = "End on `VERDICT: VERIFIED | PARTIALLY VERIFIED` or `VERDICT: REFUTED`.";
+
+test("DoD.3: a fixture naming VERDICT: VERIFIED | PARTIALLY VERIFIED passes an agent ending on VERDICT: PARTIALLY VERIFIED", async () => {
+  assert.equal(await runInRoot({ "fixture-agent": ALTERNATIVES_FILE }, listedPayload("done\nVERDICT: PARTIALLY VERIFIED")), "");
+});
+
+test("DoD.3: a multi-word value is matched whole, so its first word alone is blocked with the alternatives listed one by one", async () => {
+  assert.equal(
+    await runInRoot({ "fixture-agent": ALTERNATIVES_FILE }, listedPayload("done\nVERDICT: PARTIALLY")),
+    '{"decision":"block","reason":"Finish your task, then end on one of these lines: VERDICT: VERIFIED, VERDICT: PARTIALLY VERIFIED, VERDICT: REFUTED"}\n',
+  );
+});
+
+test("DoD.4: an agent type with no agent file passes any VERDICT: line", async () => {
+  assert.equal(await runInRoot({}, listedPayload("VERDICT: MAYBE")), "");
+});
+
+test("DoD.4: an agent type with no agent file and no verdict line gets today's reason", async () => {
+  assert.equal(await runInRoot({}, listedPayload("no line")), BLOCK);
+});
+
+test("DoD.4: an agent file naming no value passes any VERDICT: line", async () => {
+  assert.equal(await runInRoot({ "fixture-agent": "Ends on a free-form line.\nVERDICT: is mentioned in prose only." }, listedPayload("VERDICT: MAYBE")), "");
+});
+
+test("DoD.4: an agent file naming no value and a message with no verdict line gets today's reason", async () => {
+  assert.equal(await runInRoot({ "fixture-agent": "Ends on a free-form line." }, listedPayload("no line")), BLOCK);
+});
+
+test("DoD.5: stop_hook_active true passes an unlisted value and a missing line alike", async () => {
+  assert.equal(await runInRoot({ "fixture-agent": AGENT_FILE }, listedPayload("VERDICT: MAYBE", { stop_hook_active: true })), "");
+});
+
+test("DoD.6: the hooks.json description names the unknown-value nudge", () => {
+  const description = JSON.parse(fs.readFileSync(HOOKS_JSON, "utf8")).description as string;
+  assert.match(description, /VERDICT: value its agent file does not name/);
 });
 
 test("DoD.9: hooks.json holds a SubagentStop entry running verdict-nudge.sh through bash with timeout 10", () => {
