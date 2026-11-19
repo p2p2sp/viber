@@ -87,6 +87,17 @@
 #            "CLAUDE.md: present - <root>/CLAUDE.md" (<root> as
 #            `git rev-parse --show-toplevel` prints it, or the cwd base outside a
 #            repository) or "CLAUDE.md: missing".
+#            After the gh line, the directive lines, <plugin root> being the
+#            directory three levels above this script's own (`pwd -W` form in
+#            Git Bash): for "settings.json: present", `ASK: merge -> "<plugin
+#            root>/skills/setup/scripts/merge-settings.sh" "<plugin
+#            root>/skills/setup/templates/settings.json" | reset -> "<plugin
+#            root>/skills/setup/scripts/merge-settings.sh" --reset "<plugin
+#            root>/skills/setup/templates/settings.json"`; for "settings.json:
+#            absent", the merge command alone as `RUN: ...`; none for a settings
+#            file matching the template; always last, `RUN: "<plugin
+#            root>/scripts/open-page.sh" "<plugin
+#            root>/skills/setup/assets/help.html"`.
 #   exit   : ALWAYS 0. A preload that exits non-zero aborts the whole skill load,
 #            and a project that refuses one of these files is not a broken setup.
 #
@@ -402,5 +413,20 @@ if command -v gh >/dev/null 2>&1; then
 else
   echo "gh: missing - install the GitHub CLI (https://cli.github.com), then run gh auth login"
 fi
+
+# The directive lines the skill acts on as printed. Every command path is the
+# plugin root, three directories above this script's own (`pwd -W` in Git Bash,
+# so the path is the C:/ form a Windows reader opens as written).
+plugin_root="$(cd "$here/../../.." 2>/dev/null && { pwd -W 2>/dev/null || pwd; })" || plugin_root="$here/../../.."
+merge_cmd="\"$plugin_root/skills/setup/scripts/merge-settings.sh\""
+settings_tpl="\"$plugin_root/skills/setup/templates/settings.json\""
+if [ -f "$root/.claude/settings.json" ]; then
+  if ! { [ -f "$template_settings" ] && cmp -s "$template_settings" "$root/.claude/settings.json"; }; then
+    echo "ASK: merge -> $merge_cmd $settings_tpl | reset -> $merge_cmd --reset $settings_tpl"
+  fi
+else
+  echo "RUN: $merge_cmd $settings_tpl"
+fi
+echo "RUN: \"$plugin_root/scripts/open-page.sh\" \"$plugin_root/skills/setup/assets/help.html\""
 
 exit 0

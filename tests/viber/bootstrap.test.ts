@@ -146,6 +146,14 @@ const MAP = "    help-writer:\n      parallel: true\n    notes-writer:\n";
 
 const LOCAL = ".claude/viber.local.yml";
 
+/** The plugin root as the script prints it: three directories above its own, slash-normalised. */
+const PLUGIN_ROOT = slash(path.resolve(import.meta.dirname, "../../viber"));
+const MERGE_SETTINGS = `"${PLUGIN_ROOT}/skills/setup/scripts/merge-settings.sh"`;
+const SETTINGS_TEMPLATE = `"${PLUGIN_ROOT}/skills/setup/templates/settings.json"`;
+const MERGE_RUN = `RUN: ${MERGE_SETTINGS} ${SETTINGS_TEMPLATE}`;
+const SETTINGS_ASK = `ASK: merge -> ${MERGE_SETTINGS} ${SETTINGS_TEMPLATE} | reset -> ${MERGE_SETTINGS} --reset ${SETTINGS_TEMPLATE}`;
+const HELP_RUN = `RUN: "${PLUGIN_ROOT}/scripts/open-page.sh" "${PLUGIN_ROOT}/skills/setup/assets/help.html"`;
+
 const FLAT_SWITCH =/^(adr|memory|rules|qa|cleanup|red-check|final-review|issues|baseline-tests)[ \t]*:/m;
 
 // A stub gh is always first on PATH, so the gh line never depends on whether
@@ -226,6 +234,8 @@ test("a fresh repository seeds both files from the bundled ones and prints one l
         "settings.json: absent",
         "CLAUDE.md: missing",
         "gh: present",
+        MERGE_RUN,
+        HELP_RUN,
         "",
       ].join("\n"),
     );
@@ -268,6 +278,8 @@ test("running twice leaves both files byte-identical and reports them as already
         "settings.json: absent",
         "CLAUDE.md: missing",
         "gh: present",
+        MERGE_RUN,
+        HELP_RUN,
         "",
       ].join("\n"),
     );
@@ -1220,6 +1232,35 @@ test("an existing .claude/settings.json differing from the template only in form
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.match(result.stdout, /^settings\.json: present$/m);
     assert.equal(read(settings), before);
+  });
+});
+
+test("an existing settings.json that differs from the template ends the output on the merge-or-reset ASK and the help page RUN, in that order after the gh line", async () => {
+  await withGitRepo(async ({ dir, env }) => {
+    const settings = path.join(dir, ".claude", "settings.json");
+    fs.mkdirSync(path.dirname(settings), { recursive: true });
+    fs.writeFileSync(settings, '{ "permissions": {} }\n');
+
+    const result = await run(dir, env);
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(result.stdout.split("\n").slice(-4), ["gh: present", SETTINGS_ASK, HELP_RUN, ""]);
+    assert.doesNotMatch(result.stdout, /^RUN: .*merge-settings\.sh/m);
+  });
+});
+
+test("a settings.json byte-identical to the template prints neither the ASK nor the merge RUN and still ends on the help page RUN", async () => {
+  await withGitRepo(async ({ dir, env }) => {
+    const settings = path.join(dir, ".claude", "settings.json");
+    fs.mkdirSync(path.dirname(settings), { recursive: true });
+    fs.writeFileSync(settings, read(TEMPLATE_SETTINGS));
+
+    const result = await run(dir, env);
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /^ASK:/m);
+    assert.doesNotMatch(result.stdout, /merge-settings\.sh/);
+    assert.deepEqual(result.stdout.split("\n").slice(-3), ["gh: present", HELP_RUN, ""]);
   });
 });
 
