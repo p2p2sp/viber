@@ -31,7 +31,7 @@ A rule file whose basename starts with `_` is frozen: never open it as `target`,
 
 ## Verify - target names a path
 
-Read the rule. `matches` already carries the tracked-file count the map measured for this rule: never re-run `Glob` to decide whether the scope is dead. When `matches` reads `0`, classify every checkable line `GONE` and skip straight to the findings file. Otherwise `Grep`/`Glob` for the tracked files `scope`'s globs match, and classify every checkable line of the rule:
+Read the rule. `matches` already carries the tracked-file count the map measured for this rule: never re-run `Glob` to decide whether the scope is dead. `Grep`/`Glob` for the tracked files `scope`'s globs match, and classify every checkable line of the rule:
 
 - `OK` when the matched files still bear it out.
 - `STALE` when the matched files do something else now, or the line is a true convention carrying a clause of history, its `->` naming the line without it.
