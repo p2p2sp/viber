@@ -1,0 +1,4 @@
+- plan-index.sh: the awk `fail()` now prints `FIX:`; a new `oversize()` prints `SPLIT:` for the two cap checks. The exit-3 and "no ## Tasks heading" lines were printed outside `fail()` and changed by hand.
+- Left as `error:` on purpose (exit 2): usage, option combinations, plan file not found, `--split` not on plan.md, and "no such task" of `--extra`, `--dispatch`, `--slice`.
+- commit-task.sh `--leftovers` greps `^(FIX|SPLIT|error):` first match; the fallback `error: plan-index.sh exited <rc>` stays.
+- Not done (out of scope per task): `viber/scripts/CLAUDE.close-scripts.md` and `tests/viber/CLAUDE.md` still describe the old `error:` line; the memory step owns them.

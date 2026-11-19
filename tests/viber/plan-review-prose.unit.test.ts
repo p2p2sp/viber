@@ -122,12 +122,16 @@ for (const [heading, names] of SCRIPT_SECTIONS) {
 }
 
 const ERROR_MESSAGES: [string, string][] = [
-  ["Attachments", "with `error: attachments: name \"<name>\" is not one path component of letters, digits, _, . and - opening on a letter or digit - rename it (Attachments)`, `error: attachments: name \"<name>\" repeats an earlier one - rename one of them (Attachments)` or `error: task <id>: DoD names attachments/<name>, absent from the attachments map - add a <name> entry or drop the reference (Attachments)`. (script)"],
-  ["Filled", "with `error: line <n>: template slot <slot> left unfilled - replace it (Filled)`. (script)"],
-  ["Uses", "with `error: task <id>: <DoD|Delivers> names <block id>, missing from its Uses - add it to Uses`. (script)"],
-  ["Provable", "with `error: task <id>: Verification runs git grep without --untracked over <path>, which this task creates and git grep never reads - add --untracked or use grep (Provable)`. (script)"],
-  ["Layered", "with `error: task <id>: Files writes <path> under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`. (script)"],
+  ["Attachments", "with `FIX: attachments: name \"<name>\" is not one path component of letters, digits, _, . and - opening on a letter or digit - rename it (Attachments)`, `FIX: attachments: name \"<name>\" repeats an earlier one - rename one of them (Attachments)` or `FIX: task <id>: DoD names attachments/<name>, absent from the attachments map - add a <name> entry or drop the reference (Attachments)`. (script)"],
+  ["Filled", "with `FIX: line <n>: template slot <slot> left unfilled - replace it (Filled)`. (script)"],
+  ["Uses", "with `FIX: task <id>: <DoD|Delivers> names <block id>, missing from its Uses - add it to Uses`. (script)"],
+  ["Provable", "with `FIX: task <id>: Verification runs git grep without --untracked over <path>, which this task creates and git grep never reads - add --untracked or use grep (Provable)`. (script)"],
+  ["Layered", "with `FIX: task <id>: Files writes <path> under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`. (script)"],
 ];
+
+test("plan-rules-script.md quotes no message with the error: prefix (every defect line opens on FIX:)", () => {
+  assert.ok(!SCRIPT_RULES.includes("`error:"));
+});
 
 for (const [rule, text] of ERROR_MESSAGES) {
   test(`the ${rule} rule keeps its error message word for word in plan-rules-script.md`, () => {
@@ -144,8 +148,8 @@ test("the Read after rule of plan-rules-script.md names Delivers, the forward ca
   assert.ok(rule.includes("`Verification`, `Delivers` or `DoD`"));
   assert.ok(rule.includes("the tree does not hold that only a higher-numbered task lists"));
   assert.ok(rule.includes("every `Files` path under `docs/adr/`"));
-  assert.ok(rule.includes("`error: task <id> reads <path>, listed by <other>, but has no dependency path to <other> - add <other> to its Depends-on`"));
-  assert.ok(rule.includes("`error: task <id> reads <path>, which only the later task <other> creates - move the reading after <other> (Read after)`"));
+  assert.ok(rule.includes("`FIX: task <id> reads <path>, listed by <other>, but has no dependency path to <other> - add <other> to its Depends-on`"));
+  assert.ok(rule.includes("`FIX: task <id> reads <path>, which only the later task <other> creates - move the reading after <other> (Read after)`"));
 });
 
 test("the Ordered rule of plan-rules.md asks a Depends-on for each route, symbol or file another task creates or changes, leaving a file named by its whole path to Read after and any other file naming to the reviewer", () => {

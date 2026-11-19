@@ -3988,7 +3988,7 @@ test("--leftovers with a plan plan-index.sh refuses writes the one 'leftover che
     assert.deepEqual(await subjects(repo), ["seed"]);
     assert.match(
       readOutcome(repo),
-      /^Build summary\.\n\n## Leftovers\nleftover check not performed: error: [^\n]+\n\nDrift: none\n$/,
+      /^Build summary\.\n\n## Leftovers\nleftover check not performed: FIX: no <!-- TASK --> blocks in [^\n]+\n\nDrift: none\n$/,
     );
   });
 });

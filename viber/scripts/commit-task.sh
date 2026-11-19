@@ -152,7 +152,7 @@
 # "Leftover:" lines, read from the --outside-subject commits since the commit that
 # added the plan) is listed again first as "<path>: <reason> - committed <sha>",
 # once, a path that is a leftover again by its new line only. plan-index.sh
-# failing writes the one line "leftover check not performed: <its error: line>"
+# failing writes the one line "leftover check not performed: <its first FIX:, SPLIT: or error: line>"
 # and commits nothing. outcome.md is rewritten: the text above the heading line,
 # the heading and one "<path>: <reason> - committed <sha>" or
 # "<path>: <reason> - left uncommitted" line per leftover (no heading when there is
@@ -1433,7 +1433,7 @@ if [[ "${1:-}" == "--leftovers" ]]; then
   lf_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   index_out="$(bash "$lf_here/plan-index.sh" "$plan" 2>"$lf_err")" || lf_rc=$?
   if [[ $lf_rc -ne 0 ]]; then
-    lf_line="$(grep -m1 '^error:' -- "$lf_err" || true)"
+    lf_line="$(grep -m1 -E '^(FIX|SPLIT|error):' -- "$lf_err" || true)"
     lf_line="${lf_line%$'\r'}"
     lf_check="leftover check not performed: ${lf_line:-error: plan-index.sh exited $lf_rc}"
   else

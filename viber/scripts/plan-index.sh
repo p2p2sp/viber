@@ -314,7 +314,10 @@
 # uncommitted would have every later commit-task.sh run report it as left behind.
 #
 # Validation (exit != 0, nothing on stdout, nothing written) - catches plan drift
-# before a build starts:
+# before a build starts. Every plan defect is one stderr line opening on "FIX: " (the
+# message as listed below, without any "error: " prefix), or on "SPLIT: " for a
+# task past its Files or DoD cap; an argument error or a missing plan or input file
+# (exit 2) keeps its "error: " line:
 #   2 - plan file missing or unusable, an argument that is not --split or
 #       --extra <task-id>, --extra beside --split, a --extra id the plan does not
 #       hold, a --dispatch with an unknown id or form or beside --split or
@@ -352,7 +355,7 @@
 #       a contract block of the appendix as a whole token outside a backtick
 #       span while the task "Uses:" does not name it (a token with no block in
 #       the appendix names nothing; stderr, one line per block:
-#       "error: task <id>: <DoD|Delivers> names <block id>, missing from its
+#       "FIX: task <id>: <DoD|Delivers> names <block id>, missing from its
 #       Uses - add it to Uses"), or a task holding more "Files:"
 #       entries or "DoD:" clauses than its TDD value allows - 12 and 6 on
 #       "required", 25 and 10 on "none" (it bundles several behaviours -
@@ -363,7 +366,7 @@
 #       path, direct or transitive, joins the two (the reader would run beside
 #       the writer; the error names the reader, the path and the writer), or a
 #       file the tree does not hold that only higher-numbered tasks list, none
-#       of them the reader or a lower-numbered task (stderr: "error: task <id>
+#       of them the reader or a lower-numbered task (stderr: "FIX: task <id>
 #       reads <path>, which only the later task <other> creates - move the
 #       reading after <other> (Read after)", <other> the lowest-numbered lister;
 #       the "Delivers:" of a task whose every "Files:" path lies under docs/adr/
@@ -373,13 +376,13 @@
 #       holds ".integration.", while no command of its "Verification:" text before
 #       the first " -> " (cut at ";", ",", "&&", "||" and "|", a grep, git grep or
 #       rg command never counting) names the path, a directory of it at or below
-#       that test directory, or a file inside such a directory (stderr: "error:
+#       that test directory, or a file inside such a directory (stderr: "FIX:
 #       task <id>: Files writes <path> under an integration test directory, which
 #       no Verification command names - list or type-check that file or its test
 #       project there (Layered)"), or a git grep: a command of its "Verification:"
 #       text before the first " -> " (cut at ";", "&&", "||" and "|") that runs
 #       git grep with no --untracked and names, as a token, a "Files:" path the
-#       tree does not hold (stderr: "error: task <id>: Verification runs git grep
+#       tree does not hold (stderr: "FIX: task <id>: Verification runs git grep
 #       without --untracked over <path>, which this task creates and git grep
 #       never reads - add --untracked or use grep (Provable)"), or a task id that is
 #       not T<k>, the <k>th task block in order (Ids), a contract id that is not C<k>,
@@ -399,27 +402,27 @@
 #       run in the caller cwd (never the plan directory, so a plan outside the
 #       repository is held to it too) and only on a fresh plan; with the switch
 #       off or no .claude/viber.yml the case never fires, and a CLAUDE-notes.md
-#       or CLAUDE.run-scripts.md is none (stderr: "error: task <id>: Files lists
+#       or CLAUDE.run-scripts.md is none (stderr: "FIX: task <id>: Files lists
 #       <path> while build.memory is on - drop it, the build close updates every
 #       CLAUDE.md (Memory-owned)"), or a frontmatter "attachments:" map (the
 #       indented entry lines up to the first line that is not indented, a blank
 #       line skipped, a name being what precedes the first ":" of an entry) holding
 #       a name that is not one path component matching
-#       ^[A-Za-z0-9][A-Za-z0-9_.-]*$ (stderr: "error: attachments: name "<name>" is
+#       ^[A-Za-z0-9][A-Za-z0-9_.-]*$ (stderr: "FIX: attachments: name "<name>" is
 #       not one path component of letters, digits, _, . and - opening on a letter
 #       or digit - rename it (Attachments)") or repeating an earlier one, case
-#       folded ("error: attachments: name "<name>" repeats an earlier one - rename
+#       folded ("FIX: attachments: name "<name>" repeats an earlier one - rename
 #       one of them (Attachments)"), or a "DoD:" line naming attachments/<name>, the
 #       first path component after the prefix a sentence period does not close, with
 #       no <name> entry in a map the plan carries (a plan with no frontmatter or no
-#       "attachments:" key has none to check; "error: task <id>: DoD names
+#       "attachments:" key has none to check; "FIX: task <id>: DoD names
 #       attachments/<name>, absent from the attachments map - add a <name> entry or
 #       drop the reference (Attachments)"), or a template slot left in the plan text:
 #       a "<...>" span of the planner templates (spec-full.md, spec-lite.md and
 #       tasks.md under ../skills/planner/templates, located from this script, read
 #       at run time outside their HTML comments; no templates directory, no check),
 #       found on a plan line outside a fenced block, an HTML comment, a backtick span
-#       and the "## Contracts" appendix ("error: line <n>: template slot <slot> left
+#       and the "## Contracts" appendix ("FIX: line <n>: template slot <slot> left
 #       unfilled - replace it (Filled)"; one per line and slot).
 #       The last eighteen cases and the parenthetical one above are exempted under --split
 #       and under --extra, and on a plain call whose plan has status.md beside
@@ -740,7 +743,8 @@ st_deferred="$st_deferred" st_closed="$st_closed" st_decisions="$st_decisions" s
 awk '
 function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
 function val(s)  { sub(/^[^:]*:/, "", s); return trim(s) }
-function fail(msg) { printf "error: %s\n", msg > "/dev/stderr"; err = 1 }
+function fail(msg) { printf "FIX: %s\n", msg > "/dev/stderr"; err = 1 }
+function oversize(msg) { printf "SPLIT: %s\n", msg > "/dev/stderr"; err = 1 }
 
 # every backtick-quoted span removed: a done clause may quote a task id as
 # literal test data (a fixture plan built by the tests of this repository),
@@ -1249,12 +1253,12 @@ intask {
 }
 
 END {
-  if (n == 0) { printf "error: no <!-- TASK --> blocks in %s\n", plan > "/dev/stderr"; exit 3 }
+  if (n == 0) { printf "FIX: no <!-- TASK --> blocks in %s\n", plan > "/dev/stderr"; exit 3 }
   # The cut is a heading, so a plan carrying blocks under any other one would
   # decompose into an empty tasks/ while this index still lists every task -
   # the orchestrator would then dispatch a coder onto a task file that does not
   # exist. Caught at validation, so the planner sees it before its own gate.
-  if (!hastasks) { printf "error: %s carries <!-- TASK --> blocks but no \"## Tasks\" heading - that heading is where the specification is cut off\n", plan > "/dev/stderr"; exit 4 }
+  if (!hastasks) { printf "FIX: %s carries <!-- TASK --> blocks but no \"## Tasks\" heading - that heading is where the specification is cut off\n", plan > "/dev/stderr"; exit 4 }
 
   # id -> ordinal; a duplicate id is fatal, and the id also names the task file
   # --split writes, so it stays a bare token
@@ -1376,11 +1380,11 @@ END {
     # like the other checks added after plans were frozen.
     if (mode != "--split" && (tdd[i] in maxfiles)) {
       tm = tdd[i]
-      if (nf[i] > maxfiles[tm]) fail("task " id[i] ": " nf[i] " Files, past the " maxfiles[tm] " a TDD: " tm " task may hold - split it, one behaviour per task")
+      if (nf[i] > maxfiles[tm]) oversize("task " id[i] ": " nf[i] " Files, past the " maxfiles[tm] " a TDD: " tm " task may hold - split it, one behaviour per task")
       nd = 0
       m = dodcut(dod[i], dc)
       for (k = 1; k <= m; k++) if (trim(dc[k]) != "") nd++
-      if (nd > maxdod[tm]) fail("task " id[i] ": " nd " DoD clauses, past the " maxdod[tm] " a TDD: " tm " task may hold - split it, one behaviour per task; clauses are cut at each semicolon outside backticks, so a semicolon inside a list cuts a clause")
+      if (nd > maxdod[tm]) oversize("task " id[i] ": " nd " DoD clauses, past the " maxdod[tm] " a TDD: " tm " task may hold - split it, one behaviour per task; clauses are cut at each semicolon outside backticks, so a semicolon inside a list cuts a clause")
     }
 
     # Repro: the reproduction test the fixer left RED, one path the task already

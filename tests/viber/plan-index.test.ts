@@ -863,6 +863,57 @@ test("a plan with no task blocks exits 3", async () => {
     const result = await run(dir, {}, [PLAN_REL]);
     assert.equal(result.status, 3);
     assert.equal(result.stdout, "");
+    assert.equal(result.stderr, `FIX: no <!-- TASK --> blocks in ${PLAN_REL}\n`);
+  });
+});
+
+test("task blocks under no \"## Tasks\" heading exit 4 with a FIX line", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody(TWO_TASKS).replace("## Tasks\n", ""));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^FIX: .*carries <!-- TASK --> blocks but no "## Tasks" heading/m);
+  });
+});
+
+for (const args of [
+  [PLAN_REL, "--split"],
+  [PLAN_REL, "--extra", "T1"],
+  [PLAN_REL, "--dispatch", "T1", "coder"],
+  [PLAN_REL, "--slice", "T1"],
+  [PLAN_REL, "--final-review"],
+]) {
+  test(`${args[1]} on a plan with a defect prints it as a FIX line, exits 4 and prints nothing on stdout`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, planBody([{ id: "T1", deps: "T9" }], 1));
+
+      const result = await run(dir, {}, args);
+      assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, "");
+      assert.equal(result.stderr, "FIX: task T1: Depends-on T9, no such task\n");
+    });
+  });
+}
+
+test("a missing plan file keeps its error: line and exits 2", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody(TWO_TASKS));
+
+    const result = await run(dir, {}, ["docs/_specs/nope/plan.md"]);
+    assert.equal(result.status, 2);
+    assert.equal(result.stderr, "error: plan file not found: docs/_specs/nope/plan.md\n");
+  });
+});
+
+test("an unknown argument keeps its error: usage line and exits 2", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody(TWO_TASKS));
+
+    const result = await run(dir, {}, [PLAN_REL, "--decompose"]);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /^error: usage: plan-index\.sh /);
   });
 });
 
@@ -1630,7 +1681,7 @@ function forwardPlan(reader: Pick<TaskFields, "verification" | "delivers" | "dod
 }
 
 const FORWARD_MESSAGE =
-  "error: task T1 reads src/new.ts, which only the later task T2 creates - move the reading after T2 (Read after)";
+  "FIX: task T1 reads src/new.ts, which only the later task T2 creates - move the reading after T2 (Read after)";
 
 const FORWARD_FIELDS: [string, Pick<TaskFields, "verification" | "delivers" | "dod">][] = [
   ["Verification", { verification: "node --test src/new.ts -> green" }],
@@ -1726,7 +1777,7 @@ test("read-after: a Delivers naming a listed file is still caught when one Files
 
     const result = await run(dir, {}, [PLAN_REL]);
     assert.equal(result.status, 4, `stderr: ${result.stderr}`);
-    assert.ok(result.stderr.includes("error: task T1 reads src/login.ts, which only the later task T2 creates - move the reading after T2 (Read after)"), result.stderr);
+    assert.ok(result.stderr.includes("FIX: task T1 reads src/login.ts, which only the later task T2 creates - move the reading after T2 (Read after)"), result.stderr);
   });
 });
 
@@ -1809,7 +1860,7 @@ function integrationPlan(files: string, verification: string): string {
 
 const STORE_TEST = "backend/A.IntegrationTests/StoreTests.cs";
 const STORE_PROJECT = "backend/A.IntegrationTests/A.IntegrationTests.csproj";
-const INTEGRATION_MESSAGE = `error: task T1: Files writes ${STORE_TEST} under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`;
+const INTEGRATION_MESSAGE = `FIX: task T1: Files writes ${STORE_TEST} under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`;
 
 test("integration check: a task writing a file under an integration test directory whose Verification names neither it nor a directory of it exits 4 with the Layered error", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
@@ -1901,7 +1952,7 @@ for (const file of [
 
       const result = await run(dir, {}, [PLAN_REL]);
       assert.equal(result.status, 4, `stderr: ${result.stderr}`);
-      assert.ok(result.stderr.includes(`error: task T1: Files writes ${file} under an integration test directory`), result.stderr);
+      assert.ok(result.stderr.includes(`FIX: task T1: Files writes ${file} under an integration test directory`), result.stderr);
     });
   });
 }
@@ -1955,7 +2006,7 @@ test("integration check: a plain call with status.md beside the plan does not ru
 });
 
 const NEW_TOOL = "tools/new.ts";
-const GIT_GREP_MESSAGE = `error: task T1: Verification runs git grep without --untracked over ${NEW_TOOL}, which this task creates and git grep never reads - add --untracked or use grep (Provable)`;
+const GIT_GREP_MESSAGE = `FIX: task T1: Verification runs git grep without --untracked over ${NEW_TOOL}, which this task creates and git grep never reads - add --untracked or use grep (Provable)`;
 
 for (const [label, verification] of [
   ["a git grep with a pathspec after --", `git grep -c readRuns -- ${NEW_TOOL} -> 1`],
@@ -2039,16 +2090,16 @@ test("git grep check: a plain call with status.md beside the plan does not run i
 
 const PROVABLE_TAIL = "run a project test or script instead (Provable)";
 const BAD_VERIFICATIONS: [string, string, string][] = [
-  ["wrapped in backticks", "`npm test` -> green", "error: task T1: Verification is wrapped in backticks - write the command bare (Provable)"],
-  ["running node -e", "node -e \"process.exit(0)\" -> green", `error: task T1: Verification runs inline interpreter code "node -e" - ${PROVABLE_TAIL}`],
-  ["running python -c", "python -c \"print(1)\" -> green", `error: task T1: Verification runs inline interpreter code "python -c" - ${PROVABLE_TAIL}`],
-  ["running python3 -c", "python3 -c \"print(1)\" -> green", `error: task T1: Verification runs inline interpreter code "python3 -c" - ${PROVABLE_TAIL}`],
-  ["running ruby -e", "ruby -e \"puts 1\" -> green", `error: task T1: Verification runs inline interpreter code "ruby -e" - ${PROVABLE_TAIL}`],
-  ["running perl -e", "perl -e \"print 1\" -> green", `error: task T1: Verification runs inline interpreter code "perl -e" - ${PROVABLE_TAIL}`],
-  ["running an interpreter after an option and a chain", "npm test && node --no-warnings -e \"1\" -> green", `error: task T1: Verification runs inline interpreter code "node -e" - ${PROVABLE_TAIL}`],
-  ["running bash on a .temp/ script", "bash .temp/run.sh -> green", `error: task T1: Verification runs .temp/run.sh under .temp/ - ${PROVABLE_TAIL}`],
-  ["running a .temp/ script as the command word", "./.temp/run.sh -> green", `error: task T1: Verification runs ./.temp/run.sh under .temp/ - ${PROVABLE_TAIL}`],
-  ["running node on a .temp/ script after an option", "node --no-warnings .temp/run.mjs -> green", `error: task T1: Verification runs .temp/run.mjs under .temp/ - ${PROVABLE_TAIL}`],
+  ["wrapped in backticks", "`npm test` -> green", "FIX: task T1: Verification is wrapped in backticks - write the command bare (Provable)"],
+  ["running node -e", "node -e \"process.exit(0)\" -> green", `FIX: task T1: Verification runs inline interpreter code "node -e" - ${PROVABLE_TAIL}`],
+  ["running python -c", "python -c \"print(1)\" -> green", `FIX: task T1: Verification runs inline interpreter code "python -c" - ${PROVABLE_TAIL}`],
+  ["running python3 -c", "python3 -c \"print(1)\" -> green", `FIX: task T1: Verification runs inline interpreter code "python3 -c" - ${PROVABLE_TAIL}`],
+  ["running ruby -e", "ruby -e \"puts 1\" -> green", `FIX: task T1: Verification runs inline interpreter code "ruby -e" - ${PROVABLE_TAIL}`],
+  ["running perl -e", "perl -e \"print 1\" -> green", `FIX: task T1: Verification runs inline interpreter code "perl -e" - ${PROVABLE_TAIL}`],
+  ["running an interpreter after an option and a chain", "npm test && node --no-warnings -e \"1\" -> green", `FIX: task T1: Verification runs inline interpreter code "node -e" - ${PROVABLE_TAIL}`],
+  ["running bash on a .temp/ script", "bash .temp/run.sh -> green", `FIX: task T1: Verification runs .temp/run.sh under .temp/ - ${PROVABLE_TAIL}`],
+  ["running a .temp/ script as the command word", "./.temp/run.sh -> green", `FIX: task T1: Verification runs ./.temp/run.sh under .temp/ - ${PROVABLE_TAIL}`],
+  ["running node on a .temp/ script after an option", "node --no-warnings .temp/run.mjs -> green", `FIX: task T1: Verification runs .temp/run.mjs under .temp/ - ${PROVABLE_TAIL}`],
 ];
 
 for (const [label, verification, message] of BAD_VERIFICATIONS) {
@@ -2105,7 +2156,7 @@ const MEMORY_ON = ["schema: 1", "build:", "  memory: true", ""].join("\n");
 const MEMORY_OFF = ["schema: 1", "build:", "  memory: false", ""].join("\n");
 
 function memoryMessage(file: string): string {
-  return `error: task T1: Files lists ${file} while build.memory is on - drop it, the build close updates every CLAUDE.md (Memory-owned)`;
+  return `FIX: task T1: Files lists ${file} while build.memory is on - drop it, the build close updates every CLAUDE.md (Memory-owned)`;
 }
 
 for (const file of ["src/CLAUDE.md", "CLAUDE.md", "./src/CLAUDE.md"]) {
@@ -2218,7 +2269,7 @@ for (const name of ["my file.png", "-a.png"]) {
       assert.equal(result.stdout, "");
       assert.ok(
         result.stderr.includes(
-          `error: attachments: name "${name}" is not one path component of letters, digits, _, . and - opening on a letter or digit - rename it (Attachments)`,
+          `FIX: attachments: name "${name}" is not one path component of letters, digits, _, . and - opening on a letter or digit - rename it (Attachments)`,
         ),
         result.stderr,
       );
@@ -2234,7 +2285,7 @@ test("Attachments check: entries a.png and A.png exit 4 with the C1 repeat error
     assert.equal(result.status, 4, `stderr: ${result.stderr}`);
     assert.equal(result.stdout, "");
     assert.ok(
-      result.stderr.includes('error: attachments: name "A.png" repeats an earlier one - rename one of them (Attachments)'),
+      result.stderr.includes('FIX: attachments: name "A.png" repeats an earlier one - rename one of them (Attachments)'),
       result.stderr,
     );
   });
@@ -2249,7 +2300,7 @@ test("Attachments check: a DoD naming attachments/b.png with no b.png entry exit
     assert.equal(result.stdout, "");
     assert.ok(
       result.stderr.includes(
-        "error: task T1: DoD names attachments/b.png, absent from the attachments map - add a b.png entry or drop the reference (Attachments)",
+        "FIX: task T1: DoD names attachments/b.png, absent from the attachments map - add a b.png entry or drop the reference (Attachments)",
       ),
       result.stderr,
     );
@@ -3435,7 +3486,7 @@ test("a TDD: required task with 13 Files exits 4 naming the count and nothing on
     const result = await run(dir, {}, [PLAN_REL]);
     assert.equal(result.status, 4, `stderr: ${result.stderr}`);
     assert.equal(result.stdout, "");
-    assert.match(result.stderr, /task T1: 13 Files, past the 12 a TDD: required task may hold - split it, one behaviour per task/);
+    assert.match(result.stderr, /^SPLIT: task T1: 13 Files, past the 12 a TDD: required task may hold - split it, one behaviour per task$/m);
   });
 });
 
@@ -3446,7 +3497,10 @@ test("a TDD: required task with 7 DoD clauses exits 4 naming the count and nothi
     const result = await run(dir, {}, [PLAN_REL]);
     assert.equal(result.status, 4, `stderr: ${result.stderr}`);
     assert.equal(result.stdout, "");
-    assert.match(result.stderr, /task T1: 7 DoD clauses, past the 6 a TDD: required task may hold - split it, one behaviour per task/);
+    assert.match(
+      result.stderr,
+      /^SPLIT: task T1: 7 DoD clauses, past the 6 a TDD: required task may hold - split it, one behaviour per task; clauses are cut at each semicolon outside backticks, so a semicolon inside a list cuts a clause$/m,
+    );
   });
 });
 
@@ -3465,8 +3519,8 @@ test("a TDD: none task with 26 Files and 11 DoD clauses exits 4 naming both coun
 
     const result = await run(dir, {}, [PLAN_REL]);
     assert.equal(result.status, 4, `stderr: ${result.stderr}`);
-    assert.match(result.stderr, /task T1: 26 Files, past the 25 a TDD: none task may hold/);
-    assert.match(result.stderr, /task T1: 11 DoD clauses, past the 10 a TDD: none task may hold/);
+    assert.match(result.stderr, /^SPLIT: task T1: 26 Files, past the 25 a TDD: none task may hold/m);
+    assert.match(result.stderr, /^SPLIT: task T1: 11 DoD clauses, past the 10 a TDD: none task may hold/m);
   });
 });
 
@@ -3877,7 +3931,7 @@ test("a DoD naming C2 outside backticks while Uses names only C1 exits 4, C2 mis
     const result = await run(dir, {}, [PLAN_REL]);
     assert.equal(result.status, 4, `stderr: ${result.stderr}`);
     assert.equal(result.stdout, "");
-    assert.equal(result.stderr, "error: task T1: DoD names C2, missing from its Uses - add it to Uses\n");
+    assert.equal(result.stderr, "FIX: task T1: DoD names C2, missing from its Uses - add it to Uses\n");
   });
 });
 
@@ -3888,7 +3942,7 @@ test("a Delivers naming C2 outside backticks while Uses names only C1 exits 4, C
     const result = await run(dir, {}, [PLAN_REL]);
     assert.equal(result.status, 4, `stderr: ${result.stderr}`);
     assert.equal(result.stdout, "");
-    assert.equal(result.stderr, "error: task T1: Delivers names C2, missing from its Uses - add it to Uses\n");
+    assert.equal(result.stderr, "FIX: task T1: Delivers names C2, missing from its Uses - add it to Uses\n");
   });
 });
 
@@ -4012,7 +4066,7 @@ test("a fresh plan whose tasks are T1 and T3 exits 4 with the Ids error naming T
     assert.equal(result.stdout, "");
     assert.equal(
       result.stderr,
-      "error: task T3: id must be T2, the 2th task block in order - renumber the tasks (Ids)\n",
+      "FIX: task T3: id must be T2, the 2th task block in order - renumber the tasks (Ids)\n",
     );
   });
 });
@@ -4026,7 +4080,7 @@ test("a fresh plan whose contract blocks are C1 and C3 exits 4 with the Blocks e
     assert.equal(result.stdout, "");
     assert.equal(
       result.stderr,
-      "error: contract C3: id must be C2, the 2th block in order - renumber the blocks (Blocks)\n",
+      "FIX: contract C3: id must be C2, the 2th block in order - renumber the blocks (Blocks)\n",
     );
   });
 });
@@ -4048,7 +4102,7 @@ for (const [title, prefix] of COMMIT_TYPED_TITLES) {
       assert.equal(result.stdout, "");
       assert.equal(
         result.stderr,
-        `error: task T1: title opens with the commit type prefix "${prefix}" - drop it, the commit subject is "<id> - <title>" (Title)\n`,
+        `FIX: task T1: title opens with the commit type prefix "${prefix}" - drop it, the commit subject is "<id> - <title>" (Title)\n`,
       );
     });
   });
@@ -4099,7 +4153,7 @@ test("Filled check: the Goal slot of the template left in a fresh plan exits 4 w
     assert.equal(result.stdout, "");
     assert.equal(
       result.stderr,
-      "error: line 5: template slot <2-4 sentences: what gets built and why. No description of the solution.> left unfilled - replace it (Filled)\n",
+      "FIX: line 5: template slot <2-4 sentences: what gets built and why. No description of the solution.> left unfilled - replace it (Filled)\n",
     );
   });
 });
@@ -4111,7 +4165,7 @@ test("Filled check: a heading S<n> - Login left in a fresh plan exits 4 with the
     const result = await run(dir, {}, [PLAN_REL]);
     assert.equal(result.status, 4, `stderr: ${result.stderr}`);
     assert.equal(result.stdout, "");
-    assert.equal(result.stderr, "error: line 6: template slot <n> left unfilled - replace it (Filled)\n");
+    assert.equal(result.stderr, "FIX: line 6: template slot <n> left unfilled - replace it (Filled)\n");
   });
 });
 
@@ -4133,7 +4187,7 @@ test("Filled check: a slot added to a template is read at run time, so a plan ke
 
     const result = await runScript(script, [PLAN_REL], { cwd: dir, env: {}, shell: "bash" });
     assert.equal(result.status, 4, `stderr: ${result.stderr}`);
-    assert.equal(result.stderr, "error: line 6: template slot <brand new slot> left unfilled - replace it (Filled)\n");
+    assert.equal(result.stderr, "FIX: line 6: template slot <brand new slot> left unfilled - replace it (Filled)\n");
   });
 });
 

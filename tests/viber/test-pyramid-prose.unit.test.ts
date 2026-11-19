@@ -126,7 +126,7 @@ test("plan-rules keeps only the review half of Layered, one line tagged review",
 
 test("plan-rules-script carries the integration test check as its one Layered rule, tagged script", () => {
   const scriptLines = scriptRules("Layered").split("\n");
-  assert.ok(scriptLines.length === 1 && has(scriptLines[0], "`plan-index.sh` rejects one without it, with `error: task <id>: Files writes <path> under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`. (script)"));
+  assert.ok(scriptLines.length === 1 && has(scriptLines[0], "`plan-index.sh` rejects one without it, with `FIX: task <id>: Files writes <path> under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`. (script)"));
 });
 
 test("plan-rules keeps only the review half of Provable, one line tagged review", () => {
@@ -136,10 +136,10 @@ test("plan-rules keeps only the review half of Provable, one line tagged review"
 
 test("plan-rules-script carries the git grep, backtick, interpreter and .temp/ checks as its one Provable rule, tagged script", () => {
   const scriptLines = scriptRules("Provable").split("\n");
-  assert.ok(scriptLines.length === 1 && has(scriptLines[0], "`plan-index.sh` rejects it, with `error: task <id>: Verification runs git grep without --untracked over <path>, which this task creates and git grep never reads - add --untracked or use grep (Provable)`. (script)"));
-  assert.ok(has(scriptLines[0], "with `error: task <id>: Verification is wrapped in backticks - write the command bare (Provable)`"));
-  assert.ok(has(scriptLines[0], "with `error: task <id>: Verification runs inline interpreter code \"<token>\" - run a project test or script instead (Provable)`"));
-  assert.ok(has(scriptLines[0], "or `error: task <id>: Verification runs <path> under .temp/ - run a project test or script instead (Provable)`."));
+  assert.ok(scriptLines.length === 1 && has(scriptLines[0], "`plan-index.sh` rejects it, with `FIX: task <id>: Verification runs git grep without --untracked over <path>, which this task creates and git grep never reads - add --untracked or use grep (Provable)`. (script)"));
+  assert.ok(has(scriptLines[0], "with `FIX: task <id>: Verification is wrapped in backticks - write the command bare (Provable)`"));
+  assert.ok(has(scriptLines[0], "with `FIX: task <id>: Verification runs inline interpreter code \"<token>\" - run a project test or script instead (Provable)`"));
+  assert.ok(has(scriptLines[0], "or `FIX: task <id>: Verification runs <path> under .temp/ - run a project test or script instead (Provable)`."));
 });
 
 test("plan-rules holds no Ids rule", () => {
