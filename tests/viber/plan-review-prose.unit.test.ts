@@ -109,7 +109,7 @@ test("plan-rules-script.md keeps the sections of plan-rules.md its scripted rule
 });
 
 const SCRIPT_SECTIONS: [string, string[]][] = [
-  ["Spec", ["Attachments", "Filled"]],
+  ["Spec", ["Attachments", "Filled", "Scenarios", "File map", "Input"]],
   ["Graph", ["Ids", "Depends", "Minimal", "Read after", "Disjoint", "Leaf", "Covers"]],
   ["Task", ["Title", "Paths", "Exclusive", "Hard", "Uses", "Supplied", "Provable", "Memory-owned", "Reproduced", "Self-proven", "Layered"]],
   ["Contracts", ["Blocks", "Block body", "Named", "Homed", "Seen", "Consumed after"]],
@@ -126,7 +126,10 @@ for (const [heading, names] of SCRIPT_SECTIONS) {
 }
 
 const ERROR_MESSAGES: [string, string][] = [
-  ["Attachments", "with `FIX: attachments: name \"<name>\" is not one path component of letters, digits, _, . and - opening on a letter or digit - rename it (Attachments)`, `FIX: attachments: name \"<name>\" repeats an earlier one - rename one of them (Attachments)` or `FIX: task <id>: DoD names attachments/<name>, absent from the attachments map - add a <name> entry or drop the reference (Attachments)`. (script)"],
+  ["Attachments", "with `FIX: attachments: name \"<name>\" is not one path component of letters, digits, _, . and - opening on a letter or digit - rename it (Attachments)`, `FIX: attachments: name \"<name>\" repeats an earlier one - rename one of them (Attachments)` or `FIX: task <id>: DoD names attachments/<name>, absent from the attachments map - add a <name> entry or drop the reference (Attachments)`. With `--input`, an `Attachment: <path>` line of the input summary file whose path no map entry holds is rejected too, with `FIX: input: Attachment <path> has no entry in the attachments map - add one (Attachments)`. (script)"],
+  ["Scenarios", "with `FIX: line <n>: scenario heading \"<heading>\" must be \"### S<k> - <title>\", the <k>th scenario in order - number it (Scenarios)`. (script)"],
+  ["File map", "with `FIX: file map: <modify|delete> <path>, which the tree does not hold - correct the path or list it as add (File map)`. (script)"],
+  ["Input", "with `FIX: input gives a root cause but the plan has no \"## Root cause\" section - add it (Root cause)`, `FIX: the plan carries a \"## Root cause\" section its input gives no cause for - drop it (Root cause)` or `FIX: input: Repro <path> is on no task Repro: line - put it on the fixing task (Reproduced)`. (script)"],
   ["Filled", "with `FIX: line <n>: template slot <slot> left unfilled - replace it (Filled)`. (script)"],
   ["Uses", "with `FIX: task <id>: <DoD|Delivers> names <block id>, missing from its Uses - add it to Uses`. (script)"],
   ["Provable", "with `FIX: task <id>: Verification runs git grep without --untracked over <path>, which this task creates and git grep never reads - add --untracked or use grep (Provable)`. (script)"],
