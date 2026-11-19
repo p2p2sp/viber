@@ -496,11 +496,15 @@
 #            model field and build.memory (no usable value: false) for its memory
 #            line. --split also reads build.extensions (no usable value: none)
 #            for its extension blocks and build.qa (no usable value: false) for its
-#            qa-kept block.
+#            qa-kept block. The sibling plugin-root.sh is sourced on every call: the
+#            <plugin root> of a printed command is cut from the invoked path by it.
 #   exit   : 0 on a valid plan; a git failure during the --split commit never
 #            changes that, the decomposed files are already on disk.
 #
 set -euo pipefail
+
+# The plugin root of a printed command is cut from the invoked path as text.
+. "$(dirname -- "$0")/plugin-root.sh"
 
 plan="${1:-}"
 mode=""
@@ -1937,8 +1941,7 @@ END {
 # validated index above (its task rows, progress and closed lines). The plugin root
 # is this script's own path as invoked, cut at its "/scripts/<name>.sh" as text.
 if [[ "$has_final" -eq 1 ]]; then
-  self="${0//\\//}"
-  plugin_root="${self%/scripts/${self##*/}}"
+  plugin_root="$(plugin_root_of "$0" 1)"
 
   fr_ids=()
   fr_done=0
@@ -2095,8 +2098,7 @@ fi
 # plugin root is this script's own path as invoked, cut at its "/scripts/<name>.sh"
 # as text, never resolved.
 if [[ "$has_dispatch" -eq 1 ]]; then
-  self="${0//\\//}"
-  plugin_root="${self%/scripts/${self##*/}}"
+  plugin_root="$(plugin_root_of "$0" 1)"
 
   dep_rows=""
   in_rows=0
@@ -2264,9 +2266,8 @@ if [[ "$mode" == "--split" && "$cfg_qa" == "true" ]]; then
         [[ ! -f "$dir/$qa_name" ]] || qa_paths="$qa_paths \"$dir/$qa_name\""
       done
       if [[ -n "$qa_paths" ]]; then
-        self="${0//\\//}"
         printf 'NEXT: qa-kept\n'
-        printf 'RUN: "%s/scripts/commit-task.sh" --qa "%s"%s\n' "${self%/scripts/${self##*/}}" "$plan" "$qa_paths"
+        printf 'RUN: "%s/scripts/commit-task.sh" --qa "%s"%s\n' "$(plugin_root_of "$0" 1)" "$plan" "$qa_paths"
       fi
       ;;
   esac

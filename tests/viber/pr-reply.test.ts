@@ -703,6 +703,7 @@ test("--list prints the RUN path as the invoked path cut before /scripts/", asyn
       fs.mkdirSync(path.join(plugin, "scripts"));
       const copy = path.join(plugin, "scripts/pr-reply.sh");
       fs.copyFileSync(SUT, copy);
+      fs.copyFileSync(path.join(path.dirname(SUT), "plugin-root.sh"), path.join(plugin, "scripts/plugin-root.sh"));
       const { result } = await runList(shell, "42", { items: [THREE_ITEMS[0]], script: copy });
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
       assert.equal(
@@ -712,6 +713,30 @@ test("--list prints the RUN path as the invoked path cut before /scripts/", asyn
     });
   });
 });
+
+// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
+// Neither spelling names a file outside Windows, so the cases skip there.
+const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
+const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
+
+const SPELLINGS: Array<{ label: string; invoked: string; root: string }> = [
+  { label: "a C:\\ path", invoked: SUT, root: PLUGIN_ROOT },
+  { label: "a C:/ path", invoked: slash(SUT), root: PLUGIN_ROOT },
+  { label: "a /c/ path", invoked: MSYS(SUT), root: MSYS(PLUGIN_ROOT) },
+];
+
+for (const row of SPELLINGS) {
+  test(`--list invoked by ${row.label} prints RUN= under the plugin root in that spelling (AC1)`, { skip: WINDOWS_ONLY }, async () => {
+    await assertPosix(async (shell) => {
+      const { result } = await runList(shell, "42", { items: [THREE_ITEMS[0]], script: row.invoked });
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(
+        result.stdout,
+        `STATUS=ready\nREADY=1 - src/a.ts:10 - 101\nRUN="${row.root}/scripts/pr-reply.sh" --all "42"\n`,
+      );
+    });
+  });
+}
 
 // --- --all: every ready reply of a review.md ---------------------------------------------
 

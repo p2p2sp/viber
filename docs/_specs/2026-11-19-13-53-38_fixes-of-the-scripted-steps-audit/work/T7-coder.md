@@ -1,0 +1,5 @@
+- `plan-index.sh` sources `plugin-root.sh` at the top for every mode (a copy of it with no `plugin-root.sh` beside it fails at once: `installScript` and `stubbedCheck` now copy it); `task-step.sh` sources it through its slash-form `$here`; `pr-facts.sh` sources it always; `pr-reply.sh` only in `--list`, where the RUN= line is printed.
+- Red evidence is thin by nature: `plan-index.sh`, `task-step.sh` and `pr-reply.sh` already read a backslash as "/" before this task, so their three-spelling cases passed before the change; only the `pr-facts.sh` `C:\` case was red (printed `/c/...`).
+- A relative invocation now prints a relative plugin root (C1), where the old cut printed the path unchanged.
+- The spelling cases skip off Windows (the `C:\` and `/c/` forms only exist under Git Bash).
+- Pre-existing failure, untouched: `pr-reply.test.ts` "--all with no gh on PATH ..." gets `not inside a git repository` here, since `coreUtilsPath()` holds no `git` on this machine and the git check runs before the gh check (both lines unchanged by this task). The other 705 cases of the four files pass.

@@ -1025,6 +1025,29 @@ test("a branch matching one entry resolves ENTRY= and prints neither ASK= nor RE
   });
 });
 
+// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
+// Neither spelling names a file outside Windows, so the cases skip there.
+const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
+const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
+
+const SPELLINGS: Array<{ label: string; invoked: string; root: string }> = [
+  { label: "a C:\\ path", invoked: SUT, root: PLUGIN_ROOT },
+  { label: "a C:/ path", invoked: slash(SUT), root: PLUGIN_ROOT },
+  { label: "a /c/ path", invoked: MSYS(SUT), root: MSYS(PLUGIN_ROOT) },
+];
+
+for (const row of SPELLINGS) {
+  test(`invoked by ${row.label}, RERUN= names pr-facts.sh under the plugin root in that spelling (AC1)`, { skip: WINDOWS_ONLY }, async () => {
+    await assertPosix(async (shell) => {
+      await withScene(async (scene) => {
+        await onBranch(scene, "feature/x");
+        const result = await runScript(row.invoked, [], { shell, cwd: scene.work.dir, env: scene.work.env, stubDirs: [scene.stubDir] });
+        assert.equal(value(result, "RERUN"), `"${row.root}/scripts/pr-facts.sh" --target "<branch>"`);
+      });
+    });
+  });
+}
+
 test("RERUN= opens on the invoked path cut before /scripts/, not on a resolved one (DoD 4)", async () => {
   await assertPosix(async (shell) => {
     await withScene(async (scene) => {

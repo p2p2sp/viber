@@ -170,7 +170,8 @@
 #   reads  : plan-index.sh (the index, then --dispatch), config.sh (tiers.max,
 #            default opus; build.red-check, default off), run-failures.sh
 #            --lessons, red-check.sh, the state file; all four scripts are the
-#            ones beside this one, called as this one was invoked.
+#            ones beside this one, called as this one was invoked; plugin-root.sh
+#            beside this one is sourced for the plugin root of every RUN: line.
 #   writes : .temp/viber/<id>/state, and .temp/viber/lessons through a temporary
 #            file renamed into place; red-check.sh writes
 #            .temp/viber/<id>/red-check.log when the red check runs.
@@ -187,13 +188,14 @@ die() {
 }
 
 # The plugin root is this script's invoked path with its trailing
-# "/scripts/<name>.sh" cut off as text, a backslash read as "/", never resolved.
+# "/scripts/<name>.sh" cut off as text, never resolved (plugin-root.sh).
 self="${0//\\//}"
 case "$self" in
   */*) here="${self%/*}" ;;
   *) here="." ;;
 esac
-plugin_root="${self%/scripts/${self##*/}}"
+. "$here/plugin-root.sh"
+plugin_root="$(plugin_root_of "$0" 1)"
 
 [[ $# -ge 4 ]] || die "usage: task-step.sh <plan> <subject> <started> <event> [<flag>...]"
 plan="${1//\\//}"

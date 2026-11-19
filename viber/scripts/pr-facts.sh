@@ -20,7 +20,7 @@
 #   cwd    : any directory inside the host repository - the script resolves the
 #            repository root itself. Outside one, the answer is `no-repo`.
 #   env    : none of its own; gh reads its usual auth and host config.
-#   file   : the sibling config.sh block (github.pr-title, directories.*) and
+#   file   : the sibling plugin-root.sh (sourced); the sibling config.sh block (github.pr-title, directories.*) and
 #            `config.sh --branching` (mode, entries); the frontmatter of
 #            docs/<directories.runs>/*/plan.md (`branch:`, `work:`, `issue:`)
 #            and its `Repro:` lines inside task blocks; the `issue:` of an
@@ -63,7 +63,8 @@
 #              BODY_FILE=<root>/.temp/viber/pr-create/body-<yyyy-mm-dd-HH-MM-SS>.md   (only named, never created here)
 #              ASK=target|entry                    (only with ENTRY and TARGET empty: target on MODE=off, else entry)
 #              RERUN="<plugin root>/scripts/pr-facts.sh" --target "<branch>" | ... --entry "<key>"   (with ASK=)
-#            <plugin root> is the invoked path cut before /scripts/ (never pwd);
+#            <plugin root> is the invoked path cut before /scripts/ by the sibling
+#            plugin-root.sh, as text (never pwd): C:/... for a C:\ or C:/ path;
 #            <branch> and <key> stay literal slots the caller fills with the answer.
 #            Filling replaces {type}, {issue-number} (the first ISSUE, empty
 #            with none) and {entry}, collapses each run of blanks to one and
@@ -124,10 +125,8 @@ case $# in
 esac
 
 here=$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)
-case $0 in
-  */scripts/*) plugin_root=${0%/scripts/*} ;;
-  *) plugin_root=$(dirname -- "$here") ;;
-esac
+. "$(dirname -- "$0")/plugin-root.sh"
+plugin_root=$(plugin_root_of "$0" 1)
 
 stop() {
   case $1 in

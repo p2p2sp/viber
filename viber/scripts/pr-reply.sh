@@ -30,7 +30,7 @@
 #            repository and host itself, and every gh call then carries
 #            `--hostname <host>`.
 #   env    : none of its own; gh reads its usual auth and host config.
-#   file   : $3, appended verbatim to the head; never modified or removed. The
+#   file   : --list sources the sibling plugin-root.sh; $3, appended verbatim to the head; never modified or removed. The
 #            body is written to <repo root>/.temp/viber/pr-feedback/<N>/posted/
 #            <key>.md and left there. A thread:
 #              line 1  <!-- viber:pr-feedback <id> -->
@@ -88,7 +88,8 @@
 #              SAY=<sentence>                  STATUS=skip only, stated as is
 #            READY and MISSING lines keep section order; RUN is printed with
 #            STATUS=ready only. <plugin root> is the invoked path cut before
-#            `/scripts/`, never resolved. Exit 2 with the usage on a malformed
+#            `/scripts/` by plugin-root.sh, never resolved (C:/... for a C:\ or
+#            C:/ path, /c/... for a /c/ one). Exit 2 with the usage on a malformed
 #            pull request; exit 1 with one ERROR line outside a git repository.
 #
 #   --all  : `pr-reply.sh --all <pull request>` (exactly two arguments) reads the
@@ -261,7 +262,8 @@ if [ -n "$all" ]; then
   fi
 fi
 if [ -n "$list" ]; then
-  self=$(printf '%s' "$0" | tr '\\' '/')
+  . "$(dirname -- "$0")/plugin-root.sh"
+  plugin_root=$(plugin_root_of "$0" 1)
   if [ ! -f "$review" ]; then
     printf 'STATUS=skip\nREASON=no-review\nSAY=%s\n' "No /viber:pr-feedback run wrote a review file for this pull request."
     exit 0
@@ -307,7 +309,7 @@ if [ -n "$list" ]; then
   if [ -n "$ready" ]; then
     printf 'STATUS=ready\n%s\n' "$ready"
     [ -z "$missing" ] || printf '%s\n' "$missing"
-    printf 'RUN="%s/scripts/pr-reply.sh" --all "%s"\n' "${self%/scripts/pr-reply.sh}" "$pr"
+    printf 'RUN="%s/scripts/pr-reply.sh" --all "%s"\n' "$plugin_root" "$pr"
   else
     printf 'STATUS=skip\n'
     [ -z "$missing" ] || printf '%s\n' "$missing"

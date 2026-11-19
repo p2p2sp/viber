@@ -208,6 +208,30 @@ test("every path of the answer names the plugin root in the spelling the script 
   });
 });
 
+// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
+// Neither spelling names a file outside Windows, so the cases skip there.
+const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
+const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
+
+const SPELLINGS: Array<{ label: string; invoked: string; root: string }> = [
+  { label: "a C:\\ path", invoked: SUT, root: ROOT },
+  { label: "a C:/ path", invoked: slash(SUT), root: ROOT },
+  { label: "a /c/ path", invoked: MSYS(SUT), root: MSYS(ROOT) },
+];
+
+for (const row of SPELLINGS) {
+  test(`invoked by ${row.label}, the RUN: commands name the plugin root in that spelling (AC1)`, { skip: WINDOWS_ONLY }, async () => {
+    await withGitRepo(async (repo) => {
+      seedPlan(repo);
+      await arrange(repo, [START_T4_WAIVED]);
+
+      const result = await step(repo, ["T4", "100", "coder", "PASS"], row.invoked);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, lines("NEXT: commit", `RUN: "${row.root}/scripts/commit-task.sh" "${PLAN_REL}" "T4"`));
+    });
+  });
+}
+
 test("the script is recorded in the git index as mode 100755", () => {
   const entry = execFileSync("git", ["ls-files", "-s", "--", "viber/scripts/task-step.sh"], {
     cwd: REPO_ROOT,
@@ -829,7 +853,7 @@ async function seedChecked(repo: GitRepo, config: string, testBody: string): Pro
 function stubbedCheck(repo: GitRepo, body: string): { sut: string; root: string } {
   const scripts = path.join(repo.dir, "plugin", "scripts");
   fs.mkdirSync(scripts, { recursive: true });
-  for (const name of ["task-step.sh", "plan-index.sh", "config.sh", "run-failures.sh"]) {
+  for (const name of ["task-step.sh", "plan-index.sh", "config.sh", "run-failures.sh", "plugin-root.sh"]) {
     fs.copyFileSync(path.join(path.dirname(SUT), name), path.join(scripts, name));
   }
   fs.writeFileSync(path.join(scripts, "red-check.sh"), `#!/usr/bin/env bash\n${body}\n`);

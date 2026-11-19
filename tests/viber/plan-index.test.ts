@@ -4128,6 +4128,7 @@ function installScript(dir: string, templates: boolean): string {
   const script = path.join(dir, "viber/scripts/plan-index.sh");
   fs.mkdirSync(path.dirname(script), { recursive: true });
   fs.copyFileSync(SUT, script);
+  fs.copyFileSync(path.join(path.dirname(SUT), "plugin-root.sh"), path.join(path.dirname(script), "plugin-root.sh"));
   if (templates) {
     for (const name of ["spec-full.md", "spec-lite.md", "tasks.md"]) {
       write(dir, `viber/skills/planner/templates/${name}`, "# template\n\n<!-- <hidden> -->\n\n<brand new slot>\n");
@@ -4538,6 +4539,33 @@ test("refs and scope name the plugin root in the spelling the script was invoked
     );
   });
 });
+
+// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
+// Neither spelling names a file outside Windows, so the cases skip there.
+const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
+const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
+
+const SPELLINGS: Array<{ label: string; invoked: string; root: string }> = [
+  { label: "a C:\\ path", invoked: SUT, root: DISPATCH_ROOT },
+  { label: "a C:/ path", invoked: slash(SUT), root: DISPATCH_ROOT },
+  { label: "a /c/ path", invoked: MSYS(SUT), root: MSYS(DISPATCH_ROOT) },
+];
+
+for (const row of SPELLINGS) {
+  test(`--dispatch invoked by ${row.label} prints refs and scope under the plugin root in that spelling (AC1)`, { skip: WINDOWS_ONLY }, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seedDispatch(dir);
+
+      const result = await runScript(row.invoked, [PLAN_REL, "--dispatch", "T1", "reviewer"], { cwd: dir, shell: "bash" });
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.ok(result.stdout.includes(`\nrefs: ${row.root}/references\n`), `stdout: ${result.stdout}`);
+      assert.ok(
+        result.stdout.endsWith(`\nscope: "${row.root}/scripts/plan-index.sh" "${PLAN_REL}" --extra "T1"\n`),
+        `stdout: ${result.stdout}`,
+      );
+    });
+  });
+}
 
 for (const [form, second] of [
   ["a list line with the run-failures prefix", "lessons: Public x2, State x1"],
