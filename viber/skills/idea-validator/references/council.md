@@ -14,15 +14,9 @@ Format: number, member, file under `references/council/`: guiding question. Scor
 6. Risk & legal, `06-risk.md`: Regulation, API dependencies, what kills this with one external decision? Scores Autopilot fit; writes the risk register.
 7. Optimist / visionary, `07-visionary.md`: Best realistic case; where does this lead if it works? Scores Advantage / defensibility; writes the upside.
 
-## Launching a member (round 1)
+## Launching the members
 
-Spawn a `general-purpose` subagent per member, all seven in the same turn. The prompt contains, in this order:
-
-1. The full pasted text of the member file (subagents cannot see the skill).
-2. The line: `Write in <report language>.`
-3. The list of paths to `01-normalized.md` ... `09-autopilot-fit.md`, with the instruction to read all of them before answering and to cite the file (and the URL inside it) for every fact used.
-4. The output path `10-council-r1/<member>.md` and the round-1 output format below.
-5. `Do not look for or read any file under 10-council-r1/ or 11-council-r2/.`
+`build_report.mjs --prompts council-r1` and `council-r2` write one prompt file per member; each member is its own `general-purpose` subagent, all seven in the same turn.
 
 Never summarise the research for the member, tell it what other members think, or tell it what verdict you expect.
 
@@ -46,7 +40,7 @@ Table: dimension | score 1-5 | confidence | one-line reason - only for your prim
 
 ## Round 2 (default on; skipped only with `--quick`)
 
-Spawn the same seven members again, all in the same turn. Each prompt contains: its pasted member file, the path to its own round-1 file, the paths to the six other round-1 files, the report language, the output path `11-council-r2/<member>.md` and the round-2 format. Instruction: respond to specific arguments by name ("The Skeptic's argument 2 is wrong because..." / "The Operator convinced me on..."), never restate round 1, and change position whenever an argument convinces you.
+The same seven members again, all in the same turn, each answering in this format by responding to specific arguments by name ("The Skeptic's argument 2 is wrong because..." / "The Operator convinced me on...").
 
 ```
 # <Member name> - round 2

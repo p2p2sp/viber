@@ -65,7 +65,7 @@ Lean Canvas and hidden assumptions per `process.md` Step 1. Include every "it wi
 Per `process.md` Step 2, riskiest first. -> `02-hypotheses.md`
 
 ### Steps 3-5 - Research (three parallel subagents)
-Read `${CLAUDE_SKILL_DIR}/references/dimensions.md` (steps 6-9 and 12 use it too). Launch three `general-purpose` subagents in the same turn, one per research brief in `process.md`. Each prompt holds the pasted brief, the pasted Research rules section of `process.md`, the paths to `01-normalized.md` and `02-hypotheses.md`, and the output path; the Problem brief also gets the pasted Problem strength anchors from `dimensions.md`. Paste, never pass a skill path: subagents cannot see the skill. Wait for all three.
+Read `${CLAUDE_SKILL_DIR}/references/dimensions.md` (steps 6-9 and 12 use it too). Run `node ${CLAUDE_SKILL_DIR}/scripts/build_report.mjs --prompts research <working directory>`, then launch one `general-purpose` subagent per `PROMPT: <name> | <path>` line, all in the same turn, each with the prompt `Read <path> and follow it.` Wait for all three.
 
 ### Steps 6-9 - Model, Distribution, Side-project fit, Autopilot fit
 In the main context, from the research files, per `dimensions.md`. -> files 06-09
@@ -74,10 +74,10 @@ In the main context, from the research files, per `dimensions.md`. -> files 06-0
 - `08` and `09`: the Side-project fit and Autopilot fit protocols.
 
 ### Step 10 - Council round 1 (7 parallel subagents, isolated)
-Read `${CLAUDE_SKILL_DIR}/references/council.md` and launch the seven members per its "Launching a member" section, all seven `general-purpose` subagents in the same turn, each prompt carrying the pasted text of its `${CLAUDE_SKILL_DIR}/references/council/<nn>-<member>.md`. -> `10-council-r1/<member>.md`
+Read `${CLAUDE_SKILL_DIR}/references/council.md`, run `node ${CLAUDE_SKILL_DIR}/scripts/build_report.mjs --prompts council-r1 <working directory> <report language>` and launch one `general-purpose` subagent per `PROMPT:` line, all seven in the same turn, each with `Read <path> and follow it.` -> `10-council-r1/<member>.md`
 
 ### Step 11 - Council round 2 (skipped only with `--quick`)
-Per `council.md` "Round 2". Round 2 turns the council from a survey into a debate, so it is on by default. -> `11-council-r2/<member>.md`
+Run `--prompts council-r2 <working directory> <report language>` the same way and dispatch its `PROMPT:` lines, all seven in one turn. Round 2 turns the council from a survey into a debate, so it is on by default. -> `11-council-r2/<member>.md`
 
 ### Step 12 - Synthesis and scorecard (main context, moderator role)
 Per the `council.md` "Moderator protocol" and the `dimensions.md` "Verdict rules". -> `12-synthesis.md`

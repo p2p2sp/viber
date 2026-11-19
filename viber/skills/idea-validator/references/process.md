@@ -8,7 +8,7 @@ Sections map to the step numbers in SKILL.md.
 - Step 1 - Normalize (Lean Canvas)
 - Step 2 - Risk hypotheses
 - Steps 3-5 - Research briefs
-- Research rules (paste into every research prompt)
+- Research rules
 
 ## Step 0 - Intake questions
 
@@ -56,7 +56,7 @@ Sort by: category desirability first among ties, then lowest current evidence, t
 
 ## Steps 3-5 - Research briefs
 
-Each brief goes to one subagent, pasted together with the Research rules section below.
+Each brief is one subagent's prompt file, written by `build_report.mjs --prompts research` together with the Research rules section below.
 
 ### Problem research brief -> `03-research-problem.md`
 
@@ -69,7 +69,7 @@ Look for:
 - Cost of the workaround: time, money, error rate. Only with sources.
 - Search demand signals if a free tool exposes them (e.g. Google Trends direction, autocomplete phrases). Report direction, not invented volumes.
 
-Return also: a **problem strength estimate** (1-5, using the Problem strength anchors pasted below this brief) with the two strongest pieces of evidence for and against.
+Return also: a **problem strength estimate** (1-5, using the Problem strength anchors that follow this brief in your prompt) with the two strongest pieces of evidence for and against.
 
 ### Market research brief -> `04-research-market.md`
 
@@ -95,7 +95,7 @@ Then:
 - **Whitespace**: what nobody serves, based on the weaknesses column, labelled as a conclusion, not a fact.
 - **Threat from incumbents**: could a large player add this as a feature? Any evidence they are moving that way?
 
-## Research rules (paste into every research prompt)
+## Research rules
 
 - Output skeleton:
   ```

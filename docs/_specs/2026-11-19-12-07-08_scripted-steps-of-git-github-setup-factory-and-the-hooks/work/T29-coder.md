@@ -1,0 +1,5 @@
+- SKILL.md steps 3-5, 10, 11 pass `<working directory>` (the relative `.temp/viber/idea-validator/<slug>-<date>`) and `<report language>` to `--prompts`; the CLI resolves it against the cwd.
+- Step 10 still reads `council.md` (isolation rule, members); step 11 reads nothing, its format comes from the prompt files.
+- `council.md` "Launching a member (round 1)" became "Launching the members" (one sentence plus the never-summarise rule); the script reads only `## Round-1 output format` and `## Round 2`.
+- `viber/skills/idea-validator/CLAUDE.md` still says prompts carry pasted briefs and member files: the memory step owns it.
+- Checked by hand: `--prompts research` and `council-r2` against the real references print their PROMPT lines under `.temp/viber/T29/wd`.
