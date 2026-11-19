@@ -5088,3 +5088,80 @@ test("a plan with no ## Behaviour section prints nothing for the scenario check"
   assert.equal(result.status, 0, `stderr: ${result.stderr}`);
   assert.equal(result.stderr, "");
 });
+
+// --- File map: modify and delete lines name paths the tree holds ---------------
+
+const MAP_ADD_LINE = "- add - src/login.ts - the handler";
+
+/** Validates a plan whose `### File map` holds `mapLines`, in a tree that holds only `src/held.ts`.
+ *  `args` follow the plan path. */
+async function validateMap(mapLines: string[], args: string[] = []) {
+  return withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody(TWO_TASKS).replace(MAP_ADD_LINE, mapLines.join("\n")));
+    write(dir, "src/held.ts", "export {};\n");
+    return run(dir, {}, [PLAN_REL, ...args]);
+  });
+}
+
+test("a modify line whose path the tree does not hold prints the File map FIX line and exits 4", async () => {
+  const result = await validateMap(["- modify - src/gone.ts - the handler"]);
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(
+    result.stderr,
+    "FIX: file map: modify src/gone.ts, which the tree does not hold - correct the path or list it as add (File map)\n",
+  );
+});
+
+test("a delete line whose path the tree does not hold prints the File map FIX line and exits 4", async () => {
+  const result = await validateMap(["- delete - src/gone.ts - the old handler"]);
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(
+    result.stderr,
+    "FIX: file map: delete src/gone.ts, which the tree does not hold - correct the path or list it as add (File map)\n",
+  );
+});
+
+test("an add line for a missing path and a modify line for a held path print nothing for the File map", async () => {
+  const result = await validateMap([MAP_ADD_LINE, "- modify - src/held.ts - the shared helper"]);
+
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(result.stderr, "");
+});
+
+test("a modify line listing several comma-separated paths is checked path by path", async () => {
+  const result = await validateMap(["- modify - src/held.ts, src/gone-a.ts, src/gone-b.ts - the handlers"]);
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(
+    result.stderr,
+    [
+      "FIX: file map: modify src/gone-a.ts, which the tree does not hold - correct the path or list it as add (File map)",
+      "FIX: file map: modify src/gone-b.ts, which the tree does not hold - correct the path or list it as add (File map)",
+      "",
+    ].join("\n"),
+  );
+});
+
+const MAP_MISSING = ["- modify - src/gone.ts - the handler"];
+
+test("a plan validated under --split prints nothing for the File map check", async () => {
+  const result = await validateMap(MAP_MISSING, ["--split"]);
+
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(result.stderr, `decomposed: 2 tasks into ${PLAN_DIR}\n`);
+});
+
+test("a plan with a status.md beside it prints nothing for the File map check (a landed plan is frozen)", async () => {
+  const result = await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody(TWO_TASKS).replace(MAP_ADD_LINE, MAP_MISSING.join("\n")));
+    seedStatus(dir, { done: "none" });
+    return run(dir, {}, [PLAN_REL]);
+  });
+
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(result.stderr, "");
+});

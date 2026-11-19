@@ -429,8 +429,13 @@
 #       the section's "### " headings but "### Edge cases", counted from 1 (stderr:
 #       "FIX: line <n>: scenario heading "<heading>" must be "### S<k> - <title>", the
 #       <k>th scenario in order - number it (Scenarios)"; a plan with no "## Behaviour"
-#       section has none to check).
-#       The last nineteen cases and the parenthetical one above are exempted under --split
+#       section has none to check), or a "- modify - <path>" or "- delete - <path>" line
+#       under "### File map" (outside a fenced block) naming a path the tree does not hold
+#       ("<path>" cut at the first " - ", a comma-separated list checked path by path,
+#       a wrapping backtick pair and a leading "./" dropped; an "add" line is none;
+#       stderr: "FIX: file map: <modify|delete> <path>, which the tree does not hold -
+#       correct the path or list it as add (File map)", one per path).
+#       The last twenty cases and the parenthetical one above are exempted under --split
 #       and under --extra, and on a plain call whose plan has status.md beside
 #       it (a landed run plan): a plan that landed before the rule is frozen,
 #       and a run resumed after the upgrade must still validate and decompose.
@@ -1211,6 +1216,29 @@ mode != "--split" && !infc && inbeh && /^###[[:space:]]/ {
     nscen++
     if (!(match(sh, /^S[1-9][0-9]* - /) && trim(substr(sh, RLENGTH + 1)) != "" && substr(sh, 2, RLENGTH - 4) + 0 == nscen))
       fail("line " NR ": scenario heading \"" sh "\" must be \"### S<k> - <title>\", the " nscen "th scenario in order - number it (Scenarios)")
+  }
+}
+
+# File map: under "### File map" a line "- modify - <path>[, <path>]... - <text>" or
+# "- delete - ..." names paths the tree already holds, each one checked alone; an "add"
+# line is none. Fresh plan only, like the other checks added after plans were frozen.
+!infc && /^#+[[:space:]]/ { infmap = ($0 ~ /^###[[:space:]]+File map[[:space:]]*$/) }
+mode != "--split" && !infc && infmap && /^-[[:space:]]+(modify|delete)[[:space:]]+-[[:space:]]/ {
+  fmval = $0
+  sub(/\r$/, "", fmval)
+  sub(/^-[[:space:]]+/, "", fmval)
+  fmkind = fmval
+  sub(/[[:space:]].*$/, "", fmkind)
+  sub(/^(modify|delete)[[:space:]]+-[[:space:]]+/, "", fmval)
+  fmcut = index(fmval, " - ")
+  if (fmcut > 0) fmval = substr(fmval, 1, fmcut - 1)
+  fmn = split(fmval, fmparts, ",")
+  for (fmi = 1; fmi <= fmn; fmi++) {
+    fmpath = trim(fmparts[fmi])
+    if (fmpath ~ /^`.*`$/) fmpath = trim(substr(fmpath, 2, length(fmpath) - 2))
+    sub(/^\.\//, "", fmpath)
+    if (fmpath != "" && !present(fmpath))
+      fail("file map: " fmkind " " fmpath ", which the tree does not hold - correct the path or list it as add (File map)")
   }
 }
 incrit && /^[0-9]+\./ {

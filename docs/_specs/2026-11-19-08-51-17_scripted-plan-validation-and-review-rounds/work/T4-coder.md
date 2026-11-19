@@ -1,0 +1,5 @@
+- File map check: only lines under `### File map` outside a fence that match `- modify|delete - `; the path list is cut at the first " - " and split on commas, a wrapping backtick pair and a leading "./" dropped. A path ending in "/" or a directory is not special-cased: `present()` decides.
+- Fresh plan only (`mode != "--split"`), so a status.md beside the plan or --split prints nothing. The awk globals of the new rule are `fm*`-prefixed: a bare `fl` collided with an existing array.
+- Red run: `.temp/viber/T4/red.log` (name pattern "File map", so the several-paths test was not in it): 3 failing, two on the File map assertions (DoD.1, DoD.2), the third was my own wrong stderr assertion under --split (fixed). DoD.3 and DoD.5 held before the change; DoD.4 was never run red.
+- A --split run prints `decomposed: <n> tasks into <dir>` on stderr, so the DoD.5 test pins that line instead of an empty stderr.
+- Header: "last nineteen cases" became twenty; `tests/viber/CLAUDE.md` replay note and the replay plans (recorded plans may now fail the File map check) are the memory step's.
