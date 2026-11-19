@@ -560,10 +560,10 @@ test("map mode prints the trail and waiting lines after the dirty lines and befo
   await withGitRepo(async (repo) => {
     await seed(repo, {
       "src/a.ts": "a\n",
-      ".claude/rules/live.md": rule(["src/*.ts"]),
+      ".claude/rules/live.md": rule(["**/*.ts"]),
       "docs/specs/run-a/failures.md": failures(["convention | review-T1-1 | x"]),
     });
-    write(repo, ".claude/rules/fresh.md", rule(["src/*.ts"]));
+    write(repo, ".claude/rules/fresh.md", rule(["**/*.ts"]));
 
     const result = await run(repo);
 
@@ -605,6 +605,126 @@ test("map mode scores the rules of every area subdirectory beside the shared roo
       `.claude/rules/frontend/_frozen.md ${Buffer.byteLength(frozen)}`,
     ]);
     assert.deepEqual(section(result.stdout, "dead"), [".claude/rules/frontend/gone.md"]);
+  });
+});
+
+test("map mode names a root rule whose globs all open on one literal directory as misplaced there", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "server/a.ts": "a\n",
+      ".claude/rules/api.md": rule(["server/*.ts", "server/lib/**/*.ts"]),
+    });
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(section(result.stdout, "misplaced"), [".claude/rules/api.md server"]);
+  });
+});
+
+test("map mode names no root rule misplaced when its globs hold no shared literal first segment and its name opens on no area", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "server/a.ts": "a\n",
+      ".claude/rules/mixed.md": rule(["server/*.ts", "web/*.ts"]),
+      ".claude/rules/flat.md": rule(["*.ts"]),
+      ".claude/rules/slashless.md": rule(["server/*.ts", "README.md"]),
+      ".claude/rules/everywhere.md": rule(["**/*.ts"]),
+      ".claude/rules/braced.md": rule(["{server,web}/*.ts"]),
+      ".claude/rules/classed.md": rule(["ser[v]er/*.ts"]),
+      ".claude/rules/backend-db.md": rule(["**/*.ts"]),
+      ".claude/rules/frontend-ui.md": "# loose\n",
+    });
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(section(result.stdout, "misplaced"), []);
+  });
+});
+
+test("map mode names a root rule opening on an existing area's name as misplaced in that area, whatever its globs", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "server/a.ts": "a\n",
+      ".claude/rules/backend/api.md": rule(["server/*.ts"]),
+      ".claude/rules/backend-db.md": rule(["**/*.ts"]),
+    });
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(section(result.stdout, "misplaced"), [".claude/rules/backend-db.md backend"]);
+  });
+});
+
+test("map mode names a root rule declaring no scope misplaced in the area its name opens on", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "server/a.ts": "a\n",
+      ".claude/rules/backend/api.md": rule(["server/*.ts"]),
+      ".claude/rules/backend-misc.md": "# loose\n",
+    });
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(section(result.stdout, "misplaced"), [".claude/rules/backend-misc.md backend"]);
+  });
+});
+
+test("map mode names an area rule whose name opens on its own area as misplaced there", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "server/a.ts": "a\n",
+      ".claude/rules/backend/api.md": rule(["server/*.ts"]),
+      ".claude/rules/backend/backend-db.md": rule(["server/*.ts"]),
+    });
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(section(result.stdout, "misplaced"), [".claude/rules/backend/backend-db.md backend"]);
+  });
+});
+
+test("map mode never names a frozen rule misplaced", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "server/a.ts": "a\n",
+      ".claude/rules/backend/api.md": rule(["server/*.ts"]),
+      ".claude/rules/_server.md": rule(["server/*.ts"]),
+      ".claude/rules/backend/_backend-db.md": rule(["server/*.ts"]),
+    });
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(section(result.stdout, "misplaced"), []);
+  });
+});
+
+test("map mode prints the misplaced lines after the dead lines and before total, alphabetical by path", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "server/a.ts": "a\n",
+      ".claude/rules/zeta.md": rule(["server/*.ts"]),
+      ".claude/rules/alpha.md": rule(["gone/*.ts"]),
+      ".claude/rules/backend/backend-x.md": rule(["server/*.ts"]),
+    });
+
+    const result = await run(repo);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(
+      lines(result.stdout).map((line) => line.split(":")[0]),
+      ["# viber rules map", "id", "state", "rule", "rule", "rule", "dead", "misplaced", "misplaced", "misplaced", "total"],
+    );
+    assert.deepEqual(section(result.stdout, "misplaced"), [
+      ".claude/rules/alpha.md gone",
+      ".claude/rules/backend/backend-x.md backend",
+      ".claude/rules/zeta.md server",
+    ]);
   });
 });
 

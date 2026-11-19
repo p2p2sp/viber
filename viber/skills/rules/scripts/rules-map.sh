@@ -49,6 +49,7 @@
 #              rule: <path> <chars> paths <glob>[,<glob>] matches <n> ok
 #              frozen: <path> <chars>
 #              dead: <path>
+#              misplaced: <rule path> <area>
 #              dirty: <path> modified | untracked
 #              trail: <repo-relative path of one archived failures.md> convention <n> other <n>
 #              waiting: convention <n> place <n> plan <n> task <n> test <n> unknown <n>
@@ -73,6 +74,14 @@
 #            printed at all when the repository tracks nothing, where every
 #            rule would read dead and the count would say nothing about the
 #            rule.
+#            `misplaced:` is one line per non-frozen rule that sits outside the
+#            area it belongs to, alphabetical by path, after the `dead:` lines:
+#            a rule directly under the rules directory whose globs each hold a
+#            `/` and all open on one first segment holding none of `*`, `?`,
+#            `[` or `{` (that segment is the area), else one declaring no such
+#            segment, a rule with no scope included, whose basename opens on
+#            `<area>-` for an existing subdirectory of the rules directory; and
+#            a rule inside `<area>/` whose basename opens on `<area>-`.
 #            `dirty:` covers every `.md` in the directory, frozen included:
 #            uncommitted work is a fact about the file, not a score.
 #            `trail:` is one line per archived `failures.md` holding at least
@@ -228,6 +237,43 @@ count_matches() {
   '
 }
 
+# The literal first path segment every glob of the list $1 (one per line) opens
+# on, printed alone, or nothing at all: a glob holding no `/`, a first segment
+# that is empty or holds `*`, `?`, `[` or `{`, two globs opening on different
+# segments, and an empty list each give none.
+shared_segment() {
+  seg=""
+  while IFS= read -r glob; do
+    [ -n "$glob" ] || continue
+    case "$glob" in
+      */*) ;;
+      *) return 0 ;;
+    esac
+    first="${glob%%/*}"
+    case "$first" in
+      "" | *[*?[{]*) return 0 ;;
+    esac
+    if [ -z "$seg" ]; then
+      seg="$first"
+    elif [ "$seg" != "$first" ]; then
+      return 0
+    fi
+  done < <(printf '%s\n' "$1")
+  printf '%s' "$seg"
+}
+
+# The first of the area names in $1 (one per line) that the basename $2 opens
+# on as `<area>-`, printed alone, or nothing at all.
+area_prefix() {
+  while IFS= read -r candidate; do
+    [ -n "$candidate" ] || continue
+    case "$2" in
+      "$candidate"-*) printf '%s' "$candidate"; return 0 ;;
+    esac
+  done < <(printf '%s\n' "$1")
+  return 0
+}
+
 chars_of() {
   wc -c < "$1" 2>/dev/null | tr -dc '0-9'
 }
@@ -346,9 +392,18 @@ if [ -d "$rules_dir" ]; then
     LC_ALL=C sort || true)"
 fi
 
+# The area directories: the direct subdirectories of the rules directory.
+areas=""
+if [ -d "$rules_dir" ]; then
+  areas="$(find "$rules_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null |
+    while IFS= read -r candidate; do printf '%s\n' "${candidate##*/}"; done |
+    LC_ALL=C sort || true)"
+fi
+
 rule_lines=""
 frozen_lines=""
 dead_lines=""
+misplaced_lines=""
 dirty_lines=""
 total=0
 rules_seen=0
@@ -397,6 +452,27 @@ while IFS= read -r file; do
       dead_lines="$dead_lines"'dead: '"$file"'
 '
     fi
+  fi
+  # Misplaced: a root rule whose globs all open on one literal directory, or
+  # failing that whose name opens on an area, or an area rule whose name opens
+  # on its own area - each belongs with the other rules of that area.
+  rel="${file#"$rules_dir"/}"
+  where=""
+  case "$rel" in
+    */*)
+      top="${rel%%/*}"
+      case "$base" in
+        "$top"-*) where="$top" ;;
+      esac
+      ;;
+    *)
+      where="$(shared_segment "$globs")"
+      [ -n "$where" ] || where="$(area_prefix "$areas" "$base")"
+      ;;
+  esac
+  if [ -n "$where" ]; then
+    misplaced_lines="$misplaced_lines"'misplaced: '"$file $where"'
+'
   fi
   verdict="ok"
   [ "$size" -gt "$file_cap" ] && verdict="OVER-FILE"
@@ -473,6 +549,7 @@ printf 'state: %s\n' "$state"
 printf '%s' "$rule_lines"
 printf '%s' "$frozen_lines"
 printf '%s' "$dead_lines"
+printf '%s' "$misplaced_lines"
 printf '%s' "$dirty_lines"
 printf '%s' "$trail_lines"
 [ -z "$waiting_line" ] || printf '%s\n' "$waiting_line"
