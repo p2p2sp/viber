@@ -1,0 +1,5 @@
+- The tokenizer now records each word's raw start and end offsets and whether it held a quote or backslash (`tws`, `twe`, `twq`), so the R4 suffix splices `.temp/` into the raw command and a quoted target gets none.
+- Stricter than C3: a target holding `$`, `*`, `?` or `[`, or `.` or `..`, also gets no suffix; a write by `sed -i`, `perl -pi` or `tee` in the same command (`r4o`) blocks it too, since the corrected command would still be refused.
+- `>|` and `N>` count as redirects; any `>&` form sets `dup` and blocks the suffix, `>&file` included.
+- Existing R4 cases `&> out.txt`, `2> err.log` and `>out.txt` moved from the no-suffix list to the suffix table.
+- `hooks/CLAUDE.md` still describes R4 without the suffix (memory step).

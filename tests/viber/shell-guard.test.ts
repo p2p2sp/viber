@@ -180,17 +180,53 @@ test("a command matching R2 and R3 is refused as R2 (rule order, not position in
   assert.equal(await runCommand("rm x | git stash", CODER), R2);
 });
 
+const r4With = (suffix: string): string => deny(`Bash never writes a file - change it with Edit or Write, and redirect scratch output only under .temp/. ${suffix}`);
+
+const redirectWithSuffix: Array<[string, string, string]> = [
+  ["DoD.1", "npm test > out.log", "Run instead: `npm test > .temp/out.log`."],
+  ["DoD.2", "ls > ./out.log", "Run instead: `ls > .temp/out.log`."],
+  ["DoD.1", "echo x >> notes.md", "Run instead: `echo x >> .temp/notes.md`."],
+  ["DoD.1", "echo x >| out.txt", "Run instead: `echo x >| .temp/out.txt`."],
+  ["DoD.1", "echo x &> out.txt", "Run instead: `echo x &> .temp/out.txt`."],
+  ["DoD.1", "echo x 2> err.log", "Run instead: `echo x 2> .temp/err.log`."],
+  ["DoD.1", "echo x >out.txt", "Run instead: `echo x >.temp/out.txt`."],
+  ["DoD.1", "ls | wc > count.txt", "Run instead: `ls | wc > .temp/count.txt`."],
+];
+
+for (const [clause, command, suffix] of redirectWithSuffix) {
+  test(`${clause}: from viber:task-coder, ${JSON.stringify(command)} is refused with the R4 reason ending on the command with its target under .temp/`, async () => {
+    assert.equal(await runCommand(command, CODER), r4With(suffix));
+  });
+}
+
+test("DoD.1: a command holding a double quote reaches the R4 reason JSON-escaped and the output parses as JSON", async () => {
+  const out = await runCommand('echo "a b" > out.log', CODER);
+  assert.equal(out, r4With('Run instead: `echo \\"a b\\" > .temp/out.log`.'));
+  assert.equal(
+    JSON.parse(out).hookSpecificOutput.permissionDecisionReason,
+    'viber guard: Bash never writes a file - change it with Edit or Write, and redirect scratch output only under .temp/. Run instead: `echo "a b" > .temp/out.log`.',
+  );
+});
+
 const writeForbidden = [
   "sed -i 's/a/b/' f",
   "sed --in-place=.bak 's/a/b/' f",
   "perl -pi -e 's/a/b/' f",
   "perl -i.bak -ne 'print' f",
+  "sed -i s/a/b/ f.txt",
+  "echo x | tee f.txt",
   "echo x > src/a.ts",
   "echo x >> src/a.ts",
-  "echo x &> out.txt",
-  "echo x 2> err.log",
-  "echo x >out.txt",
   "echo x > ../other/a.ts",
+  "ls > ../out.log",
+  "ls > logs/out.log",
+  'ls > "out file.log"',
+  "ls > 'out.log'",
+  "ls > out\\ file.log",
+  "npm test > out.log 2>&1",
+  "echo x > a.txt 2> b.txt",
+  "echo x > a.txt | tee c.txt",
+  "echo x > out$N.log",
   "echo hi >&out.txt",
   "echo hi >& out.txt",
   "echo hi 1>&out.txt",
@@ -199,7 +235,7 @@ const writeForbidden = [
 ];
 
 for (const command of writeForbidden) {
-  test(`DoD.5: from viber:task-coder, ${JSON.stringify(command)} is refused with the R4 deny object`, async () => {
+  test(`DoD.3: from viber:task-coder, ${JSON.stringify(command)} is refused with today's R4 reason alone`, async () => {
     assert.equal(await runCommand(command, CODER), R4);
   });
 }

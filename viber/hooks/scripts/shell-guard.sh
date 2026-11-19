@@ -84,7 +84,13 @@
 #               holding i (-i, -pi); an unquoted >, >>, &> or <digit>> whose target
 #               is a relative path (not opening with /, ~ or $, not &<digit>) that
 #               does not start .temp/ or ./.temp/; tee in command position with
-#               such a file argument.
+#               such a file argument. The reason ends, after one space, on `Run instead:
+#               `<command>`.` only when the write is one redirect (>, >>, >|, &> or N>)
+#               onto an unquoted file name and nothing else writes: the command with that
+#               target written .temp/<target>, a leading ./ dropped once, a " or \
+#               JSON-escaped. No such ending for a target still holding a /, a quoted
+#               or $-, *-, ?- or [-holding target, a second redirect, any >& form (2>&1),
+#               sed -i, perl -pi or tee, or a command holding a control character.
 #            R5 (coder): python, python2 or python3 with -c (alone or ending an
 #               option cluster, -Bc); node with -e, --eval, -p, --print or a cluster
 #               holding e or p; ruby with a cluster holding e; perl with a cluster
@@ -173,9 +179,29 @@ rec_op() {
   if ((depth > 0 || bt)); then nested=1; fi
 }
 
+# Raw offsets of each word in cmd (start, end) and whether it held a quote or a
+# backslash, for the R4 suffix; wst, wq follow the word being built, dup is set by
+# any >& form (a descriptor duplication or >&word).
+tws=()
+twe=()
+twq=()
+wst=0
+wq=0
+dup=0
+
+wstart() {
+  if ((!inword)); then
+    wst=$i
+    wq=0
+  fi
+}
+
 flush() {
   if ((inword)); then
     add W "$word"
+    tws[n - 1]=$wst
+    twe[n - 1]=$i
+    twq[n - 1]=$wq
     word=''
     inword=0
   fi
@@ -187,6 +213,8 @@ while ((i < len)); do
   c="${cmd:i:1}"
   case "$c" in
     "'")
+      wstart
+      wq=1
       rest="${cmd:i+1}"
       if [[ "$rest" == *"'"* ]]; then
         lit="${rest%%"'"*}"
@@ -199,6 +227,8 @@ while ((i < len)); do
       inword=1
       ;;
     '"')
+      wstart
+      wq=1
       i=$((i + 1))
       inword=1
       while ((i < len)); do
@@ -218,6 +248,8 @@ while ((i < len)); do
     '\')
       nc="${cmd:i+1:1}"
       if [[ "$nc" != "$nl" ]]; then
+        wstart
+        wq=1
         word+="$nc"
         inword=1
       fi
@@ -254,6 +286,7 @@ while ((i < len)); do
         depth=$((depth + 1))
         i=$((i + 2))
       else
+        wstart
         word+="$c"
         inword=1
         i=$((i + 1))
@@ -320,6 +353,7 @@ while ((i < len)); do
       i=$((i + 1))
       [[ "${cmd:i:1}" == '>' ]] && i=$((i + 1))
       [[ "${cmd:i:1}" == '|' ]] && i=$((i + 1))
+      [[ "${cmd:i:1}" == '&' ]] && dup=1
       if [[ "${cmd:i:1}" == '&' && "${cmd:i+1:1}" =~ ^[0-9-]$ ]]; then
         # A descriptor duplication (2>&1, >&2, >&-) names no file.
         i=$((i + 2))
@@ -337,6 +371,7 @@ while ((i < len)); do
       i=$((i + 1))
       ;;
     *)
+      wstart
       word+="$c"
       inword=1
       i=$((i + 1))
@@ -416,6 +451,9 @@ r2=0
 r3=0
 r4=0
 r5=0
+nr=0
+rt=-1
+r4o=0
 cmdpos=1
 pend=0
 args=()
@@ -435,11 +473,17 @@ while ((j < n)); do
       cmdpos=0
       pend=0
       ;;
-    R) pend=2 ;;
+    R)
+      pend=2
+      nr=$((nr + 1))
+      ;;
     L) pend=1 ;;
     W)
       if ((pend)); then
-        ((pend == 2)) && is_tree_path "$v" && r4=1
+        if ((pend == 2)) && is_tree_path "$v"; then
+          r4=1
+          rt=$((j - 1))
+        fi
         pend=0
         continue
       fi
@@ -499,13 +543,13 @@ while ((j < n)); do
           ;;
         sed)
           while ((x < na)); do
-            case "${args[x]}" in -i* | --in-place*) r4=1 ;; esac
+            case "${args[x]}" in -i* | --in-place*) r4=1 r4o=1 ;; esac
             x=$((x + 1))
           done
           ;;
         perl)
           while ((x < na)); do
-            [[ "${args[x]}" =~ ^-[0-9pnlaFsStTuUvwWcA]*i ]] && r4=1
+            [[ "${args[x]}" =~ ^-[0-9pnlaFsStTuUvwWcA]*i ]] && r4=1 r4o=1
             x=$((x + 1))
           done
           scan_interp perl
@@ -517,7 +561,7 @@ while ((j < n)); do
         tee)
           while ((x < na)); do
             o="${args[x]}"
-            case "$o" in -*) ;; *) is_tree_path "$o" && r4=1 ;; esac
+            case "$o" in -*) ;; *) is_tree_path "$o" && r4=1 r4o=1 ;; esac
             x=$((x + 1))
           done
           ;;
@@ -581,6 +625,26 @@ rm_suffix() {
   suffix=" Run instead: \`git rm -r -q --$ops\`."
 }
 
+# redirect_suffix: sets suffix to the command with its one redirect target written
+# under .temp/, left empty unless the command holds exactly one redirect, the write
+# comes from that redirect alone, no >& form is present and the target is an unquoted
+# plain file name with no / left once a leading ./ is dropped.
+redirect_suffix() {
+  local name fixed
+  ((nr == 1 && rt >= 0 && !r4o && !dup)) || return
+  ((twq[rt])) && return
+  name="${tv[rt]#./}"
+  case "$name" in '' | . | .. | */* | *'$'* | *'*'* | *'?'* | *'['*) return ;; esac
+  fixed="${cmd:0:tws[rt]}.temp/$name${cmd:twe[rt]}"
+  fixed="${fixed#"${fixed%%[![:blank:]]*}"}"
+  fixed="${fixed%"${fixed##*[![:blank:]]}"}"
+  [[ "$fixed" == *[[:cntrl:]]* ]] && return
+  fixed="${fixed//\\/$sep}"
+  fixed="${fixed//$dq/$bs$dq}"
+  fixed="${fixed//$sep/$bs$bs}"
+  suffix=" Run instead: \`$fixed\`."
+}
+
 reason=''
 if ((coder && r1)); then
   reason='one command per Bash call - run each part of the chain as its own Bash call.'
@@ -592,6 +656,7 @@ elif ((coder && r3)); then
   rm_suffix
 elif ((coder && r4)); then
   reason='Bash never writes a file - change it with Edit or Write, and redirect scratch output only under .temp/.'
+  redirect_suffix
 elif ((coder && r5)); then
   reason='Bash never runs inline or scratch interpreter code - change a file with Edit or Write, and run tests and project scripts by their own command.'
 fi
