@@ -71,7 +71,7 @@ An input carrying a roadmap, or a `Roadmap: <path>` line (read that `roadmap.md`
 
 Then run `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh" "<plan-path>"`, adding `--input "<summary file>"` on a summary file input. It must exit 0, each stderr line one defect: fix every `FIX:` line, split every task a `SPLIT:` line names, then re-run.
 
-`plan-index.sh` prints a `threshold:` line only past 30 tasks. Ask the step 1 question again only on a `threshold:` line of that output, and only when its count is above the accepted count, if the user accepted one; a keep records that count as the accepted one. Count no row yourself.
+`plan-index.sh` prints a `threshold:` line only past 30 tasks. Once the user kept a plan, add `--accepted "<accepted count>"` to every `plan-index.sh` call. Ask the step 1 question again on every `threshold:` line of that output, a keep recording that line's count as the accepted one. Count no row yourself.
 
 ```!
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" planning.adr "${CLAUDE_SKILL_DIR}" adr

@@ -4307,6 +4307,62 @@ for (const [count, tail] of REVIEW_TAILS) {
   });
 }
 
+const ACCEPTED_CASES: Array<[number, string, string]> = [
+  [33, "34", ""],
+  [33, "33", ""],
+  [36, "34", "threshold: 36 tasks, past 30"],
+  [31, "0", "threshold: 31 tasks, past 30"],
+];
+
+for (const [count, accepted, line] of ACCEPTED_CASES) {
+  test(`a fresh plan of ${count} tasks with --accepted "${accepted}" ${line === "" ? "prints no threshold line" : `prints "${line}"`} (only a count past the accepted one asks again)`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, plannedTasks(count));
+
+      const result = await run(dir, {}, [PLAN_REL, "--accepted", accepted]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      const printed = result.stdout.split("\n").filter((row) => row.startsWith("threshold:"));
+      assert.deepEqual(printed, line === "" ? [] : [line]);
+    });
+  });
+}
+
+const ACCEPTED_REFUSED: Array<[string, string[]]> = [
+  ["no value", ["--accepted"]],
+  ["an empty value", ["--accepted", ""]],
+  ["a value that is not digits", ["--accepted", "abc"]],
+  ["a value with a digit and a letter", ["--accepted", "3a"]],
+  ["a negative value", ["--accepted", "-1"]],
+  ["--split", ["--accepted", "5", "--split"]],
+  ["--extra", ["--accepted", "5", "--extra", "T1"]],
+  ["--dispatch", ["--accepted", "5", "--dispatch", "T1", "coder"]],
+  ["--slice", ["--accepted", "5", "--slice", "T1"]],
+  ["--final-review", ["--accepted", "5", "--final-review"]],
+];
+
+for (const [label, args] of ACCEPTED_REFUSED) {
+  test(`--accepted with ${label} exits 2 with nothing on stdout`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, plannedTasks(2));
+
+      const result = await run(dir, {}, [PLAN_REL, ...args]);
+      assert.equal(result.status, 2);
+      assert.equal(result.stdout, "");
+    });
+  });
+}
+
+test("--accepted beside --input is accepted and decides the threshold line of a validated plan", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, plannedTasks(33));
+    write(dir, "input.md", "\n");
+
+    const result = await run(dir, {}, [PLAN_REL, "--input", "input.md", "--accepted", "34"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /^threshold:/m);
+  });
+});
+
 test("a landed plan of 13 tasks (status.md beside it) prints no review instruction (the index of a landed run is parsed by other scripts)", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     seed(dir, plannedTasks(13));

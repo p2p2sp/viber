@@ -270,8 +270,8 @@ test("planner/SKILL.md counts no task, computes no slice and names no 12-task co
   assert.deepEqual(countingPhrases(PLANNER), []);
 });
 
-test("planner step 2 asks the threshold question again only on a threshold: line, and only above the accepted count", () => {
-  assert.ok(section(PLANNER, "2. Write the plan").includes("Ask the step 1 question again only on a `threshold:` line of that output, and only when its count is above the accepted count, if the user accepted one"));
+test("planner step 2 passes --accepted once the user kept a plan and asks the threshold question again on every threshold: line, comparing no count", () => {
+  assert.ok(section(PLANNER, "2. Write the plan").includes("Once the user kept a plan, add `--accepted \"<accepted count>\"` to every `plan-index.sh` call. Ask the step 1 question again on every `threshold:` line of that output, a keep recording that line's count as the accepted one."));
 });
 
 const INPUT_FLAG = '--input "<summary file>"';

@@ -83,7 +83,8 @@
 #   dispatch: viber:planner-task-review | tasks: T8-T13    by at most one, the
 #                                   larger first, cut as plan-gate.sh cuts them
 #                                   (13 tasks -> T1-T7, T8-T13)
-#   threshold: 31 tasks, past 30    only past 30 tasks, after the dispatch lines
+#   threshold: 31 tasks, past 30    only past 30 tasks and, with --accepted <n>, past
+#                                   <n> tasks, after the dispatch lines
 #
 # --extra <task-id> prints, instead of the index, the scope a reviewer checks
 # beyond the task's own Files, read from the coder extras file
@@ -184,6 +185,12 @@
 #                                   a Repro path no task "Repro:" line holds (a leading "./"
 #                                   dropped), one line per path
 # A missing summary file exits 2 with "error: input file not found: <path>".
+#
+# --accepted <n> (digits only; validate mode, beside --input too, never beside --split,
+# --extra, --dispatch, --slice or --final-review: exit 2, "error: --accepted cannot be
+# combined with ...") is the task count the user already kept past the threshold: the
+# "threshold:" line is then printed only when the count is also above <n>. A missing or
+# non-digit value exits 2 with the usage line; without it the line is printed past 30 alone.
 #
 # --split removes, once the plan is validated and decomposed and before the index
 # is printed, the coder and reviewer extras files of every task not done; a done
@@ -479,7 +486,8 @@
 # Contract:
 #   argv   : the plan file, optionally --split, --extra <task-id>, --dispatch
 #            <task-id> coder|reviewer, --slice <id>[,<id>]... or --final-review,
-#            never two of them, or --input <summary-file>, beside none of them.
+#            never two of them, or --input <summary-file>, beside none of them;
+#            --accepted <n> (digits) beside --input or alone, never beside one of those.
 #   cwd    : the repository root - the plan path and every path in the index are
 #            relative to it; a plan path given absolute, or with a leading
 #            "./", inside it is read as its relative form.
@@ -506,8 +514,10 @@ slice_arg=""
 has_final=0
 has_input=0
 input_file=""
+has_accepted=0
+accepted=""
 [[ $# -eq 0 ]] || shift
-usage="error: usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer | --slice <id>[,<id>]... | --final-review | --input <summary-file>]"
+usage="error: usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer | --slice <id>[,<id>]... | --final-review | --input <summary-file>] [--accepted <n>]"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --split) mode="--split" ;;
@@ -535,6 +545,12 @@ while [[ $# -gt 0 ]]; do
       if [[ $# -lt 2 || -z "$2" ]]; then echo "$usage" >&2; exit 2; fi
       has_input=1
       input_file="$2"
+      shift
+      ;;
+    --accepted)
+      if [[ $# -lt 2 || ! "$2" =~ ^[0-9]+$ ]]; then echo "$usage" >&2; exit 2; fi
+      has_accepted=1
+      accepted="$2"
       shift
       ;;
     *) echo "$usage" >&2; exit 2 ;;
@@ -575,6 +591,11 @@ fi
 
 if [[ "$has_input" -eq 1 && ( "$has_final" -eq 1 || "$has_slice" -eq 1 || "$has_extra" -eq 1 || "$has_dispatch" -eq 1 || "$mode" == "--split" ) ]]; then
   echo "error: --input cannot be combined with --split, --extra, --dispatch, --slice or --final-review" >&2
+  exit 2
+fi
+
+if [[ "$has_accepted" -eq 1 && ( "$has_final" -eq 1 || "$has_slice" -eq 1 || "$has_extra" -eq 1 || "$has_dispatch" -eq 1 || "$mode" == "--split" ) ]]; then
+  echo "error: --accepted cannot be combined with --split, --extra, --dispatch, --slice or --final-review" >&2
   exit 2
 fi
 
@@ -829,7 +850,7 @@ profile="$profile_on" tier_min="$tier_min" tier_max="$tier_max" \
 extra="$extra_id" extra_paths="$extra_paths" dispatch="$dispatch_id" \
 st_done="$st_done" st_skipped="$st_skipped" st_unreviewed="$st_unreviewed" \
 st_deferred="$st_deferred" st_closed="$st_closed" st_decisions="$st_decisions" st_rulings="$st_rulings" \
-in_on="$has_input" in_atts="$in_atts" in_repros="$in_repros" in_cause="$in_cause" \
+accepted="$accepted" in_on="$has_input" in_atts="$in_atts" in_repros="$in_repros" in_cause="$in_cause" \
 awk '
 function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
 function val(s)  { sub(/^[^:]*:/, "", s); return trim(s) }
@@ -1906,7 +1927,7 @@ END {
         printf "dispatch: viber:planner-task-review | tasks: T%d-T%d\n", c, ce
         c = ce + 1
       }
-      if (n > 30) printf "threshold: %d tasks, past 30\n", n
+      if (n > 30 && (ENVIRON["accepted"] == "" || n > ENVIRON["accepted"] + 0)) printf "threshold: %d tasks, past 30\n", n
     }
   }
 }
