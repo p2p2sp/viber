@@ -192,9 +192,11 @@ for (const [label, block] of [
 
       const result = await run(repo, [skillDir(repo), "close"]);
 
+      const dir = skillDir(repo);
+
       assert.deepEqual(
         [result.status, result.stdout],
-        [0, part.replaceAll("${CLAUDE_PLUGIN_ROOT}", `${repo.dir}/plugin`).replaceAll("${CLAUDE_SKILL_DIR}", skillDir(repo))],
+        [0, part.replaceAll("${CLAUDE_PLUGIN_ROOT}", path.dirname(path.dirname(dir))).replaceAll("${CLAUDE_SKILL_DIR}", dir)],
       );
     });
   });
