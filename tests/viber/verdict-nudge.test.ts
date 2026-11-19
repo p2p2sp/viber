@@ -211,6 +211,22 @@ for (const [label, message] of listedEndings) {
   });
 }
 
+const markedEndings: Array<[string, string]> = [
+  ["bold markers around the label alone", "work done\n**VERDICT:** PASS"],
+  ["no blank after the colon", "work done\nVERDICT:PASS"],
+  ["backticks around the whole line", "work done\n`VERDICT: PASS`"],
+];
+
+for (const [label, message] of markedEndings) {
+  test(`DoD.1: an agent whose file names VERDICT: PASS passes when its last verdict line has ${label}`, async () => {
+    assert.equal(await runInRoot({ "fixture-agent": AGENT_FILE }, listedPayload(message)), "");
+  });
+}
+
+test("DoD.2: a **VERDICT:** MAYBE line is blocked with the reason listing the file's values", async () => {
+  assert.equal(await runInRoot({ "fixture-agent": AGENT_FILE }, listedPayload("work done\n**VERDICT:** MAYBE")), LISTED);
+});
+
 const ALTERNATIVES_FILE = "End on `VERDICT: VERIFIED | PARTIALLY VERIFIED` or `VERDICT: REFUTED`.";
 
 test("DoD.3: a fixture naming VERDICT: VERIFIED | PARTIALLY VERIFIED passes an agent ending on VERDICT: PARTIALLY VERIFIED", async () => {

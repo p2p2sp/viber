@@ -17,7 +17,8 @@
 #            time (a UTF-8 locale makes each character lookup scan from the start).
 #   reads  : stdin, and the agent file <plugin root>/agents/<name>.md (<name> the
 #            agent_type after "viber:", <plugin root> two directories above this
-#            script's directory) once a nudged agent's message is read. A call whose
+#            script's directory, its invoked path read with "\" and "/" both as
+#            separators) once a nudged agent's message is read. A call whose
 #            agent_type is not a nudged viber: agent returns before any external
 #            command runs (bash builtins only).
 #            Values of the agent file: every "VERDICT: " followed by V( | V)*, V being
@@ -34,7 +35,10 @@
 #            {"decision":"block","reason":"Finish your task, then return your output lines."}
 #            When the agent file names values, the block holds instead when the message
 #            has no VERDICT: or AUDIT: line, or its last such line opens VERDICT: with a
-#            value (the V after "VERDICT: ") that is none of them; the reason is
+#            value that is none of them. One pattern both finds the line and reads the
+#            value: any blanks, "`", "*" and "-", the label, then any blanks, "`" and
+#            "*"; the value (a V, as above) is what follows that match, so
+#            "**VERDICT:** PASS", "VERDICT:PASS" and "`VERDICT: PASS`" read as PASS. The reason is
 #            "Finish your task, then end on one of these lines: VERDICT: <v1>, VERDICT: <v2>, ...".
 #            A last such line opening AUDIT: passes. No agent file, or none naming a
 #            value: the test and reason above.
@@ -83,7 +87,9 @@ BEGIN {
 }' 2>/dev/null)" || exit 0
 nl=$'\n'
 
-line_re='(^|'"$nl"')[[:blank:]`*-]*(VERDICT|AUDIT):'
+# The one pattern of a verdict line: it finds the line and, by its end, where the value starts.
+pat='[[:blank:]`*-]*(VERDICT|AUDIT):[[:blank:]`*]*'
+line_re='(^|'"$nl"')'"$pat"
 has_line=0
 [[ "$msg" =~ $line_re ]] && has_line=1
 
@@ -91,7 +97,8 @@ has_line=0
 values=""
 name="${agent#viber:}"
 if [[ "$name" =~ ^[A-Za-z0-9_-]+$ ]]; then
-  src="${BASH_SOURCE[0]}"
+  # A Windows harness can invoke the script by a C:\ path: read \ as a separator too.
+  src="${BASH_SOURCE[0]//\\//}"
   dir="."
   [[ "$src" == */* ]] && dir="${src%/*}"
   file="$dir/../../agents/$name.md"
@@ -116,14 +123,16 @@ if [[ -z "$values" ]]; then
 fi
 
 if [[ "$has_line" == 1 ]]; then
-  last="$(printf '%s' "$msg" | awk '
-  { if ($0 ~ /^[[:blank:]`*-]*(VERDICT|AUDIT):/) last = $0 }
+  last="$(printf '%s' "$msg" | VPAT="$pat" awk '
+  BEGIN { p = "^" ENVIRON["VPAT"] }
+  { if ($0 ~ p) last = $0 }
   END {
     if (last == "") { print "N"; exit }
-    match(last, /(VERDICT|AUDIT):/)
-    if (substr(last, RSTART, 1) == "A") { print "A"; exit }
-    rest = substr(last, RSTART + RLENGTH)
-    if (match(rest, /^ [A-Z][A-Z-]*( [A-Z][A-Z-]*)*/)) print "V" substr(rest, 2, RLENGTH - 1)
+    match(last, p)
+    head = substr(last, 1, RLENGTH)
+    rest = substr(last, RLENGTH + 1)
+    if (head ~ /AUDIT:/) { print "A"; exit }
+    if (match(rest, /^[A-Z][A-Z-]*( [A-Z][A-Z-]*)*/)) print "V" substr(rest, 1, RLENGTH)
     else print "V"
   }' 2>/dev/null)" || exit 0
   [[ "$last" == A ]] && exit 0
