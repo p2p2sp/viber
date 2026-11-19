@@ -22,7 +22,11 @@ target: <repo-relative path of one CLAUDE.md>
 scope: <repo-relative directory the target describes>
 out: .temp/viber/<id>/
 refs: ${CLAUDE_PLUGIN_ROOT}/references
+shape: <file>: <departure>
 ```
+
+- `shape:` comes zero or more times after `refs:`: one form departure the dispatching script already judged, `<file>` being `CLAUDE.md` or `CLAUDE.<topic>.md`.
+- `scope: .` is the repository root: its findings slug is `root`.
 
 ## Verify
 
@@ -37,12 +41,9 @@ Add one `MISS` line per fact a reader of this node would need and does not find 
 
 ## Shape
 
-Read the `## Template` part of `<refs>/node-doctrine.md` before judging form. Judge form only, never content, on the node and on each section beside it, and never on the root `CLAUDE.md` or a section beside it: the root is outside the template. One `SHAPE` line per departure:
+Write each `shape:` line of your input as one `SHAPE:` finding, word for word, only the label changing: `shape: CLAUDE.md: out of order: Traps` becomes `SHAPE: CLAUDE.md: out of order: Traps`. Judge no heading yourself.
 
-- the first line is not the title the template gives that file, or the sentence block under it is missing: `missing or incomplete title`.
-- a `##` heading the template does not list: `heading outside the template`.
-- a listed heading placed before one the template puts ahead of it: `out of order`.
-- a heading with no content under it: `empty heading`.
+Judge one departure yourself, on the node and on each section beside it, never on the root `CLAUDE.md` or a section beside it: the root is outside the template. Read the `## Template` part of `<refs>/node-doctrine.md` first. Judge form only, never content: when the first line is not the title the template gives that file, or the sentence block under it is missing, write `SHAPE: <file>: missing or incomplete title`.
 
 ## Findings file
 
@@ -69,5 +70,7 @@ Exactly one line, nothing else:
 ```
 AUDIT: <target> stale <n> gone <n> unverifiable <n> shape <n> miss <n> -> <path of the findings file>
 ```
+
+`shape <n>` counts every `SHAPE:` line of the findings file: the copied ones and your own.
 
 A tool call the harness refuses replaces that line with two: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`.
