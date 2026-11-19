@@ -1,2 +1,0 @@
-- Blocking [task] viber/scripts/arg-kind.sh:1 - the working-tree file has mode 100644 while the index holds 100755 (`git diff` shows `old mode 100755 / new mode 100644`), so committing the working tree drops the exec bit that Verification (`git ls-files -s` -> 100755) and every other script require; the check passes only on the stale staged mode
-  Run `chmod +x viber/scripts/arg-kind.sh` so the working tree and index agree on 100755, then rerun `git ls-files -s viber/scripts/arg-kind.sh` after staging.

@@ -1,5 +1,0 @@
-- app-wait.sh was first written before its test; it was then replaced by a skeleton for the red run (.temp/viber/T6/red.log, 15 failing) and restored. The prose test's own red (7 failing) was watched before the SKILL.md edit but is not logged.
-- The tests stub `sleep` as well as `curl`, so the 300-second cap case costs only its probe spawns. The no-curl case runs the script through an absolute `sh` with an empty directory as PATH, because a real curl sits beside grep on most hosts.
-- The script counts waited seconds itself (sleep min(2, remaining)) instead of reading a clock: a wait that is not a multiple of 2 ends exactly on its bound.
-- Windows root: `git rev-parse` first, then `pwd -W`, then `pwd`, backslashes turned to `/`.
-- Not run: tests/viber/help.unit.test.ts (the e2e card is unchanged by this task).

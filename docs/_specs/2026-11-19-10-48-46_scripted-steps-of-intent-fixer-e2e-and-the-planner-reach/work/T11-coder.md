@@ -1,4 +1,0 @@
-- attach-lines.sh is `#!/bin/sh`; a Windows drive comes from `pwd -W` (Git Bash), `pwd -P` elsewhere, so a symlinked tmp dir matches the root git reports.
-- `.temp/` itself prints nothing (the path must be strictly under it); an empty argument is skipped.
-- Fixer SKILL.md ends at 1180 words; intent's start text stays under its cap, no cap change.
-- I wrote the script before its test once, deleted it with `git rm -f`, ran red (12 failing), then rewrote it.
