@@ -136,6 +136,35 @@ test("start on a plan of 12 tasks or fewer prints one planner-review block with 
   });
 });
 
+// The refs line spells the plugin root the way the script was invoked: a `C:\` or `C:/` path
+// prints `C:/...`, a `/c/` path prints `/c/...`. Only Windows has those spellings of a file.
+const NATIVE_SPELLINGS_SKIP = process.platform === "win32" ? false : "a drive-letter spelling of a script exists on Windows only";
+
+function refsLines(stdout: string): string[] {
+  return stdout.split("\n").filter((line) => line.startsWith("refs: "));
+}
+
+for (const spelling of [
+  { name: "a C:\\ path", script: SUT.replace(/\//g, "\\"), refs: REFS },
+  { name: "a C:/ path", script: SUT.replace(/\\/g, "/"), refs: REFS },
+  {
+    name: "a /c/ path",
+    script: SUT.replace(/\\/g, "/").replace(/^([A-Za-z]):\//, (_, drive: string) => `/${drive.toLowerCase()}/`),
+    refs: REFS.replace(/^([A-Za-z]):\//, (_, drive: string) => `/${drive.toLowerCase()}/`),
+  },
+]) {
+  test(`start invoked by ${spelling.name} prints every refs line as ${spelling.refs} (the printed plugin path keeps the invoked spelling)`, { skip: NATIVE_SPELLINGS_SKIP }, async () => {
+    await withGitRepo(async (repo) => {
+      write(repo.dir, PLAN_REL, litePlan(13));
+
+      const result = await runScript(spelling.script, [PLAN_REL, "start"], { cwd: repo.dir, env: repo.env, shell: "bash" });
+
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(refsLines(result.stdout), Array(4).fill(`refs: ${spelling.refs}`));
+    });
+  });
+}
+
 test("start on a plan of more than 12 tasks prints one block per dispatch line, the task reviewers each with their slice", async () => {
   await withGitRepo(async (repo) => {
     write(repo.dir, PLAN_REL, litePlan(13));

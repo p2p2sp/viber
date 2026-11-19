@@ -78,8 +78,10 @@
 #            state file.
 #   env    : none.
 #   reads  : <plugin root>/scripts/plan-index.sh and config.sh (build.memory),
-#            where <plugin root> is three directories above this script; the
-#            state file.
+#            where <plugin root> is three directories above this script, spelled
+#            as plugin_root_of (scripts/plugin-root.sh) reads the invoked path:
+#            C:/... for a C:\ or C:/ invocation, /c/... for a /c/ one; the state
+#            file.
 #   writes : the state file <repository root>/.temp/viber/planner/review-round,
 #            for one plan path: the plan, the round number, the last answer
 #            (review, redispatch, fix, exit-plan, ask or stop), the input path,
@@ -109,8 +111,8 @@ fail() {
   exit 2
 }
 
-here="$(cd "$(dirname "$0")" 2>/dev/null && pwd)" || fail "cannot resolve the script directory"
-plugin_root="$(cd "$here/../../.." 2>/dev/null && pwd)" || fail "cannot resolve the plugin root"
+. "$(dirname -- "$0")/../../../scripts/plugin-root.sh"
+plugin_root="$(plugin_root_of "$0" 3)"
 
 [ "$#" -ge 2 ] || fail "usage: review-round.sh <plan> <start|returned|retry-denied|override|stop> [args]"
 

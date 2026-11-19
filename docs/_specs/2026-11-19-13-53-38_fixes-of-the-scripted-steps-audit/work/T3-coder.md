@@ -1,0 +1,3 @@
+- The new spelling cases skip off Windows (a `C:\` or `/c/` file spelling exists there only); the existing `refs: ${REFS}` cases already went red on Windows before the change (`pwd` printed `/c/...`).
+- RED log: .temp/viber/T3/red.log (3 failing of 4 selected: the C:\ and C:/ cases and the 12-task case).
+- review-round.sh sources the helper through `$0` (`dirname -- "$0"`), which works under Git Bash for `C:\`, `C:/` and `/c/` invocations.
