@@ -743,12 +743,39 @@ if [ "${1:-}" = "--brief" ] || [ "${1:-}" = "--confirm" ]; then
     done
 
     # The map lines of the kept rules, in the map's own order.
+    # The kept path a map line body belongs to, printed alone, or nothing at all.
+    # The body opens on the longest rule path of the listing followed by one
+    # space - never on the text up to its first space, which would cut `my
+    # rule.md` to `my` - and that path has to be a kept one: a kept `my.md`
+    # claims nothing of `my rule.md` or `my.md rule.md`. With `size` as $2 the
+    # rest has to open on a digit, the char count of a `rule:` line.
+    kept_prefix() {
+      best=""
+      while IFS= read -r candidate; do
+        [ -n "$candidate" ] || continue
+        case "$1" in
+          "$candidate "*)
+            if [ "${2:-}" = "size" ]; then
+              case "${1#"$candidate "}" in
+                [0-9]*) ;;
+                *) continue ;;
+              esac
+            fi
+            [ "${#candidate}" -gt "${#best}" ] && best="$candidate"
+            ;;
+        esac
+      done < <(printf '%s\n' "$listing")
+      if [ -n "$best" ] && contains_line "$kept_set" "$best"; then
+        printf '%s' "$best"
+      fi
+      return 0
+    }
+
     kept_rules=""
     while IFS= read -r line; do
       [ -n "$line" ] || continue
-      line_path="${line#rule: }"
-      line_path="${line_path%% *}"
-      contains_line "$kept_set" "$line_path" || continue
+      line_path="$(kept_prefix "${line#rule: }" size)"
+      [ -n "$line_path" ] || continue
       kept_rules="$kept_rules$line
 "
       case "$line" in
@@ -768,11 +795,10 @@ if [ "${1:-}" = "--brief" ] || [ "${1:-}" = "--confirm" ]; then
     done < <(printf '%s' "$dead_lines")
     while IFS= read -r line; do
       [ -n "$line" ] || continue
-      line_path="${line#misplaced: }"
-      line_path="${line_path%% *}"
-      contains_line "$kept_set" "$line_path" || continue
+      line_path="$(kept_prefix "${line#misplaced: }")"
+      [ -n "$line_path" ] || continue
       confirm_stop=0
-      misplaced_out="$misplaced_out"'confirm: '"$line_path misplaced ${line##* }"'
+      misplaced_out="$misplaced_out"'confirm: '"$line_path misplaced ${line#misplaced: "$line_path" }"'
 '
     done < <(printf '%s' "$misplaced_lines")
 

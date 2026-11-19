@@ -1339,6 +1339,50 @@ test("confirm names OVER-DIR on the total when the layer is past its directory b
   });
 });
 
+test("confirm names a kept rule whose path holds a space misplaced and hands the writer its rule line (a map line is matched as a whole-path prefix, never cut at its first space)", async () => {
+  await withGitRepo(async (repo) => {
+    const body = rule(["src/**"]);
+    await seed(repo, { "src/a.ts": "a\n", ".claude/rules/my rule.md": body });
+    findings(repo, "run1", "my rule-audit.md", "STALE: x -> y\n");
+
+    const result = await run(repo, ["--confirm", "run1", ".claude/rules/my rule.md"]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(
+      lines(result.stdout).filter((line) => /^(confirm|rule): /.test(line)),
+      [
+        "confirm: .claude/rules/my rule.md stale 1 gone 0 drop 0 miss 0",
+        "confirm: .claude/rules/my rule.md misplaced src",
+        `rule: .claude/rules/my rule.md ${Buffer.byteLength(body)} paths src/** matches 1 ok`,
+      ],
+    );
+  });
+});
+
+test("confirm gives a kept my.md none of the map lines of my rule.md or my.md rule.md (a kept path is never a prefix of a longer name)", async () => {
+  await withGitRepo(async (repo) => {
+    const kept = rule([ANY_TS]);
+    await seed(repo, {
+      "src/a.ts": "a\n",
+      ".claude/rules/my.md": kept,
+      ".claude/rules/my rule.md": rule(["src/*.ts"]),
+      ".claude/rules/my.md rule.md": rule(["src/*.ts"]),
+    });
+    findings(repo, "run1", "my-audit.md", "STALE: x -> y\n");
+
+    const result = await run(repo, ["--confirm", "run1", ".claude/rules/my.md"]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(
+      lines(result.stdout).filter((line) => /^(confirm|rule|dead): /.test(line)),
+      [
+        "confirm: .claude/rules/my.md stale 1 gone 0 drop 0 miss 0",
+        `rule: .claude/rules/my.md ${Buffer.byteLength(kept)} paths **/*.ts matches 1 ok`,
+      ],
+    );
+  });
+});
+
 test("confirm refuses a frozen rule with one error line and an empty stdout", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo, { "src/a.ts": "a\n", ".claude/rules/_frozen.md": rule(["src/*.ts"]) });
