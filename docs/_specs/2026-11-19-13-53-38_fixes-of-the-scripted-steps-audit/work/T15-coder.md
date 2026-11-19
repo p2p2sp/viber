@@ -1,0 +1,2 @@
+- The remaining red case of synthesize.test.ts ("the title line, the header line and the three coverage lines...") fails on Windows because the findings title prints the full backslash workspace path as run id: that is AC23 (another task, synthesize.sh run id), not T15.
+- frame.sh records the diff scope as `diff` and a directory named diff as `./diff`, so the `./diff` alias in synthesize.sh was always the directory case.

@@ -403,6 +403,17 @@ test("on the diff scope J is 0 and the units not investigated read none, however
   );
 });
 
+test("a directory named diff (Scope: ./diff) is a directory scope: the unit no hunt covered counts as not investigated (only the bare word diff is the diff scope)", async () => {
+  await scenario(
+    { scope: "./diff", units: ["U1", "U2"], zeros: ["U1"] },
+    (_ws, result, text) => {
+      assert.equal(text.split("\n")[1], `bugs ${DOT} ./diff ${DOT} 2 units mapped ${DOT} 1 hunts ${DOT} 0 confirmed findings ${DOT} 1 units not investigated.`);
+      assert.ok(text.includes("- Units not investigated: U2\n"));
+      assert.ok(result.stdout.startsWith("summary: units 2 | hunts 1 | confirmed 0 | not investigated 1\n"));
+    },
+  );
+});
+
 test("a report of hunt A-x-y is never counted as a report of hunt A-x", async () => {
   await scenario(
     {

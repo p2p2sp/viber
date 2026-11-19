@@ -546,7 +546,7 @@ END {
     else further[++nfurther] = i
   }
 
-  diff = (scope == "diff" || scope == "./diff")
+  diff = (scope == "diff")
   jn = 0
   jlist = ""
   if (!diff) {
