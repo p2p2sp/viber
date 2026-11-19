@@ -120,7 +120,10 @@ test("no ISSUE_TEMPLATE directory: STATUS=skip REASON=no-templates, gh never cal
     await withGitRepo(async (repo) => {
       const { result, calls } = await runStubbed(shell, repo.dir, repo.env);
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(result.stdout, "STATUS=skip\nREASON=no-templates\n");
+      assert.equal(
+        result.stdout,
+        "STATUS=skip\nREASON=no-templates\nSAY=no issue form template in .github/ISSUE_TEMPLATE\n",
+      );
       assert.equal(calls.length, 0);
     });
   });
@@ -136,7 +139,10 @@ test("only config.yml/config.yaml and a .md file present: STATUS=skip REASON=no-
       });
       const { result, calls } = await runStubbed(shell, repo.dir, repo.env);
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(result.stdout, "STATUS=skip\nREASON=no-templates\n");
+      assert.equal(
+        result.stdout,
+        "STATUS=skip\nREASON=no-templates\nSAY=no issue form template in .github/ISSUE_TEMPLATE\n",
+      );
       assert.equal(calls.length, 0);
     });
   });
@@ -151,7 +157,10 @@ test(
         writeTemplates(repo.dir, { "bug.yml": "name: Bug\ndescription: File a bug\n" });
         const { result, calls } = await runStubbed(shell, repo.dir, repo.env, [], {}, true);
         assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-        assert.equal(result.stdout, "STATUS=skip\nREASON=no-gh\n");
+        assert.equal(
+          result.stdout,
+          "STATUS=skip\nREASON=no-gh\nSAY=the GitHub command line tool gh is not installed\n",
+        );
         assert.equal(calls.length, 0);
       });
     });
@@ -164,7 +173,10 @@ test("gh is on PATH but `gh repo view` resolves no repository: STATUS=skip REASO
       writeTemplates(repo.dir, { "bug.yml": "name: Bug\ndescription: File a bug\n" });
       const { result, calls } = await runStubbed(shell, repo.dir, repo.env, [], { GH_EXIT: "1", GH_STDERR: "no remote\n" });
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(result.stdout, "STATUS=skip\nREASON=no-repo\n");
+      assert.equal(
+        result.stdout,
+        "STATUS=skip\nREASON=no-repo\nSAY=no GitHub repository is reachable from here\n",
+      );
       assert.equal(calls.length, 1);
       assert.deepEqual(calls[0].slice(0, 2), ["repo", "view"]);
     });
@@ -221,14 +233,17 @@ test("ready: with no .claude/viber.yml TITLE_PATTERN= carries the default {summa
   });
 });
 
-test("skip with a configured github.issue-title still prints only STATUS=skip and REASON= (no TITLE_PATTERN= outside a ready run)", async () => {
+test("skip with a configured github.issue-title still prints only STATUS=skip, REASON= and SAY= (no TITLE_PATTERN= outside a ready run)", async () => {
   await assertPosix(async (shell) => {
     await withGitRepo(async (repo) => {
       writeTemplates(repo.dir, { "bug.yml": "name: Bug\ndescription: File a bug\n" });
       writeConfig(repo.dir, "github:\n  issue-title: {summary}\n");
       const { result } = await runStubbed(shell, repo.dir, repo.env, [], { GH_EXIT: "1", GH_STDERR: "no remote\n" });
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(result.stdout, "STATUS=skip\nREASON=no-repo\n");
+      assert.equal(
+        result.stdout,
+        "STATUS=skip\nREASON=no-repo\nSAY=no GitHub repository is reachable from here\n",
+      );
     });
   });
 });

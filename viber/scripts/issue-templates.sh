@@ -36,6 +36,10 @@
 #            On any failing check:
 #              STATUS=skip
 #              REASON=no-templates|no-gh|no-repo
+#              SAY=<one sentence naming that reason, for the user>:
+#                no-templates  no issue form template in .github/ISSUE_TEMPLATE
+#                no-gh         the GitHub command line tool gh is not installed
+#                no-repo       no GitHub repository is reachable from here
 #            On every check passing, in file name order:
 #              STATUS=ready
 #              REPO=<repository url>
@@ -88,12 +92,14 @@ done
 if [ "$found" -eq 0 ]; then
   echo "STATUS=skip"
   echo "REASON=no-templates"
+  echo "SAY=no issue form template in .github/ISSUE_TEMPLATE"
   exit 0
 fi
 
 if ! command -v gh >/dev/null 2>&1; then
   echo "STATUS=skip"
   echo "REASON=no-gh"
+  echo "SAY=the GitHub command line tool gh is not installed"
   exit 0
 fi
 
@@ -102,6 +108,7 @@ repo_url=$(printf '%s' "$repo_url" | tr -d '\r\n')
 if [ -z "$repo_url" ]; then
   echo "STATUS=skip"
   echo "REASON=no-repo"
+  echo "SAY=no GitHub repository is reachable from here"
   exit 0
 fi
 
