@@ -3172,6 +3172,104 @@ test("start decision: --settled nothing without an error: line goes through the 
   });
 });
 
+/** The plugin root the run: commands open on: the directory above the scripts directory. */
+const PLUGIN_ROOT = slash(path.resolve(import.meta.dirname, "../../viber"));
+
+/** The answer, branch, run: and settle: fields of every option: line, in the order printed. */
+function runSettleOf(stdout: string): string[] {
+  return linesOf(stdout, "option: ").map((line) => line.slice("option: ".length).split(" | ").slice(0, 4).join(" | "));
+}
+
+test("start options: every ask-entry option carries run: and settle: and the effect last (C3)", async () => {
+  await withBranchRepo(twoEntries("allowed"), async (repo) => {
+    const result = await startIn(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(runSettleOf(result.stdout), [
+      `feature | feature/{slug} | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --start --entry "feature" | settle: -`,
+      `chore | chore/{slug} | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --start --entry "chore" | settle: -`,
+      "no-branch | - | run: - | settle: no-branch",
+    ]);
+    for (const line of linesOf(result.stdout, "option: ")) assert.equal(line.split(" | ").length, 5, line);
+  });
+});
+
+test("start options: ask-entry under required ends on abort with run: - and settle: abort (C3)", async () => {
+  await withBranchRepo(twoEntries("required"), async (repo) => {
+    const result = await startIn(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(runSettleOf(result.stdout).slice(-1), ["abort | - | run: - | settle: abort"]);
+  });
+});
+
+test("start options: an entry key re-run repeats the flags and the issue URL of the call, --entry added, under --fixer too (C3)", async () => {
+  await withBranchRepo(twoEntries("allowed"), async (repo) => {
+    const result = await startWith(repo, ["--fixer", "--pr", "--roadmap", "--settled", "nothing", ISSUE_URL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(runSettleOf(result.stdout).slice(0, 2), [
+      `feature | feature/{slug} | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --start --fixer --pr --roadmap --settled "nothing" --entry "feature" "${ISSUE_URL}" | settle: -`,
+      `chore | chore/{slug} | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --start --fixer --pr --roadmap --settled "nothing" --entry "chore" "${ISSUE_URL}" | settle: -`,
+    ]);
+  });
+});
+
+test("start options: a call whose --entry names no entry leaves it out of the re-run flags (C3)", async () => {
+  await withBranchRepo(twoEntries("allowed"), async (repo) => {
+    const result = await startWith(repo, ["--entry", "nosuch"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(runSettleOf(result.stdout).slice(0, 1), [`feature | feature/{slug} | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --start --entry "feature" | settle: -`]);
+  });
+});
+
+test("start options: ask-base switch runs --checkout of the base, every answer settles the checking: entry or current or abort (C3)", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    await workAhead(repo);
+    const result = await startIn(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(runSettleOf(result.stdout), [
+      `switch | main | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --checkout "main" | settle: feature`,
+      "stay | - | run: - | settle: feature",
+      "current | - | run: - | settle: current",
+      "abort | - | run: - | settle: abort",
+    ]);
+    for (const line of linesOf(result.stdout, "option: ")) assert.equal(line.split(" | ").length, 5, line);
+  });
+});
+
+test("start options: the --checkout command names the base of the checked entry, not main (C3)", async () => {
+  await withBranchRepo(["mode: required", ...TWO_BASES], async (repo) => {
+    await branchAhead(repo, "develop");
+    const result = await startWith(repo, ["--fixer", "--entry", "feature"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(runSettleOf(result.stdout).slice(0, 1), [`switch | develop | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --checkout "develop" | settle: feature`]);
+  });
+});
+
+test("start options: --settled nothing with --entry asks that entry's base instead of the entry question, with or without an error: line (C3)", async () => {
+  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+    await workAhead(repo);
+    const result = await startWith(repo, ["--settled", "nothing", "--entry", "feature"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(verdictOf(result.stdout), ["next: ask-base", "checking: feature"]);
+  });
+  await withBranchRepo(ERROR_AND_FEATURE, async (repo) => {
+    await workAhead(repo);
+    const result = await startWith(repo, ["--settled", "nothing", "--entry", "feature"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(linesOf(result.stdout, "error: "), ["error: work entry old: {issue} is now {issue-number}"]);
+    assert.deepEqual(verdictOf(result.stdout), ["next: ask-base", "checking: feature"]);
+  });
+});
+
+test("start options: --settled nothing with --entry settles the entry when HEAD is at its base, with or without an error: line (C3)", async () => {
+  for (const config of [["mode: allowed", ...ON_MAIN], ERROR_AND_FEATURE]) {
+    await withBranchRepo(config, async (repo) => {
+      const result = await startWith(repo, ["--settled", "nothing", "--entry", "feature"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: feature"]);
+    });
+  }
+});
+
 for (const [what, args] of [
   ["an unknown flag", ["--bogus"]],
   ["--entry with no value", ["--entry"]],

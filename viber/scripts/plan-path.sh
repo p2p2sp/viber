@@ -191,16 +191,29 @@
 #     next: settled | kept | ask-entry | ask-base | errors | none | abort
 #     settled: <entry key> | no-branch | current | pr   (next: settled or kept;
 #                                       next: errors when --settled names one)
-#     option: <answer> | <branch or -> | <effect on the run branch>   (ask-entry,
-#                                       ask-base; one per answer)
+#     option: <answer> | <branch or -> | run: <command or -> | settle: <value or -> | <effect on the run branch>
+#                                       (ask-entry, ask-base; one per answer)
 #     checking: <entry key>             (ask-base: the entry whose base is checked)
 #     note: <one sentence>              (zero or more)
 #   Answers on ask-entry: <entry key> | no-branch | abort; on ask-base: switch |
-#   stay | current | abort. The first rule that applies decides:
+#   stay | current | abort. "run:" is the command to run when the answer is
+#   chosen, "-" for none; "settle:" what the answer settles, "-" for nothing yet:
+#     <entry key>  run: this call again with --entry <key> (its --fixer, --pr,
+#                  --roadmap, --settled "<value>" and issue URL kept)  settle: -
+#     no-branch    run: -  settle: no-branch
+#     switch       run: --checkout "<the entry base>"  settle: <the checking: key>
+#     stay         run: -  settle: <the checking: key>
+#     current      run: -  settle: current
+#     abort        run: -  settle: abort
+#   Every command opens on "<plugin root>/scripts/plan-path.sh", <plugin root>
+#   being the absolute directory above this scripts directory, forward slashes.
+#   The first rule that applies decides:
 #     1. any error: line -> next: errors; --settled nothing asks the entry
-#        question instead (rule 5 options, suggested: ignored).
+#        question instead (rule 5 options, suggested: ignored), or with --entry
+#        <key> does rule 6 for that entry.
 #     2. --settled (checked before --pr): pr, or no-branch with --pr
-#        -> kept; nothing -> rule 5; a suggested: other than none and the settled
+#        -> kept; nothing -> rule 5, or with --entry <key> rule 6 for that entry;
+#        a suggested: other than none and the settled
 #        key -> rule 6 for it; otherwise kept.
 #     3. --pr: allowed -> settled no-branch; required off an entry base and off a
 #        detached HEAD -> settled pr; otherwise go on.

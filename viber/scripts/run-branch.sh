@@ -602,6 +602,7 @@ branch_tail() {
 # branch_report. Under allowed and required it ends with branch_decide's lines.
 branch_start() {
   local issue="" suggested only="" usable=0 e key rest base name shown target use exists at behind head_c entry_lines=""
+  st_url="$1"
   [[ -z "$1" ]] || issue="${1##*/issues/}"
   branch_situation "$issue" "$1"
   if [[ "$rp_mode" == off ]]; then
@@ -671,7 +672,7 @@ branch_decide() {
   # rule 1: a configuration or issue type error settles nothing
   if [[ ${#rp_errors[@]} -gt 0 ]]; then
     if [[ "$settled" == nothing ]]; then
-      decide_ask_entry
+      decide_entry_or_ask
     else
       printf 'next: errors\n'
       [[ -z "$settled" ]] || printf 'settled: %s\n' "$settled"
@@ -683,7 +684,7 @@ branch_decide() {
     if [[ "$settled" == pr || ( "$settled" == no-branch && "${st_pr:-0}" == 1 ) ]]; then
       decide_kept "$settled"
     elif [[ "$settled" == nothing ]]; then
-      decide_suggested
+      if [[ -n "${st_entry:-}" ]]; then decide_base "$st_entry"; else decide_suggested; fi
     elif [[ "$st_suggested" != none && "$st_suggested" != "$settled" ]]; then
       decide_base "$st_suggested"
     else
@@ -737,6 +738,12 @@ decide_suggested() {
   if [[ "$st_suggested" != none ]]; then decide_base "$st_suggested"; else decide_ask_entry; fi
 }
 
+# Rule 1 with --settled nothing: the base check of the entry the re-run names,
+# else the entry question.
+decide_entry_or_ask() {
+  if [[ -n "${st_entry:-}" ]]; then decide_base "$st_entry"; else decide_ask_entry; fi
+}
+
 # The entry question: every usable entry, then no-branch (allowed) or abort
 # (required); with no usable entry nothing is asked.
 decide_ask_entry() {
@@ -752,19 +759,42 @@ decide_ask_entry() {
   printf 'next: ask-entry\n'
   for ((i = 0; i < ${#st_keys[@]}; i++)); do
     [[ "${st_usable[$i]}" == yes ]] || continue
-    printf 'option: %s | %s | the run branch is cut from %s when the plan lands and pull requests target %s.\n' \
-      "${st_keys[$i]}" "${st_names[$i]}" "${st_bases[$i]}" "${st_targets[$i]}"
+    printf 'option: %s | %s | run: %s | settle: - | the run branch is cut from %s when the plan lands and pull requests target %s.\n' \
+      "${st_keys[$i]}" "${st_names[$i]}" "$(decide_rerun "${st_keys[$i]}")" "${st_bases[$i]}" "${st_targets[$i]}"
   done
   if [[ "$rp_mode" == allowed ]]; then
-    printf 'option: no-branch | - | no run branch is made; commits land on %s.\n' "$tl_cur"
+    printf 'option: no-branch | - | run: - | settle: no-branch | no run branch is made; commits land on %s.\n' "$tl_cur"
   else
-    printf 'option: abort | - | stop here and run nothing else.\n'
+    printf 'option: abort | - | run: - | settle: abort | stop here and run nothing else.\n'
   fi
+}
+
+# The plugin root: the absolute directory above the scripts directory, forward
+# slashes (cygpath -m where it exists).
+decide_root() {
+  local root
+  root="$(cd -- "$run_branch_dir/.." && pwd)"
+  if command -v cygpath >/dev/null 2>&1; then root="$(cygpath -m "$root")"; fi
+  printf '%s\n' "$root"
+}
+
+# The command re-running this --start call for entry key $1: the flags of the
+# call, --entry replaced by the key, then the issue URL when the call had one.
+decide_rerun() {
+  local cmd
+  cmd="\"$(decide_root)/scripts/plan-path.sh\" --start"
+  [[ "${st_fixer:-0}" != 1 ]] || cmd+=" --fixer"
+  [[ "${st_pr:-0}" != 1 ]] || cmd+=" --pr"
+  [[ "${st_roadmap:-0}" != 1 ]] || cmd+=" --roadmap"
+  [[ -z "${st_settled:-}" ]] || cmd+=" --settled \"$st_settled\""
+  cmd+=" --entry \"$1\""
+  [[ -z "${st_url:-}" ]] || cmd+=" \"$st_url\""
+  printf '%s\n' "$cmd"
 }
 
 # Rule 6: the base check of entry $1.
 decide_base() {
-  local i base opts="" count=0
+  local i base opts="" count=0 checkout
   decide_find "$1"
   i=$d_i
   if [[ $i -lt 0 ]]; then
@@ -780,16 +810,17 @@ decide_base() {
     decide_settled current
     return 0
   fi
+  checkout="\"$(decide_root)/scripts/plan-path.sh\" --checkout \"$base\""
   if [[ "${st_exists[$i]}" == yes ]]; then
-    opts+="option: switch | $base | HEAD moves to $base now and the run branch is cut from it when the plan lands."$'\n'
+    opts+="option: switch | $base | run: $checkout | settle: $1 | HEAD moves to $base now and the run branch is cut from it when the plan lands."$'\n'
     count=$((count + 1))
   fi
   if [[ "${st_fixer:-0}" != 1 ]]; then
-    opts+="option: stay | - | nothing moves; the run branch keeps the entry's own name, cut from $base when the plan lands."$'\n'
+    opts+="option: stay | - | run: - | settle: $1 | nothing moves; the run branch keeps the entry's own name, cut from $base when the plan lands."$'\n'
     count=$((count + 1))
   fi
   if ! [[ "$rp_mode" == required && ( "$tl_is_base" == yes || "$tl_cur" == detached ) ]]; then
-    opts+="option: current | - | no run branch is made; commits land on $tl_cur."$'\n'
+    opts+="option: current | - | run: - | settle: current | no run branch is made; commits land on $tl_cur."$'\n'
     count=$((count + 1))
   fi
   if [[ $count -eq 0 && "$rp_mode" == required && "${st_fixer:-0}" == 1 ]]; then
@@ -799,7 +830,7 @@ decide_base() {
   fi
   printf 'next: ask-base\n'
   printf '%s' "$opts"
-  printf 'option: abort | - | stop here and run nothing else.\n'
+  printf 'option: abort | - | run: - | settle: abort | stop here and run nothing else.\n'
   printf 'checking: %s\n' "$1"
   if [[ "${st_behind[$i]}" =~ ^[0-9]+$ && "${st_behind[$i]}" -gt 0 ]]; then
     printf 'note: the base %s is %s commits behind its remote.\n' "$base" "${st_behind[$i]}"

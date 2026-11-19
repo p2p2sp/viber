@@ -1,0 +1,6 @@
+- Only the `--start` option lines changed; `--branch` option lines (planner) keep their 4-field shape.
+- tests/viber/branching-prose.unit.test.ts did not exist: created it.
+- Red came from the revert route: HEAD's viber/ and tests/ extracted under .temp/viber/T3/head with the new tests copied in (38 failing, red.log); production edits had already started when the tests were written.
+- plan-path.test.ts is integration: not run on the real tree (only loaded with a non-matching name pattern); its new cases were checked by reading the script paths, so the build's final run is their first green.
+- The plugin root is `cd <scripts dir>/.. && pwd` (logical, not -P) with `cygpath -m` where present, so it matches the path the caller invoked.
+- `--settled nothing --entry <unknown key>` falls back to the entry question (decide_base on an unknown key).
