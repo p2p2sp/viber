@@ -95,8 +95,9 @@
 #            and then the stderr lines of plan-index.sh.
 #   exit   : 0; 2 on misuse (an unknown event, an unknown option, an argument
 #            missing, an unknown member, a verdict word other than PASS, FAIL,
-#            DENIED or none, returned before start or with no member awaiting a
-#            verdict, override after another answer), a start refused by
+#            DENIED or none, an event before start or with no member awaiting a
+#            verdict, retry-denied after another answer than ASK:, override after
+#            another answer than NEXT: exit-plan), a start refused by
 #            plan-index.sh or printing no dispatch: line, a start on a round not
 #            closed on NEXT: fix without --fresh, a config.sh exiting non-zero,
 #            or no repository.
@@ -335,14 +336,44 @@ do_start() {
   write_state
 }
 
-do_returned() {
-  [ "$#" -ge 1 ] || fail "returned: name at least one <k>=<PASS|FAIL|DENIED|none>"
-
+# Loads the state of the round open for the plan; no state, or the state of another
+# plan path, is a misuse of $event.
+open_round() {
   locate_state
   load_state
   if [ -z "$st_plan" ] || [ "$st_plan" != "$plan" ]; then
-    fail "returned: no round is open for this plan - run start first"
+    fail "$event: no round is open for this plan - run start first"
   fi
+}
+
+# Copies the loaded state into the variables write_state and emit_block read.
+adopt_state() {
+  round="$st_round"
+  input="$st_input"
+  memory="$st_memory"
+  previous="$st_previous"
+  count="$st_count"
+  agents=(${st_agents[@]+"${st_agents[@]}"})
+  slices=(${st_slices[@]+"${st_slices[@]}"})
+  verdicts=(${st_verdicts[@]+"${st_verdicts[@]}"})
+  nones=(${st_nones[@]+"${st_nones[@]}"})
+}
+
+# Appends the blocks of the members named in the comma list $1, in member order.
+emit_members() {
+  local k=1
+  while [ "$k" -le "$count" ]; do
+    case ",$1," in
+      *",$k,"*) emit_block "$k" "${agents[$((k - 1))]}" "${slices[$((k - 1))]}" "$round" ;;
+    esac
+    k=$((k + 1))
+  done
+}
+
+do_returned() {
+  [ "$#" -ge 1 ] || fail "returned: name at least one <k>=<PASS|FAIL|DENIED|none>"
+
+  open_round
   [ -n "$st_awaiting" ] || fail "returned: no member is awaiting a verdict"
 
   local named=() arg k w
@@ -368,15 +399,7 @@ do_returned() {
     named[$k]="$w"
   done
 
-  round="$st_round"
-  input="$st_input"
-  memory="$st_memory"
-  previous="$st_previous"
-  count="$st_count"
-  agents=(${st_agents[@]+"${st_agents[@]}"})
-  slices=(${st_slices[@]+"${st_slices[@]}"})
-  verdicts=(${st_verdicts[@]+"${st_verdicts[@]}"})
-  nones=(${st_nones[@]+"${st_nones[@]}"})
+  adopt_state
 
   local redo="" i
   k=1
@@ -404,13 +427,7 @@ do_returned() {
     awaiting="$redo"
     answer="redispatch"
     add_line "NEXT: redispatch | members: $redo"
-    k=1
-    while [ "$k" -le "$count" ]; do
-      case ",$redo," in
-        *",$k,"*) emit_block "$k" "${agents[$((k - 1))]}" "${slices[$((k - 1))]}" "$round" ;;
-      esac
-      k=$((k + 1))
-    done
+    emit_members "$redo"
   else
     awaiting=""
     local denied=0 failed="" silent=""
@@ -443,6 +460,86 @@ do_returned() {
   write_state
 }
 
+do_retry_denied() {
+  [ "$#" -eq 0 ] || fail "retry-denied: unexpected argument: $1"
+
+  open_round
+  [ "$st_answer" = "ask" ] || fail "retry-denied: only after ASK: permission added"
+  adopt_state
+
+  local redo="" k=1 i
+  while [ "$k" -le "$count" ]; do
+    i=$((k - 1))
+    if [ "${verdicts[$i]}" = "DENIED" ]; then
+      verdicts[$i]="-"
+      redo="${redo:+$redo,}$k"
+    fi
+    k=$((k + 1))
+  done
+
+  awaiting="$redo"
+  answer="redispatch"
+  add_line "NEXT: redispatch | members: $redo"
+  emit_members "$redo"
+  write_state
+}
+
+do_override() {
+  [ "$#" -eq 1 ] || fail "override: name the members as <k>[,<k>]"
+
+  open_round
+  [ "$st_answer" = "exit-plan" ] || fail "override: only after NEXT: exit-plan"
+  adopt_state
+
+  local rest="$1," part k named=""
+  while [ -n "$rest" ]; do
+    part="${rest%%,*}"
+    rest="${rest#*,}"
+    case "$part" in
+      "") fail "override: expected <k>[,<k>], got: $1" ;;
+      *[!0-9]*) fail "override: member $part is not in the round" ;;
+    esac
+    k=$((10#$part))
+    if [ "$k" -lt 1 ] || [ "$k" -gt "$count" ]; then
+      fail "override: member $k is not in the round"
+    fi
+    case ",$named," in
+      *",$k,"*) fail "override: member $k is named twice" ;;
+    esac
+    named="${named:+$named,}$k"
+  done
+
+  local overridden="" i
+  k=1
+  while [ "$k" -le "$count" ]; do
+    case ",$named," in
+      *",$k,"*)
+        i=$((k - 1))
+        verdicts[$i]="FAIL"
+        overridden="${overridden:+$overridden,}$k"
+        ;;
+    esac
+    k=$((k + 1))
+  done
+
+  awaiting=""
+  answer="fix"
+  add_line "NEXT: fix | members: $overridden"
+  write_state
+}
+
+do_stop() {
+  [ "$#" -eq 0 ] || fail "stop: unexpected argument: $1"
+
+  open_round
+  adopt_state
+
+  awaiting=""
+  answer="stop"
+  add_line "STOP: the plan stays unreviewed - no hand-off"
+  write_state
+}
+
 input=""
 previous="no"
 memory="false"
@@ -450,6 +547,9 @@ memory="false"
 case "$event" in
   start) do_start "$@" ;;
   returned) do_returned "$@" ;;
+  retry-denied) do_retry_denied "$@" ;;
+  override) do_override "$@" ;;
+  stop) do_stop "$@" ;;
   *) fail "unknown event: $event" ;;
 esac
 

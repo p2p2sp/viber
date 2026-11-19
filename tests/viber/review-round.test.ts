@@ -18,6 +18,12 @@
  * answer sends the planner to fix a plan that passed, or out of the review with
  * one that failed.
  *
+ * `retry-denied`, `override` and `stop` move a closed round on: `retry-denied` redispatches the
+ * DENIED members after the planner added a permission, `override` turns the members a Minor
+ * finding overrides into FAIL after `NEXT: exit-plan`, `stop` ends the review. A `start` after
+ * `NEXT: fix` opens the next round with the previous findings, and after any other answer needs
+ * `--fresh`. A wrong move leaves a plan unreviewed, or reviewed in the wrong round.
+ *
  * The plans are lite plans with no `## Behaviour` section and only `add` file
  * map lines, so plan-index.sh accepts them. Every case builds its own throwaway
  * repository and reads the script's stdout and stderr.
@@ -441,3 +447,220 @@ test("returned with no member awaiting a verdict exits 2 with one error line and
     assert.equal(result.stderr, "error: returned: no member is awaiting a verdict\n");
   });
 });
+
+// The events after a closed round. Each arranger opens a round through the script and brings it
+// to the answer it names: a plan of 2 tasks is a round of one member, one of 13 a round of four.
+type Arranger = (repo: GitRepo) => Promise<void>;
+
+const AFTER_START: Arranger = async (repo) => {
+  await begin(repo, 2);
+};
+const AFTER_REDISPATCH: Arranger = async (repo) => {
+  await begin(repo, 2);
+  await returned(repo, "1=none");
+};
+const AFTER_ASK: Arranger = async (repo) => {
+  await begin(repo, 2);
+  await returned(repo, "1=DENIED");
+};
+const AFTER_EXIT_PLAN: Arranger = async (repo) => {
+  await begin(repo, 2);
+  await returned(repo, "1=PASS");
+};
+const AFTER_FIX: Arranger = async (repo) => {
+  await begin(repo, 2);
+  await returned(repo, "1=FAIL");
+};
+
+const GRAPH_BLOCK_2 = [
+  "NEXT: review | member: 2 | agent: viber:planner-graph-review | round: 1",
+  `plan: ${PLAN_REL}`,
+  `refs: ${REFS}`,
+  "memory: false",
+];
+
+test("retry-denied after ASK: prints NEXT: redispatch naming the DENIED members, then only their blocks", async () => {
+  await withGitRepo(async (repo) => {
+    await begin(repo, 13);
+    await returned(repo, "1=PASS", "2=DENIED", "3=PASS", "4=DENIED");
+
+    const result = await review(repo, [PLAN_REL, "retry-denied"]);
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      slash(result.stdout),
+      ["NEXT: redispatch | members: 2,4", ...GRAPH_BLOCK_2, ...TASK_BLOCK_4, ""].join("\n"),
+    );
+  });
+});
+
+test("returned naming a redispatched DENIED member alone prints NEXT: exit-plan, the others keeping their PASS", async () => {
+  await withGitRepo(async (repo) => {
+    await begin(repo, 13);
+    await returned(repo, "1=PASS", "2=DENIED", "3=PASS", "4=PASS");
+    await review(repo, [PLAN_REL, "retry-denied"]);
+
+    const result = await returned(repo, "2=PASS");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "NEXT: exit-plan\n");
+  });
+});
+
+test("retry-denied after any answer but ASK: exits 2 with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    await AFTER_EXIT_PLAN(repo);
+
+    const result = await review(repo, [PLAN_REL, "retry-denied"]);
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "error: retry-denied: only after ASK: permission added\n");
+  });
+});
+
+test("stop after ASK: prints the STOP: line", async () => {
+  await withGitRepo(async (repo) => {
+    await AFTER_ASK(repo);
+
+    const result = await review(repo, [PLAN_REL, "stop"]);
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "STOP: the plan stays unreviewed - no hand-off\n");
+  });
+});
+
+const OVERRIDES: { name: string; members: string; stdout: string }[] = [
+  { name: "one member", members: "2", stdout: "NEXT: fix | members: 2\n" },
+  { name: "two members, named out of order, in member order", members: "4,2", stdout: "NEXT: fix | members: 2,4\n" },
+];
+
+for (const row of OVERRIDES) {
+  test(`override of ${row.name} after NEXT: exit-plan prints NEXT: fix naming them`, async () => {
+    await withGitRepo(async (repo) => {
+      await begin(repo, 13);
+      await returned(repo, "1=PASS", "2=PASS", "3=PASS", "4=PASS");
+
+      const result = await review(repo, [PLAN_REL, "override", row.members]);
+
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, row.stdout);
+    });
+  });
+}
+
+test("override of a member the round does not hold exits 2 with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    await AFTER_EXIT_PLAN(repo);
+
+    const result = await review(repo, [PLAN_REL, "override", "3"]);
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "error: override: member 3 is not in the round\n");
+  });
+});
+
+const OVERRIDE_REFUSED: { name: string; arrange: Arranger }[] = [
+  { name: "a start", arrange: AFTER_START },
+  { name: "NEXT: redispatch", arrange: AFTER_REDISPATCH },
+  { name: "ASK:", arrange: AFTER_ASK },
+  { name: "NEXT: fix", arrange: AFTER_FIX },
+];
+
+for (const row of OVERRIDE_REFUSED) {
+  test(`override after ${row.name} exits 2 with one error line and an empty stdout`, async () => {
+    await withGitRepo(async (repo) => {
+      await row.arrange(repo);
+
+      const result = await review(repo, [PLAN_REL, "override", "1"]);
+
+      assert.equal(result.status, 2);
+      assert.equal(result.stdout, "");
+      assert.equal(result.stderr, "error: override: only after NEXT: exit-plan\n");
+    });
+  });
+}
+
+const ROUND_2_SET = [
+  "NEXT: review | member: 1 | agent: viber:planner-spec-review | round: 2 | add: input | add: answered | add: previous",
+  `plan: ${PLAN_REL}`,
+  `refs: ${REFS}`,
+  "NEXT: review | member: 2 | agent: viber:planner-graph-review | round: 2 | add: previous",
+  `plan: ${PLAN_REL}`,
+  `refs: ${REFS}`,
+  "memory: false",
+  "NEXT: review | member: 3 | agent: viber:planner-task-review | round: 2 | add: previous",
+  `plan: ${PLAN_REL}`,
+  `refs: ${REFS}`,
+  "memory: false",
+  "tasks: T1-T7",
+  "NEXT: review | member: 4 | agent: viber:planner-task-review | round: 2 | add: previous",
+  `plan: ${PLAN_REL}`,
+  `refs: ${REFS}`,
+  "memory: false",
+  "tasks: T8-T13",
+  "",
+];
+
+const FIXES: { name: string; arrange: Arranger }[] = [
+  {
+    name: "returned",
+    arrange: async (repo) => {
+      await begin(repo, 13);
+      await returned(repo, "1=PASS", "2=FAIL", "3=PASS", "4=PASS");
+    },
+  },
+  {
+    name: "override",
+    arrange: async (repo) => {
+      await begin(repo, 13);
+      await returned(repo, "1=PASS", "2=PASS", "3=PASS", "4=PASS");
+      await review(repo, [PLAN_REL, "override", "2"]);
+    },
+  },
+];
+
+for (const row of FIXES) {
+  test(`start after a NEXT: fix printed by ${row.name} prints every member at round 2 with add: previous`, async () => {
+    await withGitRepo(async (repo) => {
+      await row.arrange(repo);
+
+      const result = await start(repo, PLAN_REL);
+
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(slash(result.stdout), ROUND_2_SET.join("\n"));
+    });
+  });
+}
+
+const NOT_CLOSED: { name: string; arrange: Arranger }[] = [
+  { name: "NEXT: exit-plan", arrange: AFTER_EXIT_PLAN },
+  { name: "ASK:", arrange: AFTER_ASK },
+  { name: "an open NEXT: redispatch", arrange: AFTER_REDISPATCH },
+];
+
+for (const row of NOT_CLOSED) {
+  test(`start without --fresh after ${row.name} exits 2 with one error line naming --fresh and an empty stdout`, async () => {
+    await withGitRepo(async (repo) => {
+      await row.arrange(repo);
+
+      const result = await start(repo, PLAN_REL);
+
+      assert.equal(result.status, 2);
+      assert.equal(result.stdout, "");
+      assert.equal(result.stderr, "error: round 1 is not closed on NEXT: fix - run start --fresh\n");
+    });
+  });
+
+  test(`start --fresh after ${row.name} prints round 1 with no previous findings`, async () => {
+    await withGitRepo(async (repo) => {
+      await row.arrange(repo);
+
+      const result = await start(repo, PLAN_REL, "--fresh");
+
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(slash(result.stdout), [...SINGLE_BLOCK, ""].join("\n"));
+    });
+  });
+}
