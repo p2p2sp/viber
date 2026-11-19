@@ -1,3 +1,0 @@
-- Only the R1 suffix is built here (T6 Delivers); the R3 and R4 suffixes of C3 are not implemented.
-- The tokenizer records each unquoted `;`, `&&`, `||` by offset (`rec_op`) and tracks `(`, `$(` and backtick nesting, so the parts are raw slices of the unescaped command; a trailing comment is cut off the last part.
-- A newline or tab anywhere inside a part gives no suffix (control character rule); `hooks/CLAUDE.md` still describes R1 without the suffix (memory step).

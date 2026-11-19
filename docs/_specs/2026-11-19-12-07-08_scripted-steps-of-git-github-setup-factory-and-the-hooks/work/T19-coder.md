@@ -1,5 +1,0 @@
-- Delivers names only FOOTER= and BODY_FILE=; ASK= and RERUN= (C7) are not printed here, T18's note expected them in T19, so a later task must own them.
-- FOOTER= lines print after TITLE_TEMPLATE=, then BODY_FILE= last; CLOSES=yes gives Closes, anything else (including empty CLOSES) gives Refs.
-- BODY_FILE= only names the path (the script creates nothing, per its header); the skill's Write creates .temp/viber/pr-create/.
-- DoD.3 (no issue, no FOOTER=) is proven by the whole-block ready test ("a ready block prints every C9 line in order..."), whose deepEqual fails on any FOOTER= line; a separate negative test would duplicate it (Single).
-- The stamped BODY_FILE= value is masked by the `stampless` helper so the ready-block test body stays flat.

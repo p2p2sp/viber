@@ -1,3 +1,0 @@
-- RERUN= root is `${0%/scripts/*}` (the invoked path), falling back to the parent of the resolved script directory when $0 holds no `/scripts/`; no cygpath conversion, so on Windows it is whatever form the caller invoked.
-- ASK=/RERUN= print after BODY_FILE=, last in the ready block, only while ENTRY= and TARGET= are both empty (target on MODE=off, else entry).
-- DoD.3 (no ASK/RERUN with a resolved entry) cannot fail before the code exists, so it has no red; the --target half is pinned by the whole-block deepEqual test.

@@ -1,5 +1,0 @@
-- `council-r2` shares `councilPrompts` with round 1; only the fence heading (`## Round 2`) and the part list differ. The usage text is now three lines.
-- Round-2 layout where the contract leaves wording open: `Your round-1 file: <path>`, `The other members' round-1 files:` list (member order, self removed), language, output path, fence, respond line.
-- DoD.3 is proven by the dedicated council-r2 usage-line test alone; `PROMPTS_ARGS` keeps only the council-r2 extra-argument row (review-T28-1 `Single`).
-- `build_report.test.ts` (integration) is listed in `Verification`; its real-text regex was also checked by hand against a CLI run under `.temp/viber/T28/wd`.
-- Red log (6 failing) is the unit file against the round-1-only script; the integration tests have no red run.

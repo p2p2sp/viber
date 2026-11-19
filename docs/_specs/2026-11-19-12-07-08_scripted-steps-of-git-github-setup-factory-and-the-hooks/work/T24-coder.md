@@ -1,3 +1,0 @@
-- The plugin root is resolved with `cd "$here/../../.." && pwd -W || pwd`, so Git Bash prints the C:/ form; the test builds its expectation with `slash(path.resolve(...))`.
-- The two exact-stdout cases (fresh seed, second run) now end on the merge RUN and the help RUN; no other existing assertion changed.
-- `setup/SKILL.md` still carries the prose settings step and the help-page call: acting on these lines and the 470-word cap are not in this task's Files.

@@ -1,5 +1,0 @@
-- TITLE= and TITLE_TEMPLATE= print after the COMMIT lines (C7 says "today's lines, then"); T19 appends FOOTER=, BODY_FILE=, ASK=, RERUN= after them.
-- The pattern is filled in awk via ENVIRON, with no `((` (the portability sweep reads awk in a #!/bin/sh script as shell).
-- A failed `gh issue view` leaves ISSUE_TITLE empty, so the title falls to the template with the first issue number filled.
-- With an empty github.pr-title both TITLE= and TITLE_TEMPLATE= print empty.
-- pr-create/SKILL.md still carries the old step 3 title prose; its rewrite belongs to a later task.

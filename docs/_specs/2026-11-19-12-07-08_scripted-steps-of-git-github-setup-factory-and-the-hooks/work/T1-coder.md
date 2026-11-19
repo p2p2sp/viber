@@ -1,7 +1,0 @@
-- factory.sh implements `answer` only; `approve` and `reject` are T2 and T3 (the header Contract names only what exists, T2/T3 extend it; the usage line already names all three per Must not change).
-- `factory.sh` stays 100644: the skill calls it as `bash ".../factory.sh"`, the test runs it with `shell: "bash"`.
-- Argument encoding is `printf '%s\0' ... | base64 | tr -d '\n'`: GNU base64 wraps at 76 columns, and `-w` is not portable to every macOS base64.
-- The answer modes print the screen with `$(...)`, so trailing newlines collapse to one; a fixture screen must carry no trailing newline (the expected output adds exactly one).
-- Red evidence is .temp/viber/T1/red-4.log (factory.sh reverted to HEAD, 12 of 13 failing); red.log to red-3.log in that directory belong to an earlier run's T1, not this task.
-- DoD.6 (screen passthrough) is a preservation clause: it passes on HEAD on this macOS, whose base64 accepts `-w0`; it guards the shared `encode()` refactor.
-- The stub is `powershell.exe` with fixture files beside it; it numbers key/type calls to pick after-<N>.txt, so a case's fixtures must follow its call order.

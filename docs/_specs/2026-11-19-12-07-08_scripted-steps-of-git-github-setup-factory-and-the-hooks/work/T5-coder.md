@@ -1,4 +1,0 @@
-- The legacy cases of verdict-nudge.test.ts now run as `viber:no-agent-file` instead of `viber:task-coder`: the real task-coder.md names values, so the plain reason no longer applies to it there.
-- Value extraction is awk (after the viber-agent and stop_hook_active exits, so the builtin-only fast path is kept); membership and the reason list use bash string tests on the newline-joined values.
-- A value like `PASS REASON` is possible when an agent file writes `VERDICT: PASS REASON: x` on one line (C2 reads capitals across single spaces); none of the shipped agent files does it.
-- hooks/CLAUDE.md (verdict-nudge bullet) still states only the plain nudge: the build's memory step owns it.
