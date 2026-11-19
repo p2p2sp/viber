@@ -56,8 +56,10 @@ Then one `AskUserQuestion`: create, create as draft or cancel. A correction type
 
 ## 6. Create
 
-Run `"${CLAUDE_PLUGIN_ROOT}/scripts/pr-create.sh" "<file>" "<title>" --base "<TARGET>"` with the file of step 5, plus ` --draft` for the draft answer.
+Run `"${CLAUDE_PLUGIN_ROOT}/scripts/pr-create.sh" "<file>" "<title>" --base "<TARGET>"` with the file of step 5, plus ` --draft` for the draft answer, plus ` --issue "<n>"` with the first `ISSUE=` when `CLOSES=no`.
 
+- Exit 0, `LINK=manual` -> open the answer on one line: issue #<n> needs linking by hand (pull request, Development, issue), because `LINK_REASON=`.
+- Exit 0 with `--issue` and more than one `ISSUE=` -> one line naming the other issues as needing linking by hand.
 - Exit 0 -> report `PR_URL=`, plus one line that the pull request stays unassigned when `ASSIGNEE=dropped` (the script assigns its author itself), then, when `QA=` is set, run `"${CLAUDE_PLUGIN_ROOT}/scripts/qa-comment.sh" "<QA>" --pr "<PR_URL>"` with that `PR_URL=` and report the result as step 7 says. Never retry it.
 - Exit 1 -> report its `ERROR` line. Never retry.
 - Exit 2 -> report its `ERROR` line; nothing was pushed.

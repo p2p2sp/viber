@@ -29,7 +29,7 @@ const SKILL_WORD_CAPS: [string, number, number][] = [
   ["issue-create", 180, 195],
   ["factory", 777, 789],
   ["commit", 322, 397],
-  ["pr-create", 690, 824],
+  ["pr-create", 745, 824],
   ["setup", 466, 470],
   ["idea-validator", 1006, 1016],
 ];

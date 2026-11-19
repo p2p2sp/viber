@@ -2805,12 +2805,18 @@ z nich mówi, jak nim sterować.</p>
       <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
       <dd><span lang="en">No code. The body goes to <code>.temp/viber/pr-create/body-&lt;yyyy-mm-dd-HH-mm-ss&gt;.md</code>, removed once the pull request exists. On your yes it
       pushes the branch to its remote and creates the pull request, or a draft; it reports the pull request's
-      URL. Nothing else in viber pushes. When the run has a <code>qa.md</code>, it also posts it as a comment on the
+      URL. Nothing else in viber pushes. For a target other than the default branch, closing keywords do not link
+      the pull request to its issue, so before the push it creates the branch on GitHub linked to the first issue,
+      and the pull request shows in that issue's Development section. A branch already pushed cannot be linked:
+      it then opens its answer by telling you to link the issue by hand. When the run has a <code>qa.md</code>, it also posts it as a comment on the
       run's issue, or on the pull request when the run has no issue, once per run: a target that already has
       that comment gets no second one. On a branch
       whose pull request exists already, that comment is all it does.</span><span lang="pl">Żadnego kodu. Treść trafia do
       <code>.temp/viber/pr-create/body-&lt;yyyy-mm-dd-HH-mm-ss&gt;.md</code>, usuwana po utworzeniu pull requesta. Na twoje tak wypycha gałąź na jej zdalne repozytorium i tworzy
-      pull request albo szkic; podaje jego adres URL. Nic innego w viber niczego nie wypycha. Gdy przebieg ma
+      pull request albo szkic; podaje jego adres URL. Nic innego w viber niczego nie wypycha. Przy celu innym niż gałąź domyślna słowa
+      zamykające nie łączą pull requesta z issue, więc przed wypchnięciem tworzy gałąź na GitHubie powiązaną
+      z pierwszym issue, a pull request pojawia się w sekcji Development tego issue. Gałęzi już wypchniętej nie da się
+      powiązać: wtedy zaczyna odpowiedź od informacji, że issue trzeba podpiąć ręcznie. Gdy przebieg ma
       <code>qa.md</code>, publikuje go też jako komentarz pod issue przebiegu, a gdy przebieg nie ma issue, pod
       pull requestem, raz na przebieg: miejsce, które ma już ten komentarz, nie dostaje drugiego. Na gałęzi, której pull request już istnieje, robi tylko to.</span></dd>
     </div>

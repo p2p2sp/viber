@@ -100,7 +100,9 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
   and the new issue is attached under it as a sub-issue.
 - **`/viber:pr-create`**: opens a pull request or a draft, titles it `[<n>] <issue title>` of its first issue (per `github.pr-title` with none), pushes only on your yes,
   assigns it to you as its author, and posts the run's `qa.md` as a QA comment on the run's issue
-  (on the pull request when the run has none), once per run.
+  (on the pull request when the run has none), once per run. For a pull request to a branch other than the default one,
+  it creates the branch on GitHub linked to the first issue before the push, so the pull request shows in that issue's
+  Development section; a branch already pushed cannot be linked, and it then tells you first to link it by hand.
   A build finished on its run branch, with no roadmap part left, offers to run it.
 - **`/viber:pr-feedback`**: `/viber:pr-feedback <pull request number or URL>` lists the unresolved review
   threads not yet answered and the remarks outside them, the pull request's Conversation comments and the
