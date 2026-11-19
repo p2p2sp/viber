@@ -48,6 +48,8 @@ Owns every `skills/<name>/` directory: its `SKILL.md` and the `fragments/`, `par
 - The pointer sentence of `implementor/SKILL.md` keeps the lower-case phrase "before the first action of step 5, 6 or 7": `tests/viber/close-part-prose.unit.test.ts` pins it, and a reworded pointer lets an `abort` reach step 7 with the part never printed.
 - Skill arguments reach a preload by text substitution before the shell runs: `commit` passes `'$ARGUMENTS'` and `handoff` `'$0'`, single-quoted so `$`, backticks and backslashes stay literal. An apostrophe in the arguments breaks the preload, and `$0` arrives as the literal `$0` when no argument came.
 
+- `memory` and `rules` compose no auditor brief: `memory-map.sh --targets`, `--reconcile` and `rules-map.sh --brief`, `--confirm` print each `NEXT:` block, sent as printed. `tests/viber/memory-rules-words.unit.test.ts` word-caps both `SKILL.md` files.
+
 ## Sections
 
 - Read `CLAUDE.code-auditor.md` before editing `code-auditor/SKILL.md`, its `scripts/`, its lens files, `<lens>.signals.md` files, `synthesis.md` or `README.md`.

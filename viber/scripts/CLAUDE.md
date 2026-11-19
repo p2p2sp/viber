@@ -30,7 +30,7 @@ This directory holds the scripts more than one viber skill or agent calls: the c
 
 ## Change together
 
-- The directive format of `task-step.sh`: its header defines it, `skills/implementor/SKILL.md` step 4 acts on each verb, `tests/viber/task-step.test.ts` pins it; the `NEXT:` words `red-check.sh` prints (`review`, `coder-failure`) are read by `task-step.sh`.
+- The directive format of `task-step.sh`: its header defines it, `skills/implementor/SKILL.md` step 4 acts on each verb, `tests/viber/task-step.test.ts` pins it; the `NEXT:` words `red-check.sh` prints (`review`, `coder-failure`) are read by `task-step.sh`. `skills/memory/scripts/memory-map.sh` and `skills/rules/scripts/rules-map.sh` answer their script modes in the same `NEXT:`, `ASK:`, `STOP:` blocks.
 
 ## Traps
 
