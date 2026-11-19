@@ -152,8 +152,15 @@ test("SKILL.md holds neither the issues-done nor the branching-handoff fragment 
 
 test("the hand-off writes the summary file with Write and passes its absolute path alone to viber:planner outside plan mode", () => {
   assert.match(HEAD, /allowed-tools:[^\n]*\bWrite\b/);
-  assert.match(DONE, /\.temp\/viber\/intent\/summary-<YYYY-MM-DD-HH-MM-SS>\.md`/);
+  assert.match(DONE, /"\$\{CLAUDE_SKILL_DIR\}\/scripts\/summary-path\.sh"/);
+  assert.match(DONE, /`Write` the content to its `path:`/);
   assert.match(DONE, /`viber:planner`[^\n]*(its|that) absolute path[^\n]*only argument/);
+  assert.doesNotMatch(DONE, /date \+%Y/);
+});
+
+test("allowed-tools lists the summary-path.sh entry of the hand-off and keeps Bash(date:*) for the issue save", () => {
+  assert.match(HEAD, /allowed-tools:[^\n]*Bash\(\$\{CLAUDE_SKILL_DIR\}\/scripts\/summary-path\.sh:\*\)/);
+  assert.match(HEAD, /allowed-tools:[^\n]*Bash\(date:\*\)/);
 });
 
 test("the hand-off is reached after any issue save and branch re-settle and never after a Stop answer", () => {
