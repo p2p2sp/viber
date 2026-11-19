@@ -42,12 +42,16 @@ root=$(git rev-parse --show-toplevel 2>/dev/null) || root=""
 root=$(printf '%s' "$root" | tr '\\' '/')
 root=${root%/}
 
-# Absolute directory of $1 with forward slashes: Git Bash prints C:/ for pwd -W
-# and /c/ for pwd; a symlinked directory resolves like the repository root does.
+# Absolute directory of $1 spelled as git spells the root, C:/ on Windows: bash
+# there prints it with pwd -W, dash has no -W and prints /c/ for pwd -P, which
+# cygpath -m turns into C:/; a symlinked directory resolves like the repository
+# root does.
 abs_dir() {
   (
     cd "$1" 2>/dev/null || exit 1
-    pwd -W 2>/dev/null || pwd -P
+    pwd -W 2>/dev/null && exit 0
+    d=$(pwd -P) || exit 1
+    cygpath -m "$d" 2>/dev/null || printf '%s\n' "$d"
   )
 }
 

@@ -1,0 +1,2 @@
+- Root cause: dash has no `pwd -W`, so `pwd -P` printed /c/... while git's root is C:/...; every path was dropped. `abs_dir` now falls back to `cygpath -m` (absent off Windows, then the `pwd -P` text is printed as before).
+- No test was added: the 7 existing cases already assert the C:/ spelling and fail under dash only when the shell matrix runs (`CI=true`): 4 failing in red.log, 7 passing in green.log. A plain local run takes the first shell only, so it passes before and after.
