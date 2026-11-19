@@ -14,7 +14,8 @@
 #   env    : none. branch_decide takes its flags from the st_fixer, st_pr,
 #            st_roadmap, st_entry and st_settled shell variables
 #            plan-path.sh sets before branch_start; branch_plan_decide from
-#            pb_work, pb_name and pb_entry, set before branch_report.
+#            pb_work, pb_name and pb_entry, set before branch_report, and
+#            pb_plan, the plan path branch_report sets.
 #   file   : the sibling config.sh --branching lines (mode and work entries
 #            for the landing, all of them for branch_report); the plan's
 #            frontmatter "branch:", "work:" and "issue:" keys and its task
@@ -362,7 +363,7 @@ base_behind() {
 # array expansions are guarded: bash 3.2 under `set -u` fails on "${a[@]}".
 branch_report() {
   local issue suggested only="" usable=0 e
-  local key rest base name target new exists behind entry_lines=""
+  local key rest base name target new exists behind decision entry_lines=""
   issue="$(plan_issue "$1")"
   branch_situation "$issue" "$(plan_issue "$1" url)"
   if [[ "$rp_mode" == off ]]; then
@@ -408,7 +409,42 @@ branch_report() {
   printf 'suggested: %s\n' "$suggested"
   printf '%s' "$entry_lines"
   branch_tail
-  branch_plan_decide
+  pb_plan="$1"
+  decision="$(branch_plan_decide)"
+  branch_kept "$1" "$decision" || printf '%s\n' "$decision"
+}
+
+# The next: kept answer, printed in place of decision $2 (the lines
+# branch_plan_decide printed) for plan $1 when its frontmatter holds a
+# "branch:" key and the write decision carries the same work and branch, or one
+# ask option does: the recorded "work:" (- when the key is absent) and
+# "branch:" values. Return 1, printing nothing, otherwise.
+branch_kept() {
+  local line next="" work="" branch="" rec_work rec_branch rest hit=1
+  rec_branch="$(plan_field "$1" branch)"
+  [[ -n "$rec_branch" ]] || return 1
+  rec_work="$(plan_field "$1" work)"
+  [[ -n "$rec_work" ]] || rec_work=-
+  while IFS= read -r line; do
+    case "$line" in
+      'next: '*) next="${line#next: }" ;;
+      'work: '*) work="${line#work: }" ;;
+      'branch: '*) branch="${line#branch: }" ;;
+      'option: '*)
+        rest="${line#option: }"
+        rest="${rest#* | }"
+        if [[ "$next" == ask && "${rest%% | *}" == "$rec_work" ]]; then
+          rest="${rest#* | }"
+          [[ "${rest%% | *}" != "$rec_branch" ]] || hit=0
+        fi
+        ;;
+    esac
+  done < <(printf '%s\n' "$2")
+  if [[ "$next" == write && "$work" == "$rec_work" && "$branch" == "$rec_branch" ]]; then hit=0; fi
+  [[ $hit -eq 0 ]] || return 1
+  printf 'next: kept\n'
+  printf 'work: %s\n' "$rec_work"
+  printf 'branch: %s\n' "$rec_branch"
 }
 
 # The planner decision printed after the --branch report (C3 of plan-path.sh),
@@ -458,8 +494,8 @@ branch_plan_decide() {
     plan_write - none "no run branch is made; commits land on $tl_cur."
   elif [[ "$rp_mode" == allowed ]]; then
     printf 'next: ask\n'
-    printf 'option: continue | - | none | no run branch is made; commits land on %s.\n' "$tl_cur"
-    printf 'option: stop | - | - | the planner ends with no review, no hand-off and nothing landed.\n'
+    printf 'option: continue | - | none | run: - | settle: write | no run branch is made; commits land on %s.\n' "$tl_cur"
+    printf 'option: stop | - | - | run: - | settle: stop | the planner ends with no review, no hand-off and nothing landed.\n'
     printf 'note: no work entry can name a run branch without an issue, and HEAD is on an entry base.\n'
   else
     printf 'next: stop\n'
@@ -498,12 +534,23 @@ plan_ask_entry() {
   printf 'next: ask-entry\n'
   plan_find "$pb_suggested"
   if [[ $d_i -ge 0 && "${pb_news[$d_i]}" != - ]]; then
-    printf 'option: %s | - | - | %s\n' "${pb_keys[$d_i]}" "$(plan_effect "$d_i")"
+    printf 'option: %s | - | - | run: %s | settle: - | %s\n' "${pb_keys[$d_i]}" "$(plan_rerun "${pb_keys[$d_i]}")" "$(plan_effect "$d_i")"
   fi
   for ((i = 0; i < ${#pb_keys[@]}; i++)); do
     [[ "${pb_news[$i]}" != - && "${pb_keys[$i]}" != "$pb_suggested" ]] || continue
-    printf 'option: %s | - | - | %s\n' "${pb_keys[$i]}" "$(plan_effect "$i")"
+    printf 'option: %s | - | - | run: %s | settle: - | %s\n' "${pb_keys[$i]}" "$(plan_rerun "${pb_keys[$i]}")" "$(plan_effect "$i")"
   done
+}
+
+# The command re-running this --branch call for entry key $1: the plan, then
+# --work and --name when the call had them, then --entry.
+plan_rerun() {
+  local cmd
+  cmd="\"$(decide_root)/scripts/plan-path.sh\" --branch \"$pb_plan\""
+  [[ -z "${pb_work:-}" ]] || cmd+=" --work \"$pb_work\""
+  [[ -z "${pb_name:-}" ]] || cmd+=" --name \"$pb_name\""
+  cmd+=" --entry \"$1\""
+  printf '%s\n' "$cmd"
 }
 
 # The base question of entry $1 (an index): create its branch, stay on the
@@ -516,15 +563,15 @@ plan_ask_base() {
       stay=yes
     fi
   fi
-  [[ "$stay" != yes ]] || opts+="option: stay | $key | $tl_cur | no run branch is made; commits land on $tl_cur."$'\n'
+  [[ "$stay" != yes ]] || opts+="option: stay | $key | $tl_cur | run: - | settle: write | no run branch is made; commits land on $tl_cur."$'\n'
   if [[ "$rp_mode" == allowed ]]; then
-    opts+="option: no-branch | $key | none | no run branch is made; commits land on the branch HEAD is on when the plan lands."$'\n'
+    opts+="option: no-branch | $key | none | run: - | settle: write | no run branch is made; commits land on the branch HEAD is on when the plan lands."$'\n'
   fi
   if [[ -z "$opts" ]]; then
     plan_write "$key" "${pb_news[$1]}" "$(plan_effect "$1")"
   else
     printf 'next: ask\n'
-    printf 'option: create | %s | %s | %s\n' "$key" "${pb_news[$1]}" "$(plan_effect "$1")"
+    printf 'option: create | %s | %s | run: - | settle: write | %s\n' "$key" "${pb_news[$1]}" "$(plan_effect "$1")"
     printf '%s' "$opts"
   fi
   if [[ "${pb_behind[$1]}" =~ ^[0-9]+$ && "${pb_behind[$1]}" -gt 0 ]]; then

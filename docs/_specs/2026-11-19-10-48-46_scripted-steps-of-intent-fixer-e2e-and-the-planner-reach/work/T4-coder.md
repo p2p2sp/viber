@@ -1,0 +1,4 @@
+- Red: only the prose unit test went red (14 failing, red.log) before the fragments changed; the plan-path.test.ts cases (DoD.1-3) are integration, written and only loaded (non-matching name pattern), never run, so the build's final run is their first green. The script edits were made before those cases, which tdd.md allows for an integration-proven clause.
+- `next: kept` is built by capturing `branch_plan_decide` into a string and matching its `work:`/`branch:` or `option:` lines (branch_kept in run-branch.sh); a `branch:` key with an empty value counts as no key, and `ask-entry` options never match (their work and branch fields are `-`).
+- The ask-entry re-run command uses the plan path exactly as the caller passed it (pb_plan), the plugin root from decide_root (shared with --start).
+- tests/portability.unit.test.ts currently fails on viber/skills/e2e/scripts/qa-ledger.sh:192 (`((` under #!/bin/sh), another task's in-progress file, not T4's.

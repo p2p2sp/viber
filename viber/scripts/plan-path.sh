@@ -142,13 +142,26 @@
 #   type" or "issue type <type> is not in branching.issue-type-mappings".
 #   The planner decision, after those lines (flags: --work the input Work:
 #   value, --name its Branch: value, --entry the entry picked on ask-entry):
-#     next: write | ask | ask-entry | errors | stop
-#     work: <entry key> | -             (next: write; - writes no work: key)
-#     branch: <name> | none             (next: write)
+#     next: write | kept | ask | ask-entry | errors | stop
+#     work: <entry key> | -             (next: write; - writes no work: key;
+#                                       next: kept: the recorded work: value, - when absent)
+#     branch: <name> | none             (next: write; next: kept: the recorded branch: value)
 #     show: <one sentence>              (next: write; the run branch line)
-#     option: <answer> | <work key or -> | <branch, none or -> | <effect>
+#     option: <answer> | <work key or -> | <branch, none or -> | run: <command or -> | settle: <write, stop or -> | <effect>
 #                                       (ask, ask-entry; one per answer)
 #     note: <one sentence>              (zero or more)
+#   "run:" is the command to run when the answer is chosen, "-" for none;
+#   "settle:" what the answer settles, "-" for nothing yet:
+#     continue, create, stay, no-branch  run: -  settle: write
+#     stop                               run: -  settle: stop
+#     <entry key> (ask-entry)            run: this call again (plan, --work and
+#                                        --name kept) with --entry "<key>"  settle: -
+#   Every command opens on "<plugin root>/scripts/plan-path.sh", <plugin root>
+#   being the absolute directory above this scripts directory, forward slashes.
+#   next: kept answers in place of next: write or next: ask, and only then, when
+#   the plan frontmatter holds a branch: key and the write decision carries the
+#   same work and branch, or one ask option does; note: and option: lines are
+#   dropped with it.
 #   The first rule that applies decides:
 #     1. --work none -> write - none; --work with --name -> write both.
 #     2. any error: line -> next: errors.

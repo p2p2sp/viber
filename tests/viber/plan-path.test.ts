@@ -3308,6 +3308,163 @@ test("--branch prints current-is-base: no directly after current: on a branch th
   });
 });
 
+// --- --branch options carrying run: and settle:, and the next: kept answer (C4) ---
+
+/** The answer, work, branch, run: and settle: fields of every option: line, in the order printed. */
+function planOptionsOf(stdout: string): string[] {
+  return linesOf(stdout, "option: ").map((line) => line.slice("option: ".length).split(" | ").slice(0, 5).join(" | "));
+}
+
+test("plan options: every base question option carries run: - and settle: write, the effect last (C4)", async () => {
+  await withBranchRepo(TWO, async (repo) => {
+    await repo.git("checkout", "-q", "-b", "work");
+    await withSource([], async (src) => {
+      const result = await runIn(repo, ["--branch", src, "--entry", "chore"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(planOptionsOf(result.stdout), [
+        "create | chore | chore/add-login | run: - | settle: write",
+        "stay | chore | work | run: - | settle: write",
+        "no-branch | chore | none | run: - | settle: write",
+      ]);
+      for (const line of linesOf(result.stdout, "option: ")) assert.equal(line.split(" | ").length, 6, line);
+    });
+  });
+});
+
+test("plan options: the continue and stop answers settle write and stop, both with run: - (C4)", async () => {
+  await withBranchRepo(["mode: allowed", "work:", ...workEntry("numbered", "main", "hotfix/issue.{issue-number}", "main")], async (repo) => {
+    await withSource([], async (src) => {
+      const result = await runIn(repo, ["--branch", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(planOptionsOf(result.stdout), ["continue | - | none | run: - | settle: write", "stop | - | - | run: - | settle: stop"]);
+    });
+  });
+});
+
+test("plan options: an ask-entry option re-runs the plan with --entry added and settles nothing (C4)", async () => {
+  await withBranchRepo(TWO, async (repo) => {
+    await repo.git("checkout", "-q", "-b", "work");
+    await withSource([], async (src) => {
+      const result = await runIn(repo, ["--branch", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(planOptionsOf(result.stdout), [
+        `feature | - | - | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --branch "${slash(src)}" --entry "feature" | settle: -`,
+        `chore | - | - | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --branch "${slash(src)}" --entry "chore" | settle: -`,
+      ]);
+    });
+  });
+});
+
+test("plan options: the ask-entry re-run repeats the --work of the call (C4)", async () => {
+  await withBranchRepo(TWO, async (repo) => {
+    await repo.git("checkout", "-q", "-b", "work");
+    await withSource([], async (src) => {
+      const result = await runIn(repo, ["--branch", src, "--work", "nosuch"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(planOptionsOf(result.stdout).slice(0, 1), [
+        `feature | - | - | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --branch "${slash(src)}" --work "nosuch" --entry "feature" | settle: -`,
+      ]);
+    });
+  });
+});
+
+test("plan options: the ask-entry re-run repeats the --name of the call (C4)", async () => {
+  await withBranchRepo(TWO, async (repo) => {
+    await repo.git("checkout", "-q", "-b", "work");
+    await withSource([], async (src) => {
+      const result = await runIn(repo, ["--branch", src, "--name", "pr/42"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(planOptionsOf(result.stdout).slice(0, 1), [
+        `feature | - | - | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --branch "${slash(src)}" --name "pr/42" --entry "feature" | settle: -`,
+      ]);
+    });
+  });
+});
+
+test("plan kept: a recorded branch: equal to the write decision answers next: kept with the recorded work and branch, no show: line (C4)", async () => {
+  await withBranchRepo(SINGLE, async (repo) => {
+    await withSource(["work: feature", "branch: feature/add-login"], async (src) => {
+      const result = await runIn(repo, ["--branch", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: kept", "work: feature", "branch: feature/add-login"]);
+    });
+  });
+});
+
+test("plan kept: a plan with no work: key matches the write decision's work: - (C4)", async () => {
+  await withBranchRepo(SINGLE, async (repo) => {
+    await withSource(["branch: none"], async (src) => {
+      const result = await runIn(repo, ["--branch", src, "--work", "none"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: kept", "work: -", "branch: none"]);
+    });
+  });
+});
+
+test("plan kept: a recorded branch equal to one ask option answers next: kept in place of the question (C4)", async () => {
+  await withBranchRepo(TWO, async (repo) => {
+    await repo.git("checkout", "-q", "-b", "work");
+    await withSource(["work: chore", "branch: work"], async (src) => {
+      const result = await runIn(repo, ["--branch", src, "--entry", "chore"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: kept", "work: chore", "branch: work"]);
+    });
+  });
+});
+
+test("plan kept: the no-branch option of the base question is kept too, with its note left out (C4)", async () => {
+  await withBranchRepo(TWO, async (repo) => {
+    await repo.git("checkout", "-q", "-b", "work");
+    fs.writeFileSync(path.join(repo.dir, "untracked.txt"), "x\n");
+    await withSource(["work: chore", "branch: none"], async (src) => {
+      const result = await runIn(repo, ["--branch", src, "--entry", "chore"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout), ["next: kept", "work: chore", "branch: none"]);
+    });
+  });
+});
+
+test("plan kept: a plan with no branch: key gets the write answer as before (C4)", async () => {
+  await withBranchRepo(SINGLE, async (repo) => {
+    await withSource(["work: feature"], async (src) => {
+      const result = await runIn(repo, ["--branch", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout).slice(0, 3), ["next: write", "work: feature", "branch: feature/add-login"]);
+    });
+  });
+});
+
+test("plan kept: a recorded branch no write decision carries gets the write answer as before (C4)", async () => {
+  await withBranchRepo(SINGLE, async (repo) => {
+    await withSource(["work: feature", "branch: feature/other"], async (src) => {
+      const result = await runIn(repo, ["--branch", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout).slice(0, 3), ["next: write", "work: feature", "branch: feature/add-login"]);
+    });
+  });
+});
+
+test("plan kept: a recorded work: that differs while the branch matches gets the write answer as before (C4)", async () => {
+  await withBranchRepo(SINGLE, async (repo) => {
+    await withSource(["work: other", "branch: feature/add-login"], async (src) => {
+      const result = await runIn(repo, ["--branch", src]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout).slice(0, 3), ["next: write", "work: feature", "branch: feature/add-login"]);
+    });
+  });
+});
+
+test("plan kept: a recorded branch matching no ask option gets the question as before (C4)", async () => {
+  await withBranchRepo(TWO, async (repo) => {
+    await repo.git("checkout", "-q", "-b", "work");
+    await withSource(["work: chore", "branch: elsewhere"], async (src) => {
+      const result = await runIn(repo, ["--branch", src, "--entry", "chore"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(decisionOf(result.stdout).slice(0, 1), ["next: ask"]);
+    });
+  });
+});
+
 // --- --checkout: HEAD onto an existing local branch, never a new one ---
 
 /** The local branch names, one per line, so a test can assert none was created. */
