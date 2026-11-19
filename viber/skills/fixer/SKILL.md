@@ -38,7 +38,7 @@ Apply these inside Law 1.
 
 ## Instrumentation
 Apply these around every edit.
-- **Record** - run `git status` before your first edit and keep the paths it shows as changed.
+- **Record** - before your first edit run `"${CLAUDE_SKILL_DIR}/scripts/tree-record.sh" --save`: its `recorded:` paths are the record.
 - **Instrument** - only per Law 3, never a file already changed in the record.
 
 ## Resolving the report
@@ -86,4 +86,4 @@ The handoff payload - state it in context, in this order. No report file: the pa
 ```
 
 ## Handoff [GATE]
-Run `git status` again: stop, naming the path, on any path changed since the record other than the reproduction test, leaving every path already changed in the record untouched. Otherwise invoke the `viber:planner` skill, restating every part of the diagnosis verbatim in that invocation. Stop there.
+Run `"${CLAUDE_SKILL_DIR}/scripts/tree-record.sh" --check "<reproduction test path>"`. On `STOP:`, stop, naming each `path:` line's path and leaving every recorded path untouched. On `NEXT: handoff`, invoke the `viber:planner` skill, restating every part of the diagnosis verbatim in that invocation. Stop there.

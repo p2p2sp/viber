@@ -2,7 +2,8 @@
  * fixer-prose.unit.test.ts - pins the three tracing checks of `fixer` (the premise two refuted
  * hypotheses share, the legitimacy of the state at the divergence, the commit that broke a
  * behaviour that used to work) and its temporary instrumentation (Law 3, the `git status` record
- * and the handoff gate comparing against it, the session manifest's exception), and its `Same
+ * and the handoff gate comparing against it, both through `tree-record.sh`, the session
+ * manifest's exception), and its `Same
  * defect elsewhere` field (the search, the field after `Blast radius`, the user's pick in step 5).
  *
  * `fixer/SKILL.md` and `hooks/content/manifest.md` are shipped prompts whose text is the
@@ -56,9 +57,11 @@ test("fixer allows temporary instrumentation of production code only when readin
   assert.ok(law.includes("each instrumentation edit reverted through `Edit` before the handoff"), law);
 });
 
-test("fixer records git status before its first edit", () => {
+test("fixer records the changed paths before its first edit by running tree-record.sh --save, its recorded: paths being the record", () => {
   const rule = bullet("Record");
-  assert.ok(rule.includes("`git status` before your first edit"), rule);
+  assert.ok(rule.includes('`"${CLAUDE_SKILL_DIR}/scripts/tree-record.sh" --save`'), rule);
+  assert.ok(rule.includes("before your first edit"), rule);
+  assert.ok(rule.includes("`recorded:` paths"), rule);
 });
 
 test("fixer never instruments a file the record shows already changed", () => {
@@ -66,12 +69,13 @@ test("fixer never instruments a file the record shows already changed", () => {
   assert.ok(rule.includes("never a file already changed in the record"), rule);
 });
 
-test("the handoff gate runs git status again and stops, naming the path, on any path changed since the record but the reproduction test, leaving every path already changed in the record untouched", () => {
+test("the handoff gate runs tree-record.sh --check with the reproduction test path, stops naming each path: line on STOP: and invokes viber:planner on NEXT: handoff", () => {
   const start = LINES.findIndex((l) => l.startsWith("## Handoff"));
   const gate = LINES.slice(start, start + 4).join("\n");
-  assert.ok(gate.includes("Run `git status` again"), gate);
-  assert.ok(gate.includes("stop, naming the path, on any path changed since the record other than the reproduction test"), gate);
-  assert.ok(gate.includes("leaving every path already changed in the record untouched"), gate);
+  assert.ok(gate.includes('`"${CLAUDE_SKILL_DIR}/scripts/tree-record.sh" --check "<reproduction test path>"`'), gate);
+  assert.ok(gate.includes("On `STOP:`, stop, naming each `path:`"), gate);
+  assert.ok(gate.includes("leaving every recorded path untouched"), gate);
+  assert.ok(gate.includes("On `NEXT: handoff`, invoke the `viber:planner` skill"), gate);
 });
 
 test("the session manifest's plan-approval exception names fixer's reproduction test and its temporary instrumentation", () => {
