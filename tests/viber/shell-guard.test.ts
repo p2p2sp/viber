@@ -37,7 +37,9 @@ function deny(reason: string): string {
   return `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"viber guard: ${reason}"}}\n`;
 }
 
-const R1 = deny("one command per Bash call - run each part of the chain as its own Bash call.");
+const R1_TEXT = "one command per Bash call - run each part of the chain as its own Bash call.";
+const R1 = deny(R1_TEXT);
+const r1With = (suffix: string): string => deny(`${R1_TEXT} ${suffix}`);
 const R2 = deny("git is read-only here (status, diff, log, show) - compare with git show HEAD:<path> or git diff instead.");
 const R3 = deny("remove a file or directory with git rm -r -q -- <path>, never rm.");
 const R4 = deny("Bash never writes a file - change it with Edit or Write, and redirect scratch output only under .temp/.");
@@ -61,10 +63,44 @@ async function runCommand(command: string, agentType?: string): Promise<string> 
 const CODER = "viber:task-coder";
 const GUARDED = [CODER, "viber:task-reviewer", "viber:final-reviewer"];
 
-const chained = ["make build && make test", "a; b", "a || b", "cd sub && ls", "ls;"];
+const chained: Array<[string, string]> = [
+  ["git status && git diff", "Run instead, one call each: `git status` then `git diff`."],
+  ["make build && make test", "Run instead, one call each: `make build` then `make test`."],
+  ["a; b", "Run instead, one call each: `a` then `b`."],
+  ["a || b", "Run instead, one call each: `a` then `b`."],
+  ["a && b || c; d", "Run instead, one call each: `a` then `b` then `c` then `d`."],
+  ["cd sub &&   ls  ;", "Run instead, one call each: `cd sub` then `ls`."],
+  ["grep 'a;b' f && ls | wc", "Run instead, one call each: `grep 'a;b' f` then `ls | wc`."],
+  ["(a) && b", "Run instead, one call each: `(a)` then `b`."],
+];
 
-for (const command of chained) {
-  test(`DoD.1-2: from viber:task-coder, ${JSON.stringify(command)} is refused with the R1 deny object`, async () => {
+for (const [command, suffix] of chained) {
+  test(`DoD.1: from viber:task-coder, ${JSON.stringify(command)} is refused with the R1 reason ending on the separate calls`, async () => {
+    assert.equal(await runCommand(command, CODER), r1With(suffix));
+  });
+}
+
+test("DoD.2: a part holding a double quote reaches the reason JSON-escaped and the output parses as JSON", async () => {
+  const out = await runCommand('echo "a b" && ls', CODER);
+  assert.equal(out, r1With('Run instead, one call each: `echo \\"a b\\"` then `ls`.'));
+  assert.equal(
+    JSON.parse(out).hookSpecificOutput.permissionDecisionReason,
+    `viber guard: ${R1_TEXT} Run instead, one call each: \`echo "a b"\` then \`ls\`.`,
+  );
+});
+
+test("DoD.2: a part holding a backslash reaches the reason JSON-escaped and the output parses as JSON", async () => {
+  const out = await runCommand("printf 'x\\y' && ls", CODER);
+  assert.equal(
+    JSON.parse(out).hookSpecificOutput.permissionDecisionReason,
+    `viber guard: ${R1_TEXT} Run instead, one call each: \`printf 'x\\y'\` then \`ls\`.`,
+  );
+});
+
+const chainedNoSuffix = ["a && b\nc", "a &&\nb", "a;\tb\tc && d", "ls;", ";ls", "(a && b)", "echo $(a && b) && c", "echo `a; b` && c", "(a; b) || c"];
+
+for (const command of chainedNoSuffix) {
+  test(`DoD.3: from viber:task-coder, ${JSON.stringify(command)} is refused with today's R1 reason alone`, async () => {
     assert.equal(await runCommand(command, CODER), R1);
   });
 }
@@ -105,7 +141,7 @@ for (const command of rmForbidden) {
 }
 
 test("a chain holding rm is refused as R1 first (the first matching rule gives the one deny)", async () => {
-  assert.equal(await runCommand("true || rm x", CODER), R1);
+  assert.equal(await runCommand("true || rm x", CODER), r1With("Run instead, one call each: `true` then `rm x`."));
 });
 
 test("a command matching R2 and R3 is refused as R2 (rule order, not position in the command)", async () => {
@@ -189,7 +225,7 @@ test("DoD.1: perl -pi -e stays R4 (rule order: the write rule is tried before th
 });
 
 test("DoD.1: a chain holding inline interpreter code is refused as R1 first", async () => {
-  assert.equal(await runCommand("ls && node -e 'x'", CODER), R1);
+  assert.equal(await runCommand("ls && node -e 'x'", CODER), r1With("Run instead, one call each: `ls` then `node -e 'x'`."));
 });
 
 for (const agent of ["viber:task-reviewer", "viber:final-reviewer", "viber:test-runner", "Explore", undefined]) {
@@ -311,7 +347,8 @@ test("a guarded agent payload with no command prints nothing", async () => {
 });
 
 test("DoD.12: a very long command still exits 0 with the deny object", async () => {
-  assert.equal(await runCommand("echo " + "x".repeat(20000) + "; rm y", CODER), R1);
+  const first = "echo " + "x".repeat(20000);
+  assert.equal(await runCommand(first + "; rm y", CODER), r1With(`Run instead, one call each: \`${first}\` then \`rm y\`.`));
 });
 
 const markerRows: Array<[string, string]> = [

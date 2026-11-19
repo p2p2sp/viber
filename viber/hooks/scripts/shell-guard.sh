@@ -63,7 +63,12 @@
 #   stdout : nothing, or exactly one line, the first matching rule's:
 #            {"hookSpecificOutput":{"hookEventName":"PreToolUse",
 #             "permissionDecision":"deny","permissionDecisionReason":"viber guard: <text>"}}
-#            R1 (coder): an unquoted ;, && or ||.
+#            R1 (coder): an unquoted ;, && or ||. The reason ends, after one space,
+#               on `Run instead, one call each: `<part 1>` then `<part 2>`[ then ...].`:
+#               the parts split at each unquoted ;, && and ||, trimmed, empty ones
+#               dropped, a " or \ JSON-escaped. No such ending when fewer than two
+#               parts remain, an operator sits inside (, $( or backticks, or a part
+#               holds a control character (a newline, a tab).
 #            R2 (coder and both reviewers): git in command position, any global
 #               options (-C <arg>, -c <arg>, --git-dir=..., --work-tree=..., other
 #               -options), then the subcommand stash, checkout, restore or clean.
@@ -145,6 +150,24 @@ add() {
   n=$((n + 1))
 }
 
+# Chain operators for the R1 suffix: start and end offsets in cmd of each unquoted
+# ;, && or ||, nested set once one sits inside (, $( or backticks, depth and bt
+# the nesting seen so far, endpos the start of a trailing comment (-1 when none).
+ops_s=()
+ops_e=()
+nops=0
+nested=0
+depth=0
+bt=0
+endpos=-1
+
+rec_op() {
+  ops_s[nops]="$1"
+  ops_e[nops]="$2"
+  nops=$((nops + 1))
+  if ((depth > 0 || bt)); then nested=1; fi
+}
+
 flush() {
   if ((inword)); then
     add W "$word"
@@ -214,6 +237,7 @@ while ((i < len)); do
           lit="${rest%%"$nl"*}"
           i=$((i + ${#lit}))
         else
+          endpos=$i
           i=$len
         fi
       fi
@@ -222,6 +246,7 @@ while ((i < len)); do
       if [[ "${cmd:i+1:1}" == '(' ]]; then
         flush
         add X '$('
+        depth=$((depth + 1))
         i=$((i + 2))
       else
         word+="$c"
@@ -232,27 +257,32 @@ while ((i < len)); do
     '`')
       flush
       add X '`'
+      bt=$((1 - bt))
       i=$((i + 1))
       ;;
     '(')
       flush
       add X '('
+      depth=$((depth + 1))
       i=$((i + 1))
       ;;
     ')')
       flush
       add E ')'
+      ((depth > 0)) && depth=$((depth - 1))
       i=$((i + 1))
       ;;
     ';')
       flush
       add X ';'
+      rec_op "$i" $((i + 1))
       i=$((i + 1))
       ;;
     '|')
       flush
       if [[ "${cmd:i+1:1}" == '|' ]]; then
         add X '||'
+        rec_op "$i" $((i + 2))
         i=$((i + 2))
       else
         add X '|'
@@ -264,6 +294,7 @@ while ((i < len)); do
       nc="${cmd:i+1:1}"
       if [[ "$nc" == '&' ]]; then
         add X '&&'
+        rec_op "$i" $((i + 2))
         i=$((i + 2))
       elif [[ "$nc" == '>' ]]; then
         add R '&>'
@@ -490,9 +521,37 @@ while ((j < n)); do
   esac
 done
 
+# chain_suffix: sets suffix to the parts of the chain as separate calls, left empty
+# when an operator sits inside (, $( or backticks, fewer than two parts remain or a
+# part holds a control character.
+suffix=''
+chain_suffix() {
+  ((nested)) && return
+  local prev=0 k=0 end stop=$len part list='' count=0
+  ((endpos >= 0)) && stop=$endpos
+  while ((k <= nops)); do
+    if ((k < nops)); then end="${ops_s[k]}"; else end=$stop; fi
+    ((end < prev)) && end=$prev
+    part="${cmd:prev:end-prev}"
+    prev="${ops_e[k]-0}"
+    k=$((k + 1))
+    part="${part#"${part%%[![:blank:]]*}"}"
+    part="${part%"${part##*[![:blank:]]}"}"
+    [[ -z "$part" ]] && continue
+    [[ "$part" == *[[:cntrl:]]* ]] && return
+    part="${part//\\/$sep}"
+    part="${part//$dq/$bs$dq}"
+    part="${part//$sep/$bs$bs}"
+    if ((count)); then list+=" then \`$part\`"; else list="\`$part\`"; fi
+    count=$((count + 1))
+  done
+  ((count >= 2)) && suffix=" Run instead, one call each: $list."
+}
+
 reason=''
 if ((coder && r1)); then
   reason='one command per Bash call - run each part of the chain as its own Bash call.'
+  chain_suffix
 elif ((r2)); then
   reason='git is read-only here (status, diff, log, show) - compare with git show HEAD:<path> or git diff instead.'
 elif ((coder && r3)); then
@@ -504,6 +563,6 @@ elif ((coder && r5)); then
 fi
 
 if [[ -n "$reason" ]]; then
-  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"viber guard: '"$reason"'"}}'
+  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"viber guard: '"$reason$suffix"'"}}'
 fi
 exit 0
