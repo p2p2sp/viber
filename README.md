@@ -1,61 +1,69 @@
-# VIBER *`for Claude Code`*
+<h1 align="center">viber</h1>
 
-[![CI](https://github.com/p2p2sp/viber/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/p2p2sp/viber/actions/workflows/ci.yml)
+<p align="center">
+  A Claude Code plugin that plans a change with you, then builds it while you do something else.
+</p>
 
-![viber building a plan with parallel task-coder agents in Claude Code](docs/viber-tasks.png)
+<p align="center">
+  <a href="#install">Install</a> | <a href="viber/README.md">Full guide</a>
+</p>
 
-A development workflow for Claude Code that takes an idea to committed code: it interviews you,
-writes a reviewed plan, builds it task by task and remembers what it learned.
+<p align="center">
+  <a href="https://github.com/p2p2sp/viber/actions/workflows/ci.yml"><img src="https://github.com/p2p2sp/viber/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+</p>
 
-Coding agents tend to jump straight into code and fill the gaps with guesses. viber writes no code
-until you approve a plan that a reviewer has already checked against your codebase.
+![viber building 27 tasks with 20 coding agents working in parallel in Claude Code](docs/viber-tasks.png)
+
+<p align="center"><sub>27 tasks, 20 agents at work, each on the model its task needs.</sub></p>
 
 ## Why viber
 
-### It asks before it guesses
-Questions come in short rounds, each decision with options and a recommendation.
+### It plans with you first
 
-### Every step is checked
-The plan is reviewed before you approve it, each task before its commit, and the whole build before it ends.
+Before it works alone, viber works through the change with you. It asks in short rounds, each question with concrete options and a recommendation, and says so when an answer looks weak. The planner then reads your code and asks only what the interview left open and the code cannot answer. You approve the finished plan, so every decision the build needs is settled before you leave the computer.
 
 ### It runs without you
-A failed task retries up to five times, one model tier up each time. Where a build would stop to ask, an arbiter agent picks a way forward and records why.
 
-### It saves tokens
-Each task gets the cheapest model that can do it, between a floor and a ceiling you set, so your usage limits last longer.
+Approve the plan and walk away. A task that fails gets up to five attempts, each on a stronger model. Where a build would normally stop and wait for you, an arbiter agent picks a way forward and writes down why, so you review one decision later instead of babysitting the whole run.
 
-### It learns your project
-Area knowledge goes to that area's `CLAUDE.md`, and a build corrects the rules in `.claude/rules/` it contradicted. Each run also leaves `failures.md` in its archive, a record of where its agents failed, and `/viber:rules` turns the failures that repeat across runs into new rules. You explain less with every run.
+### It works in parallel
 
-### Nothing gets lost
-The plan and its progress are committed, so an interrupted build resumes in a new session or on another machine.
+Tasks that do not depend on each other are built at the same time, up to ten at once, each by its own coding agent. A plan of 27 tasks does not wait in a queue of 27.
 
-### It fits your stack
-Build and test commands and conventions come from your own `CLAUDE.md` and `.claude/rules/`, whatever language you work in.
+### It saves your tokens
 
-Beyond the core loop, `viber` talks a topic through with you against trusted sources,
-opens GitHub issues and pull requests, mocks up UI changes, holds every interface it builds to
-professional design standards, writes Playwright tests, audits large codebase's, checks whether a
-side-project idea is worth building, writes and tunes your own Claude Code skills and agents for
-the model they run on, and hands a session over to the next one.
-The [viber guide](viber/README.md) lists every command.
+Each task gets the cheapest model that can do it, within a range you set, and climbs to a stronger one only when it fails. The bookkeeping costs little too: counting, validating a plan, tracking review rounds and deciding the next step are done by scripts. One script call does the whole job and answers with the next instruction, so the model acts on it instead of spending tokens working it out. Your Claude Code usage limits last longer.
 
-## How it works
+### It learns your project, in two layers
 
-You describe what you want with `/viber:intent`. viber asks in short rounds, every decision with
-concrete options and a recommendation, and says so when an answer is weak. It saves your confirmed
-answers as a summary file for the planner, which turns them into a plan, and a reviewer checks that plan against your code before you see it. Approve it and
-walk away: viber builds the plan task by task, commits each task and finishes on your own test
-suite. Then it writes down what it learned, so the next run starts from there.
+What a build learns about an area of your code goes into that area's `CLAUDE.md`, so the next run starts with the knowledge instead of rediscovering it. Coding conventions go into `.claude/rules/`: a build corrects the rules it proved wrong, and a mistake that coders repeat across builds becomes a new rule they follow from then on. You explain less with every run.
 
-| Step | You run | You get |
+## How a change goes
+
+| | You | viber |
 | --- | --- | --- |
-| Understand | `/viber:intent`, or `/viber:fixer` for a bug | A confirmed summary of the change |
-| Plan | nothing, it follows the interview | A plan reviewed against your code, waiting for your yes |
-| Build | nothing, it starts on your yes | One commit per task, a final review, a green test run |
-| Remember | nothing, it closes the build | Updated `CLAUDE.md` files and `.claude/rules/` |
+| **1. Describe** | Say what you want with `/viber:intent`, or report a bug with `/viber:fixer` | Asks a few questions at a time, each with options and its recommendation |
+| **2. Approve** | Read the plan and say yes | Writes the plan and has it reviewed against your code first |
+| **3. Build** | Nothing. Go do something else | Builds it task by task, reviews and commits each one, runs your tests at the end |
+| **4. Learn** | Nothing | Updates its memory and rules, so the next change needs less explaining |
 
-![How viber works](viber/skills/setup/assets/viber-flow-en.svg)
+The plan is reviewed before you see it, each task is checked before its commit, by a reviewer or by your own tests, and the whole build is reviewed before it ends. Plan and progress are committed as the build goes, so an interrupted build picks up in a new session or on another machine.
+
+## More than the main loop
+
+| When you want to | Run |
+| --- | --- |
+| Talk a topic through, checked against trusted sources, before you decide anything | `/viber:talk` |
+| See a UI change as a mockup before anyone builds it | `/viber:prototype` |
+| Find out whether a side-project idea is worth building | `/viber:idea-validator` |
+| Audit code for bugs, security, performance or test quality | `/viber:code-auditor` |
+| Turn pull request review comments into fixes, then post the replies | `/viber:pr-feedback` |
+| Open an issue or a pull request from your own templates | `/viber:issue-create`, `/viber:pr-create` |
+| Turn a build's test scenarios into Playwright tests | `/viber:e2e` |
+| Write or tune your own Claude Code skills and agents | `/viber:skill-designer` |
+| Continue tomorrow in a fresh session | `/viber:handoff` |
+
+Every command is described in the [full guide](viber/README.md).
 
 ## Install
 
@@ -64,39 +72,49 @@ claude plugin marketplace add https://github.com/p2p2sp/viber --scope user
 claude plugin install viber@p2p2 --scope user
 ```
 
-Then, in your project:
+Then, in your project, run `/viber:setup` once and start your first change with `/viber:intent`. `/viber:help` opens the guide in your browser.
 
-1. `/viber:setup` once: it writes the config, the ignore rules and the permissions.
-2. `/viber:intent` to start your first change.
+## The whole flow
 
-`/viber:help` opens the full usage guide in your browser. `--scope user` makes the plugin available
-in all your projects; drop it to install for the current repository only.
+Every step from an idea to an archived build, including the optional ones.
+
+<details>
+<summary>Show the diagram</summary>
+
+![The viber flow from an idea to committed code](viber/skills/setup/assets/viber-flow-en.svg)
+
+</details>
 
 ## Good to know
 
-- viber runs in Claude Code only.
-- A plan written outside the planner is only reviewed, through `planning.outside-plan-review`.
-- Issue and pull request steps work with GitHub, through the `gh` CLI.
-- It changes fast, and a release can change how it behaves. Run `/viber:setup` again after an
-  upgrade.
+- viber runs in Claude Code only, and its issue and pull request steps work with GitHub through the `gh` CLI.
+- It takes your build and test commands from your own `CLAUDE.md`, whatever language you work in.
+- It changes fast. Run `/viber:setup` again after an upgrade.
+- `--scope user` makes the plugin available in all your projects. Drop it to install for the current repository only.
+- A plan written outside viber's planner is only reviewed, through `planning.outside-plan-review`.
 
-## Requirements
+<details>
+<summary>Requirements</summary>
 
-| Plugin | Needs |
+| Needed for | Tool |
 | --- | --- |
-| viber | the `gh` CLI for its GitHub steps; optional: `node` for `/viber:setup`'s settings merge, Node.js 22.6 or newer for `pro-designer`'s contrast check, Node.js 18 or newer and web access for `/viber:idea-validator`, Playwright for `/viber:e2e`, Windows with `powershell.exe` for `/viber:factory` |
+| GitHub issues and pull requests | the `gh` CLI |
+| the settings merge in `/viber:setup` (optional) | `node` |
+| the contrast check in `/viber:pro-designer` | Node.js 22.6 or newer |
+| `/viber:idea-validator` | Node.js 18 or newer and web access |
+| `/viber:e2e` | Playwright |
+| `/viber:factory` | Windows with `powershell.exe` |
+
+</details>
+
+## Built with viber
+
+viber is developed with viber. [`docs/specs/`](docs/specs/) holds 75 of its own archived builds, each with its plan, its decisions, the places where its agents failed and its final summary.
 
 ## Contributing
 
-These plugins are opinionated and their maintainers set the direction, so pull requests are not
-accepted. Bug reports and ideas are welcome:
-[open an issue](https://github.com/p2p2sp/viber/issues/new/choose). More in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+The maintainers set the direction, so pull requests are not accepted. Bug reports and ideas are welcome: [open an issue](https://github.com/p2p2sp/viber/issues/new/choose). More in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-[MIT](LICENSE)
-
----
-
-Built and maintained by [P2P2](https://github.com/p2p2sp).
+[MIT](LICENSE). Built and maintained by [P2P2](https://github.com/p2p2sp).
