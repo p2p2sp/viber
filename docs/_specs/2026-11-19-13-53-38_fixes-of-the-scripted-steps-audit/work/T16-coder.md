@@ -1,5 +1,0 @@
-- The one red case left in synthesize.test.ts ("the title line, the header line and the three coverage lines...") is AC23 (the findings title prints the full workspace path as run id on Windows), not T16.
-- synthesize.sh's hunt key gained an R-U flag digit between the unit number and the ledger index, so R-U<n> ranks after U<n> whatever order the ledger lists them in.
-- hunt-return.sh needed no logic change: R-U<n> is already any wave 2 unit hunt (its tests are characterization cases); only its header says so.
-- hunter.md sits exactly on its 854-word cap: the R-U<n> addition paid for itself by trimming "the hunt needs"/"its" in the unattended line.
-- keep-units --wave: R-U hunts (map order) use the budget first; kept_units takes the rest through keep_limit. R-U needs seeds.md like any wave 2 hunt.

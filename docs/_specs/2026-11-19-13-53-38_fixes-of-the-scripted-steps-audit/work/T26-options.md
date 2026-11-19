@@ -1,1 +1,0 @@
-DECIDE: rule T26's red proven by the revert route log .temp/viber/T26/red-2.log, since T10 already committed its production line | waive red-check for T26 and send it straight to review | fold T26's tests into a T10 repair pass

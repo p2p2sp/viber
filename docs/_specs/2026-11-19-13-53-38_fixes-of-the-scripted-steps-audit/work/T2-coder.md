@@ -1,3 +1,0 @@
-- plugin_root_of's <levels> counts from the script's own directory: skill dir = levels 1, plugin root = levels 3 (levels 2 would be the skills directory).
-- script_dir (cd + pwd, /c/ spelling on Windows) stays for the scripts the three run themselves (strip-tag.sh, diff-files.sh); only printed and recorded paths use the invoked spelling.
-- The C:\, C:/ and /c/ cases skip off Windows (the spelling names no file there); the existing cases of the three files compared slashed stdout and showed the old /c/ spelling only as a failure on Windows.

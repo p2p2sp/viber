@@ -1,2 +1,0 @@
-- The refused `decide` and `cap` branches already took the first of their options; only the baseline, tests, final-review and commit cases overwrote it with `case_first`, which now runs only when `first` is empty.
-- DoD.2 (no `--options` falls back to `continue`) is already pinned by the existing "a refused arbiter on baseline ... carries out continue" case; only the `--options` case is new.

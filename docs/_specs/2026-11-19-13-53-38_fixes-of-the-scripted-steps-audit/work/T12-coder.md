@@ -1,3 +1,0 @@
-- `kept_prefix` (confirm mode) matches a map line against the LONGEST rule path of `$listing` that the line opens on followed by a space, then checks that path is kept. A plain "kept path as prefix" loop would let a kept `my.md` claim the `misplaced:` line of `my.md rule.md`.
-- The `misplaced` area is the remainder after the path, not the last space-separated word.
-- The red log was taken by temporarily reverting the two edits (the fix was already written); both new cases failed (2 failing).

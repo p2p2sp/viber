@@ -1,3 +1,0 @@
-- Root cause: bash 5.2 `patsub_replacement` (on by default) eats a backslash in `${var//pat/rep}` replacements (and expands `&`), so `$bs$bs` became one backslash and `$bs$dq` lost its backslash. Fix is `shopt -u patsub_replacement` at the top of shell-guard.sh (silently ignored on bash < 5.2).
-- The same switch also makes the `&` -> `&` unescape literal; before, that line replaced `&` with itself.
-- DoD.4 has no separate test: the suite runs under the default bash 5.2 with patsub on, and the three new rows fail without the shopt line.
