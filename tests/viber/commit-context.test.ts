@@ -1,7 +1,8 @@
 /*
  * commit-context.test.ts - proves commit-context.sh's context block: for
- * every selector mode (all / paths) it emits, in order, a resolved
- * "## Selector:" line, "## Current branch", "## Recent commit subjects",
+ * every selector mode (all / paths) it emits, in order, the "RUN:" line (the
+ * commit.sh call under the plugin root three directories above the script;
+ * mode missing prints the "STOP:" line alone), "## Current branch", "## Recent commit subjects",
  * a git-status section and a diff section (capped at MAX_LINES=400), and
  * degrades rather than aborting when a probe fails (the script deliberately
  * runs without `set -e`). commit-context.sh is `#!/usr/bin/env bash`, so
@@ -30,6 +31,12 @@ import { writePng } from "../harness/png.ts";
 const SUT = path.resolve(import.meta.dirname, "../../viber/skills/commit/scripts/commit-context.sh");
 const PLUGIN_ROOT = path.resolve(import.meta.dirname, "../../viber");
 const SKILL = path.join(PLUGIN_ROOT, "skills", "commit", "SKILL.md");
+const ROOT = PLUGIN_ROOT.split(path.sep).join("/");
+const COMMIT = `"${ROOT}/skills/commit/scripts/commit.sh" "<message>"`;
+
+function firstLine(stdout: string): string {
+  return stdout.split("\n")[0];
+}
 
 async function runContext(bash: Shell, repo: GitRepo, selector?: string): Promise<RunResult> {
   const args = selector === undefined ? [] : [selector];
@@ -63,7 +70,7 @@ test("mode 'all': Selector/branch/recent-subjects/status/diff sections all prese
 
       const result = await runContext(bash, repo);
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.match(result.stdout, /## Selector: all - run commit\.sh with no 2nd arg/);
+      assert.equal(firstLine(result.stdout), `RUN: ${COMMIT}`);
       assert.match(result.stdout, /## Current branch/);
       assert.match(result.stdout, /## Recent commit subjects/);
       assert.match(result.stdout, /seed a\.txt/);
@@ -87,7 +94,7 @@ test("a bare '#42' in the arguments emits the explicit Issue-footer block and st
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
       assert.match(result.stdout, /## Issue footer \(explicit, from a #N reference or GitHub issue link/);
       assert.match(result.stdout, /^Refs: #42$/m);
-      assert.match(result.stdout, /## Selector: paths - run commit\.sh with 2nd arg "src\/foo\.txt"/);
+      assert.equal(firstLine(result.stdout), `RUN: ${COMMIT} 'src/foo.txt'`);
     });
   });
 });
@@ -117,7 +124,7 @@ test("mode paths: Selector/status/diff sections are all scoped to the given path
 
       const result = await runContext(bash, repo, "keep.txt");
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.match(result.stdout, /## Selector: paths - run commit\.sh with 2nd arg "keep\.txt"/);
+      assert.equal(firstLine(result.stdout), `RUN: ${COMMIT} 'keep.txt'`);
       assert.match(result.stdout, /## Changes \(git status for paths: keep\.txt\)/);
       assert.match(result.stdout, /## Overview \(git diff HEAD --stat for paths: keep\.txt\)/);
       assert.match(result.stdout, /## Diff \(changes vs HEAD for paths: keep\.txt;/);
@@ -138,7 +145,7 @@ test("mode paths with a list: the Selector line carries every path and status/di
 
       const result = await runContext(bash, repo, "a.txt b.txt");
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.match(result.stdout, /## Selector: paths - run commit\.sh with 2nd arg "a\.txt b\.txt"/);
+      assert.equal(firstLine(result.stdout), `RUN: ${COMMIT} 'a.txt b.txt'`);
       assert.match(result.stdout, /a, modified/);
       assert.match(result.stdout, /b, modified/);
       assert.doesNotMatch(result.stdout, /unrelated/);
@@ -281,7 +288,7 @@ test("detached HEAD: block still emits in full, branch line is empty (no symboli
 
       const result = await runContext(bash, repo);
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.match(result.stdout, /## Selector: all - run commit\.sh with no 2nd arg/);
+      assert.equal(firstLine(result.stdout), `RUN: ${COMMIT}`);
       assert.match(result.stdout, /## Recent commit subjects/);
       assert.match(result.stdout, /c\.txt/);
     });
@@ -298,7 +305,7 @@ test("user.email unset: the best-effort block still emits in full (no `set -e`, 
 
       const result = await runContext(bash, repo);
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.match(result.stdout, /## Selector: all - run commit\.sh with no 2nd arg/);
+      assert.equal(firstLine(result.stdout), `RUN: ${COMMIT}`);
       assert.match(result.stdout, /one, changed/);
     });
   });
@@ -318,7 +325,7 @@ test("commit-context.sh runs without `set -e`: a git failure degrades in place r
         // Every `git ...` call fails, but the script itself must still complete
         // and print every section heading instead of dying on the first probe.
         assert.equal(result.status, 0, `commit-context.sh must not abort on a failing git call: ${result.stderr}`);
-        assert.match(result.stdout, /## Selector: all - run commit\.sh with no 2nd arg/);
+        assert.equal(firstLine(result.stdout), `RUN: ${COMMIT}`);
         assert.match(result.stdout, /## Current branch/);
         assert.match(result.stdout, /## Recent commit subjects/);
         assert.match(result.stdout, /## Changes \(git status, all untracked files\)/);
@@ -329,15 +336,14 @@ test("commit-context.sh runs without `set -e`: a git failure degrades in place r
   });
 });
 
-test("mode missing: the Selector line tells the fork not to run commit.sh and names the missing paths, and no diff of the whole tree follows", async () => {
+test("mode missing: stdout is the one STOP line naming the missing paths, exit 0, and no diff of the whole tree follows", async () => {
   await assertBash(async (bash) => {
     await withGitRepo(async (repo) => {
       await commitFile(repo, "a.txt", "a\n");
       fs.writeFileSync(path.join(repo.dir, "a.txt"), "a, changed\n");
       const result = await runContext(bash, repo, "src/nope.ts");
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.match(result.stdout, /^## Selector: missing - none of the named paths exists \(src\/nope\.ts\); do NOT run commit\.sh/m);
-      assert.doesNotMatch(result.stdout, /a, changed/);
+      assert.equal(result.stdout, "STOP: Nothing committed - paths not found: src/nope.ts\n");
     });
   });
 });
@@ -378,7 +384,7 @@ test("the substituted preload line hands the script $, backticks, parentheses an
       await withTempDir("p2p2-commit-preload-", async (dir) => {
         const result = await runScript(preloadScript(dir, `${name} #42`), [], { shell: bash, cwd: repo.dir, env: repo.env });
         assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-        assert.ok(result.stdout.includes(`## Selector: paths - run commit.sh with 2nd arg "${name}"`), result.stdout);
+        assert.equal(firstLine(result.stdout), `RUN: ${COMMIT} '${name}'`);
         assert.match(result.stdout, /^Refs: #42$/m);
       });
     });
@@ -392,7 +398,7 @@ test("the substituted preload line with no arguments resolves mode all", async (
       await withTempDir("p2p2-commit-preload-", async (dir) => {
         const result = await runScript(preloadScript(dir, ""), [], { shell: bash, cwd: repo.dir, env: repo.env });
         assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-        assert.match(result.stdout, /^## Selector: all - run commit\.sh with no 2nd arg$/m);
+        assert.equal(firstLine(result.stdout), `RUN: ${COMMIT}`);
       });
     });
   });
@@ -412,7 +418,7 @@ test("run from a subdirectory: a cwd-relative or root-relative selector prints t
 
         const result = await runScript(SUT, [selector], { shell: bash, cwd: path.join(repo.dir, "pkg"), env: repo.env });
         assert.equal(result.status, 0, `${selector}: ${result.stderr}`);
-        assert.match(result.stdout, /^## Selector: paths - run commit\.sh with 2nd arg "pkg\/src\/f\.txt"$/m, selector);
+        assert.equal(firstLine(result.stdout), `RUN: ${COMMIT} 'pkg/src/f.txt'`, selector);
         assert.match(result.stdout, /^ M pkg\/src\/f\.txt$/m, selector);
         assert.match(result.stdout, /^\+f, changed$/m, selector);
         assert.doesNotMatch(result.stdout, /^ M pkg\/g\.txt$|g, changed/m, selector);

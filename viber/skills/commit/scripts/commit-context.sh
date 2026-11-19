@@ -25,8 +25,13 @@
 #            root-relative (see commit-args.sh).
 #   env    : none read; it sets GIT_LITERAL_PATHSPECS=1 for its git calls, so a
 #            "[", "*" or "?" in a selector is part of a file name, never a glob.
-#   stdout : markdown sections, the "## Selector:" line first; in mode missing
-#            that line alone. The diff is capped at MAX_LINES with a notice
+#   stdout : the commit call first, as a directive line, then markdown
+#            sections. Mode all: RUN: "<plugin root>/skills/commit/scripts/commit.sh"
+#            "<message>"; mode paths adds the paths label single-quoted as a
+#            third argument; mode missing prints only STOP: Nothing committed -
+#            paths not found: <missing>. <message> is the slot the fork
+#            replaces; <plugin root> is three directories above this script's
+#            directory, cut from the invoked path. The diff is capped at MAX_LINES with a notice
 #            naming the real total; an empty diff beside a non-empty status
 #            (untracked files only) says outright that commit.sh still has
 #            work to commit.
@@ -41,6 +46,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/commit-args.sh"
 
 mode_raw="${1:-}"
 MAX_LINES=400
+# The plugin root is three directories above this script's own, cut from the
+# invoked path (never a pwd result), so the printed command keeps the caller's
+# spelling of the root.
+plugin_root="$(dirname "$(dirname "$(dirname "$(dirname "${BASH_SOURCE[0]}")")")")"
 
 enter_repo_root
 resolve_commit_selector "$mode_raw"
@@ -56,12 +65,12 @@ else
 fi
 
 if [ "$COMMIT_MODE" = "paths" ]; then
-  echo "## Selector: paths - run commit.sh with 2nd arg \"$paths_label\""
+  echo "RUN: \"$plugin_root/skills/commit/scripts/commit.sh\" \"<message>\" '$paths_label'"
 elif [ "$COMMIT_MODE" = "missing" ]; then
-  echo "## Selector: missing - none of the named paths exists ($COMMIT_MISSING); do NOT run commit.sh, return: Nothing committed - paths not found: $COMMIT_MISSING"
+  echo "STOP: Nothing committed - paths not found: $COMMIT_MISSING"
   exit 0
 else
-  echo "## Selector: all - run commit.sh with no 2nd arg"
+  echo "RUN: \"$plugin_root/skills/commit/scripts/commit.sh\" \"<message>\""
 fi
 echo
 

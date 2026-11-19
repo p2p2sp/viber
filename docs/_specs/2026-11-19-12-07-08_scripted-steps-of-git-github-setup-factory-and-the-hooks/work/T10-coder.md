@@ -1,0 +1,5 @@
+- The RUN line replaces the old `## Selector:` line (mode missing prints the STOP line alone); `commit/SKILL.md` still names `## Selector:` until T12 rewrites it.
+- `<plugin root>` is four textual `dirname` calls on `${BASH_SOURCE[0]}` (never `pwd`), so a relative invocation would print `.`; every real call site passes the absolute `${CLAUDE_PLUGIN_ROOT}` path.
+- The paths label is single-quoted without escaping: a resolved path holding an apostrophe would break the printed line (the skill already forbids apostrophes in arguments).
+- The explicit `## Issue footer` block is untouched here; T11 owns the always-printed footer.
+- I edited the script before the failing tests by mistake, then reverted it, ran red (11 failing), and reapplied it.
