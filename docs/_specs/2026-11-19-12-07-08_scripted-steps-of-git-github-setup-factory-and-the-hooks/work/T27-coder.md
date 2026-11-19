@@ -1,0 +1,8 @@
+- Council round 1 only: `council-r2` stays an unknown stage (`buildPrompts` throws, `--prompts council-r2` prints the usage, exit 2) until T28 adds it, with its usage line.
+- `buildPrompts` council-r1 takes the member texts from `refs.members` and ignores `refs.process`/`refs.dimensions`; the CLI reads `council.md` and `council/0<n>-<name>.md` only for council-r1, process/dimensions only for research.
+- A fenced block is the first fence inside its section through its closing fence, fence lines included; a section with no fence throws naming the heading.
+- Prompt layout where the contract leaves the wording open: `Read these files:` list, then the read-and-cite line.
+- The usage text is two lines (research, council-r1); its first line is unchanged.
+- The unit fixture `COUNCIL` keeps a `## Round 2` section with its own fence, proving the round-1 fence stops at its section; T28 can reuse it.
+- `build_report.test.ts` (integration) was only loaded with a no-match pattern, never run.
+- Red log (17 failing) is from the first attempt's tests against the research-only production code; the round-1 tests in it are unchanged.

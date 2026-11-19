@@ -9,8 +9,9 @@
 // Exits 1 and lists every problem when required fields are missing, so the
 // agent fixes the JSON rather than the HTML. Exits 2 on a wrong argument count.
 //
-// Also: node build_report.mjs --prompts research <workdir> writes the research
-// prompt files under <workdir>/prompts/ and prints one `PROMPT: <name> | <path>`
+// Also: node build_report.mjs --prompts research <workdir> and
+// --prompts council-r1 <workdir> <language> write the research or council
+// prompt files under <workdir>/prompts/ and print one `PROMPT: <name> | <path>`
 // line each; exit 1 on a missing <workdir> or reference section.
 
 import fs from "node:fs";
@@ -228,10 +229,15 @@ export function render(d, template) {
   return template.replace(/__REPORT_DATA__|__LANG__|__TITLE__/g, (m) => values[m]);
 }
 
-const PROMPTS_USAGE = "Usage: node build_report.mjs --prompts research <workdir>";
+const PROMPTS_USAGE = `Usage: node build_report.mjs --prompts research <workdir>
+       node build_report.mjs --prompts council-r1 <workdir> <language>`;
 
 const REFERENCES = fileURLToPath(new URL("../references/", import.meta.url));
 const RESEARCH = ["problem", "market", "competition"];
+const MEMBERS = ["customer", "skeptic", "analyst", "growth", "operator", "risk", "visionary"];
+const COUNCIL_INPUTS = ["01-normalized.md", "02-hypotheses.md", "03-research-problem.md",
+  "04-research-market.md", "05-research-competition.md", "06-business-model.md",
+  "07-distribution.md", "08-side-project-fit.md", "09-autopilot-fit.md"];
 const FENCE = /^\s*```/;
 
 // Marks each line as a fence line or with its heading level (0 for no heading): a heading is
@@ -271,10 +277,38 @@ function boldBlock(text, bold, source) {
   return lines.slice(start, end).join("\n");
 }
 
+// The first fence of the section opened by `name`, through its closing fence.
+function fencedUnder(text, name, source) {
+  const lines = section(text, name, source).split("\n");
+  const open = lines.findIndex((line) => FENCE.test(line));
+  const close = open < 0 ? -1 : lines.findIndex((line, i) => i > open && FENCE.test(line));
+  if (close < 0) throw new Error(`${source}: fenced block under "${name}" not found`);
+  return lines.slice(open, close + 1).join("\n");
+}
+
+function memberText(refs, name) {
+  const text = refs.members?.[name];
+  if (typeof text !== "string") throw new Error(`references/council: member file for "${name}" not found`);
+  return text.trimEnd();
+}
+
+function councilPrompts(stage, at, language, refs) {
+  const format = fencedUnder(refs.council, "## Round-1 output format", "references/council.md");
+  return MEMBERS.map((name) => {
+    const parts = [memberText(refs, name), `Write in ${language}.`,
+      `Read these files:\n${COUNCIL_INPUTS.map((f) => `- ${at(f)}`).join("\n")}`,
+      "Read all of them before answering and cite the file, and the URL inside it, for every fact you use.",
+      `Write your output to ${at("10-council-r1", `${name}.md`)}.`, format,
+      "Do not look for or read any file under 10-council-r1/ or 11-council-r2/."];
+    return { name, path: at("prompts", `${stage}-${name}.md`), text: `${parts.join("\n\n")}\n` };
+  });
+}
+
 /** Returns the prompt files of `stage` as [{ name, path, text }]; throws an Error naming a missing section. */
 export function buildPrompts(stage, workdir, language, refs) {
-  if (stage !== "research") throw new Error(`unknown stage: ${stage}`);
   const at = (...parts) => path.join(workdir, ...parts);
+  if (stage === "council-r1") return councilPrompts(stage, at, language, refs);
+  if (stage !== "research") throw new Error(`unknown stage: ${stage}`);
   const rules = section(refs.process, "## Research rules", "references/process.md");
   return RESEARCH.map((name, i) => {
     const parts = [section(refs.process, `### ${name[0].toUpperCase()}${name.slice(1)} research brief`, "references/process.md")];
@@ -287,8 +321,9 @@ export function buildPrompts(stage, workdir, language, refs) {
 }
 
 function promptsMain(args, log) {
-  const [stage, dir] = args;
-  if (stage !== "research" || args.length !== 2) {
+  const [stage, dir, language] = args;
+  const council = stage === "council-r1";
+  if (!(stage === "research" && args.length === 2) && !(council && args.length === 3 && language)) {
     log(PROMPTS_USAGE);
     return 2;
   }
@@ -300,7 +335,10 @@ function promptsMain(args, log) {
   let prompts;
   try {
     const read = (name) => fs.readFileSync(path.join(REFERENCES, name), "utf-8");
-    prompts = buildPrompts(stage, workdir, undefined, { process: read("process.md"), dimensions: read("dimensions.md") });
+    const refs = council
+      ? { council: read("council.md"), members: Object.fromEntries(MEMBERS.map((name, i) => [name, read(path.join("council", `0${i + 1}-${name}.md`))])) }
+      : { process: read("process.md"), dimensions: read("dimensions.md") };
+    prompts = buildPrompts(stage, workdir, language, refs);
   } catch (e) {
     log(e.code === "ENOENT" ? `Cannot read reference: ${e.path}` : e.message);
     return 1;

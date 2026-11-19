@@ -1,8 +1,8 @@
 /*
  * build_report.unit.test.ts - locks down idea-validator's report builder: every
  * validation rule of report-data.json, the label merge, the one-pass template
- * fill, exit 2 on a wrong argument count, the research prompt texts of
- * `buildPrompts` and import safety. Imports the
+ * fill, exit 2 on a wrong argument count, the research and council round-1
+ * prompt texts of `buildPrompts` and import safety. Imports the
  * script, spawns nothing, writes nothing; the file-writing CLI cases live in
  * build_report.test.ts.
  *
@@ -178,6 +178,8 @@ const PROMPTS_ARGS: Array<[string, string[]]> = [
   ["an unknown stage", ["--prompts", "bogus", "w"]],
   ["a missing working directory", ["--prompts", "research"]],
   ["an extra argument", ["--prompts", "research", "w", "extra"]],
+  ["council-r1 with no language", ["--prompts", "council-r1", "w"]],
+  ["council-r1 with an extra argument", ["--prompts", "council-r1", "w", "Polish", "extra"]],
 ];
 
 for (const [what, args] of PROMPTS_ARGS) {
@@ -253,6 +255,83 @@ const MISSING: Array<[string, any, RegExp]> = [
 for (const [what, refs, named] of MISSING) {
   test(`buildPrompts throws naming the section when ${what} is missing`, () => {
     assert.throws(() => buildPrompts("research", WD, "en", refs), named);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// buildPrompts - the council prompt files, over small reference texts
+// ---------------------------------------------------------------------------
+
+const COUNCIL = [
+  "# Council protocol", "", "## Launching a member (round 1)", "", "Launch body.", "",
+  "## Round-1 output format (every member, verbatim headings)", "",
+  "```", "# <Member name> - round 1", "## Position", "```", "",
+  "## Round 2 (default on; skipped only with `--quick`)", "", "Round 2 prose.", "",
+  "```", "# <Member name> - round 2", "## Responses to other members", "```", "",
+  "## Moderator protocol (main context, step 12)", "", "```", "# not a format", "```", "",
+].join("\n");
+const MEMBER_TEXTS: Array<[string, string]> = [
+  ["customer", "# Council member: Customer\n\nCustomer text.\n"],
+  ["skeptic", "# Council member: Skeptic\n\nSkeptic text.\n"],
+  ["analyst", "# Council member: Analyst\n\nAnalyst text.\n"],
+  ["growth", "# Council member: Growth\n\nGrowth text.\n"],
+  ["operator", "# Council member: Operator\n\nOperator text.\n"],
+  ["risk", "# Council member: Risk\n\nRisk text.\n"],
+  ["visionary", "# Council member: Visionary\n\nVisionary text.\n"],
+];
+const COUNCIL_REFS = { ...REFS, council: COUNCIL, members: Object.fromEntries(MEMBER_TEXTS) };
+const R1_FORMAT = "```\n# <Member name> - round 1\n## Position\n```";
+const NINE_PATHS = [
+  "01-normalized.md", "02-hypotheses.md", "03-research-problem.md", "04-research-market.md",
+  "05-research-competition.md", "06-business-model.md", "07-distribution.md",
+  "08-side-project-fit.md", "09-autopilot-fit.md",
+].map((f) => `- ${inWd(f)}`).join("\n");
+
+test("buildPrompts for council-r1 gives the seven member prompt files under prompts/ in the member order", () => {
+  const files = buildPrompts("council-r1", WD, "Polish", COUNCIL_REFS);
+  assert.deepEqual(files.map((f: any) => [f.name, f.path]), [
+    ["customer", inWd("prompts", "council-r1-customer.md")],
+    ["skeptic", inWd("prompts", "council-r1-skeptic.md")],
+    ["analyst", inWd("prompts", "council-r1-analyst.md")],
+    ["growth", inWd("prompts", "council-r1-growth.md")],
+    ["operator", inWd("prompts", "council-r1-operator.md")],
+    ["risk", inWd("prompts", "council-r1-risk.md")],
+    ["visionary", inWd("prompts", "council-r1-visionary.md")],
+  ]);
+});
+
+test("buildPrompts for council-r1 makes a member prompt its member text, the language line, the nine input paths with the read-and-cite line, its output path, the round-1 format and the isolation line, in that order", () => {
+  const found = buildPrompts("council-r1", WD, "Polish", COUNCIL_REFS).find((f: any) => f.name === "skeptic");
+  assert.equal(found.text, [
+    "# Council member: Skeptic\n\nSkeptic text.", "",
+    "Write in Polish.", "",
+    "Read these files:", NINE_PATHS, "",
+    "Read all of them before answering and cite the file, and the URL inside it, for every fact you use.", "",
+    `Write your output to ${inWd("10-council-r1", "skeptic.md")}.`, "",
+    R1_FORMAT, "",
+    "Do not look for or read any file under 10-council-r1/ or 11-council-r2/.", "",
+  ].join("\n"));
+});
+
+const R1_MEMBER_OPENINGS: Array<[string, string]> = MEMBER_TEXTS.map(([name, text]) => [name, text.trimEnd()]);
+
+for (const [name, opening] of R1_MEMBER_OPENINGS) {
+  test(`buildPrompts for council-r1 opens the ${name} prompt with its own member file text and names its own output file`, () => {
+    const found = buildPrompts("council-r1", WD, "Polish", COUNCIL_REFS).find((f: any) => f.name === name);
+    assert.ok(found.text.startsWith(`${opening}\n\nWrite in Polish.\n`));
+    assert.ok(found.text.includes(`Write your output to ${inWd("10-council-r1", `${name}.md`)}.\n`));
+  });
+}
+
+const COUNCIL_MISSING: Array<[string, string, any, RegExp]> = [
+  ["the round-1 output format section", "council-r1", { ...COUNCIL_REFS, council: COUNCIL.replace("## Round-1 output format", "## Other") }, /## Round-1 output format/],
+  ["the fence of the round-1 output format", "council-r1", { ...COUNCIL_REFS, council: COUNCIL.replace(R1_FORMAT, "No fence here.") }, /## Round-1 output format/],
+  ["a member file", "council-r1", { ...COUNCIL_REFS, members: { ...COUNCIL_REFS.members, risk: undefined } }, /risk/],
+];
+
+for (const [what, stage, refs, named] of COUNCIL_MISSING) {
+  test(`buildPrompts for ${stage} throws naming the section when ${what} is missing`, () => {
+    assert.throws(() => buildPrompts(stage, WD, "Polish", refs), named);
   });
 }
 
