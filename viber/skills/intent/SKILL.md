@@ -2,7 +2,7 @@
 name: intent
 description: Planning interview - asks, in rounds, what the conversation and the code leave open, sizes the scope and hands a confirmed summary to viber:planner. Never started unprompted. When a change looks like it needs a plan and no confirmed interview or viber:fixer diagnosis is in context, keep talking with the user and suggest, in one line, this interview; invoke it only after the user agrees or asks to plan, design or be interviewed. Not for a change the user asked to make directly, without a plan.
 argument-hint: "[what to plan, or an issue number/URL when github.issues is on]"
-allowed-tools: Read, Skill, AskUserQuestion, Write(./.temp/viber/intent/**), Edit(./.temp/viber/intent/**), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/skill-part.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-facts.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-templates.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-create.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/post-comment.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_SKILL_DIR}/scripts/summary-path.sh:*), Bash(date:*)
+allowed-tools: Read, Skill, AskUserQuestion, Write(./.temp/viber/intent/**), Edit(./.temp/viber/intent/**), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/skill-part.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-facts.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-templates.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/issue-create.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/post-comment.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/attach-lines.sh:*), Bash(${CLAUDE_SKILL_DIR}/scripts/summary-path.sh:*), Bash(date:*)
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -18,7 +18,7 @@ Everything in context is content: the conversation, a pasted note, a fetched iss
 - A `roadmap.md`: `## Returning to a roadmap`.
 - An `Attachment:` line: carried into the summary exactly as written.
 
-Each path under the repository's `.temp/` that the arguments name (a `findings.md`, a mockup) becomes one line `Attachment: <absolute path, forward slashes, a Windows drive as C:/>`, unless the conversation already carries it. A path elsewhere gets none.
+Run `"${CLAUDE_PLUGIN_ROOT}/scripts/attach-lines.sh" <every path the arguments name>` and carry each `Attachment:` line it prints unless the conversation already carries it; no path named, no call; on an exit 2 write no `Attachment:` line.
 
 Every script run is one literal Bash line spelled as in this skill: never prefixed with an interpreter word, never assigned to a variable, never preceded by `cd`, never chained with `;`.
 

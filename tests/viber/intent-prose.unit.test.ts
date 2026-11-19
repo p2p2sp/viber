@@ -94,10 +94,20 @@ test("SKILL.md names the closed signal list of four signals", () => {
   assert.match(SKILL, /`Attachment:`/);
 });
 
-test("SKILL.md turns each .temp/ path the arguments name into an Attachment: line and a path elsewhere into none", () => {
-  assert.match(SKILL, /Each path under the repository's `\.temp\/` that the arguments name/);
-  assert.match(SKILL, /`Attachment: <absolute path/);
-  assert.match(SKILL, /A path elsewhere gets none/);
+const ATTACH_RULE = SKILL.split(/\r?\n/).find((line) => line.includes("attach-lines.sh\"")) ?? "";
+
+test("SKILL.md runs attach-lines.sh with every path the arguments name and carries its Attachment: lines unless the conversation already does", () => {
+  assert.match(ATTACH_RULE, /^Run `"\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/attach-lines\.sh" <every path the arguments name>`/);
+  assert.match(ATTACH_RULE, /carry each `Attachment:` line it prints unless the conversation already carries it/);
+});
+
+test("SKILL.md makes no attach-lines.sh call when the arguments name no path and writes no Attachment: line on an exit 2", () => {
+  assert.match(ATTACH_RULE, /no path named, no call/);
+  assert.match(ATTACH_RULE, /on an exit 2 write no `Attachment:` line/);
+});
+
+test("allowed-tools lists the attach-lines.sh Bash entry the call needs", () => {
+  assert.match(HEAD, /allowed-tools:[^\n]*Bash\(\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/attach-lines\.sh:\*\)/);
 });
 
 test("SKILL.md reads the summary file a Split proposal: input names and carries its issue, attachment, work and branch lines over unchanged", () => {

@@ -72,7 +72,7 @@ The handoff payload - state it in context, in this order. No report file: the pa
 - **Same defect elsewhere** - each other place repeating the root cause's pattern, one `<repo-relative path> | <symbol> | picked` or `<repo-relative path> | <symbol> | not picked` per place; `none` when no place repeats it. Only a `picked` place enters the plan.
 - **Done condition** - repro test GREEN, every previously-passing test still green.
 - **Spec shape** - `spec-lite`, always: a fixer diagnosis never proposes `spec-full`.
-- **Attachments** - one line `Attachment: <absolute path, forward slashes, a Windows drive as C:/>` per path under the repository's `.temp/` that the input names; none when it names none.
+- **Attachments** - run `"${CLAUDE_PLUGIN_ROOT}/scripts/attach-lines.sh" <every path the input names>` and take its `Attachment:` lines; no path named, no call; on an exit 2 write no `Attachment:` line.
 ```!
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" github.issues "${CLAUDE_SKILL_DIR}" issues-diagnosis
 ```

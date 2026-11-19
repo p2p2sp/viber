@@ -84,6 +84,18 @@ test("the session manifest's plan-approval exception names fixer's reproduction 
   assert.ok(rule.includes("Exception: `viber:fixer`'s reproduction test and its temporary instrumentation."), rule);
 });
 
+test("fixer takes the Attachments lines of the diagnosis from attach-lines.sh run on every path the input names", () => {
+  const rule = bullet("Attachments");
+  assert.ok(rule.includes('`"${CLAUDE_PLUGIN_ROOT}/scripts/attach-lines.sh" <every path the input names>`'), rule);
+  assert.ok(rule.includes("take its `Attachment:` lines"), rule);
+});
+
+test("fixer makes no attach-lines.sh call when the input names no path and writes no Attachment: line on an exit 2", () => {
+  const rule = bullet("Attachments");
+  assert.ok(rule.includes("no path named, no call"), rule);
+  assert.ok(rule.includes("on an exit 2 write no `Attachment:` line"), rule);
+});
+
 function step(n: number): string {
   return LINES.find((l) => l.startsWith(`${n}. `)) ?? "";
 }
