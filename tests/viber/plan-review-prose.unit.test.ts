@@ -297,7 +297,7 @@ const REVIEW_ROUND_CALL = '"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-
 
 const STEP_THREE_PHRASES = [
   `${REVIEW_ROUND_CALL} start`,
-  "`--fresh` after a user's answer and after any plan write following `NEXT: exit-plan`",
+  "`--fresh` after a user's answer and after any plan write following `NEXT: exit-plan` except an `override`'s fix, which runs plain `start`",
   "Dispatch every block in one message",
   "then the text of each `add:` field",
   `${REVIEW_ROUND_CALL} returned <k>=<word>`,

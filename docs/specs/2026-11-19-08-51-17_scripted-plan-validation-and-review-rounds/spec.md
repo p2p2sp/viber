@@ -69,7 +69,7 @@ Then each of those files the model reads is shorter than before this plan, held 
 
 - [CHANGED - was: DENIED] A member returns no verdict twice in the same round -> it counts as FAIL with the reason "no verdict", and the round answers a fix.
 - A round answered `NEXT: exit-plan` whose PASS a Minor finding overrides (a behaviour today's code has that the input never asked to change) -> the planner reports it, the round answers a fix for that member, and the next round dispatches the whole set with the previous findings.
-- A plan written again after `NEXT: exit-plan` or after a user's answer -> a fresh round 1 with no previous findings.
+- A plan written again after `NEXT: exit-plan` (except the fix of an `override`, which runs plain `start`) or after a user's answer -> a fresh round 1 with no previous findings.
 - One member returns DENIED and another FAIL -> the round asks the user to add the permission or stop: DENIED outranks FAIL.
 - A malformed task heading -> one `FIX:` line for that heading, never follow-on lines about the block's missing id or fields.
 - A plan with no task blocks, or task blocks under no `## Tasks` heading -> that defect ends the run after the per-line defects, since no task check has a task to read.

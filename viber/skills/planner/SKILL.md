@@ -85,12 +85,12 @@ Show the user the full path of the written plan.
 
 ## 3. Review gate
 
-Run `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" start`, adding `--input "<summary file>"` on a summary file input, and `--fresh` after a user's answer and after any plan write following `NEXT: exit-plan`. Each block it prints opens on a `NEXT: review` line.
+Run `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" start`, adding `--input "<summary file>"` on a summary file input, and `--fresh` after a user's answer and after any plan write following `NEXT: exit-plan` except an `override`'s fix, which runs plain `start`. Each block it prints opens on a `NEXT: review` line.
 
 Dispatch every block in one message, one `Agent` call per block, the agent named on its `agent:` field. The prompt is the block's lines below its `NEXT:` line, never that line, then the text of each `add:` field:
 
 - `add: input`: `input:` then the confirmed summary or fixer diagnosis, verbatim.
-- `add: answered`: one `Answered: <decision> -> <option>` line per user answer (step 1 or a finding), none when none.
+- `add: answered`: one `Answered: <decision> -> <option>` line per user answer (step 1 or a finding).
 - `add: previous`: `previous findings:`, every member's previous findings verbatim, one `fix: <line>` per fix you applied.
 
 Every round and retry is a new `Agent` dispatch, never a `SendMessage` to an earlier reviewer: the plan gate counts only dispatches after the last plan write.
@@ -98,7 +98,7 @@ Every round and retry is a new `Agent` dispatch, never a `SendMessage` to an ear
 Report the replies with `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" returned <k>=<word> <k>=<word>`: `<k>` the block's `member:`, `<word>` the `VERDICT:` word of its reply (`PASS`, `FAIL`, `DENIED`) or `none` without one. Act on what it prints:
 
 - `NEXT: redispatch`: dispatch the blocks under it, then report those replies the same way.
-- `NEXT: fix`: show every member's findings. Fix every Blocking finding, and every Minor one showing a change of a behaviour today's code has that neither the input nor an `Answered:` line asks for, across its whole class in the plan; any other Minor one only where a Blocking fix rewrites its text. Re-run `plan-index.sh` after every fix as in step 2, then `start` again. A finding needing a decision only the user can make is asked first through one `AskUserQuestion`; keep its answer as an `Answered:` line and run `start` with `--fresh`.
+- `NEXT: fix`: show all findings. Fix every Blocking finding, and every Minor one showing a change of a behaviour today's code has that neither the input nor an `Answered:` line asks for, across its whole class in the plan; any other Minor one only where a Blocking fix rewrites its text. Re-run `plan-index.sh` after every fix as in step 2, then `start` again. A finding needing a decision only the user can make is asked first through one `AskUserQuestion`; keep its answer as an `Answered:` line and run `start` with `--fresh`.
 - `NEXT: exit-plan`: go to step 4 without writing the plan again; its Minor findings stay unapplied, except one showing such an unasked change of today's behaviour: report it first with `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" override <k>` and act on the `NEXT: fix` it prints.
 - `ASK:`: one `AskUserQuestion` naming the refused call from the `REASON:` line of the `DENIED` reply: permission added runs its `retry-denied` event, stop its `stop` event; act on what they print.
 - `STOP:`: the plan stays unreviewed, no hand-off.
@@ -109,7 +109,7 @@ Report the replies with `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-pa
 
 ## 4. Hand off
 
-Call `ExitPlanMode` only on a `NEXT: exit-plan` of a round started after your last write to the plan file. Every later write voids it, whatever caused it (the user's remark on a refused `ExitPlanMode`, an answer, a Minor finding, your own second thought): re-run `plan-index.sh` as in step 2, then step 3 from `start --fresh` (with `--input "<summary file>"` on a summary file input) before the next `ExitPlanMode`.
+Call `ExitPlanMode` only on a `NEXT: exit-plan` of a round started after your last write to the plan file. Every later write voids it, (the user's remark, an answer, a Minor finding): re-run `plan-index.sh` as in step 2, then step 3 from `start --fresh` (with `--input "<summary file>"` on a summary file input; plain `start` after an `override`'s fix) before the next `ExitPlanMode`.
 
 Then name `viber:implementor` as the next step, the path shown in step 2 being the whole handover. Nothing runs here.
 

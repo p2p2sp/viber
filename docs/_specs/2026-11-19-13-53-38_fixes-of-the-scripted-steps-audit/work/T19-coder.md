@@ -1,0 +1,1 @@
+planner/SKILL.md sat exactly at its 1755-word cap, so the exception's words were paid for by trimming: the `none when none` tail of the `add: answered` bullet, the `your own second thought` and `whatever caused it` wording of step 4, and `every member's` of the `NEXT: fix` bullet. Step 4's `start --fresh` sentence also names plain `start` after an `override`'s fix.
