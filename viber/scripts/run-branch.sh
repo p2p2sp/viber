@@ -16,7 +16,8 @@
 #            plan-path.sh sets before branch_start; branch_plan_decide from
 #            pb_work, pb_name and pb_entry, set before branch_report, and
 #            pb_plan, the plan path branch_report sets.
-#   file   : the sibling config.sh --branching lines (mode and work entries
+#   file   : the sibling plugin-root.sh, sourced for the plugin root of the
+#            printed run: commands; the sibling config.sh --branching lines (mode and work entries
 #            for the landing, all of them for branch_report); the plan's
 #            frontmatter "branch:", "work:" and "issue:" keys and its task
 #            blocks' "Repro:" lines.
@@ -44,6 +45,8 @@
 # runs under plan-path.sh's.
 
 run_branch_dir="$(dirname -- "${BASH_SOURCE[0]}")"
+# shellcheck source=plugin-root.sh
+. "$run_branch_dir/plugin-root.sh"
 
 # The branching mode, the valid work entries (br_keys, br_bases, br_names,
 # br_targets, in file order), the first config.sh error (br_err, empty with
@@ -816,13 +819,10 @@ decide_ask_entry() {
   fi
 }
 
-# The plugin root: the absolute directory above the scripts directory, forward
-# slashes (cygpath -m where it exists).
+# The plugin root of a printed command: the directory above the scripts
+# directory, in the spelling plan-path.sh was invoked by (plugin-root.sh).
 decide_root() {
-  local root
-  root="$(cd -- "$run_branch_dir/.." && pwd)"
-  if command -v cygpath >/dev/null 2>&1; then root="$(cygpath -m "$root")"; fi
-  printf '%s\n' "$root"
+  plugin_root_of "$run_branch_dir/run-branch.sh" 1
 }
 
 # The command re-running this --start call for entry key $1: the flags of the

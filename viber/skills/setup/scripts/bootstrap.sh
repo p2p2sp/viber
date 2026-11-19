@@ -88,8 +88,9 @@
 #            `git rev-parse --show-toplevel` prints it, or the cwd base outside a
 #            repository) or "CLAUDE.md: missing".
 #            After the gh line, the directive lines, <plugin root> being the
-#            directory three levels above this script's own (`pwd -W` form in
-#            Git Bash): for "settings.json: present", `ASK: merge -> "<plugin
+#            directory three levels above this script's own, spelled as the
+#            script was invoked (plugin-root.sh: `C:/...` for `C:\...` or
+#            `C:/...`, `/c/...` for `/c/...`): for "settings.json: present", `ASK: merge -> "<plugin
 #            root>/skills/setup/scripts/merge-settings.sh" "<plugin
 #            root>/skills/setup/templates/settings.json" | reset -> "<plugin
 #            root>/skills/setup/scripts/merge-settings.sh" --reset "<plugin
@@ -415,9 +416,10 @@ else
 fi
 
 # The directive lines the skill acts on as printed. Every command path is the
-# plugin root, three directories above this script's own (`pwd -W` in Git Bash,
-# so the path is the C:/ form a Windows reader opens as written).
-plugin_root="$(cd "$here/../../.." 2>/dev/null && { pwd -W 2>/dev/null || pwd; })" || plugin_root="$here/../../.."
+# plugin root, three directories above this script's own, in the spelling the
+# script was invoked by (plugin-root.sh).
+. "$here/../../../scripts/plugin-root.sh"
+plugin_root="$(plugin_root_of "$0" 3)"
 merge_cmd="\"$plugin_root/skills/setup/scripts/merge-settings.sh\""
 settings_tpl="\"$plugin_root/skills/setup/templates/settings.json\""
 if [ -f "$root/.claude/settings.json" ]; then

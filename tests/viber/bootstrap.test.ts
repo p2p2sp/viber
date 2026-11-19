@@ -1373,6 +1373,29 @@ test("outside a repository the CLAUDE.md line names a path the reader opens as w
   });
 });
 
+/** The spellings Git Bash is invoked by on Windows: the root the directive lines name follows the invoked path. */
+const INVOKED_SPELLINGS = [
+  { name: "a /c/ path", script: slash(SUT).replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`), root: slash(PLUGIN_ROOT).replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`) },
+  { name: "a C:\\ path", script: SUT, root: PLUGIN_ROOT },
+];
+
+for (const spelling of INVOKED_SPELLINGS) {
+  test(`invoked by ${spelling.name}, the merge-settings.sh and open-page.sh RUN: lines name the plugin root in that spelling (AC1)`, { skip: process.platform === "win32" ? false : "the /c/ and C:\\ spellings are a Windows Git Bash matter" }, async () => {
+    await withGitRepo(async ({ dir, env }) => {
+      const result = await withStub("gh", "exit 0", (stubDir) =>
+        runScript(spelling.script, [], { cwd: dir, env, shell: "bash", stubDirs: [stubDir] }),
+      );
+
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(result.stdout.split("\n").slice(-3), [
+        `RUN: "${spelling.root}/skills/setup/scripts/merge-settings.sh" "${spelling.root}/skills/setup/templates/settings.json"`,
+        `RUN: "${spelling.root}/scripts/open-page.sh" "${spelling.root}/skills/setup/assets/help.html"`,
+        "",
+      ]);
+    });
+  });
+}
+
 test("a read-only project root still exits 0 (fail-soft on every mutation)", async () => {
   await withTempDir("p2p2-viber-bootstrap-readonly-", async (scratch) => {
     const projectRoot = path.join(scratch, "project");

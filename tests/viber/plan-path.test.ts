@@ -3244,6 +3244,41 @@ test("start options: the --checkout command names the base of the checked entry,
   });
 });
 
+/** The spellings Git Bash is invoked by on Windows: the root each prints its commands under follows the invoked path. */
+const INVOKED_SPELLINGS = [
+  { name: "a /c/ path", script: posixForm(SUT), root: posixForm(PLUGIN_ROOT) },
+  { name: "a C:\\ path", script: SUT, root: PLUGIN_ROOT },
+];
+
+/** Every `run:` command of the option: lines that run something, in the order printed. */
+function runCommandsOf(stdout: string): string[] {
+  return linesOf(stdout, "option: ").flatMap((line) => {
+    const run = line.split(" | ").find((field) => field.startsWith("run: "));
+    return run === undefined || run === "run: -" ? [] : [run.slice("run: ".length)];
+  });
+}
+
+for (const spelling of INVOKED_SPELLINGS) {
+  test(`start options: invoked by ${spelling.name}, every run: command opens on the plugin root in that spelling (AC1)`, { skip: process.platform === "win32" ? false : "the /c/ and C:\\ spellings are a Windows Git Bash matter" }, async () => {
+    const opening = `"${spelling.root}/scripts/plan-path.sh" `;
+    await withBranchRepo(twoEntries("allowed"), async (repo) => {
+      const result = await runScript(spelling.script, ["--start"], { cwd: repo.dir, shell: "bash", env: repo.env });
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      const commands = runCommandsOf(result.stdout);
+      assert.equal(commands.length, 2, result.stdout);
+      for (const command of commands) assert.ok(command.startsWith(opening), `${command} does not open on ${opening}`);
+    });
+    await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
+      await workAhead(repo);
+      const result = await runScript(spelling.script, ["--start"], { cwd: repo.dir, shell: "bash", env: repo.env });
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      const commands = runCommandsOf(result.stdout);
+      assert.equal(commands.length, 1, result.stdout);
+      for (const command of commands) assert.ok(command.startsWith(opening), `${command} does not open on ${opening}`);
+    });
+  });
+}
+
 test("start options: --settled nothing with --entry asks that entry's base instead of the entry question, with or without an error: line (C3)", async () => {
   await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
     await workAhead(repo);
