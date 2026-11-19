@@ -21,6 +21,9 @@
 #   cwd    : the session's directory. <root> is `git rev-parse --show-toplevel`
 #            there, else the cwd. Nothing else depends on the cwd.
 #   env    : none read beyond what git itself reads.
+#   paths  : <skill dir> (printed, and written as `Lens file:`) is spelled from the
+#            path the script was invoked by, through scripts/plugin-root.sh: `C:/...`
+#            for a `C:\...` or `C:/...` call, `/c/...` for a `/c/...` call.
 #   files  : read: the lens file of ../references/lenses/ (its `Worktree:` line).
 #            Written only on a framed run: <ws>/reports/, <ws>/worktrees/ and
 #            <ws>/run.md, <ws> = <root>/.temp/viber/code-auditor/<date +%Y%m%d-%H%M%S>.
@@ -39,8 +42,9 @@
 #   exit   : 0 in every case.
 set -u
 
+. "$(dirname -- "$0")/../../../scripts/plugin-root.sh"
 script_dir=$(cd "$(dirname "$0")" && pwd)
-skill_dir=${script_dir%/*}
+skill_dir=$(plugin_root_of "$0" 1)
 
 stop() {
   printf 'STOP: code-auditor: %s\n' "$1"

@@ -62,6 +62,10 @@
 #   cwd    : irrelevant: every path derives from argv and the files it names, cwd
 #            only resolves a relative <ws>.
 #   env    : TMPDIR, read by strip-tag.sh; nothing else.
+#   paths  : the Schema:, Test rules:, Worktree script: and Overlay script: paths are
+#            spelled from the path the script was invoked by, through
+#            scripts/plugin-root.sh: `C:/...` for a `C:\...` or `C:/...` call,
+#            `/c/...` for a `/c/...` call.
 #   files  : reads <ws>/run.md (the header lines before its first `## ` heading:
 #            Lens:, Lens file:, Scope:), <ws>/map.md, <ws>/scores/*.md, <ws>/ledger.md,
 #            <ws>/seeds.md (--wave) and the lens file. Writes: map.md and the score files (a trailing closing
@@ -91,9 +95,10 @@ fail() {
   exit 2
 }
 
+. "$(dirname -- "$0")/../../../scripts/plugin-root.sh"
 script_dir=$(cd "$(dirname "$0")" && pwd)
-skill_dir=${script_dir%/*}
-plugin_root=${skill_dir%/skills/code-auditor}
+skill_dir=$(plugin_root_of "$0" 1)
+plugin_root=$(plugin_root_of "$0" 3)
 
 ws=${1:-}
 if [ -z "$ws" ]; then

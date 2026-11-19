@@ -264,6 +264,34 @@ test("a worktree lens on the diff scope adds the worktree script, the hunt's wor
   });
 });
 
+// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
+// Neither spelling names a file outside Windows, so the cases skip there.
+const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
+const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
+
+const SPELLINGS: Array<{ label: string; invoked: string; skillDir: string; pluginRoot: string }> = [
+  { label: "a C:\\ path", invoked: SUT, skillDir: SKILL_DIR, pluginRoot: PLUGIN_ROOT },
+  { label: "a C:/ path", invoked: slash(SUT), skillDir: SKILL_DIR, pluginRoot: PLUGIN_ROOT },
+  { label: "a /c/ path", invoked: MSYS(SUT), skillDir: MSYS(SKILL_DIR), pluginRoot: MSYS(PLUGIN_ROOT) },
+];
+
+for (const row of SPELLINGS) {
+  test(`invoked by ${row.label}, a hunter block prints its worktree script, overlay script and test rules in that spelling`, { skip: WINDOWS_ONLY }, async () => {
+    await assertPosix(async (shell) => {
+      await withTempDir("keep-units-", async (dir) => {
+        const { ws } = frame(dir, { lens: "tests", worktree: true, angles: ["only"] });
+        const result = await runScript(row.invoked, [ws], { shell, cwd: path.dirname(ws) });
+        assert.equal(result.status, 0, `stderr=${result.stderr}`);
+        assert.deepEqual(result.stdout.split("\n").filter((line) => /^(Test rules|Worktree script|Overlay script): /.test(line)), [
+          `Test rules: ${row.pluginRoot}/references/test-strategy.md`,
+          `Worktree script: ${row.skillDir}/scripts/worktree.sh`,
+          `Overlay script: ${row.skillDir}/scripts/diff-overlay.sh`,
+        ]);
+      });
+    });
+  });
+}
+
 test("a directory scope with no more units than 8 prints one hunter block per unit, the unit line verbatim, id U<n>", async () => {
   await assertPosix(async (shell) => {
     await withTempDir("keep-units-", async (dir) => {

@@ -328,6 +328,32 @@ test("a framed repo run writes the reports and worktrees directories and run.md,
   });
 });
 
+// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
+// Neither spelling names a file outside Windows, so the cases skip there.
+const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
+const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
+
+const SPELLINGS: Array<{ label: string; invoked: string; skillDir: string }> = [
+  { label: "a C:\\ path", invoked: SUT, skillDir: SKILL_DIR },
+  { label: "a C:/ path", invoked: slash(SUT), skillDir: SKILL_DIR },
+  { label: "a /c/ path", invoked: MSYS(SUT), skillDir: MSYS(SKILL_DIR) },
+];
+
+for (const row of SPELLINGS) {
+  test(`invoked by ${row.label}, a framed run prints its RUN line and writes run.md with the skill paths in that spelling`, { skip: WINDOWS_ONLY }, async () => {
+    await assertPosix(async (shell) => {
+      await withGitRepo(async (repo) => {
+        const result = await runScript(row.invoked, ["design", "repo"], { shell, cwd: repo.dir, env: repo.env });
+        assert.equal(result.status, 0, `unexpected exit status: stderr=${result.stderr}`);
+        const match = /^RUN: sh "(.+)\/scripts\/map-signals\.sh" "(.+)"\n$/.exec(result.stdout);
+        assert.ok(match, `stdout is no RUN line: ${result.stdout}`);
+        assert.equal(match[1], row.skillDir);
+        assert.ok(runFile(match[2]).includes(`Lens file: ${row.skillDir}/references/lenses/design.md\n`), runFile(match[2]));
+      });
+    });
+  });
+}
+
 const SCOPE_ROWS: Array<{ label: string; token: (root: string) => string; scope: string }> = [
   { label: "a relative directory", token: () => "src/api", scope: "src/api" },
   { label: "a relative directory with a leading ./", token: () => "./src/api", scope: "src/api" },
