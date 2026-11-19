@@ -1,0 +1,7 @@
+- The production script was first written before its tests; it was replaced by a signature-only skeleton, the red run (`.temp/viber/T6/red.log`, 8 failing on assertions) taken, then the full script rewritten.
+- State format chosen here (the file is `.temp/viber/planner/review-round`): `plan:`, `round:`, `answer:` (review|redispatch|fix|exit-plan|ask|stop), `input:`, `memory:`, `previous:` and one `member: <k> | agent: <a> | tasks: <t> | verdict: - | none: 0` per member. T7 extends it; `start` reads only the first three keys.
+- Only `start` is answered; `returned`, `retry-denied`, `override` and `stop` are documented in the header per the task and fall to "unknown event" until T7 and later add them.
+- `start` runs plan-index first, then the state check, so a refused plan never reports the open-round error; a plan with no `dispatch:` line (a landed plan) exits 2.
+- The two `start --fresh` and other-plan tests seed a `fix` state file by hand, since only `returned` (T7) can write one; they would otherwise pass vacuously.
+- A `config.sh` exiting non-zero (a wiring bug: its contract is exit 0) makes `start` exit 2 rather than print a guessed `memory: false`.
+- The working-tree file lost its exec bit once during the first attempt; check `ls -l` and `git ls-files -s` both read executable / 100755 before commit.
