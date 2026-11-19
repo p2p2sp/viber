@@ -1304,6 +1304,22 @@ for (const [subject, first] of [
   });
 }
 
+test("a refused arbiter on baseline with --options carries out the first of them and records it in the rule call", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+
+    const result = await step(repo, ["baseline", "100", "ruled", "--case", "baseline", "--options", "halt | continue", "--refused"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        `RUN: ${COMMIT_TASK} --rule "${PLAN_REL}" "baseline" "halt" "the arbiter was refused" "not assessed - the arbiter was refused"`,
+        "NEXT: carry-out: halt",
+      ),
+    );
+  });
+});
+
 for (const [subject, options, ruling] of [
   ["baseline", "continue", "continue"],
   ["tests", "accept", "accept"],

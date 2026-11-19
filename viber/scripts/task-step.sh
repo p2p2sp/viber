@@ -79,7 +79,7 @@
 #         the options file holds a DECIDE: line, the attempt unchanged (a resumed
 #         coder's second DECIDE: goes here again); attempt 5 holds the task instead
 #   RUN: commit-task.sh --rule ... --from <ruling file>   (a refused arbiter: the fixed
-#         words, the case's first option)
+#         words, the first of --options, the case's fixed option when none came)
 #   RUN: commit-task.sh --decide ... --from <ruling file> | --first-of <options file>
 #         the two answers to "ruled --case decide", the --first-of form when the
 #         RULING names none of the options (or the arbiter was refused), then
@@ -91,8 +91,9 @@
 #   NEXT: carry-out: <option>[ | mismatch]
 #         after "ruled" on baseline, tests, final-review or commit, as the --rule
 #         call; the first of --options with "mismatch" when the RULING names none
-#         of them, the case's first word (continue, accept, accept, leave
-#         uncommitted) when the arbiter was refused; "ruled" on these subjects
+#         of them, the first of --options when the arbiter was refused, else the
+#         case's fixed word (continue, accept, accept, leave uncommitted);
+#         "ruled" on these subjects
 #         writes no state. "ruled --case cap" (subject a task id) prints the same
 #         line after its --rule call, the options being "accept | skip" after a
 #         review failure and "skip" otherwise (--options overrides), then the
@@ -824,7 +825,7 @@ route_arbiter() {
   [[ -z "$1" ]] || say "reason: $1"
 }
 
-# The first option the build takes for a case whose arbiter was refused.
+# The option the build takes for a case whose arbiter was refused, when no --options came.
 case_first() {
   case "$1" in
     baseline) printf 'continue' ;;
@@ -1068,7 +1069,7 @@ case "$event" in
       [[ -n "$first" ]] || die "ruled --case decide needs the DECIDE: options of $options_file"
       say "RUN: $ct --rule \"$plan\" \"$id\" \"the coder's first option\" \"the arbiter was refused\" \"not assessed - the arbiter was refused\""
     else
-      first="$(case_first "$f_case")"
+      [[ -n "$first" ]] || first="$(case_first "$f_case")"
       say "RUN: $ct --rule \"$plan\" \"$id\" \"$first\" \"the arbiter was refused\" \"not assessed - the arbiter was refused\""
     fi
 
