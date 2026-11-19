@@ -2,7 +2,7 @@
 name: e2e
 description: Generates and locally verifies Playwright tests for the QA scenarios of one viber run, then commits them. Use it after a build closed with a qa.e2e.md handoff file in its run directory.
 argument-hint: "[run directory, or a path to qa.e2e.md]"
-allowed-tools: Read, Grep, Glob, Bash, Agent, SendMessage, AskUserQuestion, TaskCreate, TaskUpdate, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-playwright.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*)
+allowed-tools: Read, Grep, Glob, Bash, Agent, SendMessage, AskUserQuestion, TaskCreate, TaskUpdate, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/check-playwright.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_SKILL_DIR}/scripts/app-wait.sh:*)
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -19,7 +19,7 @@ disable-model-invocation: true
 
 One run's handoff file, one pass. Every scenario of its `qa.e2e.md` becomes one `@playwright/test` file, written by `viber:e2e-writer` against the application you launched, proven green there, and committed. You resolve, launch, dispatch and commit: you write nothing into the tree yourself.
 
-Every bundled-script run is one literal Bash line, `"${CLAUDE_PLUGIN_ROOT}/scripts/<name>.sh" <args>`, every argument double-quoted: never prefixed with an interpreter word, never assigned to a variable, never preceded by `cd`, never chained with `;`.
+Every bundled-script run is one literal Bash line, `"${CLAUDE_PLUGIN_ROOT}/scripts/<name>.sh" <args>` or `"${CLAUDE_SKILL_DIR}/scripts/<name>.sh" <args>`, every argument double-quoted: never prefixed with an interpreter word, never assigned to a variable, never preceded by `cd`, never chained with `;`.
 
 ## 1. Resolve the run
 
@@ -53,9 +53,11 @@ Each value still missing -> one `AskUserQuestion` naming it: provide it now, or 
 
 ## 4. Start the application
 
-Probe once with one Bash call of `curl -s -o /dev/null -w "%{http_code}" "<base-url>"`. Any code other than `000` answers, a 404 or 401 included -> the application is already up; run no command and go to step 5.
+Run `"${CLAUDE_SKILL_DIR}/scripts/app-wait.sh" "<base-url>" "0"`. Act on its first line:
 
-Otherwise run the launch command as one background Bash call with its output redirected to `.temp/viber/e2e/launch.log`, then poll with the same probe every 2 seconds for up to 120 seconds. The first answer moves you on. No answer inside that bound -> `AskUserQuestion` quoting the last lines of that log: poll again at double the bound with the command left running, or abort.
+- `NEXT: test` -> the application is already up; run no command and go to step 5.
+- `NEXT: launch` -> run the launch command as one background Bash call with its output redirected to the printed log path, then run `"${CLAUDE_SKILL_DIR}/scripts/app-wait.sh" "<base-url>" "120"` with a Bash timeout of 600000 milliseconds. Its `NEXT: test` moves you on to step 5.
+- `ASK:` -> `AskUserQuestion` quoting its `log:` lines: wait or abort. Abort stops the run; wait runs the script again with the `wait ->` value as the seconds, the same timeout and the command left running.
 
 This project's launch command, its config and its ports are never edited to make the probe answer.
 
