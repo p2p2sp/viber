@@ -119,15 +119,7 @@ ledger=$ws/ledger.md
 reports=$ws/reports
 [ -f "$run_file" ] || fail "run file not found: $run_file"
 
-# header_value <key> -> the value of the first `<key>: <value>` line before the
-# first `## ` heading of run.md.
-header_value() {
-  RUN_KEY="$1" awk '
-    BEGIN { k = ENVIRON["RUN_KEY"] ": "; n = length(k) }
-    /^## / { exit }
-    substr($0, 1, n) == k { v = substr($0, n + 1); sub(/\r$/, "", v); print v; exit }
-  ' "$run_file"
-}
+. "$script_dir/run-header.sh"
 
 lens=$(header_value "Lens")
 lens_file=$(header_value "Lens file")

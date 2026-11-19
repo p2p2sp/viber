@@ -62,15 +62,7 @@ if [ ! -f "$run_file" ]; then
   fail "run file not found: $run_file"
 fi
 
-# header_value <key> -> the value of the first `<key>: <value>` line before the
-# first `## ` heading of run.md.
-header_value() {
-  RUN_KEY="$1" awk '
-    BEGIN { k = ENVIRON["RUN_KEY"] ": "; n = length(k) }
-    /^## / { exit }
-    substr($0, 1, n) == k { v = substr($0, n + 1); sub(/\r$/, "", v); print v; exit }
-  ' "$run_file"
-}
+. "$(dirname -- "$0")/run-header.sh"
 
 lens_file=$(header_value "Lens file")
 scope=$(header_value "Scope")
