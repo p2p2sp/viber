@@ -6,7 +6,7 @@ paths:
 
 # Export GIT_LITERAL_PATHSPECS where a script hands a named path to git
 
-- A script that passes a path the caller named (a selector, a `--with` file, a run key) to `git add`, `git commit`, `git ls-files` or `git diff` exports `GIT_LITERAL_PATHSPECS=1` before its first git call, with a comment saying why. Git otherwise reads `*`, `?` and `[...]` in a pathspec as a glob, and a Next.js App Router path (`app/[id]/page.tsx`) is made of brackets, so a sibling such as `app/i/page.tsx` would be committed with it. `viber/skills/commit/scripts/commit.sh:42` shows the shape:
+- A script that passes a path the caller named (a selector, a `--with` file, a run key) to `git add`, `git commit`, `git ls-files` or `git diff` exports `GIT_LITERAL_PATHSPECS=1` before its first git call, with a comment saying why. Git otherwise reads `*`, `?` and `[...]` in a pathspec as a glob, and a Next.js App Router path (`app/[id]/page.tsx`) is made of brackets, so a sibling such as `app/i/page.tsx` would be committed with it. `viber/skills/commit/scripts/commit.sh:48` shows the shape:
 
   ```
   # Every selector token is a literal path: without this git reads "[id]" or "*" in
@@ -14,4 +14,4 @@ paths:
   export GIT_LITERAL_PATHSPECS=1
   ```
 
-  The same export sits in `viber/skills/commit/scripts/commit-context.sh:39`, `viber/scripts/commit-task.sh:309` and `viber/scripts/archive-run.sh:85`. A glob-shaped selector (`src/*.ts`) is a literal path, never an expansion.
+  The same export sits in `viber/skills/commit/scripts/commit-context.sh:48`, `viber/scripts/commit-task.sh:309` and `viber/scripts/archive-run.sh:85`. A glob-shaped selector (`src/*.ts`) is a literal path, never an expansion.

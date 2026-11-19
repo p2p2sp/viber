@@ -11,7 +11,7 @@ Owns `idea-validator/`: the orchestrating `SKILL.md`, its references (`process.m
 
 - User-only (`disable-model-invocation: true`); it invokes no other viber skill and dispatches no viber agent.
 - `SKILL.md` runs steps 0-15 and sends each step into one reference by `${CLAUDE_SKILL_DIR}/references/...`; only the main context reads references.
-- Subagents are `general-purpose` and cannot see the skill: every research prompt carries the pasted brief plus the pasted Research rules of `process.md`, every council prompt the pasted member file. Pass working-file paths, never a skill path.
+- Subagents are `general-purpose` and cannot see the skill: `build_report.mjs --prompts research|council-r1|council-r2 <working directory> <report language>` writes one prompt file per subagent into the working directory, each carrying its pasted brief, rules or member file, and prints a `PROMPT:` line per file; the skill dispatches each as `Read <path> and follow it.`. Pass working-file paths, never a skill path.
 - `build_report.mjs` finds the template by its own location (`../templates/report-template.html`) and is called through the literal `node ${CLAUDE_SKILL_DIR}/scripts/build_report.mjs` prefix that `allowed-tools` pre-approves.
 - `evals/evals.json` holds three hand-run scenarios (full run, `--quick` on a Polish file, an enterprise idea that cannot be Go); the skill run itself has no automated suite.
 - Tested by `tests/viber/`: `build_report.unit.test.ts` (every validation rule in `RULES`, label merge, template fill, import safety) and `build_report.test.ts` (the file-writing CLI cases, integration tier), both starting from `validReport()` in `build_report-fixture.ts`.
