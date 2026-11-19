@@ -68,7 +68,7 @@ Run `"${CLAUDE_SKILL_DIR}/scripts/qa-ledger.sh" "<dir>/qa.e2e.md" "list"`. `Task
 1. Run `"${CLAUDE_SKILL_DIR}/scripts/qa-ledger.sh" "<dir>/qa.e2e.md" "next" "--spec-dir" "<the e2e test directory>" "--base-url" "<the base URL>" "--accounts" "<the test accounts and where their credentials live>"`, adding `"--after" "QA-<nn>"` for the scenario just handled. `NEXT: commit` -> go to step 6. Otherwise `TaskUpdate` -> in progress.
 2. `Agent` with `subagent_type: viber:e2e-writer`, the lines below `NEXT: dispatch` as printed and nothing else. Pass no `model:` - the writer's own frontmatter is its strength.
 3. `VERDICT: PASS` plus `FILE:` -> keep that path for step 6. `TaskUpdate` -> completed.
-4. `VERDICT: BLOCKED` plus `REASON:` -> the application, not the test, prevented a green run. The writer already deleted its file and wrote that ID's `blocked` line. Keep the reason for step 7, re-dispatch nothing, and change nothing in the application. `TaskUpdate` -> completed.
+4. `VERDICT: BLOCKED` plus `REASON:` -> the application, not the test, prevented a green run. The writer already deleted its file and wrote that ID's `blocked` line. Re-dispatch nothing, and change nothing in the application. `TaskUpdate` -> completed.
 5. `VERDICT: FAIL` plus `REASON:` -> dispatch once more with the same block. A second FAIL -> `AskUserQuestion` naming the scenario: retry again, skip it (keep the reason for step 7; it wrote no status line, so the ID stays pending for a later pass), or abort (go to step 6 with the IDs already processed).
 6. `VERDICT: DENIED` plus `REASON:` -> `AskUserQuestion` naming the scenario and the refused call from its `REASON:` line: permission added and retry, skip it (keep the reason for step 7; the ID stays pending), or abort (go to step 6 with the IDs already processed).
 
@@ -90,6 +90,17 @@ It derives its own subject and stages only what it is given. A non-zero exit mea
 
 ## 7. Report
 
-At most five sentences - the handoff, the commit, how many IDs this pass skipped as already automated, how many are still pending - then one line per ID that has an outcome: `file <path>`, `blocked - <reason>` or `skipped - <reason>`. An ID an abort never reached gets no line; the sentences carry that count.
+Run `"${CLAUDE_SKILL_DIR}/scripts/qa-ledger.sh" "<dir>/qa.e2e.md" "report"`. At most five sentences - the handoff, the commit, how many IDs this pass skipped as already automated, how many are still pending - then its table as printed, in a code block:
+
+```
++---------+---------+---------------------------+
+| ID      | State   | Detail                    |
++---------+---------+---------------------------+
+| QA-<nn> | file    | <repo-relative spec path> |
++---------+---------+---------------------------+
+counts: <f> file, <b> blocked, <p> pending
+```
+
+Then one `skipped - <reason>` line per scenario the user skipped this pass.
 
 The application you launched is left running - stopping it is the user's call.

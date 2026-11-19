@@ -1,0 +1,5 @@
+- The report shares the one awk program of `list` (selected by `MODE` through ENVIRON): the table is drawn in its END block, so the parsing of the Automation lines is not duplicated.
+- The awk holds no `((` and no `function`: the portability sweep flags both under `#!/bin/sh` (a nested ternary tripped it).
+- A pending row, or a file or blocked line with no text after its state, shows `-` in Detail; only a blocked reason is cut at 60, a spec path never is.
+- Step 5 point 4 no longer says to keep a BLOCKED reason for step 7, since the table carries it; skip and DENIED points still keep theirs for the `skipped - <reason>` lines.
+- Red run (.temp/viber/T8/red.log, 6 failing) was taken with the script and SKILL.md untouched.

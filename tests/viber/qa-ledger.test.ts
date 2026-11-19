@@ -1,7 +1,7 @@
 /*
- * qa-ledger.test.ts - proves viber/skills/e2e/scripts/qa-ledger.sh (C7): the scenario list a
+ * qa-ledger.test.ts - proves viber/skills/e2e/scripts/qa-ledger.sh (C7, C8): the scenario list a
  * qa.e2e.md handoff gives the e2e skill, the e2e-writer dispatch block of the next scenario
- * to handle, and the refusals.
+ * to handle, the ASCII table report of every scenario, and the refusals.
  *
  * Integration tier (it spawns the script); run directly by Node's type stripping:
  *   node --test tests/viber/qa-ledger.test.ts
@@ -150,9 +150,67 @@ test("next prints NEXT: commit when every scenario already has a file line", asy
   assert.equal(result.stdout, "NEXT: commit\n");
 });
 
+test("report draws one ASCII table row per listed scenario in file order, each column as wide as its widest cell, then the counts line", async () => {
+  const result = await run(HANDOFF, ["report"]);
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(
+    result.stdout,
+    [
+      "+-------+---------+---------------------------------+",
+      "| ID    | State   | Detail                          |",
+      "+-------+---------+---------------------------------+",
+      "| QA-01 | file    | tests/e2e/qa-01-sign-in.spec.ts |",
+      "| QA-02 | blocked | the project form returns 500    |",
+      "| QA-04 | pending | -                               |",
+      "| QA-05 | pending | -                               |",
+      "+-------+---------+---------------------------------+",
+      "counts: 1 file, 1 blocked, 2 pending",
+      "",
+    ].join("\n"),
+  );
+});
+
+test("report cuts a blocked reason past 60 characters to 57 and ends it in ... (the Detail column then stops at 60)", async () => {
+  const text = [
+    "## UI scenarios",
+    "### QA-01 Checkout",
+    "## Automation",
+    "- QA-01: blocked - the checkout form keeps returning a server error after submit",
+    "",
+  ].join("\n");
+  const result = await run(text, ["report"]);
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(
+    result.stdout,
+    [
+      "+-------+---------+--------------------------------------------------------------+",
+      "| ID    | State   | Detail                                                       |",
+      "+-------+---------+--------------------------------------------------------------+",
+      "| QA-01 | blocked | the checkout form keeps returning a server error after su... |",
+      "+-------+---------+--------------------------------------------------------------+",
+      "counts: 0 file, 1 blocked, 0 pending",
+      "",
+    ].join("\n"),
+  );
+});
+
+test("report keeps a blocked reason of exactly 60 characters whole", async () => {
+  const text = [
+    "## UI scenarios",
+    "### QA-01 Checkout",
+    "## Automation",
+    "- QA-01: blocked - the checkout form keeps returning a server error after save.",
+    "",
+  ].join("\n");
+  const result = await run(text, ["report"]);
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.ok(result.stdout.includes("| QA-01 | blocked | the checkout form keeps returning a server error after save. |\n"), result.stdout);
+});
+
 const REFUSALS: Array<[string, string[]]> = [
   ["an unknown mode", ["status"]],
   ["a list call with an option", ["list", "--after", "QA-01"]],
+  ["a report call with an option", ["report", "--after", "QA-01"]],
   ["an unknown option of next", ["next", ...NEXT_ARGS, "--before", "QA-01"]],
   ["a next call without --spec-dir", ["next", "--base-url", "http://localhost:3000", "--accounts", "admin"]],
   ["a next call without --base-url", ["next", "--spec-dir", "tests/e2e", "--accounts", "admin"]],

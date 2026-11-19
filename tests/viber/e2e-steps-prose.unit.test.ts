@@ -1,7 +1,8 @@
 /*
  * e2e-steps-prose.unit.test.ts - pins the prose of steps 4 and 5 of viber/skills/e2e/SKILL.md:
  * step 4 runs the scripted wait `app-wait.sh` around the model's own launch of the application,
- * step 5 takes its task list and each e2e-writer dispatch block from `qa-ledger.sh`.
+ * step 5 takes its task list and each e2e-writer dispatch block from `qa-ledger.sh`, and step 7
+ * shows the table of its `report`.
  *
  * The file read is a shipped prompt, whose text is the behaviour. Nothing is spawned. Each
  * phrase is matched with any run of whitespace between its words, so rewrapping a line breaks
@@ -94,6 +95,25 @@ test("step 5 keeps no state reading rule of the Automation section and no labell
   assert.ok(!SKILL.includes("Read each one's state off the handoff"));
   assert.ok(!SKILL.includes("one labelled line each"));
   assert.ok(!SKILL.includes("`handoff: <dir>/qa.e2e.md`"));
+});
+
+function step7(): string {
+  return SKILL.slice(SKILL.indexOf("## 7. Report"));
+}
+
+test("step 7 runs the report call and shows its table in a code block", () => {
+  const text = step7();
+  assert.ok(text.includes('"${CLAUDE_SKILL_DIR}/scripts/qa-ledger.sh" "<dir>/qa.e2e.md" "report"'));
+  assert.match(text, /```\n\+-+\+[^\n]*\n[\s\S]*?```/);
+});
+
+test("step 7 ends on one skipped - <reason> line per scenario the user skipped this pass", () => {
+  assert.ok(has("one `skipped - <reason>` line per scenario the user skipped this pass"));
+});
+
+test("step 7 keeps no per scenario line rule of its own for file and blocked scenarios", () => {
+  assert.ok(!step7().includes("`file <path>`"));
+  assert.ok(!step7().includes("`blocked - <reason>`"));
 });
 
 test("allowed-tools lists the qa-ledger.sh call through ${CLAUDE_SKILL_DIR}", () => {
