@@ -2,7 +2,7 @@
  * build_report.test.ts - the file-writing half of idea-validator's report builder
  * CLI: unparsable input and invalid data exit 1 and write nothing, valid data
  * exits 0 and writes the filled template with LF line endings; `--prompts
- * research` and `council-r1` over the real reference texts and `--prompts
+ * research`, `council-r1` and `council-r2` over the real reference texts and `--prompts
  * research` over a copied script beside a stub references/ directory. Integration tier (each case builds a temp-dir
  * fixture); it calls `main` in-process, the `--prompts` cases run the script.
  *
@@ -160,6 +160,28 @@ test("--prompts council-r1 writes the seven prompt files under prompts/ and prin
     const risk = fs.readFileSync(path.join(dir, "wd", "prompts", "council-r1-risk.md"), "utf-8");
     assert.ok(risk.includes("Write in Polish.\n"));
     assert.ok(risk.includes(`Write your output to ${path.join(real, "wd", "10-council-r1", "risk.md")}.`));
+    assert.equal(fs.readdirSync(path.join(dir, "wd", "prompts")).length, 7);
+  });
+});
+
+const R2_FORMAT_AND_RESPOND = String.raw`Write your output to [^\n]*11-council-r2[\\/]visionary\.md\.\n\n\`\`\`\n# <Member name> - round 2\n## Responses to other members\n[\s\S]*## Unresolved disagreement I want recorded\n\`\`\`\n\nRespond to specific arguments by name, never restate round 1, and change position whenever an argument convinces you\.\n$`;
+
+test("buildPrompts over the real reference texts makes the visionary council-r2 prompt its member file, its own round-1 path, the six others, the language line, its output path, the whole round-2 format and the respond-by-name line", () => {
+  const found = buildPrompts("council-r2", path.resolve("wd"), "Polish", REAL_COUNCIL_REFS).find((f: any) => f.name === "visionary");
+  assert.match(found.text, new RegExp(String.raw`^# Council member: [^\n]*[\s\S]*\n\nYour round-1 file: [^\n]*10-council-r1[\\/]visionary\.md\n\nThe other members' round-1 files:\n- [^\n]*10-council-r1[\\/]customer\.md\n[\s\S]*- [^\n]*10-council-r1[\\/]risk\.md\n\nWrite in Polish\.\n\n${R2_FORMAT_AND_RESPOND}`));
+  assert.doesNotMatch(found.text, /10-council-r1[\\/]visionary\.md\n- /);
+});
+
+test("--prompts council-r2 writes the seven prompt files under prompts/ and prints one PROMPT line each with an absolute path", async () => {
+  await withTempDir("idea-validator-", async (dir) => {
+    fs.mkdirSync(path.join(dir, "wd"));
+    const real = fs.realpathSync(dir);
+    const result = await runScript(SUT, ["--prompts", "council-r2", "wd", "Polish"], { cwd: dir });
+    assert.equal(result.status, 0);
+    assert.deepEqual(result.stdout.trim().split(/\r?\n/), MEMBER_NAMES.map((name) => `PROMPT: ${name} | ${path.join(real, "wd", "prompts", `council-r2-${name}.md`)}`));
+    const risk = fs.readFileSync(path.join(dir, "wd", "prompts", "council-r2-risk.md"), "utf-8");
+    assert.ok(risk.includes("Write in Polish.\n"));
+    assert.ok(risk.includes(`Write your output to ${path.join(real, "wd", "11-council-r2", "risk.md")}.`));
     assert.equal(fs.readdirSync(path.join(dir, "wd", "prompts")).length, 7);
   });
 });

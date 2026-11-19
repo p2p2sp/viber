@@ -180,6 +180,7 @@ const PROMPTS_ARGS: Array<[string, string[]]> = [
   ["an extra argument", ["--prompts", "research", "w", "extra"]],
   ["council-r1 with no language", ["--prompts", "council-r1", "w"]],
   ["council-r1 with an extra argument", ["--prompts", "council-r1", "w", "Polish", "extra"]],
+  ["council-r2 with an extra argument", ["--prompts", "council-r2", "w", "Polish", "extra"]],
 ];
 
 for (const [what, args] of PROMPTS_ARGS) {
@@ -189,6 +190,12 @@ for (const [what, args] of PROMPTS_ARGS) {
     assert.match(out.lines.join("\n"), /Usage: node build_report\.mjs --prompts research <workdir>/);
   });
 }
+
+test("main with --prompts council-r2 and no language returns 2 and prints the usage line of council-r2", () => {
+  const out = capture();
+  assert.equal(main(["--prompts", "council-r2", "w"], out.log), 2);
+  assert.match(out.lines.join("\n"), /node build_report\.mjs --prompts council-r2 <workdir> <language>/);
+});
 
 // ---------------------------------------------------------------------------
 // buildPrompts - the research prompt files, over small reference texts
@@ -323,7 +330,40 @@ for (const [name, opening] of R1_MEMBER_OPENINGS) {
   });
 }
 
+const R2_FORMAT = "```\n# <Member name> - round 2\n## Responses to other members\n```";
+const r1 = (name: string) => inWd("10-council-r1", `${name}.md`);
+
+test("buildPrompts for council-r2 gives the seven member prompt files under prompts/ in the member order", () => {
+  const files = buildPrompts("council-r2", WD, "Polish", COUNCIL_REFS);
+  assert.deepEqual(files.map((f: any) => [f.name, f.path]), [
+    ["customer", inWd("prompts", "council-r2-customer.md")],
+    ["skeptic", inWd("prompts", "council-r2-skeptic.md")],
+    ["analyst", inWd("prompts", "council-r2-analyst.md")],
+    ["growth", inWd("prompts", "council-r2-growth.md")],
+    ["operator", inWd("prompts", "council-r2-operator.md")],
+    ["risk", inWd("prompts", "council-r2-risk.md")],
+    ["visionary", inWd("prompts", "council-r2-visionary.md")],
+  ]);
+});
+
+test("buildPrompts for council-r2 makes a member prompt its member text, its own round-1 path, the six other round-1 paths, the language line, its output path, the round-2 format and the respond-by-name line, in that order", () => {
+  const found = buildPrompts("council-r2", WD, "Polish", COUNCIL_REFS).find((f: any) => f.name === "skeptic");
+  const others = ["customer", "analyst", "growth", "operator", "risk", "visionary"].map((n) => `- ${r1(n)}`).join("\n");
+  assert.equal(found.text, [
+    "# Council member: Skeptic\n\nSkeptic text.", "",
+    `Your round-1 file: ${r1("skeptic")}`, "",
+    `The other members' round-1 files:\n${others}`, "",
+    "Write in Polish.", "",
+    `Write your output to ${inWd("11-council-r2", "skeptic.md")}.`, "",
+    R2_FORMAT, "",
+    "Respond to specific arguments by name, never restate round 1, and change position whenever an argument convinces you.", "",
+  ].join("\n"));
+});
+
 const COUNCIL_MISSING: Array<[string, string, any, RegExp]> = [
+  ["the round 2 section", "council-r2", { ...COUNCIL_REFS, council: COUNCIL.replace("## Round 2", "## Other") }, /## Round 2/],
+  ["the fence of the round 2 format", "council-r2", { ...COUNCIL_REFS, council: COUNCIL.replace("```\n# <Member name> - round 2\n## Responses to other members\n```", "No fence here.") }, /## Round 2/],
+  ["a member file", "council-r2", { ...COUNCIL_REFS, members: { ...COUNCIL_REFS.members, risk: undefined } }, /risk/],
   ["the round-1 output format section", "council-r1", { ...COUNCIL_REFS, council: COUNCIL.replace("## Round-1 output format", "## Other") }, /## Round-1 output format/],
   ["the fence of the round-1 output format", "council-r1", { ...COUNCIL_REFS, council: COUNCIL.replace(R1_FORMAT, "No fence here.") }, /## Round-1 output format/],
   ["a member file", "council-r1", { ...COUNCIL_REFS, members: { ...COUNCIL_REFS.members, risk: undefined } }, /risk/],
