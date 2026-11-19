@@ -1,0 +1,5 @@
+- Research stage only: `buildPrompts` throws `unknown stage` and `--prompts council-r1|council-r2` prints the usage (exit 2) until the council tasks (T27, T28) add them.
+- A section text starts with its heading line; the Problem strength block goes between the problem brief and the rules, the `Read these files:` list and `Write your output to <path>.` close each prompt.
+- References are read from `../references/` beside the script, so the missing-section proof copies the script into `<tmp>/scripts/` next to `<tmp>/references/`.
+- `build_report.test.ts` (integration) was only loaded with a no-match name pattern, never run; its real-reference regexes were checked by hand against the files `--prompts` wrote.
+- First draft of the production code was written before the tests and removed; the red log (11 failing) comes from a signature-only skeleton.

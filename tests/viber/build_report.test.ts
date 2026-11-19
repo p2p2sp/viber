@@ -1,8 +1,10 @@
 /*
  * build_report.test.ts - the file-writing half of idea-validator's report builder
  * CLI: unparsable input and invalid data exit 1 and write nothing, valid data
- * exits 0 and writes the filled template with LF line endings. Integration
- * tier (each case builds a temp-dir fixture); it calls `main` in-process.
+ * exits 0 and writes the filled template with LF line endings; `--prompts
+ * research` over the real reference texts and over a copied script beside a
+ * stub references/ directory. Integration tier (each case builds a temp-dir
+ * fixture); it calls `main` in-process, the `--prompts` cases run the script.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is
  * run directly by Node's native test runner + TypeScript type stripping:
@@ -15,8 +17,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { main } from "../../viber/skills/idea-validator/scripts/build_report.mjs";
+import { runScript } from "../harness/run.ts";
+import { buildPrompts, main } from "../../viber/skills/idea-validator/scripts/build_report.mjs";
 import { capture, validReport } from "./build_report-fixture.ts";
+
+const SUT = path.resolve(import.meta.dirname, "../../viber/skills/idea-validator/scripts/build_report.mjs");
+const REFERENCES = path.resolve(import.meta.dirname, "../../viber/skills/idea-validator/references");
 
 test("unparsable input exits 1 with a 'Cannot parse' line and writes no report", async () => {
   await withTempDir("idea-validator-", (dir) => {
@@ -77,5 +83,74 @@ test("valid data exits 0 and writes the filled template with every placeholder r
     assert.ok(html.includes("<title>Idea</title>"));
     assert.ok(!/__REPORT_DATA__|__LANG__|__TITLE__/.test(html));
     assert.ok(!html.includes("\r\n"));
+  });
+});
+
+const REAL_REFS = {
+  process: fs.readFileSync(path.join(REFERENCES, "process.md"), "utf-8"),
+  dimensions: fs.readFileSync(path.join(REFERENCES, "dimensions.md"), "utf-8"),
+};
+const RULES_AND_PATHS = String.raw`## Research rules[\s\S]*## Open questions / no data found\n  \`\`\`[\s\S]*Never reproduce long passages[^\n]*\n\nRead these files:\n- [^\n]*01-normalized\.md\n- [^\n]*02-hypotheses\.md\n\nWrite your output to [^\n]*`;
+
+const REAL_PROMPTS: Array<[string, RegExp, RegExp]> = [
+  ["problem",
+    new RegExp(String.raw`^### Problem research brief[\s\S]*evidence for and against\.\n\n\*\*Problem strength\*\*\n- 1: [^\n]*\n[\s\S]*- 5: people hack[^\n]*\n\n${RULES_AND_PATHS}03-research-problem\.md\.\n$`),
+    /### Market research brief|### Competition research brief/],
+  ["market",
+    new RegExp(String.raw`^### Market research brief[\s\S]*Timing: what changed recently[^\n]*\n\n${RULES_AND_PATHS}04-research-market\.md\.\n$`),
+    /\*\*Problem strength\*\*|### Problem research brief|### Competition research brief/],
+  ["competition",
+    new RegExp(String.raw`^### Competition research brief[\s\S]*Threat from incumbents[^\n]*\n\n${RULES_AND_PATHS}05-research-competition\.md\.\n$`),
+    /\*\*Problem strength\*\*|### Problem research brief|### Market research brief/],
+];
+
+for (const [name, expected, forbidden] of REAL_PROMPTS) {
+  test(`buildPrompts over the real reference texts makes the ${name} prompt its brief, the research rules, the two input paths and its output path in that order, holding no other brief`, () => {
+    const found = buildPrompts("research", path.resolve("wd"), "en", REAL_REFS).find((f: any) => f.name === name);
+    assert.match(found.text, expected);
+    assert.doesNotMatch(found.text, forbidden);
+  });
+}
+
+test("--prompts research on a relative working directory creates its prompts/ and writes the three files, printing one PROMPT line each with an absolute path", async () => {
+  await withTempDir("idea-validator-", async (dir) => {
+    fs.mkdirSync(path.join(dir, "wd"));
+    const real = fs.realpathSync(dir);
+    const result = await runScript(SUT, ["--prompts", "research", "wd"], { cwd: dir });
+    assert.equal(result.status, 0);
+    assert.deepEqual(result.stdout.trim().split(/\r?\n/), [
+      `PROMPT: problem | ${path.join(real, "wd", "prompts", "research-problem.md")}`,
+      `PROMPT: market | ${path.join(real, "wd", "prompts", "research-market.md")}`,
+      `PROMPT: competition | ${path.join(real, "wd", "prompts", "research-competition.md")}`,
+    ]);
+    const problem = fs.readFileSync(path.join(dir, "wd", "prompts", "research-problem.md"), "utf-8");
+    assert.match(problem, /^### Problem research brief/);
+    assert.ok(problem.includes(`Write your output to ${path.join(real, "wd", "03-research-problem.md")}.`));
+    assert.ok(fs.existsSync(path.join(dir, "wd", "prompts", "research-market.md")));
+    assert.ok(fs.existsSync(path.join(dir, "wd", "prompts", "research-competition.md")));
+  });
+});
+
+test("--prompts research on a missing working directory exits 1 naming it and writes nothing", async () => {
+  await withTempDir("idea-validator-", async (dir) => {
+    const result = await runScript(SUT, ["--prompts", "research", "absent"], { cwd: dir });
+    assert.equal(result.status, 1);
+    assert.match(result.stdout, /absent/);
+    assert.ok(!fs.existsSync(path.join(dir, "absent")));
+  });
+});
+
+test("--prompts research exits 1 naming the section when a reference lacks it, and writes no prompt", async () => {
+  await withTempDir("idea-validator-", async (dir) => {
+    fs.mkdirSync(path.join(dir, "scripts"));
+    fs.mkdirSync(path.join(dir, "references"));
+    fs.mkdirSync(path.join(dir, "wd"));
+    fs.copyFileSync(SUT, path.join(dir, "scripts", "build_report.mjs"));
+    fs.writeFileSync(path.join(dir, "references", "process.md"), "# Process\n\n## Research rules\n\n- rule\n", "utf-8");
+    fs.writeFileSync(path.join(dir, "references", "dimensions.md"), "# Dimensions\n", "utf-8");
+    const result = await runScript(path.join(dir, "scripts", "build_report.mjs"), ["--prompts", "research", "wd"], { cwd: dir });
+    assert.equal(result.status, 1);
+    assert.match(result.stdout, /### Problem research brief/);
+    assert.ok(!fs.existsSync(path.join(dir, "wd", "prompts")));
   });
 });

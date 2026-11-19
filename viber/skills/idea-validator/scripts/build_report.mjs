@@ -8,8 +8,13 @@
 // templates/report-template.html and writes a single self-contained HTML file.
 // Exits 1 and lists every problem when required fields are missing, so the
 // agent fixes the JSON rather than the HTML. Exits 2 on a wrong argument count.
+//
+// Also: node build_report.mjs --prompts research <workdir> writes the research
+// prompt files under <workdir>/prompts/ and prints one `PROMPT: <name> | <path>`
+// line each; exit 1 on a missing <workdir> or reference section.
 
 import fs from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DOC = `Build the idea-validator HTML report from report-data.json.
@@ -223,8 +228,97 @@ export function render(d, template) {
   return template.replace(/__REPORT_DATA__|__LANG__|__TITLE__/g, (m) => values[m]);
 }
 
+const PROMPTS_USAGE = "Usage: node build_report.mjs --prompts research <workdir>";
+
+const REFERENCES = fileURLToPath(new URL("../references/", import.meta.url));
+const RESEARCH = ["problem", "market", "competition"];
+const FENCE = /^\s*```/;
+
+// Marks each line as a fence line or with its heading level (0 for no heading): a heading is
+// a column-0 `#` line outside a fenced block.
+function scan(text) {
+  const lines = text.split(/\r?\n/);
+  let fenced = false;
+  const marks = lines.map((line) => {
+    if (FENCE.test(line)) {
+      fenced = !fenced;
+      return { fence: true, level: 0 };
+    }
+    const m = fenced ? null : /^(#+)(?=\s|$)/.exec(line);
+    return { fence: false, level: m ? m[1].length : 0 };
+  });
+  return { lines, marks };
+}
+
+// The section opened by the heading line starting with `name`, to the next heading of the same
+// or a higher level.
+function section(text, name, source) {
+  const { lines, marks } = scan(text);
+  const start = lines.findIndex((line, i) => marks[i].level > 0 && line.startsWith(name) && !/^[\w-]/.test(line.slice(name.length)));
+  if (start < 0) throw new Error(`${source}: section "${name}" not found`);
+  let end = start + 1;
+  while (end < lines.length && !(marks[end].level > 0 && marks[end].level <= marks[start].level)) end++;
+  return lines.slice(start, end).join("\n").trimEnd();
+}
+
+// A bold line and the lines under it up to the next blank line.
+function boldBlock(text, bold, source) {
+  const { lines, marks } = scan(text);
+  const start = lines.findIndex((line, i) => !marks[i].fence && line.startsWith(bold));
+  if (start < 0) throw new Error(`${source}: block "${bold}" not found`);
+  let end = start + 1;
+  while (end < lines.length && lines[end].trim() !== "") end++;
+  return lines.slice(start, end).join("\n");
+}
+
+/** Returns the prompt files of `stage` as [{ name, path, text }]; throws an Error naming a missing section. */
+export function buildPrompts(stage, workdir, language, refs) {
+  if (stage !== "research") throw new Error(`unknown stage: ${stage}`);
+  const at = (...parts) => path.join(workdir, ...parts);
+  const rules = section(refs.process, "## Research rules", "references/process.md");
+  return RESEARCH.map((name, i) => {
+    const parts = [section(refs.process, `### ${name[0].toUpperCase()}${name.slice(1)} research brief`, "references/process.md")];
+    if (name === "problem") parts.push(boldBlock(refs.dimensions, "**Problem strength**", "references/dimensions.md"));
+    parts.push(rules,
+      `Read these files:\n- ${at("01-normalized.md")}\n- ${at("02-hypotheses.md")}`,
+      `Write your output to ${at(`0${3 + i}-research-${name}.md`)}.`);
+    return { name, path: at("prompts", `${stage}-${name}.md`), text: `${parts.join("\n\n")}\n` };
+  });
+}
+
+function promptsMain(args, log) {
+  const [stage, dir] = args;
+  if (stage !== "research" || args.length !== 2) {
+    log(PROMPTS_USAGE);
+    return 2;
+  }
+  const workdir = path.resolve(dir);
+  if (!fs.existsSync(workdir) || !fs.statSync(workdir).isDirectory()) {
+    log(`Working directory not found: ${workdir}`);
+    return 1;
+  }
+  let prompts;
+  try {
+    const read = (name) => fs.readFileSync(path.join(REFERENCES, name), "utf-8");
+    prompts = buildPrompts(stage, workdir, undefined, { process: read("process.md"), dimensions: read("dimensions.md") });
+  } catch (e) {
+    log(e.code === "ENOENT" ? `Cannot read reference: ${e.path}` : e.message);
+    return 1;
+  }
+  try {
+    fs.mkdirSync(path.join(workdir, "prompts"), { recursive: true });
+    for (const p of prompts) fs.writeFileSync(p.path, p.text, "utf-8");
+  } catch (e) {
+    log(`Cannot write prompts: ${e.message}`);
+    return 1;
+  }
+  for (const p of prompts) log(`PROMPT: ${p.name} | ${p.path}`);
+  return 0;
+}
+
 /** Runs the CLI on `argv` (without node and the script path) and returns the exit code. */
 export function main(argv, log = console.log) {
+  if (argv[0] === "--prompts") return promptsMain(argv.slice(1), log);
   if (argv.length !== 2) {
     log(DOC);
     return 2;

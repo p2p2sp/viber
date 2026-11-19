@@ -1,7 +1,8 @@
 /*
  * build_report.unit.test.ts - locks down idea-validator's report builder: every
  * validation rule of report-data.json, the label merge, the one-pass template
- * fill, exit 2 on a wrong argument count and import safety. Imports the
+ * fill, exit 2 on a wrong argument count, the research prompt texts of
+ * `buildPrompts` and import safety. Imports the
  * script, spawns nothing, writes nothing; the file-writing CLI cases live in
  * build_report.test.ts.
  *
@@ -12,9 +13,11 @@
 
 import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
+import path from "node:path";
 
 import {
   DEFAULT_LABELS,
+  buildPrompts,
   main,
   mergeLabels,
   render,
@@ -169,6 +172,89 @@ test("main returns 2 and prints usage on a wrong argument count", () => {
   assert.equal(main(["only-one.json"], out.log), 2);
   assert.match(out.lines.join("\n"), /Usage: node build_report\.mjs/);
 });
+
+const PROMPTS_ARGS: Array<[string, string[]]> = [
+  ["no stage", ["--prompts"]],
+  ["an unknown stage", ["--prompts", "bogus", "w"]],
+  ["a missing working directory", ["--prompts", "research"]],
+  ["an extra argument", ["--prompts", "research", "w", "extra"]],
+];
+
+for (const [what, args] of PROMPTS_ARGS) {
+  test(`main with --prompts returns 2 and prints the prompts usage on ${what} (nothing is read or written)`, () => {
+    const out = capture();
+    assert.equal(main(args, out.log), 2);
+    assert.match(out.lines.join("\n"), /Usage: node build_report\.mjs --prompts research <workdir>/);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// buildPrompts - the research prompt files, over small reference texts
+// ---------------------------------------------------------------------------
+
+const WD = path.resolve(import.meta.dirname, "wd");
+const inWd = (...parts: string[]) => path.join(WD, ...parts);
+
+const PROCESS = [
+  "# Process", "", "## Steps 3-5 - Research briefs", "",
+  "### Problem research brief -> `03-research-problem.md`", "", "Problem body.", "",
+  "### Market research brief -> `04-research-market.md`", "", "Market body.", "",
+  "### Competition research brief -> `05-research-competition.md`", "", "Competition body.", "",
+  "## Research rules (paste into every research prompt)", "", "- Output skeleton:", "```", "# <Title>", "## Facts", "```", "- URL per fact.", "",
+].join("\n");
+const DIMENSIONS = [
+  "# Dimensions", "", "1. Problem strength (**2**, Target customer): painful?", "", "**Problem strength**", "- 1: none", "- 5: hacked together", "", "**Distribution**", "- 1: nothing", "",
+].join("\n");
+const REFS = { process: PROCESS, dimensions: DIMENSIONS };
+const TAIL = [
+  "- Output skeleton:", "```", "# <Title>", "## Facts", "```", "- URL per fact.", "",
+  "Read these files:", `- ${inWd("01-normalized.md")}`, `- ${inWd("02-hypotheses.md")}`, "",
+].join("\n");
+const RULES_HEAD = "## Research rules (paste into every research prompt)\n\n";
+
+const PROMPT_TEXTS: Array<[string, string]> = [
+  ["problem", [
+    "### Problem research brief -> `03-research-problem.md`", "", "Problem body.", "",
+    "**Problem strength**", "- 1: none", "- 5: hacked together", "", RULES_HEAD + TAIL,
+    `Write your output to ${inWd("03-research-problem.md")}.`, "",
+  ].join("\n")],
+  ["market", [
+    "### Market research brief -> `04-research-market.md`", "", "Market body.", "", RULES_HEAD + TAIL,
+    `Write your output to ${inWd("04-research-market.md")}.`, "",
+  ].join("\n")],
+  ["competition", [
+    "### Competition research brief -> `05-research-competition.md`", "", "Competition body.", "", RULES_HEAD + TAIL,
+    `Write your output to ${inWd("05-research-competition.md")}.`, "",
+  ].join("\n")],
+];
+
+test("buildPrompts for research gives the problem, market and competition prompt files under prompts/ in that order", () => {
+  const files = buildPrompts("research", WD, "en", REFS);
+  assert.deepEqual(files.map((f: any) => [f.name, f.path]), [
+    ["problem", inWd("prompts", "research-problem.md")],
+    ["market", inWd("prompts", "research-market.md")],
+    ["competition", inWd("prompts", "research-competition.md")],
+  ]);
+});
+
+for (const [name, text] of PROMPT_TEXTS) {
+  test(`buildPrompts for research makes the ${name} prompt its brief ${name === "problem" ? "then the Problem strength anchors, " : ""}the research rules, the two input paths and the output path, fenced lines never ending a section`, () => {
+    const found = buildPrompts("research", WD, "en", REFS).find((f: any) => f.name === name);
+    assert.equal(found.text, text);
+  });
+}
+
+const MISSING: Array<[string, any, RegExp]> = [
+  ["a market brief", { ...REFS, process: PROCESS.replace("### Market research brief", "### Market notes") }, /### Market research brief/],
+  ["the research rules", { ...REFS, process: PROCESS.replace("## Research rules", "## Other") }, /## Research rules/],
+  ["the Problem strength block", { ...REFS, dimensions: DIMENSIONS.replace("**Problem strength**", "**Other**") }, /Problem strength/],
+];
+
+for (const [what, refs, named] of MISSING) {
+  test(`buildPrompts throws naming the section when ${what} is missing`, () => {
+    assert.throws(() => buildPrompts("research", WD, "en", refs), named);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // import safety
