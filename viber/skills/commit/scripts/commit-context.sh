@@ -31,7 +31,11 @@
 #            third argument; mode missing prints only STOP: Nothing committed -
 #            paths not found: <missing>. <message> is the slot the fork
 #            replaces; <plugin root> is three directories above this script's
-#            directory, cut from the invoked path. The diff is capped at MAX_LINES with a notice
+#            directory, cut from the invoked path. Then, always, the
+#            "## Issue footer" section whose one line is Refs: #<n>[, #<n>]...
+#            (the arguments' references when any, else the branch's single
+#            task.<n> or issue.<n> number, either case) or none; then the
+#            "## Current branch" section. The diff is capped at MAX_LINES with a notice
 #            naming the real total; an empty diff beside a non-empty status
 #            (untracked files only) says outright that commit.sh still has
 #            work to commit.
@@ -74,17 +78,28 @@ else
 fi
 echo
 
-if [ -n "$COMMIT_ISSUE_REFS" ]; then
-  echo "## Issue footer (explicit, from a #N reference or GitHub issue link in the arguments - use verbatim, ignore the branch)"
-  refs=""
-  for n in $COMMIT_ISSUE_REFS; do refs="${refs:+$refs, }#$n"; done
-  echo "Refs: $refs"
-  echo
-fi
-
-echo "## Current branch (issue-footer source)"
 # symbolic-ref: the plain branch name even when unborn (main), no HEAD fatal.
-git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --abbrev-ref HEAD 2>/dev/null || true
+branch="$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+
+# The footer: the arguments' references when any, else the one distinct number
+# the branch names as task.<n> or issue.<n> (either case), else none.
+footer="none"
+if [ -n "$COMMIT_ISSUE_REFS" ]; then
+  footer=""
+  for n in $COMMIT_ISSUE_REFS; do footer="${footer:+$footer, }#$n"; done
+  footer="Refs: $footer"
+else
+  branch_nums="$(printf '%s\n' "$branch" | grep -oiE '(task|issue)\.[0-9]+' | sed 's/^[^.]*\.//' | sort -u || true)"
+  if [ -n "$branch_nums" ] && [ "$(printf '%s\n' "$branch_nums" | wc -l | tr -d ' ')" = "1" ]; then
+    footer="Refs: #$branch_nums"
+  fi
+fi
+echo "## Issue footer (after the subject and one blank line; none -> no footer)"
+echo "$footer"
+echo
+
+echo "## Current branch"
+echo "$branch"
 echo
 
 echo "## Recent commit subjects (match this type/scope style)"

@@ -1,0 +1,3 @@
+- The footer section now sits before `## Current branch` and is always printed; `commit/SKILL.md` still names the old explicit-block wording until T12 rewrites it.
+- Branch numbers: `grep -oiE '(task|issue)\.[0-9]+'` then `sort -u`; `042` and `42` count as two distinct numbers (no normalisation), so such a branch gives `none`.
+- Detached HEAD gives an empty branch name and so `none`.

@@ -83,7 +83,33 @@ test("mode 'all': Selector/branch/recent-subjects/status/diff sections all prese
   });
 });
 
-test("a bare '#42' in the arguments emits the explicit Issue-footer block and still resolves the selector", async () => {
+const FOOTER_HEADING = "## Issue footer (after the subject and one blank line; none -> no footer)";
+
+/** The line right under the always-printed footer heading. */
+function footerValue(stdout: string): string {
+  const lines = stdout.split("\n");
+  const at = lines.indexOf(FOOTER_HEADING);
+  assert.ok(at >= 0, "the Issue footer heading must always be printed");
+  return lines[at + 1];
+}
+
+test("arguments naming '#42' and an issue link to 7 give 'Refs: #42, #7' on any branch, the branch's own number ignored", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      await commitFile(repo, "a.txt", "line one\n");
+      const branch = await repo.git("checkout", "-b", "feature/task.99-other");
+      assert.equal(branch.status, 0, `git checkout -b should succeed: ${branch.stderr}`);
+      fs.writeFileSync(path.join(repo.dir, "a.txt"), "line one\nline two\n");
+
+      const result = await runContext(bash, repo, "#42 https://github.com/acme/app/issues/7");
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(footerValue(result.stdout), "Refs: #42, #7");
+      assert.equal(firstLine(result.stdout), `RUN: ${COMMIT}`);
+    });
+  });
+});
+
+test("a bare '#42' beside a path still resolves the path selector and prints 'Refs: #42'", async () => {
   await assertBash(async (bash) => {
     await withGitRepo(async (repo) => {
       await commitFile(repo, "a.txt", "line one\n");
@@ -92,23 +118,53 @@ test("a bare '#42' in the arguments emits the explicit Issue-footer block and st
 
       const result = await runContext(bash, repo, "src/foo.txt #42");
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.match(result.stdout, /## Issue footer \(explicit, from a #N reference or GitHub issue link/);
-      assert.match(result.stdout, /^Refs: #42$/m);
+      assert.equal(footerValue(result.stdout), "Refs: #42");
       assert.equal(firstLine(result.stdout), `RUN: ${COMMIT} 'src/foo.txt'`);
     });
   });
 });
 
-test("no issue reference in the arguments: the Issue-footer block is absent entirely", async () => {
+test("no reference in the arguments on 'feature/task.42-login' gives 'Refs: #42' from the branch", async () => {
   await assertBash(async (bash) => {
     await withGitRepo(async (repo) => {
       await commitFile(repo, "a.txt", "line one\n");
+      const branch = await repo.git("checkout", "-b", "feature/task.42-login");
+      assert.equal(branch.status, 0, `git checkout -b should succeed: ${branch.stderr}`);
       fs.writeFileSync(path.join(repo.dir, "a.txt"), "line one\nline two\n");
 
       const result = await runContext(bash, repo);
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.doesNotMatch(result.stdout, /## Issue footer/);
-      assert.doesNotMatch(result.stdout, /^Refs: /m);
+      assert.equal(footerValue(result.stdout), "Refs: #42");
+    });
+  });
+});
+
+test("no reference on a branch naming 'issue.3' and 'task.4' gives 'none' (two distinct numbers are no single issue)", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      await commitFile(repo, "a.txt", "line one\n");
+      const branch = await repo.git("checkout", "-b", "feature/issue.3-task.4");
+      assert.equal(branch.status, 0, `git checkout -b should succeed: ${branch.stderr}`);
+      fs.writeFileSync(path.join(repo.dir, "a.txt"), "line one\nline two\n");
+
+      const result = await runContext(bash, repo);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(footerValue(result.stdout), "none");
+    });
+  });
+});
+
+test("no reference on the branch 'main' gives 'none'", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      await commitFile(repo, "a.txt", "line one\n");
+      const branch = await repo.git("checkout", "-B", "main");
+      assert.equal(branch.status, 0, `git checkout -B should succeed: ${branch.stderr}`);
+      fs.writeFileSync(path.join(repo.dir, "a.txt"), "line one\nline two\n");
+
+      const result = await runContext(bash, repo);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(footerValue(result.stdout), "none");
     });
   });
 });
