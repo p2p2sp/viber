@@ -38,20 +38,8 @@ Then map the reach of the change:
 
 - Skip it only when the change adds, modifies, moves or deletes no file or symbol.
 - Otherwise list the targets: one repo-relative path for a whole file the change modifies, moves or deletes, `<path> | <symbol>` for one symbol of it, a symbol only where its name, signature, type or observable behaviour changes for its callers, or `<path> | new` for each file the change adds.
-- Run `"${CLAUDE_SKILL_DIR}/scripts/reach.sh" "<target>" "<target>"` as one literal line, one double-quoted argument per target as listed. Its one write under `.temp/viber/planner/` is expected in plan mode. It prints `candidates: <path>`.
-- Then dispatch `viber:impact-mapper` with this prompt, `targets:` running to its end.
-
-  ```
-  plan: <absolute path of the plan file>
-  candidates: <path printed by reach.sh>
-  targets:
-  <repo-relative path>
-  <repo-relative path> | <symbol>
-  <repo-relative path> | new
-  ```
-
-- On a `reach.sh` exit 2, dispatch it with the `plan:` and `targets:` lines and no `candidates:` line: the mapper runs every search itself.
-
+- Run `"${CLAUDE_SKILL_DIR}/scripts/reach.sh" --plan "<absolute path of the plan file>" "<target>" "<target>"` as one literal line, one double-quoted argument per target as listed. Its one write under `.temp/viber/planner/` is expected in plan mode.
+- Then dispatch `viber:impact-mapper` with the lines below the `NEXT: dispatch` line as printed.
 - Every `REF:` line it returns lands in a task's `Files`, through the file map, or under `### Out of scope` naming the behaviour that reference keeps.
 - `VERDICT: NONE` adds nothing.
 - `VERDICT: DENIED` or no `VERDICT:` line: one `AskUserQuestion` naming the refused call from its `REASON:` line (`no verdict returned` without one): permission added and retry, or go on without the map.

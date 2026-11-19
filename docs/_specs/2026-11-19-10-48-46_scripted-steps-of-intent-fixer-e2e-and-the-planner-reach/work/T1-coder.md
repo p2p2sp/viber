@@ -1,0 +1,4 @@
+- reach.sh requires `--plan` as its first argument; a missing, valueless or blank plan is an error before the repository check, so the outside-a-repository branch only runs on valid arguments.
+- The plan path is printed back as given and never read or normalized; targets are printed as given too (a leading `./` is dropped only for the search).
+- The old assertion on the `<repo-relative path> | new` template line in impact-mapper-prose.unit.test.ts was dropped with the template; the `<path> | new` target-list assertion still covers it.
+- planner/SKILL.md sat exactly on its 1800-word cap; the new reach step is shorter, so the cap is untouched.

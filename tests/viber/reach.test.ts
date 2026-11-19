@@ -1,16 +1,19 @@
 /*
  * reach.test.ts - proves viber/skills/planner/scripts/reach.sh's contract:
- * `reach.sh "<target>" ...` greps the repository for each reach target of the
+ * `reach.sh --plan <plan> "<target>" ...` greps the repository for each reach target of the
  * planner and writes the candidates (every line naming the target, never the
  * target's own file) to `.temp/viber/planner/reach-<stamp>.md`, one section per
- * target, then prints `candidates: <absolute path>` and a `hits:` line.
+ * target, then prints `candidates: <absolute path>`, a `hits:` line and the
+ * `NEXT: dispatch` block of `viber:impact-mapper` (outside a repository: the
+ * block alone, no file written).
  *
  * The cases pin what a caller of the file relies on: the terms a target
  * expands to (path, file name, file name without extension; a whole-word
  * symbol; the parent directory of a `| new` target), the terms too short to
  * search being named instead, the 200-line cap and its `truncated:` line, the
- * set of files searched (untracked yes, ignored and `.temp/` no) and the two
- * refusals (no target, outside a repository), which exit 2 and write nothing.
+ * set of files searched (untracked yes, ignored and `.temp/` no), the dispatch
+ * block and the refusals (no or empty --plan, no target, an empty target path),
+ * which exit 2 with an empty stdout and write nothing.
  * Every case builds a throwaway repository and reads the written file back.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
@@ -30,6 +33,7 @@ import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
 const SUT = path.resolve(import.meta.dirname, "../../viber/skills/planner/scripts/reach.sh");
 const REPO_ROOT = path.resolve(import.meta.dirname, "../..");
 const TRUNCATED = "truncated: past 200 lines - search this target yourself";
+const PLAN = "/work/plan file.md";
 
 function write(root: string, rel: string, content: string): void {
   const file = path.join(root, rel);
@@ -41,9 +45,9 @@ function reach(repo: GitRepo, args: string[], cwd: string = repo.dir) {
   return runScript(SUT, args, { cwd, env: repo.env, shell: "bash" });
 }
 
-/** Runs reach.sh and returns its stdout lines plus the candidates file it names. */
-async function reachFile(repo: GitRepo, args: string[], cwd?: string) {
-  const result = await reach(repo, args, cwd);
+/** Runs reach.sh --plan PLAN with the targets and returns its stdout lines plus the candidates file it names. */
+async function reachFile(repo: GitRepo, targets: string[], cwd?: string) {
+  const result = await reach(repo, ["--plan", PLAN, ...targets], cwd);
   assert.equal(result.status, 0, `stderr: ${result.stderr}`);
   const lines = result.stdout.trimEnd().split("\n");
   const named = slash(lines[0]).match(
@@ -165,25 +169,66 @@ test("a file under .temp/ is never searched, even when the repository does not i
   });
 });
 
-test("no target exits 2 with one error line on stderr and writes nothing", async () => {
+test("inside a repository the dispatch block follows the candidates and hits lines, every target as given in argument order", async () => {
   await withGitRepo(async (repo) => {
-    const result = await reach(repo, []);
+    write(repo.dir, "docs/x.md", "Mentions src/auth.ts here.\n");
+    await repo.git("add", "docs");
 
-    assert.equal(result.status, 2);
-    assert.match(result.stderr, /^error: [^\n]+\n$/);
-    assert.equal(fs.existsSync(path.join(repo.dir, ".temp")), false);
+    const out = await reachFile(repo, ["src/b.ts | helper", "src/auth.ts", "./src/new/c.ts | new"]);
+
+    assert.deepEqual(out.lines.slice(2), [
+      "NEXT: dispatch | agent: viber:impact-mapper",
+      `plan: ${PLAN}`,
+      `candidates: ${out.file}`,
+      "targets:",
+      "src/b.ts | helper",
+      "src/auth.ts",
+      "./src/new/c.ts | new",
+    ]);
   });
 });
 
-test("a directory outside a git repository exits 2 with one error line on stderr and writes nothing", async () => {
+test("a directory outside a git repository prints the block without a candidates line, writes no file and exits 0", async () => {
   await withTempDir("p2p2-reach-", async (dir) => {
-    const result = await runScript(SUT, ["src/auth.ts"], { cwd: dir, shell: "bash" });
+    const result = await runScript(SUT, ["--plan", PLAN, "src/auth.ts", "src/b.ts | parse"], { cwd: dir, shell: "bash" });
 
-    assert.equal(result.status, 2);
-    assert.match(result.stderr, /^error: [^\n]+\n$/);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      [
+        "NEXT: dispatch | agent: viber:impact-mapper",
+        `plan: ${PLAN}`,
+        "targets:",
+        "src/auth.ts",
+        "src/b.ts | parse",
+        "",
+      ].join("\n"),
+    );
     assert.deepEqual(fs.readdirSync(dir), []);
   });
 });
+
+// [case, argv]: every refusal prints one error line on stderr, nothing on stdout, and writes nothing.
+const REFUSALS: [string, string[]][] = [
+  ["no --plan at all", ["src/auth.ts"]],
+  ["a --plan with no value", ["--plan"]],
+  ["an empty --plan", ["--plan", "", "src/auth.ts"]],
+  ["a --plan and no target", ["--plan", PLAN]],
+  ["a target with an empty path", ["--plan", PLAN, "src/auth.ts", " | parse"]],
+];
+
+for (const [name, argv] of REFUSALS) {
+  test(`${name} exits 2 with one error line on stderr, an empty stdout and no file written`, async () => {
+    await withGitRepo(async (repo) => {
+      const result = await reach(repo, argv);
+
+      assert.equal(result.status, 2);
+      assert.equal(result.stdout, "");
+      assert.match(result.stderr, /^error: [^\n]+\n$/);
+      assert.equal(fs.existsSync(path.join(repo.dir, ".temp")), false);
+    });
+  });
+}
 
 test("reach.sh is recorded in the git index as an executable (100755)", async () => {
   const result = await runScript("git", ["ls-files", "-s", "--", "viber/skills/planner/scripts/reach.sh"], {

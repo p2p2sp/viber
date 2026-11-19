@@ -10,8 +10,13 @@
 # which of them really reference it. The script does the first, the mapper the
 # second, and searches itself only where the file says the script could not.
 #
+# It also prints the dispatch block of the mapper, so the planner sends its lines
+# as printed instead of composing the prompt itself.
+#
 # Contract:
-#   argv   : one or more targets, each one of
+#   argv   : --plan <plan path> then one or more targets (the plan path is
+#            printed back as given and never read). A missing or empty --plan
+#            is an error. Each target is one of
 #              <repo-relative path>            the path, its file name, the file
 #                                              name without its last extension
 #                                              (which covers ./x, ../x and x.ts
@@ -20,9 +25,10 @@
 #              <repo-relative path> | <symbol> the symbol, as a whole word
 #              <repo-relative path> | new      the parent directory path (the
 #                                              file does not exist yet)
-#            A leading ./ of the path is dropped once. No target, or a target
-#            with an empty path, is an error.
-#   cwd    : any directory inside the repository; the script moves to its root.
+#            A leading ./ of the path is dropped once for the search; the
+#            target is printed as given. No target, or a target with an empty
+#            path, is an error.
+#   cwd    : any directory; inside a repository the script moves to its root.
 #   env    : none.
 #   reads  : tracked files and untracked files the repository does not ignore
 #            (git grep, fixed strings); binary files, each target's own file and
@@ -39,9 +45,17 @@
 #            follows them only past that cap. Nothing is written on an error.
 #   stdout : candidates: <absolute path of that file, forward slashes>
 #            hits: <n> lines in <m> files        (the hit lines kept, all targets)
+#            NEXT: dispatch | agent: viber:impact-mapper
+#            plan: <plan path as given>
+#            candidates: <the same absolute path>
+#            targets:
+#            <each target as given, one per line, in argument order>
+#            The prompt of the dispatch is every line below the NEXT: line.
+#            Outside a git repository nothing is written, the two lines above
+#            the block and the candidates: line inside it are left out.
 #   stderr : one error: line when the exit is 2.
-#   exit   : 0; 2 with no target, an empty target path or outside a git
-#            repository.
+#   exit   : 0; 2 with a missing or empty --plan, no target or an empty target
+#            path (stdout empty).
 #
 set -u
 
@@ -57,7 +71,14 @@ trim() {
   printf '%s' "$s"
 }
 
-[ "$#" -ge 1 ] || fail "no target: reach.sh \"<path>\" [\"<path> | <symbol>\" | \"<path> | new\" ...]"
+usage="reach.sh --plan \"<plan path>\" \"<path>\" [\"<path> | <symbol>\" | \"<path> | new\" ...]"
+
+[ "$#" -ge 1 ] && [ "$1" = "--plan" ] || fail "--plan missing: $usage"
+[ "$#" -ge 2 ] && [ -n "$(trim "$2")" ] || fail "--plan is empty: $usage"
+plan="$2"
+shift 2
+
+[ "$#" -ge 1 ] || fail "no target: $usage"
 
 for target in "$@"; do
   case "$target" in
@@ -67,8 +88,26 @@ for target in "$@"; do
   [ -n "$(trim "$probe")" ] || fail "empty path in target: $target"
 done
 
+# The dispatch block of impact-mapper, from its NEXT: line down: the caller sends
+# every line below the NEXT: line as the prompt, as printed. $1 is the candidates
+# path, empty outside a repository (no candidates: line then); the targets follow.
+print_dispatch() {
+  local cand="$1"
+  shift
+  printf 'NEXT: dispatch | agent: viber:impact-mapper\n'
+  printf 'plan: %s\n' "$plan"
+  if [ -n "$cand" ]; then
+    printf 'candidates: %s\n' "$cand"
+  fi
+  printf 'targets:\n'
+  printf '%s\n' "$@"
+}
+
 root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-[ -n "$root" ] || fail "not inside a git repository"
+if [ -z "$root" ]; then
+  print_dispatch "" "$@"
+  exit 0
+fi
 cd "$root" || fail "cannot enter the repository root: $root"
 
 stamp="$(date +%Y-%m-%d-%H-%M-%S)"
@@ -205,4 +244,5 @@ m="${counts#* }"
 
 printf 'candidates: %s/%s\n' "$root" "$out"
 printf 'hits: %s lines in %s files\n' "$n" "$m"
+print_dispatch "$root/$out" "$@"
 exit 0

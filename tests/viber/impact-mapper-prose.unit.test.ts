@@ -7,8 +7,9 @@
  * target with the existing files enumerating the set the file joins (kind `collection`) and a type
  * symbol with its implementers (kind `implementation`) and constructing places (kind `call`);
  * `README.md` and `help.html` say the map also covers what the change adds. The planner runs
- * `reach.sh` before the dispatch and passes its `plan:` and `candidates:` lines; the mapper
- * classifies that file and searches itself only where the file says so. The files read here
+ * `reach.sh --plan <plan>` before the dispatch and sends the lines below its `NEXT: dispatch` line
+ * as printed, holding no prompt template; the mapper classifies the candidates file and searches
+ * itself only where the file says so. The files read here
  * are shipped prompts and guides, whose text is the behaviour. Nothing is spawned. Each phrase is
  * matched with any run of whitespace between its words, so rewrapping a line breaks no test.
  *
@@ -43,7 +44,6 @@ test("the planner skips the reach map only when the change adds, modifies, moves
 
 test("the planner writes each file the change adds as a `| new` target", () => {
   assert.ok(has(PLANNER, "or `<path> | new` for each file the change adds"));
-  assert.ok(has(PLANNER, "<repo-relative path> | new"));
 });
 
 test("impact-mapper reports, for a `| new` target, the files enumerating the set it joins and the tests asserting a count or a list over them as collection", () => {
@@ -73,8 +73,13 @@ test("the planner allows its reach.sh call through the skill directory", () => {
   assert.ok(has(PLANNER, "Bash(${CLAUDE_SKILL_DIR}/scripts/reach.sh:*)"));
 });
 
-test("the planner runs reach.sh as one literal line with one double-quoted argument per target", () => {
-  assert.ok(has(PLANNER, 'Run `"${CLAUDE_SKILL_DIR}/scripts/reach.sh" "<target>" "<target>"` as one literal line, one double-quoted argument per target'));
+test("the planner runs reach.sh with the plan file path as one literal line with one double-quoted argument per target", () => {
+  assert.ok(
+    has(
+      PLANNER,
+      'Run `"${CLAUDE_SKILL_DIR}/scripts/reach.sh" --plan "<absolute path of the plan file>" "<target>" "<target>"` as one literal line, one double-quoted argument per target',
+    ),
+  );
 });
 
 test("the planner says reach.sh writes one file under .temp/ and that write is expected in plan mode", () => {
@@ -85,12 +90,13 @@ test("step 2 names the reach file as a write allowed beside the plan file", () =
   assert.ok(has(PLANNER, "the only file you may write while planning besides the candidates file `reach.sh` wrote and the state file `review-round.sh` writes, both under `.temp/viber/planner/` (expected in plan mode)"));
 });
 
-test("the planner dispatches impact-mapper with the plan and candidates lines before the targets block", () => {
-  assert.ok(has(PLANNER, "plan: <absolute path of the plan file> candidates: <path printed by reach.sh> targets: <repo-relative path>"));
+test("the planner dispatches impact-mapper with the lines below the NEXT: dispatch line of reach.sh as printed", () => {
+  assert.ok(has(PLANNER, "dispatch `viber:impact-mapper` with the lines below the `NEXT: dispatch` line as printed"));
 });
 
-test("on a reach.sh exit 2 the planner dispatches the mapper without a candidates line", () => {
-  assert.ok(has(PLANNER, "On a `reach.sh` exit 2, dispatch it with the `plan:` and `targets:` lines and no `candidates:` line: the mapper runs every search itself."));
+test("the planner holds no impact-mapper prompt template and no outside-a-repository fallback", () => {
+  assert.equal(has(PLANNER, "candidates: <path printed by reach.sh>"), false);
+  assert.equal(has(PLANNER, "On a `reach.sh` exit 2"), false);
 });
 
 test("impact-mapper names plan: as the plan path carried for the token report and never read", () => {
