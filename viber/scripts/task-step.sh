@@ -160,7 +160,8 @@
 #
 # Contract:
 #   argv   : as above; a flag value is the next argument; --with, --defer and
-#            --resume take comma-separated entries (a comma inside one is not
+#            --resume take comma-separated entries, the blanks around an entry
+#            trimmed and an empty one dropped (a comma inside one is not
 #            supported). No free text: only ids, verdict words, counts, paths.
 #   cwd    : any directory inside the repository; the plan path and the paths
 #            printed are relative to the cwd as given, the state and the lessons
@@ -330,6 +331,22 @@ trim() {
   v="${v%"${v##*[![:space:]]}"}"
   printf '%s' "$v"
 }
+
+# A comma-separated list with the blanks around each entry trimmed and the empty
+# entries dropped: "a, , b" -> "a,b".
+trim_list() {
+  local rest="$1," item out=""
+  while [[ -n "$rest" ]]; do
+    item="$(trim "${rest%%,*}")"
+    rest="${rest#*,}"
+    [[ -z "$item" ]] || out="${out:+$out,}$item"
+  done
+  printf '%s' "$out"
+}
+
+f_with="$(trim_list "$f_with")"
+f_defer="$(trim_list "$f_defer")"
+f_resume="$(trim_list "$f_resume")"
 
 # The cell n (1-based) of an index row, cells separated by " | ".
 cell() {

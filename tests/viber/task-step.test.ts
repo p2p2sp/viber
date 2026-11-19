@@ -618,6 +618,63 @@ test("a reviewer PASS answers the commit with every --with path the coder and th
   });
 });
 
+test("a coder --with list with a blank after its comma reaches the commit call as trimmed paths after a reviewer PASS", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T1, [...T1_PASS, "--with", "src/extra1.ts, src/extra2.ts"]]);
+
+    const result = await step(repo, ["T1", "100", "reviewer", "PASS"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines("NEXT: commit", `RUN: "${ROOT}/scripts/commit-task.sh" "${PLAN_REL}" "T1" --with "src/extra1.ts" "src/extra2.ts"`),
+    );
+  });
+});
+
+for (const withList of ["a,b", "a, , b", " a ,b ,"]) {
+  test(`--with "${withList}" prints the two paths a and b with the blanks and the empty entries dropped`, async () => {
+    await withGitRepo(async (repo) => {
+      seedPlan(repo);
+      await arrange(repo, [START_T4_WAIVED, ["T4", "100", "coder", "PASS", "--with", withList]]);
+
+      const result = await step(repo, ["T4", "100", "reviewer", "PASS"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(
+        result.stdout,
+        lines("NEXT: commit", `RUN: "${ROOT}/scripts/commit-task.sh" "${PLAN_REL}" "T4" --with "a" "b"`),
+      );
+    });
+  });
+}
+
+test("a coder --defer list with a blank after its comma prints the same --defer entries as one without", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T4_WAIVED]);
+
+    const result = await step(repo, ["T4", "100", "coder", "PASS", "--defer", "T2:src/x.ts, T3:src/y.ts"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines("NEXT: commit", `RUN: "${ROOT}/scripts/commit-task.sh" "${PLAN_REL}" "T4" --defer "T2:src/x.ts" "T3:src/y.ts"`),
+    );
+  });
+});
+
+test("start --resume with a blank after its comma prints the same resume line as one without", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+
+    const result = await step(repo, [...START_T1, "--resume", "src/a.ts, src/b.ts"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines("NEXT: coder | attempt: 1 | model: sonnet | review: opus", ...coderLines("T1", ["resume: src/a.ts,src/b.ts"])),
+    );
+  });
+});
+
 test("a reviewer FAIL on attempt 4 answers the next attempt's coder block with the returned REVIEW path as report and no reason", async () => {
   await withGitRepo(async (repo) => {
     seedPlan(repo, "tiers:\n  max: opus\n");
