@@ -7,7 +7,9 @@
  * the `NEXT: fill` block with one `entry:` line per full entry; and for the merge
  * step: the undecided pairs of findings close in one file print as a `NEXT: merge`
  * block before anything is written, each `--merge` group becomes one finding, and
- * every printed pair is recorded in the ledger as merged or apart.
+ * every printed pair is recorded in the ledger as merged or apart. A finding of the
+ * unit re-hunt `R-U<n>` ranks right after the `U<n>` findings of its unit, and the
+ * re-hunt's report counts that unit as investigated.
  *
  * synthesize.sh is `#!/bin/sh` and the skill calls it as
  * `sh "${CLAUDE_SKILL_DIR}/scripts/synthesize.sh" ...`, so every case runs
@@ -105,9 +107,9 @@ function verdictFile(f: Finding): string {
 }
 
 function huntLine(id: string): string {
-  const unit = /^U\d+$/.test(id) ? id : "none";
+  const unit = /^(R-)?U\d+$/.test(id) ? id.replace(/^R-/, "") : "none";
   const angle = id.startsWith("A-") ? id.slice(2) : "none";
-  return `hunt: ${id} | wave: 1 | unit: ${unit} | angle: ${angle}`;
+  return `hunt: ${id} | wave: ${id.startsWith("R-") ? 2 : 1} | unit: ${unit} | angle: ${angle}`;
 }
 
 /** Builds a run workspace under `dir` and returns its path. */
@@ -325,6 +327,38 @@ test("equal findings rank by hunt order: U hunts by number, then angles in the l
     },
     (_ws, _r, text) => {
       assert.deepEqual(markers(text), ["U9-1", "U10-1", "A-first-1", "A-first-2", "A-second-1", "V-1-1"]);
+    },
+  );
+});
+
+test("a finding of the unit re-hunt R-U<n> ranks right after the U<n> findings of its unit, ahead of the next unit, the angles and the V hunts", async () => {
+  await scenario(
+    {
+      angles: ["first"],
+      findings: [
+        verified("V-1-1"),
+        verified("A-first-1"),
+        verified("R-U2-1"),
+        verified("U3-1"),
+        verified("U2-2"),
+        verified("U2-1"),
+        verified("U1-1"),
+        verified("R-U2-2"),
+      ],
+    },
+    (_ws, _r, text) => {
+      assert.deepEqual(markers(text), ["U1-1", "U2-1", "U2-2", "R-U2-1", "R-U2-2", "U3-1", "A-first-1", "V-1-1"]);
+    },
+  );
+});
+
+test("a unit whose own hunt left no report counts as investigated once its re-hunt R-U<n> left one", async () => {
+  await scenario(
+    { scope: "repo", units: ["U1", "U2", "U3"], findings: [verified("R-U2-1"), verified("U1-1")], bare: ["U2"] },
+    (_ws, result, text) => {
+      assert.ok(text.includes("- Units not investigated: U3\n"), text);
+      assert.ok(text.includes("- Hunts with no report: U2\n"), text);
+      assert.ok(result.stdout.startsWith("summary: units 3 | hunts 3 | confirmed 2 | not investigated 1\n"), result.stdout);
     },
   );
 });

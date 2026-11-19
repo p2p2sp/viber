@@ -19,8 +19,9 @@
 #   verdict file          INCONCLUSIVE and the STATUS line names the missing oracle
 #                         (a fill-in marker) or says the critic returned no verdict.
 # Order: higher severity, then VERIFIED before PARTIALLY VERIFIED before
-# INCONCLUSIVE, then higher confidence, then hunt order (U<n> by n, A-<slug> in the
-# lens angle order, V-<n> by n, then k). The first ten findings of severity 4.0 or
+# INCONCLUSIVE, then higher confidence, then hunt order (U<n> by n, each R-U<n> right
+# after the U<n> findings of the same unit, A-<slug> in the lens angle order, V-<n> by
+# n, then k). The first ten findings of severity 4.0 or
 # more get a full entry; every other one goes to the further findings.
 #
 # Merging: two surviving findings of one file whose LOCATION ranges overlap or have
@@ -346,6 +347,7 @@ END {
   ns = 0
   for (h = 1; h <= nh; h++) {
     id = hid[h]
+    rh = 0
     if (id ~ /^U[0-9]+$/) {
       cl = 0
       num = substr(id, 2) + 0
@@ -353,6 +355,10 @@ END {
       cl = 1
       slug = substr(id, 3)
       num = (slug in angle) ? angle[slug] : 999999
+    } else if (id ~ /^R-U[0-9]+$/) {
+      cl = 0
+      num = substr(id, 4) + 0
+      rh = 1
     } else if (id ~ /^V-[0-9]+$/) {
       cl = 2
       num = substr(id, 3) + 0
@@ -360,7 +366,7 @@ END {
       cl = 3
       num = 0
     }
-    hk[h] = sprintf("k%d%06d%06d", cl, num, h)
+    hk[h] = sprintf("k%d%06d%d%06d", cl, num, rh, h)
     unit = hunit[h]
     if (unit !~ /^U[0-9]+$/) unit = (id ~ /^U[0-9]+$/) ? id : ""
     nfiles = 0

@@ -39,7 +39,10 @@
 # The retry brief is rebuilt from the ledger `hunt:` line of the hunt: its unit line
 # comes from `## Units` of map.md, its angle from the ledger line, and a wave 2 hunt
 # carries its seeds from seeds.md (every `Seed:` line on a unit hunt, the n-th on the
-# diff hunt `V-<n>`). A critic block of a wave 2 hunt ends on `Variant: yes`.
+# diff hunt `V-<n>`). A critic block of a wave 2 hunt ends on `Variant: yes`. The unit
+# re-hunt `R-U<n>` keep-units.sh --wave prints for a unit whose wave 1 hunt left
+# `no-report: U<n>` is a wave 2 unit hunt of its own: its reports are `R-U<n>-<k>`, its
+# `retried:` and `no-report:` lines name `R-U<n>`, never the unit's own hunt.
 #
 # Contract:
 #   argv   : <ws> hunter <hunt id>, or <ws> critic <hunt id>-<k> (k one digit). A

@@ -50,10 +50,13 @@
 # line, a missing seeds.md or one with no `Seed:` line prints `NEXT: none`. Otherwise,
 # on the diff scope one hunter block per `Seed: <angle slug>: <class>` line, hunt id
 # `V-<n>` with n from 1, carrying `Angle: <that slug>` and that `Seed:` line. On a
-# directory or repo scope one block per unit no ledger `hunt:` line names yet, best
-# first as in step 3 (without scores, in map order), up to the budget, each carrying
-# every `Seed:` line. Each printed hunt is appended to the ledger as a wave 2 `hunt:`
-# line; no hunt to print answers `NEXT: none`.
+# directory or repo scope first one block per unit whose wave 1 hunt left a ledger
+# `no-report: U<n>` line, in map order, hunt id `R-U<n>` (the unit re-hunt), then one
+# block per unit no ledger `hunt:` line names yet, best first as in step 3 (without
+# scores, in map order), the two kinds together up to the budget, each carrying every
+# `Seed:` line. Each printed hunt is appended to the ledger as a wave 2 `hunt:` line
+# (`hunt: R-U<n> | wave: 2 | unit: U<n> | angle: none` for a re-hunt); no hunt to print
+# answers `NEXT: none`.
 #
 # Contract:
 #   argv   : <ws>, the run workspace holding run.md and map.md. Absent or empty is a
@@ -298,10 +301,11 @@ unit_lines() {
 }
 
 # kept_units <unit lines> <scored units> <hunted ids> prints, among the unit lines whose
-# id is not in <hunted ids> (one per line), the budget's count with the highest score
-# first, equal scores in map order, units with no score after every scored one.
+# id is not in <hunted ids> (one per line), the budget's count (the budget left after the
+# R-U hunts, once keep_limit is set) with the highest score first, equal scores in map
+# order, units with no score after every scored one.
 kept_units() {
-  printf '%s\n' "$1" | SCORED="$2" HUNTED="$3" BUDGET="$budget" awk '
+  printf '%s\n' "$1" | SCORED="$2" HUNTED="$3" BUDGET="${keep_limit:-$budget}" awk '
     BEGIN {
       n = split(ENVIRON["SCORED"], a, "\n")
       for (i = 1; i <= n; i++) { split(a[i], p, " "); if (p[1] != "") s[p[1]] = p[2] + 0 }
@@ -353,12 +357,38 @@ if [ "$wave_mode" -eq 1 ]; then
   hunted=$(awk '
     /^hunt: / && match($0, /unit: U[0-9]+/) { print substr($0, RSTART + 6, RLENGTH - 6) }
   ' "$ledger" 2>/dev/null)
-  kept=$(kept_units "$(unit_lines)" "$(scored_units)" "$hunted")
-  if [ -z "$kept" ]; then
+  missed=$(awk '
+    /^no-report: U[0-9]+[ \t\r]*$/ { sub(/\r$/, ""); print substr($0, 12) }
+  ' "$ledger" 2>/dev/null)
+  all_units=$(unit_lines)
+  rehunts=$(printf '%s\n' "$all_units" | MISSED="$missed" BUDGET="$budget" awk '
+    BEGIN {
+      n = split(ENVIRON["MISSED"], a, "\n")
+      for (i = 1; i <= n; i++) if (a[i] != "") m[a[i]] = 1
+      limit = ENVIRON["BUDGET"] + 0
+    }
+    $2 in m && taken < limit { print; taken++ }
+  ')
+  rehunt_count=$(printf '%s' "$rehunts" | awk 'END { print NR }')
+  keep_limit=$((budget - rehunt_count))
+  kept=$(kept_units "$all_units" "$(scored_units)" "$hunted")
+  if [ -z "$rehunts" ] && [ -z "$kept" ]; then
     printf 'NEXT: none\n'
     exit 0
   fi
-  print_unit_hunts "$kept" "$seeds"
+  printf 'hunters-at-once: %s\n' "$at_once"
+  printf '%s\n' "$rehunts" | while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    id=${line#- }
+    id=${id%% *}
+    hunter_block "R-$id" "$line" "" "$id" "$seeds"
+  done
+  printf '%s\n' "$kept" | while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    id=${line#- }
+    id=${id%% *}
+    hunter_block "$id" "$line" "" "$id" "$seeds"
+  done
   exit 0
 fi
 

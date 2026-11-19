@@ -18,6 +18,8 @@
  * `V-<n>` per `Seed:` line with that seed's angle, on a directory or repo scope one
  * `U<n>` per unit no hunt took on yet in kept order within the budget, each carrying
  * every seed; each is a wave 2 `hunt:` ledger line and a second call prints `NEXT: none`.
+ * On a directory or repo scope a unit whose wave 1 hunt left a `no-report:` ledger line
+ * gets a `R-U<n>` hunt first, counted against the budget, ahead of the never-hunted units.
  *
  * keep-units.sh is `#!/bin/sh` and the skill invokes it through `sh`, so every case
  * runs through forEachShell("posix", ...) via opts.shell. Each case builds its own
@@ -723,6 +725,87 @@ test("--wave on a directory scope whose units were all hunted prints NEXT: none"
       writeSeeds(ws, DIFF_SEEDS);
       const result = await runWave(shell, ws);
       assert.equal(result.stdout, "NEXT: none\n");
+    });
+  });
+});
+
+/** Leaves a miss in the ledger the way hunt-return.sh does after the retry of a unit hunt. */
+function recordNoReport(ws: string, units: number[]): void {
+  fs.appendFileSync(path.join(ws, "ledger.md"), lines(...units.flatMap((unit) => [`retried: U${unit}`, `no-report: U${unit}`])));
+}
+
+test("a unit whose wave 1 hunt left a no-report line gets a wave 2 hunt R-U<n> printed ahead of the never-hunted units, recorded as a wave 2 hunt line", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("keep-units-", async (dir) => {
+      const { ws, lensFile } = await dirRunAfterWaveOne(shell, dir, 10, (unit) => (unit <= 8 ? 4 : 2));
+      writeSeeds(ws, DIFF_SEEDS);
+      recordNoReport(ws, [3]);
+      const result = await runWave(shell, ws);
+      assert.equal(result.status, 0, `stderr=${result.stderr}`);
+      assert.equal(
+        slash(result.stdout),
+        `hunters-at-once: 16\n${hunterBlock(ws, lensFile, "R-U3", "- U3 | src/m3 | why 3", "", DIFF_SEEDS)}${hunterBlock(ws, lensFile, "U9", "- U9 | src/m9 | why 9", "", DIFF_SEEDS)}${hunterBlock(ws, lensFile, "U10", "- U10 | src/m10 | why 10", "", DIFF_SEEDS)}`,
+      );
+      const waveRows = ledgerOf(ws).split("\n").filter((row) => row.includes("wave: 2"));
+      assert.deepEqual(waveRows, [
+        "hunt: R-U3 | wave: 2 | unit: U3 | angle: none",
+        "hunt: U9 | wave: 2 | unit: U9 | angle: none",
+        "hunt: U10 | wave: 2 | unit: U10 | angle: none",
+      ]);
+    });
+  });
+});
+
+test("with more no-report and never-hunted units than the budget of 8, --wave prints 8 blocks, the R-U ones first", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("keep-units-", async (dir) => {
+      const { ws } = await dirRunAfterWaveOne(shell, dir, 20, () => 3);
+      writeSeeds(ws, DIFF_SEEDS);
+      recordNoReport(ws, [2, 5, 7]);
+      const result = await runWave(shell, ws);
+      assert.deepEqual(hunterIds(result.stdout), ["R-U2", "R-U5", "R-U7", "U9", "U10", "U11", "U12", "U13"]);
+    });
+  });
+});
+
+test("no-report units beyond the budget of 8 leave no room for a never-hunted unit", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("keep-units-", async (dir) => {
+      const { ws } = await dirRunAfterWaveOne(shell, dir, 20, () => 3);
+      writeSeeds(ws, DIFF_SEEDS);
+      recordNoReport(ws, [1, 2, 3, 4, 5, 6, 7, 8]);
+      const result = await runWave(shell, ws);
+      assert.deepEqual(hunterIds(result.stdout), ["R-U1", "R-U2", "R-U3", "R-U4", "R-U5", "R-U6", "R-U7", "R-U8"]);
+    });
+  });
+});
+
+test("a unit whose hunt left a report gets no R-U block, and with every unit hunted --wave still prints NEXT: none", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("keep-units-", async (dir) => {
+      const { ws } = frame(dir, { scope: "src", map: mapOf(unitLines(3)) });
+      await run(shell, ws);
+      writeSeeds(ws, DIFF_SEEDS);
+      fs.appendFileSync(path.join(ws, "ledger.md"), lines("retried: U2"));
+      const result = await runWave(shell, ws);
+      assert.equal(result.stdout, "NEXT: none\n");
+      assert.ok(!ledgerOf(ws).includes("R-U"));
+    });
+  });
+});
+
+test("a second --wave call after an R-U hunt printed prints NEXT: none and adds no ledger line", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("keep-units-", async (dir) => {
+      const { ws } = frame(dir, { scope: "src", map: mapOf(unitLines(3)) });
+      await run(shell, ws);
+      writeSeeds(ws, DIFF_SEEDS);
+      recordNoReport(ws, [2]);
+      await runWave(shell, ws);
+      const ledgerAfterFirst = ledgerOf(ws);
+      const second = await runWave(shell, ws);
+      assert.equal(second.stdout, "NEXT: none\n");
+      assert.equal(ledgerOf(ws), ledgerAfterFirst);
     });
   });
 });

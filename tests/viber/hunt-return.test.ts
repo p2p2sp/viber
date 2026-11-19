@@ -7,7 +7,8 @@
  * prints once more, with `retry`, the brief keep-units.sh printed for it (a unit hunt,
  * an angle hunt, a wave 2 hunt with its seeds, the worktree suffixed `-retry`), recorded
  * as `retried:`, and on the second miss records `no-report:` and prints `NEXT: none`; a
- * hunt with only `<id>-0.md` prints `NEXT: none`.
+ * hunt with only `<id>-0.md` prints `NEXT: none`. The unit re-hunt `R-U<n>` is a wave 2
+ * hunt like any other, with its own retry and its own `retried:` and `no-report:` lines.
  *
  * `sh hunt-return.sh <ws> critic <hunt id>-<k>` is proven the same way: the verdict file loses
  * a trailing closing tag, a `VERDICT:` line holding one of the four verdicts prints
@@ -357,6 +358,54 @@ test("a hunt with only <id>-0.md prints NEXT: none and records nothing", async (
       assert.equal(result.stdout, "NEXT: none\n");
       assert.equal(read(ws, "ledger.md"), lines(...U1_LEDGER));
       assert.equal(read(ws, "reports", "U1-0.md"), "NO FINDING\nchecked: src/m1\n");
+    });
+  });
+});
+
+const R_U2_LEDGER = [...U1_LEDGER, "hunt: U2 | wave: 1 | unit: U2 | angle: none", "retried: U2", "no-report: U2", "hunt: R-U2 | wave: 2 | unit: U2 | angle: none"];
+
+test("a unit re-hunt R-U2 with a claim prints a critic block ending on Variant: yes (characterization: it is any wave 2 hunt)", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("hunt-return-", async (dir) => {
+      const { ws, lensFile } = frame(dir, { scope: "src", ledger: R_U2_LEDGER });
+      put(ws, "R-U2-1.claim.md", "LOCATION: a\n");
+      const result = await run(shell, ws, "hunter", "R-U2");
+      assert.equal(result.status, 0, `stderr=${result.stderr}`);
+      assert.equal(slash(result.stdout), criticBlock(ws, lensFile, "R-U2-1", [], ["Variant: yes"]));
+    });
+  });
+});
+
+test("a unit re-hunt with no report prints its retry block once, keeping its retried: and no-report: lines apart from the unit's own, then NEXT: none", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("hunt-return-", async (dir) => {
+      const { ws, lensFile } = frame(dir, { scope: "src", seeds: SEEDS, ledger: R_U2_LEDGER });
+      const first = await run(shell, ws, "hunter", "R-U2");
+      assert.equal(first.status, 0, `stderr=${first.stderr}`);
+      assert.equal(slash(first.stdout), retryBlock(ws, lensFile, "R-U2", ["Unit: - U2 | src/m2 | why 2", ...SEEDS]));
+      assert.equal(read(ws, "ledger.md"), lines(...R_U2_LEDGER, "retried: R-U2"));
+      const second = await run(shell, ws, "hunter", "R-U2");
+      assert.equal(second.stdout, "NEXT: none\n");
+      assert.equal(read(ws, "ledger.md"), lines(...R_U2_LEDGER, "retried: R-U2", "no-report: R-U2"));
+      const third = await run(shell, ws, "hunter", "R-U2");
+      assert.equal(third.stdout, "NEXT: none\n");
+      assert.equal(read(ws, "ledger.md"), lines(...R_U2_LEDGER, "retried: R-U2", "no-report: R-U2"));
+    });
+  });
+});
+
+test("a report of the re-hunt R-U2 never answers for the hunt U2, nor the report of U2 for R-U2", async () => {
+  await assertPosix(async (shell) => {
+    await withTempDir("hunt-return-", async (dir) => {
+      const { ws } = frame(dir, {
+        scope: "src",
+        ledger: ["hunt: U2 | wave: 1 | unit: U2 | angle: none", "hunt: R-U2 | wave: 2 | unit: U2 | angle: none"],
+      });
+      put(ws, "R-U2-0.md", "NO FINDING\n");
+      const rehunt = await run(shell, ws, "hunter", "R-U2");
+      assert.equal(rehunt.stdout, "NEXT: none\n");
+      const own = await run(shell, ws, "hunter", "U2");
+      assert.match(slash(own.stdout), /^NEXT: hunter \| id: U2 \| background \| retry\n/);
     });
   });
 });

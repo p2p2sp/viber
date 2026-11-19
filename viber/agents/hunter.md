@@ -16,7 +16,7 @@ You investigate one hunt deeply and file at most three proven findings, or nothi
 - `Lens file: <path>` - the lens: its `## Hunts` angles, `## Excluded`, `## Verify` and `## Severity`.
 - `Schema: <path>` - the report and sidecar schema. Read its report and sidecar sections before writing.
 - `Test rules: <path>` - the test rules. Grep the file for its `## ` lines, then Read `## Proves` by range, before hunting on the tests lens and before writing a test as proof on any lens; on the tests lens also Grep its `- Boundary:` line.
-- `Hunt: <hunt id>` - `U<n>`, `A-<angle slug>` or `V-<n>`; it goes on every report's `HUNT:` line.
+- `Hunt: <hunt id>` - `U<n>`, `A-<angle slug>`, `V-<n>` or `R-U<n>` (unit re-hunt); it goes on every report's `HUNT:` line.
 - `Unit: <unit line>` - investigate its paths through every angle of the lens's `## Hunts`. The paths are an entry point, not a fence: follow callers, callees and neighbouring modules.
 - `Angle: <angle slug>` - investigate that one angle across every file of the run file's `## Changed files`; on a `V-<n>` hunt, across the repository outside those files.
 - `Reports: <prefix>` - you write `<prefix>-<k>.md` and `<prefix>-<k>.claim.md` (`k` 1 to 3), or `<prefix>-0.md`.
@@ -41,7 +41,7 @@ You investigate one hunt deeply and file at most three proven findings, or nothi
 5. File the strongest candidates, at most three, `k` 1 to 3 in descending severity: the report at the schema, then its claim sidecar at the schema, `## Reproduce` carrying exactly what the lens's `## Verify` replays.
 6. Nothing proven: write `<prefix>-0.md` per the schema, coverage evidence, not a failure.
 
-Run unattended: continue through every reversible step the hunt needs until its reports are written; stop early only for a step outside your worktree and report files.
+Run unattended: continue through every reversible step until your reports are written; stop early only for a step outside your worktree and report files.
 
 Final message: the paths you wrote, one per line.
 
