@@ -964,6 +964,7 @@ create_target() {
     *"$NL$1$NL"*) return 0 ;;
   esac
   create_seen="$create_seen$1$NL"
+  create_nodes="$create_nodes$1$NL"
   create_out="$create_out$(printf 'target: create %s %s' "$1" "$2")$NL"
 }
 
@@ -1041,17 +1042,28 @@ append_shape() {
 if [ "$mode" = "targets" ]; then
   fix_out=""
   create_out=""
+  fix_nodes=""
+  create_nodes=""
   if [ "$tmode" = "review" ] || [ "$tmode" = "both" ]; then
     while IFS= read -r entry; do
       [ -n "$entry" ] || continue
       fix_out="$fix_out$(printf 'target: fix %s' "${entry#node: }")$NL"
     done < <(printf '%s' "$node_out")
+    # The node paths again, one per line as the fix lines go: a path may hold a
+    # space, so a later step never cuts one out of a printed line.
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      fix_nodes="$fix_nodes${line#* }$NL"
+    done < <(printf '%s\n' "$node_lines")
   fi
   if [ "$tmode" != "review" ]; then
+    # A cand line ends in five fixed fields (files, n, bytes, n, kind): the
+    # directory is whatever precedes them, spaces included.
     while IFS= read -r entry; do
       [ -n "$entry" ] || continue
       rest="${entry#cand: }"
-      create_target "${rest%% *}/CLAUDE.md" "${rest#* }"
+      cand_dir="${rest% * * * * *}"
+      create_target "$cand_dir/CLAUDE.md" "${rest#"$cand_dir "}"
     done < <(printf '%s' "$cand_out")
   fi
   if [ "$tmode" = "extend" ] || [ "$tmode" = "both" ]; then
@@ -1084,12 +1096,7 @@ if [ "$mode" = "targets" ]; then
   fi
   if [ -n "$keep_paths" ]; then
     # Every kept path must be the node of a target line, or nothing is printed.
-    valid=""
-    while IFS= read -r entry; do
-      [ -n "$entry" ] || continue
-      rest="${entry#target: * }"
-      valid="$valid${rest%% *}$NL"
-    done < <(printf '%s%s' "$fix_out" "$create_out")
+    valid="$fix_nodes$create_nodes"
     while IFS= read -r keep; do
       [ -n "$keep" ] || continue
       case "$NL$valid" in
@@ -1101,21 +1108,15 @@ if [ "$mode" = "targets" ]; then
     # The planned set: every node of the map plus the node of each kept create
     # target, each prefixed with its zero-padded depth for a plain sort.
     planned_src="$node_lines$NL"
-    while IFS= read -r entry; do
-      [ -n "$entry" ] || continue
-      case "$entry" in
-        "target: create "*) ;;
-        *) continue ;;
-      esac
-      rest="${entry#target: create }"
-      created="${rest%% *}"
+    while IFS= read -r created; do
+      [ -n "$created" ] || continue
       case "$NL$keep_paths" in
         *"$NL$created$NL"*) ;;
         *) continue ;;
       esac
       slashes="${created//[!\/]/}"
       planned_src="$planned_src$(printf '%03d %s' "${#slashes}" "$created")$NL"
-    done < <(printf '%s' "$create_out")
+    done < <(printf '%s' "$create_nodes")
     planned=""
     while IFS= read -r entry; do
       [ -n "$entry" ] || continue
@@ -1124,10 +1125,8 @@ if [ "$mode" = "targets" ]; then
     keep_out="planned: ${planned%,}$NL"
 
     # One memory-auditor block per kept fix target, in the order of the fix lines.
-    while IFS= read -r entry; do
-      [ -n "$entry" ] || continue
-      rest="${entry#target: fix }"
-      fix="${rest%% *}"
+    while IFS= read -r fix; do
+      [ -n "$fix" ] || continue
       case "$NL$keep_paths" in
         *"$NL$fix$NL"*) ;;
         *) continue ;;
@@ -1147,7 +1146,7 @@ if [ "$mode" = "targets" ]; then
         done < <(printf '%s\n' "$sections" | LC_ALL=C sort)
       fi
       has_block=1
-    done < <(printf '%s' "$fix_out")
+    done < <(printf '%s' "$fix_nodes")
     [ "${has_block:-0}" = "1" ] || keep_out="${keep_out}NEXT: none$NL"
     printf '%s' "$keep_out"
     exit 0

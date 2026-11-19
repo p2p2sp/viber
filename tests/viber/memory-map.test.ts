@@ -1414,6 +1414,75 @@ test("a --keep path that is no target of the mode exits 2 with one error line an
   });
 });
 
+test("--targets extend prints the create line of a candidate directory whose name holds a space under its full path", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "My Docs/a.md": "x\n",
+      "My Docs/b.md": "x\n",
+      "My Docs/c.md": "x\n",
+    });
+
+    const result = await targets(repo, "extend");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout), ["target: create My Docs/CLAUDE.md files 3 bytes 6 plain", "NEXT: approve"]);
+  });
+});
+
+test("--keep of the create target of a directory holding a space puts its full path in the planned set", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "My Docs/a.md": "x\n",
+      "My Docs/b.md": "x\n",
+      "My Docs/c.md": "x\n",
+    });
+
+    const result = await kept(repo, "extend", "My Docs/CLAUDE.md");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "planned: CLAUDE.md,My Docs/CLAUDE.md\nNEXT: none\n");
+  });
+});
+
+test("--keep of the fix target of a node whose directory holds a space gives its auditor block the full path in target and scope", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, { "CLAUDE.md": node(40), "My Docs/CLAUDE.md": node(40), "My Docs/a.md": "x\n" });
+
+    const result = await kept(repo, "review", "My Docs/CLAUDE.md");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(
+      lines(result.stdout).filter((l) => !l.startsWith("refs: ")),
+      [
+        "planned: CLAUDE.md,My Docs/CLAUDE.md",
+        "NEXT: memory-auditor",
+        "target: My Docs/CLAUDE.md",
+        "scope: My Docs",
+        `out: .temp/viber/${MAP_ID}/`,
+      ],
+    );
+  });
+});
+
+test("a --keep path naming only the first word of a target path holding a space exits 2 (the path is no target)", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "My Docs/a.md": "x\n",
+      "My Docs/b.md": "x\n",
+      "My Docs/c.md": "x\n",
+    });
+
+    const result = await kept(repo, "extend", "My");
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^error: [^\n]+\n$/);
+  });
+});
+
 test("--keep without --id exits 2 with one error line and an empty stdout", async () => {
   await withGitRepo(async (repo) => {
     await commit(repo, { "CLAUDE.md": node(40) });
