@@ -1,0 +1,5 @@
+- A `--keep` path is the node path of a target line (`<dir>/CLAUDE.md` for a create target, a node line's path for a fix one); a section path is no target. Validation runs after the map is computed, before anything prints, so a refusal leaves stdout empty.
+- `refs:` is the plugin root resolved from the script's own location (`$0` three directories up), taken before the cd to the repository root.
+- Open choice: one heading's departures print outside-template or out-of-order first, then empty heading; headings in line order. The `missing or incomplete title` shape stays the auditor's own judgement (C3 has no such script line).
+- `memory-auditor.md` (C3 lists it) is not in T2 Files and is left to T4/T5/T10, which own it.
+- The three DoD.5 error cases already passed before the code (unknown argument also exits 2), so their red is the revert route: `red-2.log` holds the 3 failing with the validations disabled; `red.log` holds the 9 behaviour cases.

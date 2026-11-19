@@ -7,7 +7,9 @@
  * uncommitted work), and with `--reset` it deletes the nodes and sections it
  * is given, a node taking its sections along - all of them or none. With
  * `--targets <mode>` it prints the target lines of a mode (fix lines, one
- * create line per directory) and the `NEXT:` directive that ends them.
+ * create line per directory) and the `NEXT:` directive that ends them; with
+ * `--id` and `--keep` it prints the planned set and one `memory-auditor` block
+ * per kept fix target, carrying the `shape:` lines of the node and its sections.
  *
  * Two properties carry the design. The map ALWAYS exits 0, because it is a
  * `!` preload where a non-zero exit aborts the whole skill load - a directory
@@ -1198,6 +1200,237 @@ test("a --removed path outside the reset mode exits 2 with one error line and an
     await commit(repo, { "CLAUDE.md": node(40) });
 
     const result = await targets(repo, "extend", "--removed", "CLAUDE.md");
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^error: [^\n]+\n$/);
+  });
+});
+
+const MAP_ID = "2026-11-19-10-00-00";
+
+/** `--targets <mode> --id <id> --keep <path>...`, the call that follows the approval of the targets. */
+function kept(repo: GitRepo, mode: string, ...keep: string[]) {
+  return targets(repo, mode, "--id", MAP_ID, ...keep.flatMap((p) => ["--keep", p]));
+}
+
+/** A node body from its `## ` sections, each a heading line followed by its content lines. */
+function body(...parts: string[]): string {
+  return `# area - what it owns\n\nOwns the area.\n\n${parts.join("\n")}`;
+}
+
+test("--keep prints the planned set first: every node of the map plus the node of each kept create target, root first then by depth", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "docs/CLAUDE.md": node(40),
+      "api/v1/CLAUDE.md": node(40),
+      "src/a.ts": "x\n",
+      "src/b.ts": "x\n",
+      "src/c.ts": "x\n",
+      "lib/a.ts": "x\n",
+      "lib/b.ts": "x\n",
+      "lib/c.ts": "x\n",
+    });
+
+    const result = await kept(repo, "both", "docs/CLAUDE.md", "src/CLAUDE.md");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(lines(result.stdout)[0], "planned: CLAUDE.md,docs/CLAUDE.md,src/CLAUDE.md,api/v1/CLAUDE.md");
+  });
+});
+
+test("--keep prints one memory-auditor block per kept fix target in the planned order, each with its target, scope, out and refs lines, a create target getting none", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "docs/CLAUDE.md": node(40),
+      "api/v1/CLAUDE.md": node(40),
+      "src/a.ts": "x\n",
+      "src/b.ts": "x\n",
+      "src/c.ts": "x\n",
+    });
+
+    const result = await kept(repo, "both", "api/v1/CLAUDE.md", "src/CLAUDE.md", "CLAUDE.md");
+
+    const out = lines(result.stdout);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(
+      out.filter((l) => !l.startsWith("refs: ")),
+      [
+        "planned: CLAUDE.md,docs/CLAUDE.md,src/CLAUDE.md,api/v1/CLAUDE.md",
+        "NEXT: memory-auditor",
+        "target: CLAUDE.md",
+        "scope: .",
+        `out: .temp/viber/${MAP_ID}/`,
+        "NEXT: memory-auditor",
+        "target: api/v1/CLAUDE.md",
+        "scope: api/v1",
+        `out: .temp/viber/${MAP_ID}/`,
+      ],
+    );
+    assert.match(out.filter((l) => l.startsWith("refs: ")).join("\n"), /^refs: .+\/viber\/references\nrefs: .+\/viber\/references$/);
+  });
+});
+
+test("--keep with no kept fix target prints the planned set and NEXT: none", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "src/a.ts": "x\n",
+      "src/b.ts": "x\n",
+      "src/c.ts": "x\n",
+    });
+
+    const result = await kept(repo, "both", "src/CLAUDE.md");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "planned: CLAUDE.md,src/CLAUDE.md\nNEXT: none\n");
+  });
+});
+
+test("a block carries a shape line per heading outside the template, per heading out of order and per empty heading, the node first then its sections alphabetically (a heading line is read without its trailing spaces)", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "docs/CLAUDE.md": body(
+        "## Traps\n\n- trap\n",
+        "## Terms\n\n- term\n",
+        "## Overview   \n\n- o\n",
+        "## Commands\n",
+        "## Relationships\n\n- r\n",
+      ),
+      "docs/CLAUDE.tests.md": body("## Traps\n\n"),
+      "docs/CLAUDE.api.md": body("## Zebra\n\n- z\n"),
+    });
+
+    const result = await kept(repo, "review", "docs/CLAUDE.md");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(
+      lines(result.stdout).filter((l) => l.startsWith("shape: ")),
+      [
+        "shape: CLAUDE.md: out of order: Traps",
+        "shape: CLAUDE.md: heading outside the template: Overview",
+        "shape: CLAUDE.md: out of order: Commands",
+        "shape: CLAUDE.md: empty heading: Commands",
+        "shape: CLAUDE.api.md: heading outside the template: Zebra",
+        "shape: CLAUDE.tests.md: empty heading: Traps",
+      ],
+    );
+  });
+});
+
+test("a ## line inside a fenced block is no heading, and the fence is content of the heading above it", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "docs/CLAUDE.md": body("## Commands\n\n```sh\n## Bogus\n# note\n```\n"),
+    });
+
+    const result = await kept(repo, "review", "docs/CLAUDE.md");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout).filter((l) => l.startsWith("shape: ")), []);
+  });
+});
+
+test("a ### line is content, so a heading holding nothing else is no empty heading", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "docs/CLAUDE.md": body("## Terms\n\n### Detail\n"),
+    });
+
+    const result = await kept(repo, "review", "docs/CLAUDE.md");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout).filter((l) => l.startsWith("shape: ")), []);
+  });
+});
+
+test("the root node and a section beside it carry no shape line", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": body("## Zebra\n\n- z\n"),
+      "CLAUDE.release.md": body("## Zebra\n"),
+      "src/a.ts": "x\n",
+    });
+
+    const result = await kept(repo, "review", "CLAUDE.md");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout).filter((l) => l.startsWith("shape: ")), []);
+  });
+});
+
+test("an untracked section beside a node carries no shape line", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "docs/CLAUDE.md": body("## Terms\n\n- t\n"),
+    });
+    write(repo, { "docs/CLAUDE.notes.md": body("## Zebra\n\n- z\n") });
+
+    const result = await kept(repo, "review", "docs/CLAUDE.md");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(lines(result.stdout).filter((l) => l.startsWith("shape: ")), []);
+  });
+});
+
+test("## Sections is a heading outside the template in a section and a listed one in a node", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "docs/CLAUDE.md": body("## Terms\n\n- t\n", "## Sections\n\n- s\n"),
+      "docs/CLAUDE.tests.md": body("## Sections\n\n- s\n"),
+    });
+
+    const result = await kept(repo, "review", "docs/CLAUDE.md");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(
+      lines(result.stdout).filter((l) => l.startsWith("shape: ")),
+      ["shape: CLAUDE.tests.md: heading outside the template: Sections"],
+    );
+  });
+});
+
+test("a --keep path that is no target of the mode exits 2 with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, {
+      "CLAUDE.md": node(40),
+      "src/a.ts": "x\n",
+      "src/b.ts": "x\n",
+      "src/c.ts": "x\n",
+    });
+
+    const result = await kept(repo, "review", "src/CLAUDE.md");
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^error: [^\n]+\n$/);
+  });
+});
+
+test("--keep without --id exits 2 with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, { "CLAUDE.md": node(40) });
+
+    const result = await targets(repo, "review", "--keep", "CLAUDE.md");
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^error: [^\n]+\n$/);
+  });
+});
+
+test("--id without --keep exits 2 with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, { "CLAUDE.md": node(40) });
+
+    const result = await targets(repo, "review", "--id", MAP_ID);
 
     assert.equal(result.status, 2);
     assert.equal(result.stdout, "");

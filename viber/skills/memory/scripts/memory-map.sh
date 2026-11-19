@@ -14,6 +14,9 @@
 #            --targets reset --removed <path> [--removed <path>...]
 #                                       -> the target list of a mode, derived
 #                                          from the map (see "targets" below).
+#            any --targets call + --id <map id> --keep <node path>
+#            [--keep <node path>...]    -> the kept targets, briefed (see "keep"
+#                                          below).
 #   cwd    : any directory inside the host project - the repository root is
 #            resolved here, every path printed is relative to it, and every
 #            path handed to --reset is read relative to it. Outside a
@@ -45,6 +48,18 @@
 #              target: create <dir>/CLAUDE.md removed
 #              target: create CLAUDE.md root
 #              NEXT: approve          (or NEXT: none alone, when no target line)
+#            --targets with --id and --keep, in place of the target lines:
+#              planned: <node>,<node>,...
+#              NEXT: memory-auditor   (one block per kept fix target)
+#              target: <node>
+#              scope: <the directory holding it, . for the root node>
+#              out: .temp/viber/<map id>/
+#              refs: <plugin root>/references
+#              shape: <file>: heading outside the template: <heading>
+#              shape: <file>: out of order: <heading>
+#              shape: <file>: empty heading: <heading>
+#              NEXT: none             (alone after planned:, when no kept target
+#                                      is a fix target)
 #   exit   : map mode ALWAYS 0. It is a `!` preload, where a non-zero exit
 #            aborts the whole skill load, so a directory that is no repository
 #            at all is the empty map rather than an error.
@@ -52,9 +67,10 @@
 #            path, or an unknown first argument - usage on stderr, nothing
 #            printed on stdout); 3 when the call was refused.
 #            --targets: 0; 2 on unusable argv (an unknown mode, a --removed
-#            path outside reset, reset with no --removed path, any other
-#            argument) with one "error: <reason>" line on stderr and nothing
-#            on stdout.
+#            path outside reset, reset with no --removed path, --keep without
+#            --id, --id without --keep, any other argument) or a --keep path
+#            that is no target of the mode, with one "error: <reason>" line on
+#            stderr and nothing on stdout.
 #
 # excluded - memory never maps a path below a directory whose name starts
 #            with ".", nor a file the host repository's own ignore rules
@@ -120,6 +136,21 @@
 #           them), none when a node still stands there; the repository root
 #           when no root node stands (extend and both only). A directory
 #           holding a section on a dirty line gets no create line.
+# keep    - the targets the user kept, each named by its node path (a fix
+#           target is a node line, a create target the CLAUDE.md of its
+#           directory). planned: is every node line of the map plus the node of
+#           every kept create target, root first then by depth. A kept fix
+#           target gets one memory-auditor block, in that order. Its shape lines
+#           are the form departures of the node and of each tracked section
+#           beside it, the node first and its sections alphabetically, within a
+#           file in line order, judged against the template list below: a
+#           ## heading outside it, a listed one followed later by one the list
+#           puts ahead of it, and one with nothing but blank lines before the
+#           next # or ## line (a ### line is content). A ## line inside a
+#           fenced block is no heading. The root node and the sections beside
+#           it are outside the template and get none. The list, in order:
+#           Terms, Relationships, Contracts, Commands, Change together, Traps,
+#           Sections - the last one only in a node, never in a section.
 #
 # A kind of line with nothing to report prints none at all; "total:" always
 # prints, counting nodes only. --reset takes a node or a section; a node
@@ -149,6 +180,9 @@ fi
 # nothing on stdout.
 tmode=""
 removed_paths=""
+map_id=""
+keep_paths=""
+plugin_root=""
 if [ "$mode" = "targets" ]; then
   usage_error() {
     printf 'error: %s\n' "$1" >&2
@@ -169,12 +203,32 @@ if [ "$mode" = "targets" ]; then
         removed_paths="$removed_paths${2#./}$NL"
         shift 2
         ;;
+      --id)
+        [ "$#" -ge 2 ] && [ -n "$2" ] || usage_error "--id needs a map id"
+        [ -z "$map_id" ] || usage_error "--id given twice"
+        map_id="$2"
+        shift 2
+        ;;
+      --keep)
+        [ "$#" -ge 2 ] && [ -n "$2" ] || usage_error "--keep needs a node path"
+        keep_paths="$keep_paths${2#./}$NL"
+        shift 2
+        ;;
       *) usage_error "unknown argument $1" ;;
     esac
   done
   if [ "$tmode" = "reset" ] && [ -z "$removed_paths" ]; then
     usage_error "reset needs at least one --removed path"
   fi
+  if [ -n "$keep_paths" ] && [ -z "$map_id" ]; then
+    usage_error "--keep needs --id"
+  fi
+  if [ -n "$map_id" ] && [ -z "$keep_paths" ]; then
+    usage_error "--id needs at least one --keep path"
+  fi
+  # The plugin root is three directories above this script's own, resolved
+  # before the cd to the repository root below.
+  plugin_root="$(cd "$(dirname "$0")/../../.." 2>/dev/null && pwd)"
 fi
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
@@ -582,6 +636,77 @@ create_target() {
   create_out="$create_out$(printf 'target: create %s %s' "$1" "$2")$NL"
 }
 
+# The shape lines of one file, $2 being node or section: its ## headings
+# outside the template list, listed ones followed later by one the list puts
+# ahead of them, and empty ones. A ## line inside a fenced block is no heading,
+# and a fence line is content. The file label and kind reach awk through
+# ENVIRON, and the file as ./<path> so that a name holding "=" is no assignment.
+shape_lines() {
+  SHAPE_LABEL="${1##*/}" SHAPE_KIND="$2" awk '
+    BEGIN {
+      n = split("Terms|Relationships|Contracts|Commands|Change together|Traps|Sections", names, "|")
+      for (i = 1; i <= n; i++) {
+        if (i == n && ENVIRON["SHAPE_KIND"] != "node") continue
+        rank[names[i]] = i
+      }
+      label = ENVIRON["SHAPE_LABEL"]
+      fence = ""
+      flen = 0
+      cur = 0
+      count = 0
+    }
+    {
+      line = $0
+      sub(/\r$/, "", line)
+      probe = line
+      sub(/^ */, "", probe)
+      if (fence != "") {
+        if (cur > 0) empty[cur] = 0
+        if (match(probe, /^(```+|~~~+)/) && substr(probe, 1, 1) == fence && RLENGTH >= flen && substr(probe, RLENGTH + 1) ~ /^[ \t]*$/) fence = ""
+        next
+      }
+      if (match(probe, /^(```+|~~~+)/)) {
+        fence = substr(probe, 1, 1)
+        flen = RLENGTH
+        if (cur > 0) empty[cur] = 0
+        next
+      }
+      if (line ~ /^## /) {
+        count++
+        text = substr(line, 4)
+        sub(/[ \t]+$/, "", text)
+        head[count] = text
+        empty[count] = 1
+        cur = count
+        next
+      }
+      if (line ~ /^# /) {
+        cur = 0
+        next
+      }
+      if (cur > 0 && line !~ /^[ \t]*$/) empty[cur] = 0
+    }
+    END {
+      for (i = 1; i <= count; i++) {
+        h = head[i]
+        if (!(h in rank)) {
+          printf "shape: %s: heading outside the template: %s\n", label, h
+        } else {
+          ahead = 0
+          for (j = i + 1; j <= count; j++) if ((head[j] in rank) && rank[head[j]] < rank[h]) ahead = 1
+          if (ahead) printf "shape: %s: out of order: %s\n", label, h
+        }
+        if (empty[i]) printf "shape: %s: empty heading: %s\n", label, h
+      }
+    }
+  ' "./$1" 2>/dev/null
+}
+
+append_shape() {
+  shapes="$(shape_lines "$1" "$2")"
+  [ -z "$shapes" ] || keep_out="$keep_out$shapes$NL"
+}
+
 if [ "$mode" = "targets" ]; then
   fix_out=""
   create_out=""
@@ -625,6 +750,76 @@ if [ "$mode" = "targets" ]; then
   fi
   if [ "$tmode" = "extend" ] || [ "$tmode" = "both" ]; then
     is_present_node "CLAUDE.md" || create_target "CLAUDE.md" "root"
+  fi
+  if [ -n "$keep_paths" ]; then
+    # Every kept path must be the node of a target line, or nothing is printed.
+    valid=""
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      rest="${entry#target: * }"
+      valid="$valid${rest%% *}$NL"
+    done < <(printf '%s%s' "$fix_out" "$create_out")
+    while IFS= read -r keep; do
+      [ -n "$keep" ] || continue
+      case "$NL$valid" in
+        *"$NL$keep$NL"*) ;;
+        *) usage_error "--keep $keep is no target of the $tmode mode" ;;
+      esac
+    done < <(printf '%s' "$keep_paths")
+
+    # The planned set: every node of the map plus the node of each kept create
+    # target, each prefixed with its zero-padded depth for a plain sort.
+    planned_src="$node_lines$NL"
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      case "$entry" in
+        "target: create "*) ;;
+        *) continue ;;
+      esac
+      rest="${entry#target: create }"
+      created="${rest%% *}"
+      case "$NL$keep_paths" in
+        *"$NL$created$NL"*) ;;
+        *) continue ;;
+      esac
+      slashes="${created//[!\/]/}"
+      planned_src="$planned_src$(printf '%03d %s' "${#slashes}" "$created")$NL"
+    done < <(printf '%s' "$create_out")
+    planned=""
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      planned="$planned${entry#* },"
+    done < <(printf '%s\n' "$planned_src" | sort)
+    keep_out="planned: ${planned%,}$NL"
+
+    # One memory-auditor block per kept fix target, in the order of the fix lines.
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      rest="${entry#target: fix }"
+      fix="${rest%% *}"
+      case "$NL$keep_paths" in
+        *"$NL$fix$NL"*) ;;
+        *) continue ;;
+      esac
+      scope="${fix%CLAUDE.md}"
+      scope="${scope%/}"
+      [ -n "$scope" ] || scope="."
+      keep_out="$keep_out$(printf 'NEXT: memory-auditor\ntarget: %s\nscope: %s\nout: .temp/viber/%s/\nrefs: %s/references' "$fix" "$scope" "$map_id" "$plugin_root")$NL"
+      # The root node and its sections are outside the template.
+      if [ "$fix" != "CLAUDE.md" ]; then
+        append_shape "$fix" node
+        while IFS= read -r section; do
+          [ -n "$section" ] || continue
+          [ "$(node_of "$section")" = "$fix" ] || continue
+          [ -e "$section" ] || continue
+          append_shape "$section" section
+        done < <(printf '%s\n' "$sections" | LC_ALL=C sort)
+      fi
+      has_block=1
+    done < <(printf '%s' "$fix_out")
+    [ "${has_block:-0}" = "1" ] || keep_out="${keep_out}NEXT: none$NL"
+    printf '%s' "$keep_out"
+    exit 0
   fi
   if [ -z "$fix_out$create_out" ]; then
     printf 'NEXT: none\n'
