@@ -1,0 +1,4 @@
+- `--template` runs `sh <script dir>/issue-templates.sh` from the cwd, after the gh-on-PATH check (gh missing stays exit 1) and before the project resolution, so a template's `<owner>/<number>` project is resolved like a `--project` one.
+- Template list values are split on `, ` (the form issue-templates.sh prints), so a label or project name holding a comma and a space would split.
+- The path is compared as printed by issue-templates.sh (no `./` stripping): the caller passes it verbatim from a `--- template <path> ---` line.
+- The test file is integration tier by filename but runs on a stubbed gh in about a second, so it was run for the red and green proof.

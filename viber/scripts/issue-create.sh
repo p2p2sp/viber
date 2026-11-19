@@ -25,7 +25,15 @@
 #                             project's title (`gh project view <number>
 #                             --owner <owner> --format json --jq .title`),
 #                             any other value is passed to gh verbatim
-#   cwd  : gh resolves the repository from the cwd.
+#            --template <P>   repo-relative path of an issue form template, as
+#                             a `--- template <P> ---` line of
+#                             issue-templates.sh names it (optional): that
+#                             block's TYPE is applied as --type and each item
+#                             of its LABELS, ASSIGNEES and PROJECTS as
+#                             --label, --assignee, --project. It excludes
+#                             those four flags.
+#   cwd  : gh resolves the repository from the cwd; --template runs the
+#          sibling issue-templates.sh there.
 #   env  : none of its own; gh reads its usual auth and host config.
 #   file : $1, sent verbatim as the issue body, then removed once the issue
 #          exists (exit 0); every other exit leaves it in place.
@@ -53,8 +61,12 @@
 #           created), `gh issue create` failed or printed no parsable issue
 #           URL.
 #   exit 2: missing body file or title, body file not found, an unknown or
-#           valueless flag, or a --parent that is not a positive integer - gh
-#           is never invoked.
+#           valueless flag, a --parent that is not a positive integer, or
+#           --template together with --type, --label, --assignee or --project
+#           - gh is never invoked. A --template whose lookup (issue-templates.sh,
+#           which calls gh) answers a skip block or no block naming the path
+#           also exits 2, with one `ERROR issue-create.sh: <reason>` line and
+#           nothing created.
 set -u
 
 body=${1:-}; title=${2:-}
@@ -72,13 +84,19 @@ shift 2
 # in the order they arrived.
 type=""
 parent=""
+tmpl=""
+flagged=0
 i=$#
 while [ $i -gt 0 ]; do
   a=$1; shift; i=$((i-1))
   case $a in
     --type)
       [ $i -gt 0 ] || { echo "ERROR issue-create.sh: --type needs a value" >&2; exit 2; }
+      flagged=1
       type=$1; shift; i=$((i-1)) ;;
+    --template)
+      [ $i -gt 0 ] || { echo "ERROR issue-create.sh: --template needs a path" >&2; exit 2; }
+      tmpl=$1; shift; i=$((i-1)) ;;
     --parent)
       [ $i -gt 0 ] || { echo "ERROR issue-create.sh: --parent needs an issue number" >&2; exit 2; }
       case $1 in
@@ -87,15 +105,69 @@ while [ $i -gt 0 ]; do
       parent=$1; shift; i=$((i-1)) ;;
     --label|--assignee|--project)
       [ $i -gt 0 ] || { echo "ERROR issue-create.sh: $a needs a value" >&2; exit 2; }
+      flagged=1
       set -- "$@" "$a" "$1"; shift; i=$((i-1)) ;;
     *)
       echo "ERROR issue-create.sh: unknown flag $a" >&2; exit 2 ;;
   esac
 done
 
+if [ -n "$tmpl" ] && [ $flagged -eq 1 ]; then
+  echo "ERROR issue-create.sh: --template cannot be combined with --type, --label, --assignee or --project" >&2
+  exit 2
+fi
+
 if ! command -v gh >/dev/null 2>&1; then
   echo "ERROR issue-create.sh: gh not found on PATH" >&2
   exit 1
+fi
+
+# Turn the named template block into the --type value and --label/--assignee/
+# --project pairs, so the project resolution below treats them like any other.
+if [ -n "$tmpl" ]; then
+  here=$(dirname -- "$0")
+  lookup=$(sh "$here/issue-templates.sh" 2>/dev/null | tr -d '\r')
+  case $lookup in
+    STATUS=ready*) ;;
+    STATUS=skip*)
+      say=$(printf '%s\n' "$lookup" | sed -n 's/^SAY=//p' | tail -n 1)
+      echo "ERROR issue-create.sh: template lookup skipped: $say" >&2
+      exit 2 ;;
+    *)
+      echo "ERROR issue-create.sh: template lookup failed" >&2
+      exit 2 ;;
+  esac
+  items=$(printf '%s\n' "$lookup" | TPL_PATH=$tmpl awk '
+    BEGIN { want = "--- template " ENVIRON["TPL_PATH"] " ---" }
+    /^--- template / { on = ($0 == want); if (on) print "found"; next }
+    on != 1 { next }
+    /^TYPE=/ { v = substr($0, 6); if (v != "") print "--type=" v; next }
+    /^LABELS=/ { n = split(substr($0, 8), a, ", "); for (k = 1; k <= n; k++) if (a[k] != "") print "--label=" a[k]; next }
+    /^ASSIGNEES=/ { n = split(substr($0, 11), a, ", "); for (k = 1; k <= n; k++) if (a[k] != "") print "--assignee=" a[k]; next }
+    /^PROJECTS=/ { n = split(substr($0, 10), a, ", "); for (k = 1; k <= n; k++) if (a[k] != "") print "--project=" a[k]; next }
+  ')
+  case $items in
+    found*) ;;
+    *)
+      echo "ERROR issue-create.sh: no template block names $tmpl" >&2
+      exit 2 ;;
+  esac
+  nl='
+'
+  oldifs=$IFS
+  IFS=$nl
+  set -f
+  for it in $items; do
+    [ "$it" = found ] && continue
+    flag=${it%%=*}
+    val=${it#*=}
+    case $flag in
+      --type) type=$val ;;
+      *) set -- "$@" "$flag" "$val" ;;
+    esac
+  done
+  set +f
+  IFS=$oldifs
 fi
 
 # Resolve each `--project <owner>/<number>` to the project's title, which is

@@ -64,6 +64,9 @@ elif [ "$1" = "project" ]; then
   if [ -n "\${PROJECT_STDERR:-}" ]; then printf '%s' "$PROJECT_STDERR" >&2; fi
   printf '%s\\n' "\${PROJECT_STDOUT:-}"
   exit "\${PROJECT_EXIT:-0}"
+elif [ "$1" = "repo" ]; then
+  printf '%s\\n' "https://github.com/acme/widgets"
+  exit 0
 elif [ "$1" = "api" ]; then
   case " $* " in
     *" PATCH "*)
@@ -87,11 +90,16 @@ async function runStubbed(
   shell: Shell,
   args: string[],
   env: Record<string, string> = {},
+  files: Record<string, string> = {},
 ): Promise<{ result: RunResult; calls: string[][]; body: string; bodyKept: boolean }> {
   return await withTempDir("p2p2-issue-create-", (cwd) =>
     withStub("gh", GH_STUB, async (stubDir) => {
       const body = path.join(cwd, "body.md");
       fs.writeFileSync(body, "## Summary\n\nLine one.\nLine two.\n");
+      for (const [rel, content] of Object.entries(files)) {
+        fs.mkdirSync(path.dirname(path.join(cwd, rel)), { recursive: true });
+        fs.writeFileSync(path.join(cwd, rel), content);
+      }
       const argvFile = path.join(cwd, "argv.log");
       fs.writeFileSync(argvFile, "");
       const real = args.map((a) => (a === "<body>" ? body : a));
@@ -289,6 +297,87 @@ test("--type PATCH fails on an unrecognized reason: TYPE=error, TYPE_ERROR carri
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.equal(result.stdout, `ISSUE_URL=${ISSUE_URL}\nISSUE_NUMBER=42\nTYPE=error\nTYPE_ERROR=${msg}\nPARENT=none\n`);
     assert.ok(!calls.some((c) => c.includes("delete")), "the created issue must never be deleted");
+  });
+});
+
+// --- --template -----------------------------------------------------------------------
+
+const BUG_TEMPLATE = ".github/ISSUE_TEMPLATE/bug.yml";
+const BUG_TEMPLATE_YAML = [
+  "name: Bug report",
+  "description: Something is broken",
+  "type: Bug",
+  "labels: [bug, triage]",
+  "assignees:",
+  "  - octocat",
+  "projects: [Roadmap]",
+  "body:",
+  "  - type: textarea",
+  "",
+].join("\n");
+
+test("--template applies the template's type, labels, assignees and project: they reach gh issue create, the type is PATCHed and TYPE=applied", async () => {
+  await assertPosix(async (shell) => {
+    const { result, calls, body } = await runStubbed(
+      shell,
+      ["<body>", "A title", "--template", BUG_TEMPLATE],
+      { CREATE_STDOUT: ISSUE_URL + "\n" },
+      { [BUG_TEMPLATE]: BUG_TEMPLATE_YAML },
+    );
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, `ISSUE_URL=${ISSUE_URL}\nISSUE_NUMBER=42\nTYPE=applied\nPARENT=none\n`);
+    const create = calls.find((c) => c[0] === "issue");
+    assert.deepEqual(create, [
+      "issue", "create", "--title", "A title", "--body-file", body,
+      "--label", "bug", "--label", "triage", "--assignee", "octocat", "--project", "Roadmap",
+    ]);
+    assert.deepEqual(calls.find((c) => c[0] === "api"), ["api", "--hostname", "github.com", "-X", "PATCH", "repos/acme/widgets/issues/42", "-f", "type=Bug"]);
+  });
+});
+
+for (const flag of [["--type", "Bug"], ["--label", "bug"], ["--assignee", "octocat"], ["--project", "Roadmap"]]) {
+  test(`--template together with ${flag[0]}: exit 2, one ERROR line and gh is never called`, async () => {
+    await assertPosix(async (shell) => {
+      const { result, calls, bodyKept } = await runStubbed(
+        shell,
+        ["<body>", "A title", "--template", BUG_TEMPLATE, ...flag],
+        { CREATE_STDOUT: ISSUE_URL + "\n" },
+        { [BUG_TEMPLATE]: BUG_TEMPLATE_YAML },
+      );
+      assert.equal(result.status, 2, result.stderr);
+      assert.equal(result.stdout, "");
+      assert.match(result.stderr, /^ERROR issue-create\.sh: --template cannot be combined with --type, --label, --assignee or --project$/m);
+      assert.equal(result.stderr.split("\n").filter((l) => l.length > 0).length, 1, result.stderr);
+      assert.ok(bodyKept, "a refused call keeps the body file");
+      assert.equal(calls.length, 0);
+    });
+  });
+}
+
+test("--template naming a path no template block holds: exit 2, one ERROR line naming the path, nothing created", async () => {
+  await assertPosix(async (shell) => {
+    const { result, calls } = await runStubbed(
+      shell,
+      ["<body>", "A title", "--template", ".github/ISSUE_TEMPLATE/missing.yml"],
+      { CREATE_STDOUT: ISSUE_URL + "\n" },
+      { [BUG_TEMPLATE]: BUG_TEMPLATE_YAML },
+    );
+    assert.equal(result.status, 2, result.stderr);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^ERROR issue-create\.sh: .*\.github\/ISSUE_TEMPLATE\/missing\.yml/);
+    assert.equal(result.stderr.split("\n").filter((l) => l.length > 0).length, 1, result.stderr);
+    assert.ok(!calls.some((c) => c[0] === "issue"), "no issue is created");
+  });
+});
+
+test("--template when issue-templates.sh answers a skip block: exit 2, one ERROR line carrying its SAY sentence, nothing created", async () => {
+  await assertPosix(async (shell) => {
+    const { result, calls } = await runStubbed(shell, ["<body>", "A title", "--template", BUG_TEMPLATE], { CREATE_STDOUT: ISSUE_URL + "\n" });
+    assert.equal(result.status, 2, result.stderr);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^ERROR issue-create\.sh: .*no issue form template in \.github\/ISSUE_TEMPLATE/);
+    assert.equal(result.stderr.split("\n").filter((l) => l.length > 0).length, 1, result.stderr);
+    assert.ok(!calls.some((c) => c[0] === "issue"), "no issue is created");
   });
 });
 
