@@ -1,0 +1,4 @@
+- Scenarios check: a heading other than `### Edge cases` takes a place in the scenario count even when malformed, so the `<k>th` of the FIX line is that place (a stray `### Notes` first makes a following `### S1` the 2nd scenario and flagged). The message keeps the contract's literal "th" ("1th", "2th").
+- Fresh plan only (`mode != "--split"`), like the other late checks; a landed plan with a loose heading still validates.
+- DoD.3, DoD.4 and DoD.5 already held before the change (nothing flagged those shapes): their tests pin the behaviour and were green in the red run. Red run: 2 failing (DoD.1, DoD.2), `.temp/viber/T3/red.log`.
+- Header: the "last eighteen cases" sentence became nineteen; `tests/viber/CLAUDE.md` replay note and `CLAUDE.run-scripts.md` are the memory step's.

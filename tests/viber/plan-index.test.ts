@@ -5031,3 +5031,60 @@ test("an unfilled template slot and task blocks under no \"## Tasks\" heading pr
     ].join("\n"),
   );
 });
+
+// --- Scenarios: the headings under ## Behaviour --------------------------------
+
+/** The full-shape plan these cases edit: its Behaviour section holds `### S1 - Signing in [NEW]`
+ *  then `### Edge cases`. */
+function fullPlan(): string {
+  return planBody(TWO_TASKS, 2, CONTRACT, "full");
+}
+
+test("a ### heading under ## Behaviour that is neither Edge cases nor a numbered scenario prints the Scenarios FIX line and exits 4", async () => {
+  const result = await validateOnce(fullPlan().replace("### S1 - Signing in [NEW]", "### Signing in"));
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(
+    result.stderr,
+    'FIX: line 22: scenario heading "Signing in" must be "### S<k> - <title>", the 1th scenario in order - number it (Scenarios)\n',
+  );
+});
+
+test("a scenario numbered out of order prints the Scenarios FIX line for the second heading (S1, then S3)", async () => {
+  const result = await validateOnce(
+    fullPlan().replace("### Edge cases", "### S3 - Resetting [NEW]\n\nA customer resets.\n\n### Edge cases"),
+  );
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(
+    result.stderr,
+    'FIX: line 30: scenario heading "S3 - Resetting [NEW]" must be "### S<k> - <title>", the 2th scenario in order - number it (Scenarios)\n',
+  );
+});
+
+test("S1, S2 and Edge cases headings under ## Behaviour print nothing and the plan validates", async () => {
+  const result = await validateOnce(
+    fullPlan().replace("### Edge cases", "### S2 - Resetting [NEW]\n\nA customer resets.\n\n### Edge cases"),
+  );
+
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(result.stderr, "");
+});
+
+test("a ### heading inside a fenced block under ## Behaviour prints nothing", async () => {
+  const result = await validateOnce(
+    fullPlan().replace("### Edge cases", "```\n### Notes\n```\n\n### Edge cases"),
+  );
+
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(result.stderr, "");
+});
+
+test("a plan with no ## Behaviour section prints nothing for the scenario check", async () => {
+  const result = await validateOnce(planBody(TWO_TASKS));
+
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(result.stderr, "");
+});

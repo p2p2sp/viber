@@ -423,8 +423,14 @@
 #       at run time outside their HTML comments; no templates directory, no check),
 #       found on a plan line outside a fenced block, an HTML comment, a backtick span
 #       and the "## Contracts" appendix ("FIX: line <n>: template slot <slot> left
-#       unfilled - replace it (Filled)"; one per line and slot).
-#       The last eighteen cases and the parenthetical one above are exempted under --split
+#       unfilled - replace it (Filled)"; one per line and slot), or a "### " heading
+#       outside a fenced block under a "## Behaviour" section that is neither
+#       "### Edge cases" nor "### S<k> - <title>", <k> being the heading's place among
+#       the section's "### " headings but "### Edge cases", counted from 1 (stderr:
+#       "FIX: line <n>: scenario heading "<heading>" must be "### S<k> - <title>", the
+#       <k>th scenario in order - number it (Scenarios)"; a plan with no "## Behaviour"
+#       section has none to check).
+#       The last nineteen cases and the parenthetical one above are exempted under --split
 #       and under --extra, and on a plain call whose plan has status.md beside
 #       it (a landed run plan): a plan that landed before the rule is frozen,
 #       and a run resumed after the upgrade must still validate and decompose.
@@ -1190,7 +1196,22 @@ mode != "--split" && nslot > 0 && !infc {
 !infc && /^##[[:space:]]/ {
   incrit = ($0 ~ /Acceptance criteria/) ? 1 : 0
   incon  = ($0 ~ /Contracts/) ? 1 : 0
+  inbeh  = ($0 ~ /^##[[:space:]]*Behaviour[[:space:]]*$/) ? 1 : 0
+  nscen = 0
   cid = ""
+}
+
+# Scenarios: under "## Behaviour" every "### " heading outside a fence is "### Edge cases"
+# or "### S<k> - <title>", <k> counting the scenarios from 1 in order (any other heading
+# takes a place in that count, so the numbers after it stay checked). Fresh plan only,
+# like the other checks added after plans were frozen.
+mode != "--split" && !infc && inbeh && /^###[[:space:]]/ {
+  sh = trim(substr($0, 4))
+  if (sh != "Edge cases") {
+    nscen++
+    if (!(match(sh, /^S[1-9][0-9]* - /) && trim(substr(sh, RLENGTH + 1)) != "" && substr(sh, 2, RLENGTH - 4) + 0 == nscen))
+      fail("line " NR ": scenario heading \"" sh "\" must be \"### S<k> - <title>\", the " nscen "th scenario in order - number it (Scenarios)")
+  }
 }
 incrit && /^[0-9]+\./ {
   c = $0
