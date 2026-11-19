@@ -14,6 +14,9 @@
 #                                        the commits and files of a final-review slice (below)
 #   plan-index.sh <plan-file> --final-review
 #                                        the final-review dispatch blocks (below)
+#   plan-index.sh <plan-file> --input <summary-file>
+#                                        validate + index, and check the plan against the
+#                                        planner's input (below)
 #
 # stdout (the orchestrator's only view of the plan - the decomposed files are read
 # by agents):
@@ -162,6 +165,25 @@
 # <plugin root> is cut as under --dispatch. The plan is validated as under --split and
 # no file is written. --final-review beside --split, --extra, --dispatch or --slice
 # exits 2.
+#
+# --input <summary-file> (validate mode only, never beside --split, --extra, --dispatch,
+# --slice or --final-review: exit 2, "error: --input cannot be combined with ...") reads
+# the file as text and adds three checks to the validation, each a "FIX:" line (exit 4,
+# every defect of the run printed together); a plan validated without it runs none of
+# them. The lines it reads open at line start with "Attachment: <path>", "Root cause:"
+# or "Repro: <path>":
+#   FIX: input: Attachment <path> has no entry in the attachments map - add one (Attachments)
+#                                   an Attachment path no entry value of the frontmatter
+#                                   "attachments:" map holds, one line per path
+#   FIX: input gives a root cause but the plan has no "## Root cause" section - add it (Root cause)
+#   FIX: the plan carries a "## Root cause" section its input gives no cause for - drop it (Root cause)
+#                                   the input gives a cause when it carries a "Root cause:"
+#                                   line or an Attachment path under .temp/viber/code-auditor/;
+#                                   the heading counts outside a fenced block
+#   FIX: input: Repro <path> is on no task Repro: line - put it on the fixing task (Reproduced)
+#                                   a Repro path no task "Repro:" line holds (a leading "./"
+#                                   dropped), one line per path
+# A missing summary file exits 2 with "error: input file not found: <path>".
 #
 # --split removes, once the plan is validated and decomposed and before the index
 # is printed, the coder and reviewer extras files of every task not done; a done
@@ -322,7 +344,8 @@
 #       --extra <task-id>, --extra beside --split, a --extra id the plan does not
 #       hold, a --dispatch with an unknown id or form or beside --split or
 #       --extra, a --slice with an unknown id or beside --split, --extra or
-#       --dispatch, a --final-review beside any of those four, or a --split pointed at anything but the run's own <dir>/plan.md
+#       --dispatch, a --final-review beside any of those four, an --input beside any of
+#       those five, an --input file that is missing, or a --split pointed at anything but the run's own <dir>/plan.md
 #   3 - no <!-- TASK --> blocks
 #   4 - broken task contract (<!-- TASK --> blocks under no "## Tasks" heading,
 #       where the cut would leave tasks/ empty while the index still lists
@@ -456,7 +479,7 @@
 # Contract:
 #   argv   : the plan file, optionally --split, --extra <task-id>, --dispatch
 #            <task-id> coder|reviewer, --slice <id>[,<id>]... or --final-review,
-#            never two of them.
+#            never two of them, or --input <summary-file>, beside none of them.
 #   cwd    : the repository root - the plan path and every path in the index are
 #            relative to it; a plan path given absolute, or with a leading
 #            "./", inside it is read as its relative form.
@@ -481,8 +504,10 @@ dispatch_form=""
 has_slice=0
 slice_arg=""
 has_final=0
+has_input=0
+input_file=""
 [[ $# -eq 0 ]] || shift
-usage="error: usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer | --slice <id>[,<id>]... | --final-review]"
+usage="error: usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer | --slice <id>[,<id>]... | --final-review | --input <summary-file>]"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --split) mode="--split" ;;
@@ -504,6 +529,12 @@ while [[ $# -gt 0 ]]; do
       if [[ $# -lt 2 || -z "$2" ]]; then echo "$usage" >&2; exit 2; fi
       has_slice=1
       slice_arg="$2"
+      shift
+      ;;
+    --input)
+      if [[ $# -lt 2 || -z "$2" ]]; then echo "$usage" >&2; exit 2; fi
+      has_input=1
+      input_file="$2"
       shift
       ;;
     *) echo "$usage" >&2; exit 2 ;;
@@ -542,9 +573,52 @@ if [[ "$has_final" -eq 1 && ( "$has_slice" -eq 1 || "$has_extra" -eq 1 || "$has_
   exit 2
 fi
 
+if [[ "$has_input" -eq 1 && ( "$has_final" -eq 1 || "$has_slice" -eq 1 || "$has_extra" -eq 1 || "$has_dispatch" -eq 1 || "$mode" == "--split" ) ]]; then
+  echo "error: --input cannot be combined with --split, --extra, --dispatch, --slice or --final-review" >&2
+  exit 2
+fi
+
 if [[ ! -f "$plan" ]]; then
   echo "error: plan file not found: $plan" >&2
   exit 2
+fi
+
+if [[ "$has_input" -eq 1 && ! -f "$input_file" ]]; then
+  echo "error: input file not found: $input_file" >&2
+  exit 2
+fi
+
+# The input summary file (--input): its "Attachment: <path>" lines, whether it
+# gives a root cause (a "Root cause:" line or an Attachment path under
+# .temp/viber/code-auditor/) and its "Repro: <path>" lines, read as text at line
+# start. Handed to the awk pass below, which holds the plan.
+in_atts=""
+in_repros=""
+in_cause=0
+if [[ "$has_input" -eq 1 ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    case "$line" in
+      "Attachment:"*)
+        line="${line#Attachment:}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        [[ -n "$line" ]] || continue
+        in_atts="$in_atts$line"$'\n'
+        case "$line" in
+          *".temp/viber/code-auditor/"*) in_cause=1 ;;
+        esac
+        ;;
+      "Root cause:"*) in_cause=1 ;;
+      "Repro:"*)
+        line="${line#Repro:}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        [[ -n "$line" ]] || continue
+        in_repros="$in_repros$line"$'\n'
+        ;;
+    esac
+  done < "$input_file"
 fi
 
 # Windows hands over a backslashed path ("docs\_specs\...\plan.md"). `dirname`
@@ -755,6 +829,7 @@ profile="$profile_on" tier_min="$tier_min" tier_max="$tier_max" \
 extra="$extra_id" extra_paths="$extra_paths" dispatch="$dispatch_id" \
 st_done="$st_done" st_skipped="$st_skipped" st_unreviewed="$st_unreviewed" \
 st_deferred="$st_deferred" st_closed="$st_closed" st_decisions="$st_decisions" st_rulings="$st_rulings" \
+in_on="$has_input" in_atts="$in_atts" in_repros="$in_repros" in_cause="$in_cause" \
 awk '
 function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
 function val(s)  { sub(/^[^:]*:/, "", s); return trim(s) }
@@ -1241,6 +1316,9 @@ mode != "--split" && !infc && infmap && /^-[[:space:]]+(modify|delete)[[:space:]
       fail("file map: " fmkind " " fmpath ", which the tree does not hold - correct the path or list it as add (File map)")
   }
 }
+# Root cause: the plan carries the section when a "## Root cause" heading sits outside
+# a fence (checked against the input by --input only).
+!infc && /^##[[:space:]]+Root cause[[:space:]]*\r?$/ { hasrc = 1 }
 incrit && /^[0-9]+\./ {
   c = $0
   sub(/\..*/, "", c)
@@ -1674,6 +1752,37 @@ END {
           if (cnt > 0) feeds[i, cn] = cnt
         }
       }
+    }
+  }
+
+  # Input (--input only): the summary file the plan was written from. An Attachment path
+  # needs an entry of the attachments map, the section Root cause stands exactly when the
+  # input gives a cause, and a Repro path sits on the Repro line of a task.
+  if (ENVIRON["in_on"] == "1") {
+    for (ak = 1; ak <= natt; ak++) {
+      ae = attent[ak]
+      sub(/^[^:]*:/, "", ae)
+      ae = trim(ae)
+      if (ae ~ /^".*"$/ || ae ~ /^\047.*\047$/) ae = substr(ae, 2, length(ae) - 2)
+      aheld[ae] = 1
+    }
+    na = split(ENVIRON["in_atts"], inatt, "\n")
+    for (ik = 1; ik <= na; ik++) {
+      ip = inatt[ik]
+      if (ip == "" || (ip in aheld) || (ip in iseen)) continue
+      iseen[ip] = 1
+      fail("input: Attachment " ip " has no entry in the attachments map - add one (Attachments)")
+    }
+    if (ENVIRON["in_cause"] == "1" && !hasrc) fail("input gives a root cause but the plan has no \"## Root cause\" section - add it (Root cause)")
+    if (ENVIRON["in_cause"] != "1" && hasrc) fail("the plan carries a \"## Root cause\" section its input gives no cause for - drop it (Root cause)")
+    for (i = 1; i <= n; i++) if (repro[i] != "") { rp = repro[i]; sub(/^\.\//, "", rp); rheld[rp] = 1 }
+    nr = split(ENVIRON["in_repros"], inrep, "\n")
+    for (ik = 1; ik <= nr; ik++) {
+      ip = inrep[ik]
+      rp = ip; sub(/^\.\//, "", rp)
+      if (ip == "" || (rp in rheld) || (ip in rseen)) continue
+      rseen[ip] = 1
+      fail("input: Repro " ip " is on no task Repro: line - put it on the fixing task (Reproduced)")
     }
   }
 

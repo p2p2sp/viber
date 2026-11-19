@@ -5165,3 +5165,133 @@ test("a plan with a status.md beside it prints nothing for the File map check (a
   assert.equal(result.status, 0, `stderr: ${result.stderr}`);
   assert.equal(result.stderr, "");
 });
+
+// --- --input: the plan checked against the planner's summary file ---------------
+
+const ATT_MOCK = "/repo/.temp/viber/prototype/mock.html";
+const ATT_AUDIT = "/repo/.temp/viber/code-auditor/run-1/findings.md";
+const ROOT_CAUSE_SECTION = "## Root cause\n\nThe cache is never invalidated.\n\n## Acceptance criteria";
+
+/** The plan with a frontmatter `attachments:` map of one entry per path in `held`. */
+function withAttachments(body: string, held: string[]): string {
+  const entries = held.map((p, i) => `  file${i + 1}: ${p}`);
+  return ["---", `source: ${PLAN_REL}`, "attachments:", ...entries, "---", "", body].join("\n");
+}
+
+/** The plan with `## Root cause` above its acceptance criteria. */
+function withRootCause(body: string): string {
+  return body.replace("## Acceptance criteria", ROOT_CAUSE_SECTION);
+}
+
+/** Validates `body` beside an input file holding `inputLines`; `args` follow the plan path. */
+async function validateInput(body: string, inputLines: string[], args: string[] = ["--input", "input.md"]) {
+  return withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, body);
+    write(dir, "input.md", [...inputLines, ""].join("\n"));
+    return run(dir, {}, [PLAN_REL, ...args]);
+  });
+}
+
+const REPRO_TASKS: TaskFields[] = [
+  { id: "T1", title: "Fix the stale read", tdd: "none", repro: "tests/stale.test.ts", files: "src/login.ts,tests/stale.test.ts" },
+  TWO_TASKS[1],
+];
+
+test("an input Attachment path no attachments entry holds prints the input Attachments FIX line and exits 4", async () => {
+  const result = await validateInput(withAttachments(planBody(TWO_TASKS), [ATT_MOCK]), [
+    `Attachment: ${ATT_MOCK}`,
+    "Attachment: /repo/.temp/viber/prototype/other.html",
+  ]);
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(
+    result.stderr,
+    "FIX: input: Attachment /repo/.temp/viber/prototype/other.html has no entry in the attachments map - add one (Attachments)\n",
+  );
+});
+
+test("an input root cause line on a plan with no Root cause section prints the missing Root cause FIX line", async () => {
+  const result = await validateInput(planBody(TWO_TASKS), ["Root cause: the cache is never invalidated"]);
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(
+    result.stderr,
+    'FIX: input gives a root cause but the plan has no "## Root cause" section - add it (Root cause)\n',
+  );
+});
+
+test("an input Attachment path under .temp/viber/code-auditor/ on a plan with no Root cause section prints the missing Root cause FIX line", async () => {
+  const result = await validateInput(withAttachments(planBody(TWO_TASKS), [ATT_AUDIT]), [`Attachment: ${ATT_AUDIT}`]);
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(
+    result.stderr,
+    'FIX: input gives a root cause but the plan has no "## Root cause" section - add it (Root cause)\n',
+  );
+});
+
+test("an input with no cause on a plan holding a Root cause section prints the extra Root cause FIX line", async () => {
+  const result = await validateInput(withRootCause(planBody(TWO_TASKS)), ["Issue: https://example.test/issues/1"]);
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(
+    result.stderr,
+    'FIX: the plan carries a "## Root cause" section its input gives no cause for - drop it (Root cause)\n',
+  );
+});
+
+test("an input whose attachment is mapped, cause is given and repro sits on a task, on a plan holding the Root cause section, prints nothing", async () => {
+  const result = await validateInput(withAttachments(withRootCause(planBody(REPRO_TASKS)), [ATT_MOCK]), [
+    `Attachment: ${ATT_MOCK}`,
+    "Root cause: the cache is never invalidated",
+    "Repro: tests/stale.test.ts",
+  ]);
+
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(result.stderr, "");
+});
+
+test("an input Repro path no task Repro line holds prints the input Reproduced FIX line and exits 4", async () => {
+  const result = await validateInput(planBody(REPRO_TASKS), ["Repro: tests/other.test.ts"]);
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(
+    result.stderr,
+    "FIX: input: Repro tests/other.test.ts is on no task Repro: line - put it on the fixing task (Reproduced)\n",
+  );
+});
+
+test("--input naming a missing file exits 2 with one error line and nothing on stdout", async () => {
+  const result = await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, planBody(TWO_TASKS));
+    return run(dir, {}, [PLAN_REL, "--input", "nope.md"]);
+  });
+
+  assert.equal(result.status, 2);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr, "error: input file not found: nope.md\n");
+});
+
+test("a plan validated without --input runs none of the three input checks", async () => {
+  const result = await validateInput(withRootCause(planBody(TWO_TASKS)), ["Root cause: x"], []);
+
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  assert.equal(result.stderr, "");
+});
+
+for (const beside of [["--split"], ["--extra", "T1"], ["--dispatch", "T1", "coder"], ["--slice", "T1"], ["--final-review"]]) {
+  test(`--input beside ${beside[0]} exits 2 with one combination error line`, async () => {
+    const result = await validateInput(planBody(TWO_TASKS), ["Root cause: x"], ["--input", "input.md", ...beside]);
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.equal(
+      result.stderr,
+      "error: --input cannot be combined with --split, --extra, --dispatch, --slice or --final-review\n",
+    );
+  });
+}
