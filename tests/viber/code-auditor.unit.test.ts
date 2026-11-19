@@ -47,6 +47,7 @@ const FORBIDDEN: string[] = [
   join("agents/", "prover.md"),
   join("intent/references/", "prove.md"),
   join("--", "prove"),
+  join("commit-", "selfcheck.sh"),
 ];
 
 const BINARY_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2"];
