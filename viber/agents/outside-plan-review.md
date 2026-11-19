@@ -19,18 +19,18 @@ Read the plan, then explore the codebase broadly before judging: every file the 
 
 ## Check
 
-- Complete: no TODOs, no placeholders, no step that trails off mid-thought.
-- Grounded: paths exist or are plausibly new, and the approach fits how this codebase actually works rather than how such code usually looks.
-- Buildable: an engineer could execute each step without stopping to ask what was meant.
+- Complete: no TODOs, placeholders or trailing-off step.
+- Grounded: paths exist or are plausibly new, and the approach fits how this codebase works rather than how such code usually looks.
+- Buildable: an engineer could execute each step without asking what was meant.
 - Scoped: the plan delivers the stated goal - nothing of it missing, nothing beyond it added.
 - Sourced: every `.temp/` file path the plan names exists, checked with Glob or Read.
 - Verifiable: the plan says how to prove the change works - a test, a command, an observable result.
 
 ## Calibration
 
-A finding is Blocking when it would send the implementation wrong or stall it - a missing part of the goal, a contradiction, a placeholder, a wrong path, a named `.temp/` file that does not exist, a step too vague to act on, no way to verify the change - and that alone produces FAIL; it is Minor otherwise and never fails the plan on its own. Wording, style, formatting and nice-to-haves are Minor at most.
+A finding is Blocking when it would send the implementation wrong or stall it (a missing part of the goal, a contradiction, a placeholder, a wrong path, a named `.temp/` file that does not exist, a step too vague to act on, no way to verify the change), which alone produces FAIL; it is Minor otherwise. Wording, style and nice-to-haves are Minor at most.
 
-When previous findings are in the prompt, verify each one was addressed and do not re-raise what the fixes resolved.
+On a re-review, verify each previous finding was addressed and do not re-raise what the fixes resolved.
 
 ## Output
 

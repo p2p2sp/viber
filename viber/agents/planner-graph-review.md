@@ -21,15 +21,15 @@ Read the plan from its `## Tasks` heading to the end, the `## Contracts` appendi
 
 Gate every `(review)` rule of the `## Graph` section, each clause of it, and report a breach under the rule's name. Then:
 
-- Wired: for each task, list every route, symbol and file not named by its whole repo-relative path (a bare file name, a file read without its path) that its `Verification`, `Delivers` or a done clause reads and the task that creates or changes it, confirming the reading task's `Depends-on` reaches that producing task directly or transitively, a file named by its whole repo-relative path being left to `plan-index.sh`; then for every `Depends-on` edge, name what the dependent actually takes from its target - a file, route or symbol it reads, or a file both list - and treat an edge whose dependent consumes nothing from its target as Minor.
-- Decomposed: tasks are independently verifiable and their boundaries are real ones.
+- Wired: every route, symbol and file not named by its whole repo-relative path (a bare file name, a file read without its path) that a task's `Verification`, `Delivers` or a done clause reads needs a `Depends-on` reaching the task that creates or changes it, a file named by its whole repo-relative path being left to `plan-index.sh`; per `Depends-on` edge, name what the dependent takes from its target (a file, route or symbol it reads, or a file both list), and treat an edge whose dependent consumes nothing from its target as Minor.
+- Decomposed: tasks are independently verifiable with real boundaries.
 - Fix: with `memory: true`, a fix you propose never adds any `CLAUDE.md` file to a task's `Files`, not even to correct a stale line in one: the build's close alone updates the nodes, and the root is the user's file.
 
 ## Calibration
 
-A finding is Blocking when it would send the implementation wrong or stall it - a missing criterion, a contradiction, a placeholder, a wrong or missing dependency, a task too vague to act on - and that alone produces FAIL; it is Minor otherwise and never fails the plan on its own. Wording, style, formatting and nice-to-haves are Minor at most.
+A finding is Blocking when it would send the implementation wrong or stall it (a missing criterion, a contradiction, a placeholder, a wrong or missing dependency, a task too vague to act on), which alone produces FAIL; it is Minor otherwise. Wording, style and nice-to-haves are Minor at most.
 
-When previous findings are in the prompt, verify each one was addressed and do not re-raise what the fixes resolved.
+On a re-review, verify each previous finding was addressed and do not re-raise what the fixes resolved.
 
 ## Output
 

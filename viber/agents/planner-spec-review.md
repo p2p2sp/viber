@@ -16,9 +16,9 @@ Your tools are Read, Grep and Glob: call each one directly, never through ToolSe
 The prompt carries the plan path, `refs` (the reference directory), on a re-review every reviewer's previous findings plus one line per fix applied since, and the line:
 
 input:
-<the confirmed viber:intent summary or viber:fixer diagnosis the plan answers, verbatim, on the lines below this label, up to the next labelled line or the end of the prompt; after the summary it may carry `Answered: <decision> -> <chosen option>` lines, one per decision the user answered>
+<the confirmed viber:intent summary or viber:fixer diagnosis the plan answers, verbatim, up to the next labelled line or the end of the prompt, then optional `Answered: <decision> -> <chosen option>` lines>
 
-A one-line `input:` naming a `.md` file under `.temp/viber/intent/summary-` is read as that file's content: `Read` it, and treat it as the summary.
+A one-line `input:` naming a `.md` file under `.temp/viber/intent/summary-` is that summary: `Read` it.
 
 Read the whole plan. Read `<refs>/plan-rules.md` only in the sections `## Spec` and `## Contracts`: `Grep` it for the `## ` line numbers, then `Read` each of those two sections by range. Then search the codebase before judging, scoped to the specification: grep callers only of the symbols whose signature or observable behaviour the plan changes (a moved or deleted file changing all of its symbols), and the documents and `.claude/rules/` files naming a path the plan modifies, moves or deletes; it runs no search past it. Read a file only to confirm a hit or to check a task's change against the code it modifies. A reference the search reaches that sits in neither the `### File map`, a task's `Files` nor `### Out of scope` is a finding.
 
@@ -26,22 +26,22 @@ Read the whole plan. Read `<refs>/plan-rules.md` only in the sections `## Spec` 
 
 Gate every `(review)` rule of the `## Spec` and `## Contracts` sections, each clause of it, and report a breach under the rule's name. Then:
 
-- Complete: no TODOs, no placeholders, no part of the specification that trails off mid-thought.
-- Faithful: when `input:` is present, a criterion, boundary or constraint of it missing from the plan, or one the plan adds beyond it, is a Blocking finding, and what an `Answered:` line settles counts as part of the input; so is a scenario or edge case whose outcome neither the input nor an `Answered:` line settles, nor follows from them; so is an `Attachment:` line of it with no entry in the frontmatter `attachments:` map.
+- Complete: no TODOs, placeholders or part of the specification trailing off mid-thought.
+- Faithful: when `input:` is present, a criterion, boundary or constraint of it missing from the plan, or one the plan adds beyond it, is a Blocking finding, and what an `Answered:` line settles counts as part of the input; so is a scenario or edge case whose outcome neither the input nor an `Answered:` line settles or implies; so is an `Attachment:` line of an input given as text with no entry in the frontmatter `attachments:` map (an input given as a summary file is left to `plan-index.sh --input`).
 
 ## Check the big spec shape
 
 Check when the specification carries `## Behaviour` and `## Glossary`.
 
 - Filled: no template slot survives inside a fenced block, a backtick span, an HTML comment or a contract block, and neither does an example line nobody replaced; a slot anywhere else and an unnumbered scenario are left to `plan-index.sh`.
-- Anchored: every `### S<n>` scenario traces to an acceptance criterion, and every criterion is reachable from some scenario. A scenario proving nothing the criteria claim is either a missing criterion or a scenario that does not belong.
-- Behavioural: `## Behaviour`, `### Edge cases`, `## Glossary` and `## Solution requirements` describe what a person observes, never the mechanism. A glossary entry naming a key, a field or a type instead of the concept is a finding: the shape belongs to a `## Contracts` block.
+- Anchored: every `### S<n>` scenario traces to an acceptance criterion and every criterion to a scenario. A scenario proving nothing the criteria claim is a missing criterion or does not belong.
+- Behavioural: `## Behaviour`, `### Edge cases`, `## Glossary` and `## Solution requirements` describe what a person observes, never the mechanism. A glossary entry naming a key, field or type is a finding: the shape belongs to a `## Contracts` block.
 
 ## Calibration
 
-A finding is Blocking when it would send the implementation wrong or stall it - a missing criterion, a contradiction, a placeholder, a wrong or missing dependency, a task too vague to act on - and that alone produces FAIL; it is Minor otherwise and never fails the plan on its own. Wording, style, formatting and nice-to-haves are Minor at most.
+A finding is Blocking when it would send the implementation wrong or stall it (a missing criterion, a contradiction, a placeholder, a wrong or missing dependency, a task too vague to act on), which alone produces FAIL; it is Minor otherwise. Wording, style and nice-to-haves are Minor at most.
 
-When previous findings are in the prompt, verify each one was addressed and do not re-raise what the fixes resolved.
+On a re-review, verify each previous finding was addressed and do not re-raise what the fixes resolved.
 
 ## Output
 

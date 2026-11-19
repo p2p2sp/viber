@@ -212,7 +212,8 @@ const DROPPED_PHRASES: [string, string, string][] = [
 // [reviewer, check label, phrase]: a phrase of a check no script can make, which the reviewer keeps.
 const KEPT_PHRASES: [string, string, string][] = [
   ...REVIEWS_ATTACHMENTS.flatMap((name): [string, string, string][] => [
-    [name, "Faithful", "an `Attachment:` line of it with no entry in the frontmatter `attachments:` map"],
+    [name, "Faithful", "an `Attachment:` line of an input given as text with no entry in the frontmatter `attachments:` map"],
+    [name, "Faithful", "an input given as a summary file is left to `plan-index.sh --input`"],
     [name, "Filled", "inside a fenced block, a backtick span, an HTML comment or a contract block"],
     [name, "Filled", "an example line nobody replaced"],
   ]),
@@ -222,6 +223,12 @@ const KEPT_PHRASES: [string, string, string][] = [
     [name, "Wired", "an edge whose dependent consumes nothing from its target as Minor"],
   ]),
 ];
+
+for (const name of ["planner-review", "planner-task-review"]) {
+  test(`${name} leaves to plan-index.sh a modify or delete path the tree lacks, in its Grounded check`, () => {
+    assert.ok(bulletOf(read(`agents/${name}.md`), "Grounded").includes("a `modify` or `delete` path the tree lacks is left to `plan-index.sh`"));
+  });
+}
 
 for (const [name, label, phrase] of DROPPED_PHRASES) {
   test(`${name} drops from its ${label} check the part plan-index.sh decides: ${phrase}`, () => {

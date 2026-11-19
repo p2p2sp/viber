@@ -89,8 +89,21 @@ test("plan-rules.md carries exactly one Root cause bullet (a second would be pai
   assert.equal(rootCauseBullets().length, 1);
 });
 
-test("the Root cause bullet is tagged (review) (no script checks the section)", () => {
+test("the Root cause bullet is tagged (review) (the review half: a script decides only the case of a summary file input)", () => {
   assert.ok(rootCauseBullets()[0]?.endsWith("(review)"), rootCauseBullets()[0]);
+});
+
+const SUMMARY_FILE_CASE = "`plan-index.sh --input` decides the case of an input given as a summary file";
+
+test("the Root cause bullet leaves the case of an input given as a summary file to plan-index.sh --input (the reviewer then checks the other inputs alone)", () => {
+  assert.ok((rootCauseBullets()[0] ?? "").includes(SUMMARY_FILE_CASE), rootCauseBullets()[0]);
+});
+
+test("plan-rules.md carries one Reproduced review bullet leaving the case of an input given as a summary file to plan-index.sh --input (a second bullet would be paid on every planner round)", () => {
+  const bullets = lines(RULES).filter((l) => l.startsWith("- Reproduced:"));
+  assert.equal(bullets.length, 1);
+  assert.ok(bullets[0]?.endsWith("(review)"), bullets[0]);
+  assert.ok(bullets[0]?.includes(SUMMARY_FILE_CASE), bullets[0]);
 });
 
 test("the Root cause bullet requires the section for a viber:fixer diagnosis and for code-auditor findings (those are the inputs that know a cause)", () => {
