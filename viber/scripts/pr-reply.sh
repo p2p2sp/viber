@@ -59,6 +59,8 @@
 #            (a thread) or `...#issuecomment-<id>` (another remark), or
 #              STATUS=skip
 #              REASON=exists
+#              SAY=The item already holds a viber reply.
+#            the caller states the SAY sentence and never rewords it.
 #            exists = for a thread, the newest reply to <id> (the comments come
 #            oldest first) has the marker as its first line; a reviewer reply after
 #            the viber one is a follow-up and gets answered, the rule pr-threads.sh
@@ -128,6 +130,7 @@ ghapi() {
   if [ -n "$host" ]; then gh api --hostname "$host" "$@"; else gh api "$@"; fi
 }
 
+say_exists="The item already holds a viber reply."
 marker="<!-- viber:pr-feedback $key -->"
 quote=""
 orig_url=""
@@ -137,7 +140,7 @@ if [ "$kind" = thread ]; then
     || fail "gh api comments failed: $(printf '%s' "$comments" | tr '\n\r' '  ')"
   newest=$(printf '%s\n' "$comments" | tr -d '\r' | grep -- "^$id " | tail -n 1)
   if [ "$newest" = "$id $marker" ]; then
-    printf 'STATUS=skip\nREASON=exists\n'
+    printf 'STATUS=skip\nREASON=exists\nSAY=%s\n' "$say_exists"
     exit 0
   fi
   post_to="repos/$slug/pulls/$n/comments/$id/replies"
@@ -147,7 +150,7 @@ else
     "repos/$slug/issues/$n/comments" 2>&1) \
     || fail "gh api comments failed: $(printf '%s' "$comments" | tr '\n\r' '  ')"
   if printf '%s\n' "$comments" | tr -d '\r' | grep -Fxq -- "$marker"; then
-    printf 'STATUS=skip\nREASON=exists\n'
+    printf 'STATUS=skip\nREASON=exists\nSAY=%s\n' "$say_exists"
     exit 0
   fi
   if [ "$kind" = comment ]; then

@@ -184,7 +184,7 @@ test("a reply to the comment opening with its marker prints STATUS=skip and REAS
       env: { COMMENTS: `300 Looks good\r\n101 ${MARKER}\r\n` },
     });
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "STATUS=skip\nREASON=exists\n");
+    assert.equal(result.stdout, "STATUS=skip\nREASON=exists\nSAY=The item already holds a viber reply.\n");
     assert.equal(posts(calls).length, 0);
   });
 });
@@ -195,7 +195,7 @@ test("a thread whose newest reply is the marker, after an older reviewer follow-
       env: { COMMENTS: `null Please fix\n101 ${MARKER}\n101 One more thing\n101 ${MARKER}\n` },
     });
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "STATUS=skip\nREASON=exists\n");
+    assert.equal(result.stdout, "STATUS=skip\nREASON=exists\nSAY=The item already holds a viber reply.\n");
     assert.equal(posts(calls).length, 0);
   });
 });
@@ -338,7 +338,7 @@ for (const [key, originalEndpoint, url] of REMARKS) {
         env: { COMMENTS: `Looks good\r\n${remarkMarker(key)}\r\n` },
       });
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(result.stdout, "STATUS=skip\nREASON=exists\n");
+      assert.equal(result.stdout, "STATUS=skip\nREASON=exists\nSAY=The item already holds a viber reply.\n");
       assert.equal(posts(calls).length, 0);
     });
   });

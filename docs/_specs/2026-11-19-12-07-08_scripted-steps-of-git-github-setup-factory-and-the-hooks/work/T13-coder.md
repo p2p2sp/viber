@@ -1,0 +1,4 @@
+- Red evidence comes from the revert route: with both skip `printf`s back on the two-line block, the four `REASON=exists` cases failed on the missing `SAY=` line (.temp/viber/T13/red-3.log, 4 failing). Restored afterwards. Verification then ran the whole file: 65/65 pass (verify-3.log). red.log and red-2.log in that directory belong to earlier runs.
+- pr-reply.test.ts is integration tier, but this task's Verification runs it and its stub `gh` keeps it off the network, so it was run as Verification states.
+- Only the three-argument skip block changed (both exists branches share `say_exists`). `--list` and `--all` of C6 are outside this task's DoD and are not built.
+- pr-feedback-reply/SKILL.md still reads the old two-line skip block. Another task owns it.
