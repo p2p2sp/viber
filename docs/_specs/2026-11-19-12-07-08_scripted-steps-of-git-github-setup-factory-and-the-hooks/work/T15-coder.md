@@ -1,0 +1,6 @@
+- Red: .temp/viber/T15/red.log came from running the `--all` cases against the HEAD script copy; green: 81/81 after the review pass removed the four test groups no DoD clause asked for.
+- The three-argument body is now `reply_one`; `--all` runs it in a command substitution per ready item (stderr merged), so a failed post exits only that subshell. Its output is unchanged for three arguments.
+- `--all` checks repository, then gh, then review.md (exit 2 for a missing review); `--list` and `--all` share the awk parse and the READY/MISSING classification.
+- A key repeated in two sections is posted once (seen-list in the loop); no test proves it, nor the `--all` exit 2 and outside-repository paths of C6.
+- A review.md reply path that is relative resolves against the cwd, as `--list` tests it.
+- pr-feedback-reply/SKILL.md still runs by hand: another task owns it.

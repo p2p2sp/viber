@@ -20,6 +20,12 @@
  * the skip reasons no-review and none-ready with their SAY sentences, calling no
  * gh; exit 2 on a malformed pull request, exit 1 outside a git repository.
  *
+ * `pr-reply.sh --all <pull request>` posts each ready reply of that review.md in
+ * section order, once per key, and prints a POSTED=, SKIPPED= or FAILED= line each
+ * (a failed post never repeated, the next reply still posted) and MISSING_COUNT=;
+ * exit 1 with nothing posted when gh is absent, exit 2 on a malformed pull request
+ * or with no review.md.
+ *
  * pr-reply.sh is `#!/bin/sh`, so every case runs through forEachShell("posix",
  * ...) via opts.shell, never executed directly. `gh` is always a withStub, or
  * absent - this test never shells out to the real gh. The stub answers a thread
@@ -74,8 +80,10 @@ const GH_STUB = `
 for a in "$@"; do printf '%s\\n' "$a" >> "$ARGV_FILE"; done; printf '===\\n' >> "$ARGV_FILE"
 post=""
 kind=""
+endpoint=""
 for a in "$@"; do
   if [ "$a" = "-X" ]; then post=yes; fi
+  case $a in repos/*) endpoint=$a ;; esac
   case $a in
     body=@*) cat "\${a#body=@}" > "$BODY_LOG" ;;
     repos/*/issues/comments/*|repos/*/pulls/*/reviews/*) kind=original ;;
@@ -84,6 +92,9 @@ for a in "$@"; do
 done
 if [ -n "$post" ]; then
   if [ -n "\${POST_FAIL:-}" ]; then echo "HTTP 500: server error" >&2; exit 1; fi
+  if [ -n "\${POST_FAIL_ON:-}" ]; then
+    case $endpoint in *"$POST_FAIL_ON"*) echo "HTTP 500: server error" >&2; exit 1 ;; esac
+  fi
   if [ "\${POST_OUT+set}" = set ]; then printf '%s' "$POST_OUT"; exit 0; fi
   if [ "$kind" = issues ]; then printf '%s\\n' "${ISSUE_REPLY_URL}"; else printf '%s\\n' "${REPLY_URL}"; fi
   exit 0
@@ -504,6 +515,18 @@ interface ListOpts {
   n?: number;
   /** The script to run (default: the shipped one). */
   script?: string;
+  /** The mode flag (default: --list). */
+  flag?: string;
+  /** Extra environment of the run (the gh stub's controls). */
+  env?: Record<string, string>;
+}
+
+interface ListOutcome {
+  result: RunResult;
+  /** The length of the gh stub's argv log: 0 when gh was never called. */
+  calls: number;
+  /** The gh calls of the run, one argv per call. */
+  argv: string[][];
 }
 
 const sectionOf = (dir: string, n: number, item: Item) =>
@@ -520,7 +543,7 @@ const sectionOf = (dir: string, n: number, item: Item) =>
 
 /** Runs `pr-reply.sh --list <pr>` in a fresh repo whose review.md holds `items`
  *  (a reply file written for each ready one), the gh stub first on PATH. */
-async function runList(shell: Shell, pr: string, opts: ListOpts = {}): Promise<{ result: RunResult; calls: number }> {
+async function runList(shell: Shell, pr: string, opts: ListOpts = {}): Promise<ListOutcome> {
   const n = opts.n ?? 42;
   return await withGitRepo((repo) =>
     withStub("gh", GH_STUB, async (stubDir) => {
@@ -538,9 +561,25 @@ async function runList(shell: Shell, pr: string, opts: ListOpts = {}): Promise<{
           if (item.ready) fs.writeFileSync(path.join(feedback, `replies/${item.key}.md`), "Done.\n");
         }
       }
-      const env = { ...repo.env, ARGV_FILE: argvFile };
-      const result = await runScript(opts.script ?? SUT, ["--list", pr], { shell, cwd: repo.dir, env, stubDirs: [stubDir] });
-      return { result, calls: fs.readFileSync(argvFile, "utf-8").length };
+      const env = {
+        ...repo.env,
+        ARGV_FILE: argvFile,
+        BODY_LOG: path.join(repo.dir, "body.log"),
+        ORIGINAL: `${ORIGINAL_URL}\n${ORIGINAL_QUOTE}\n`,
+        ...opts.env,
+      };
+      const result = await runScript(opts.script ?? SUT, [opts.flag ?? "--list", pr], {
+        shell,
+        cwd: repo.dir,
+        env,
+        stubDirs: [stubDir],
+      });
+      const logged = fs.readFileSync(argvFile, "utf-8");
+      const argv = logged
+        .split("===\n")
+        .map((block) => block.split("\n").filter((line) => line.length > 0))
+        .filter((call) => call.length > 0);
+      return { result, calls: logged.length, argv };
     }),
   );
 }
@@ -673,3 +712,73 @@ test("--list prints the RUN path as the invoked path cut before /scripts/", asyn
     });
   });
 });
+
+// --- --all: every ready reply of a review.md ---------------------------------------------
+
+const SAY_EXISTS = "The item already holds a viber reply.";
+
+test("--all with two ready replies and one missing prints a POSTED line each in section order and MISSING_COUNT=1", async () => {
+  await assertPosix(async (shell) => {
+    const { result } = await runList(shell, "42", { items: THREE_ITEMS, flag: "--all" });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      `POSTED=101 ${REPLY_URL}\nPOSTED=comment-55 ${ISSUE_REPLY_URL}\nMISSING_COUNT=1\n`,
+    );
+  });
+});
+
+test("--all of an item already replied prints its SKIPPED line with the exists sentence and posts nothing", async () => {
+  await assertPosix(async (shell) => {
+    const { result, argv } = await runList(shell, "42", {
+      items: [THREE_ITEMS[0]],
+      flag: "--all",
+      env: { COMMENTS: `101 ${MARKER}\n` },
+    });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, `SKIPPED=101 ${SAY_EXISTS}\nMISSING_COUNT=0\n`);
+    assert.equal(posts(argv).length, 0);
+  });
+});
+
+test("--all of a failed post prints its FAILED line with the error text, posts it once and still posts the next reply", async () => {
+  await assertPosix(async (shell) => {
+    const { result, argv } = await runList(shell, "42", {
+      items: THREE_ITEMS,
+      flag: "--all",
+      env: { POST_FAIL_ON: "comments/101/replies" },
+    });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      `FAILED=101 gh api reply failed: HTTP 500: server error\nPOSTED=comment-55 ${ISSUE_REPLY_URL}\nMISSING_COUNT=1\n`,
+    );
+    assert.deepEqual(posts(argv).map(endpointOf), [
+      "repos/{owner}/{repo}/pulls/42/comments/101/replies",
+      "repos/{owner}/{repo}/issues/42/comments",
+    ]);
+  });
+});
+
+test(
+  "--all with no gh on PATH exits 1 with one ERROR line naming gh and nothing on stdout, and posts nothing",
+  { skip: ghOnCorePath ? "a real gh sits in the core utilities directory, so its absence cannot be staged" : false },
+  async () => {
+    await assertPosix(async (shell) => {
+      await withGitRepo(async (repo) => {
+        const feedback = path.join(repo.dir, ".temp/viber/pr-feedback/42");
+        fs.mkdirSync(path.join(feedback, "replies"), { recursive: true });
+        fs.writeFileSync(path.join(feedback, "replies/101.md"), "Done.\n");
+        fs.writeFileSync(path.join(feedback, "review.md"), sectionOf(slash(repo.dir), 42, THREE_ITEMS[0]));
+        const result = await runScript(SUT, ["--all", "42"], {
+          shell,
+          cwd: repo.dir,
+          env: { ...repo.env, PATH: coreUtilsPath() },
+        });
+        assertOneError(result);
+        assert.match(result.stderr, /gh not found on PATH/);
+        assert.equal(fs.existsSync(path.join(feedback, "posted")), false);
+      });
+    });
+  },
+);
