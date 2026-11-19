@@ -430,6 +430,10 @@
 #       and a run resumed after the upgrade must still validate and decompose.
 #       A plain call with no status.md beside the plan (a fresh plan) applies
 #       every rule.
+#       One run prints every defect the plan carries: the dependency-graph,
+#       read-after and contract file checks run whatever an earlier check found,
+#       and a task or contract heading that is not "### <id> - <name>" prints
+#       its heading line alone, with no follow-on defect of its block.
 #
 #       An unparseable "Files:" entry is an empty one, one carrying "*" or "?",
 #       one whose bracket does not wrap a whole segment in one of the three App
@@ -1221,7 +1225,7 @@ incon && !intask && cid != "" && trim($0) != "" { cfresh = 0 }
   intask = 1; n++
   id[n] = ""; ttl[n] = ""; tdd[n] = ""; deps[n] = ""; files[n] = ""
   covers[n] = ""; uses[n] = ""; deliv[n] = ""; verif[n] = ""; dod[n] = ""
-  excl[n] = ""; repro[n] = ""; hard[n] = ""; hashard[n] = 0
+  excl[n] = ""; repro[n] = ""; hard[n] = ""; hashard[n] = 0; badhead[n] = 0
   # the cut --split makes is the FIRST "## Tasks" heading, so a block opening
   # before it has ever been seen would ride into spec.md instead of decomposing
   # into its own task file, while the index above still lists it as a task
@@ -1234,7 +1238,7 @@ intask {
   if (!infc && $0 ~ /^###[[:space:]]/) {
     h = trim(substr($0, 4))
     p = index(h, " - ")
-    if (p == 0) { fail("task heading must be \"### <id> - <title>\", got: " h); next }
+    if (p == 0) { fail("task heading must be \"### <id> - <title>\", got: " h); badhead[n] = 1; next }
     id[n]  = trim(substr(h, 1, p - 1))
     ttl[n] = trim(substr(h, p + 3))
     next
@@ -1263,6 +1267,7 @@ END {
   # id -> ordinal; a duplicate id is fatal, and the id also names the task file
   # --split writes, so it stays a bare token
   for (i = 1; i <= n; i++) {
+    if (badhead[i]) continue
     if (id[i] == "") { fail("task #" i " has no id"); continue }
     if (id[i] !~ /^[A-Za-z0-9_-]+$/) fail("task id \"" id[i] "\": letters, digits, \"-\" and \"_\" only - it names the task file")
     if (id[i] in seen) fail("duplicate task id: " id[i])
@@ -1273,7 +1278,7 @@ END {
   # this one would land in spec.md rather than tasks/<id>.md while the index
   # above still lists it as a task the orchestrator can dispatch
   for (i = 1; i <= n; i++)
-    if (early[i]) fail("task " id[i] ": <!-- TASK --> block sits above the \"## Tasks\" heading")
+    if (early[i] && !badhead[i]) fail("task " id[i] ": <!-- TASK --> block sits above the \"## Tasks\" heading")
 
   # Attachments: a name of the map is one path component and unique once case
   # folded. Fresh plan only, like the other checks added after plans were frozen.
@@ -1288,6 +1293,27 @@ END {
     }
 
   for (i = 1; i <= n; i++) {
+    # a block whose heading is malformed reports that heading alone: its fields
+    # raise nothing here, though what it covers and uses still counts, so the
+    # criteria and contracts it names are not reported as left out, and the
+    # files it lists (badfile) are not reported as created by no task
+    if (badhead[i]) {
+      dnorm[i] = "-"
+      delete cnums
+      m = covnums(covers[i], cnums)
+      for (k = 1; k <= m; k++) covered[cnums[k] + 0] = 1
+      u = uses[i]
+      gsub(/,/, " ", u)
+      m = split(trim(u), unums, /[[:space:]]+/)
+      for (k = 1; k <= m; k++) usedcon[unums[k]] = 1
+      m = split(files[i], fl, /,/)
+      for (k = 1; k <= m; k++) {
+        p = trim(fl[k])
+        sub(/^\.\//, "", p)
+        if (p != "") badfile[p] = 1
+      }
+      continue
+    }
     # Ids and Title: the ids run T1, T2, ... in block order and a title never opens
     # with a commit type prefix, since the commit subject is "<id> - <title>".
     # Skipped under --split, like the other checks added after plans were frozen.
@@ -1450,8 +1476,11 @@ END {
   }
 
   # tasks with no dependency path between them run at the same time, so they may not
-  # share a file; deps point backwards only, so one forward pass resolves ancestry
-  if (!err) {
+  # share a file; deps point backwards only, so one forward pass resolves ancestry.
+  # It runs whatever an earlier check found, so one run reports every defect: a
+  # dependency that failed above never entered dnorm, so the graph holds only
+  # entries that point at an earlier task
+  {
     for (i = 1; i <= n; i++) {
       if (dnorm[i] == "-") continue
       m = split(dnorm[i], dn, /,/)
@@ -1490,6 +1519,7 @@ END {
     # tasks build. Skipped under --split - a plan that landed before this rule is frozen.
     if (mode != "--split")
       for (i = 1; i <= n; i++) {
+        if (badhead[i]) continue
         adr = (nf[i] > 0)
         for (k = 1; k <= nf[i]; k++) if (index(fpath[i, k], "docs/adr/") != 1) adr = 0
         rtext = verif[i] " " (adr ? "" : deliv[i] " ") dod[i]
@@ -1538,14 +1568,12 @@ END {
   # have to meet: a path nothing creates leaves the shape to be invented by
   # whoever needs it first, and a path whose holders never name the block leaves
   # its writer blind to it while a consumer writes it outside its own file map.
-  # An appendix where NO block carries "File:" is now required everywhere
-  # outside --split, --extra and a landed plan in plain mode, caught above
-  # (which already sets err and skips this block); under those it may still
-  # predate the field - a plan that landed before this check and is being
-  # resumed - so nothing here runs for
-  # it either, because a frozen plan cannot grow the line and a build must not
-  # stall mid-resume.
-  if (!err && ncfile > 0) {
+  # An appendix where NO block carries "File:" is required everywhere outside
+  # --split, --extra and a landed plan in plain mode, caught above; under those
+  # it may still predate the field - a plan that landed before this check and is
+  # being resumed - so nothing here runs for it either, because a frozen plan
+  # cannot grow the line and a build must not stall mid-resume.
+  if (ncfile > 0) {
     for (c = 1; c <= ncon; c++) {
       cn = corder[c]
       if (cfile[cn] == "none" || cfile[cn] == "-") continue
@@ -1566,7 +1594,7 @@ END {
             if ((i, cn) in usesset) named = 1
           }
         if (held == "") {
-          if (!present(p)) fail("contract " cn " declares " p ", which no task creates - put it in the Files of the task that writes the shape")
+          if (!present(p) && !(p in badfile)) fail("contract " cn " declares " p ", which no task creates - put it in the Files of the task that writes the shape")
         }
         else if (!named) fail("contract " cn " declares " p ", held by " held ", but no holder names " cn " in Uses - its writer would never see the shape")
 

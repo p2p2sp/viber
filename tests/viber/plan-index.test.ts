@@ -4877,3 +4877,157 @@ for (const [label, docs, lines, status] of [
     assert.doesNotMatch(result.stdout, /qa-kept/);
   });
 }
+
+// --- one run reports every defect --------------------------------------------
+
+/** Seeds a fresh plan, runs the validator once and hands back what it printed. */
+async function validateOnce(body: string) {
+  return withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, body);
+    return run(dir, {}, [PLAN_REL]);
+  });
+}
+
+test("a malformed Files entry in one task and two parallel tasks sharing a file print both FIX lines in one run (the collision check runs whatever an earlier check found)", async () => {
+  const result = await validateOnce(
+    planBody([
+      { id: "T1", files: "src/a.ts, src/dir/" },
+      { id: "T2", covers: "AC2", uses: "none", files: "src/a.ts" },
+    ]),
+  );
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(
+    result.stderr,
+    [
+      'FIX: task T1: Files entry "src/dir/" is a directory, list each file',
+      "FIX: tasks T1 and T2 both list src/a.ts, with no dependency path between them",
+      "",
+    ].join("\n"),
+  );
+});
+
+test("an uncovered criterion and a consumer ordered beside its contract writer print both FIX lines in one run (the contract file checks run whatever an earlier check found)", async () => {
+  const result = await validateOnce(
+    planBody(
+      [
+        { id: "T1", files: "src/login.ts" },
+        { id: "T2", uses: "C1", files: "src/reject.ts" },
+      ],
+      2,
+      ownedContract("src/login.ts"),
+    ),
+  );
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(
+    result.stderr,
+    [
+      "FIX: acceptance criterion AC2 is covered by no task",
+      "FIX: task T2 uses C1, written by T1, but has no dependency path to T1 - add T1 to its Depends-on",
+      "",
+    ].join("\n"),
+  );
+});
+
+test("a redundant Depends-on entry and a read-after defect print both FIX lines in one run (the read-after check runs whatever an earlier check found)", async () => {
+  const result = await validateOnce(
+    planBody([
+      { id: "T1", files: "src/a.ts" },
+      { id: "T2", uses: "none", deps: "T1", files: "src/b.ts" },
+      { id: "T3", uses: "none", deps: "T1, T2", files: "src/c.ts" },
+      { id: "T4", covers: "AC2", uses: "none", files: "src/d.ts", dod: "it reads `src/a.ts`" },
+    ]),
+  );
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(
+    result.stderr,
+    [
+      "FIX: task T3: Depends-on T1 is already reached through T2 - drop it",
+      "FIX: task T4 reads src/a.ts, listed by T1, but has no dependency path to T1 - add T1 to its Depends-on",
+      "",
+    ].join("\n"),
+  );
+});
+
+test("a malformed task heading prints only its heading line for that block (its own bad TDD value, its criterion and its dependency raise nothing)", async () => {
+  const body = planBody([
+    { id: "T1", files: "src/a.ts" },
+    { id: "T2", title: "heading to break", tdd: "maybe", covers: "AC2", uses: "none", deps: "T1", files: "src/b.ts" },
+  ]).replace("### T2 - heading to break", "### T2 heading to break");
+
+  const result = await validateOnce(body);
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr, 'FIX: task heading must be "### <id> - <title>", got: T2 heading to break\n');
+});
+
+test("a malformed task heading whose block holds a contract's File prints only its heading line (the contract file checks still see the file the block lists)", async () => {
+  const body = planBody(
+    [
+      { id: "T1", title: "Add the login handler", files: "src/login.ts" },
+      { id: "T2", covers: "AC2", uses: "none", files: "src/b.ts" },
+    ],
+    2,
+    ownedContract("src/login.ts"),
+  ).replace("### T1 - Add the login handler", "### T1 Add the login handler");
+
+  const result = await validateOnce(body);
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr, 'FIX: task heading must be "### <id> - <title>", got: T1 Add the login handler\n');
+});
+
+test("a malformed contract heading prints only its heading line for that block (its File line raises nothing)", async () => {
+  const result = await validateOnce(
+    planBody([{ id: "T1", files: "src/a.ts" }, { id: "T2", covers: "AC2", uses: "none", files: "src/b.ts" }], 2, [
+      ...CONTRACT,
+      "",
+      "### Logout endpoint",
+      "",
+      "File: src/missing.ts",
+      "",
+      "POST /logout -> 204",
+    ]),
+  );
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr, 'FIX: contract heading must be "### <id> - <name>", got: Logout endpoint\n');
+});
+
+test("an unfilled template slot and no task blocks print the slot's FIX line, then the no-task-blocks line, and exit 3", async () => {
+  const result = await validateOnce(
+    planBody([], 1).replace(/<!-- \/?TASK -->/g, "").replace("The session is durable.", "<n>"),
+  );
+
+  assert.equal(result.status, 3, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(
+    result.stderr,
+    `FIX: line 6: template slot <n> left unfilled - replace it (Filled)\nFIX: no <!-- TASK --> blocks in ${PLAN_REL}\n`,
+  );
+});
+
+test("an unfilled template slot and task blocks under no \"## Tasks\" heading print the slot's FIX line, then the missing heading's line, and exit 4", async () => {
+  const result = await validateOnce(
+    planBody(TWO_TASKS).replace("## Tasks\n", "").replace("The session is durable.", "<n>"),
+  );
+
+  assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+  assert.equal(result.stdout, "");
+  assert.equal(
+    result.stderr,
+    [
+      "FIX: line 6: template slot <n> left unfilled - replace it (Filled)",
+      `FIX: ${PLAN_REL} carries <!-- TASK --> blocks but no "## Tasks" heading - that heading is where the specification is cut off`,
+      "",
+    ].join("\n"),
+  );
+});
