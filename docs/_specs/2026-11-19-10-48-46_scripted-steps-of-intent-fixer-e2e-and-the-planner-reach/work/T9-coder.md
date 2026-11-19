@@ -1,0 +1,1 @@
+- core.fileMode is true in this repo: `git update-index --chmod=+x` alone leaves the working-tree file at 100644 and `git diff` shows a mode change, so a new script also needs its exec bit set on disk (`chmod +x`) or the next commit drops it.
