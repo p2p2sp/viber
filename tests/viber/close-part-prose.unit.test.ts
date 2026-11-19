@@ -413,6 +413,12 @@ test("the QA fragment answers the qa-kept block by running its RUN: line with no
   assert.ok(text.includes("A `qa.md` among the QA paths, once its `--qa` commit exited 0, is posted"));
 });
 
+test("the QA fragment carries the SAY= line of a no-gh or no-repo skip to the summary and nothing for a no-pr or exists skip", () => {
+  const bullets = lines(QA);
+  assert.ok(bullets.includes("- `STATUS=skip` with `REASON=no-gh` or `REASON=no-repo` -> its `SAY=` line."));
+  assert.ok(bullets.includes("- `STATUS=skip` with `REASON=no-pr` or `REASON=exists` -> nothing."));
+});
+
 test("neither qa-writer nor the QA fragment names a KEPT verdict", () => {
   assert.ok(!QA_WRITER.includes("KEPT"));
   assert.ok(!QA.includes("KEPT"));

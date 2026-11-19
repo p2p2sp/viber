@@ -6,7 +6,7 @@ QA paths of a writer, the `FILES:` of `VERDICT: WRITTEN`, commit through `"${CLA
 A `qa.md` among the QA paths, once its `--qa` commit exited 0, is posted to the run's issue (the branch's pull request when the run has none) through `"${CLAUDE_PLUGIN_ROOT}/scripts/qa-comment.sh" "<the qa.md path>"`, with no `--pr` and no question, one call, never retried. Its stdout and exit carry to the final summary:
 
 - `STATUS=posted` -> its `COMMENT_URL=` value.
-- `STATUS=skip` with `REASON=no-gh` or `REASON=no-repo` -> one line naming that reason.
+- `STATUS=skip` with `REASON=no-gh` or `REASON=no-repo` -> its `SAY=` line.
 - `STATUS=skip` with `REASON=no-pr` or `REASON=exists` -> nothing.
 - Exit 1 or 2 -> one line with its `ERROR` text.
 

@@ -6,7 +6,7 @@
  * block, the target taken from the `issue:` of the spec.md beside the qa
  * file whenever it names one (--pr then ignored), else from --pr, else from
  * the open pull request of the current branch, every STATUS=skip reason
- * (no-gh, no-repo, no-pr, exists),
+ * (no-gh, no-repo, no-pr, exists) with its SAY= sentence,
  * exit 1 with one ERROR line and an empty stdout when gh fails reading the
  * comments or posting, or prints no comment URL, a relative path resolved
  * from the repository root, and exit 2 on bad arguments or a missing file.
@@ -217,7 +217,7 @@ test("an issue comment holding a marker of the same run key: STATUS=skip REASON=
       setup: specWith(SPEC_WITH_ISSUE),
     });
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "STATUS=skip\nREASON=exists\n");
+    assert.equal(result.stdout, "STATUS=skip\nREASON=exists\nSAY=the QA document of this run is already posted\n");
     assert.equal(posts(calls).length, 0);
   });
 });
@@ -254,7 +254,7 @@ test("without --pr, a fork pull request whose head is the current branch name al
       },
     });
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "STATUS=skip\nREASON=no-pr\n");
+    assert.equal(result.stdout, "STATUS=skip\nREASON=no-pr\nSAY=no issue and no open pull request to post the QA document on\n");
     assert.equal(posts(calls).length, 0);
   });
 });
@@ -277,7 +277,7 @@ test("without --pr and no open pull request for the current branch: STATUS=skip 
   await assertPosix(async (shell) => {
     const { result, calls } = await runInRepo(shell, [QA_REL]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "STATUS=skip\nREASON=no-pr\n");
+    assert.equal(result.stdout, "STATUS=skip\nREASON=no-pr\nSAY=no issue and no open pull request to post the QA document on\n");
     assert.equal(posts(calls).length, 0);
   });
 });
@@ -292,7 +292,7 @@ test("without --pr on a detached HEAD: STATUS=skip REASON=no-pr and gh is never 
       },
     });
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "STATUS=skip\nREASON=no-pr\n");
+    assert.equal(result.stdout, "STATUS=skip\nREASON=no-pr\nSAY=no issue and no open pull request to post the QA document on\n");
     assert.equal(calls.length, 0);
   });
 });
@@ -305,7 +305,7 @@ test("a comment holding a marker of the same run key under the archive directory
       env: { COMMENTS: `Looks good.\n<!-- viber:qa docs/specs/${KEY}/qa.md -->\nQA document: \`docs/specs/${KEY}/qa.md\`\n\n# Thing\n` },
     });
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "STATUS=skip\nREASON=exists\n");
+    assert.equal(result.stdout, "STATUS=skip\nREASON=exists\nSAY=the QA document of this run is already posted\n");
     assert.equal(posts(calls).length, 0);
   });
 });
@@ -349,7 +349,7 @@ test(
         fs.writeFileSync(path.join(repo.dir, QA_REL), QA_TEXT);
         const result = await runScript(SUT, [QA_REL, "--pr", PR_URL], { shell, cwd: repo.dir, env: { ...repo.env, PATH: NO_GH_PATH } });
         assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-        assert.equal(result.stdout, "STATUS=skip\nREASON=no-gh\n");
+        assert.equal(result.stdout, "STATUS=skip\nREASON=no-gh\nSAY=the GitHub command line tool gh is not installed\n");
       });
     });
   },
@@ -364,7 +364,7 @@ test("run outside any repository: STATUS=skip REASON=no-repo and gh is never cal
         fs.writeFileSync(path.join(cwd, "qa.md"), QA_TEXT);
         const result = await runScript(SUT, ["qa.md", "--pr", PR_URL], { shell, cwd, env: { ARGV_FILE: argvFile }, stubDirs: [stubDir] });
         assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-        assert.equal(result.stdout, "STATUS=skip\nREASON=no-repo\n");
+        assert.equal(result.stdout, "STATUS=skip\nREASON=no-repo\nSAY=not inside a git repository\n");
         assert.equal(fs.readFileSync(argvFile, "utf-8"), "");
       }),
     );

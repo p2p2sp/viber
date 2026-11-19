@@ -47,6 +47,11 @@
 #            or
 #              STATUS=skip
 #              REASON=no-gh | no-repo | no-pr | exists
+#              SAY=<the sentence of that reason>
+#                no-repo  not inside a git repository
+#                no-gh    the GitHub command line tool gh is not installed
+#                no-pr    no issue and no open pull request to post the QA document on
+#                exists   the QA document of this run is already posted
 #            Checks, in order: no-repo (not inside a repository), the qa file
 #            (exit 2 when missing), no-gh (gh not on PATH), no-pr (no issue, no
 #            --pr and a detached HEAD, or no open same-repository pull request
@@ -69,7 +74,13 @@ fail() {
   exit 1
 }
 skip() {
-  printf 'STATUS=skip\nREASON=%s\n' "$1"
+  case $1 in
+    no-repo) say='not inside a git repository' ;;
+    no-gh) say='the GitHub command line tool gh is not installed' ;;
+    no-pr) say='no issue and no open pull request to post the QA document on' ;;
+    exists) say='the QA document of this run is already posted' ;;
+  esac
+  printf 'STATUS=skip\nREASON=%s\nSAY=%s\n' "$1" "$say"
   exit 0
 }
 # The issue of the frontmatter "issue:" of file $1 in the issue reference
