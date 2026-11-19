@@ -17,7 +17,9 @@ The block above is this host project's memory layer as the script measured it; a
 
 It is self-verifying and trusted. Never re-measure a node, never walk the tree for a candidate of your own, never run git to decide what is dirty: every fact you route on is already above.
 
-Your whole tool set is `AskUserQuestion`, `Agent`, the two map lines of step 3 and `Read` on `${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/claude-md-prompt.txt` alone, in step 9. You open no other file and you write none: every byte of the cascade is written by `viber:memory-node-writer`, nothing here is staged and nothing is committed.
+Your whole tool set is `AskUserQuestion`, `Agent`, the map script calls of steps 2, 3, 4 and 8 and `Read` on `${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/claude-md-prompt.txt` alone, in step 9. You open no other file and you write none: every byte of the cascade is written by `viber:memory-node-writer`, nothing here is staged and nothing is committed.
+
+Every map script call is one literal line, `"${CLAUDE_SKILL_DIR}/scripts/memory-map.sh"` first, every path double-quoted, no interpreter word in front and nothing chained after. A call exiting 2 -> report its `error:` line and end the run. A call that prints `NEXT:` lines is answered by acting on its blocks: a block is its `NEXT:` line and the lines after it, up to the next `NEXT:` line.
 
 ## 1. Report the layer
 
@@ -32,7 +34,7 @@ Before any question, one line per fact worth deciding on:
 
 ## 2. Route on the state, then the mode
 
-`state: none` means no node is tracked anywhere. Say the layer is empty, ask nothing, and go to step 4 with the `cand:` lines as the target list plus the repository root and the directory of each `unlinked:` section, each directory once: there is nothing to review and nothing to reset.
+`state: none` means no node is tracked anywhere. Say the layer is empty, ask nothing, run `"${CLAUDE_SKILL_DIR}/scripts/memory-map.sh" --targets extend` and go to step 4: there is nothing to review and nothing to reset.
 
 Otherwise one `AskUserQuestion`, the four modes in that single call:
 
@@ -43,7 +45,7 @@ Otherwise one `AskUserQuestion`, the four modes in that single call:
 
 An argument naming one of the four is that answer already: take it and ask nothing. On `state: complete` lead with the flags and the orphans; on `state: partial` lead with how many candidates carry no node.
 
-`reset` goes to step 3. Every other mode goes to step 4, its target list being the `node:` lines on `review`, the `cand:` lines plus the directory of each `unlinked:` section with no `node:` line beside it on `extend`, and both on `both`, each directory once. Under `extend` and `both`, the repository root joins the list as a create target when the map carries no `node: CLAUDE.md` line.
+`reset` goes to step 3. Every other mode runs `"${CLAUDE_SKILL_DIR}/scripts/memory-map.sh" --targets <mode>`, `<mode>` being `review`, `extend` or `both`, and goes to step 4.
 
 ## 3. Reset
 
@@ -51,44 +53,29 @@ The list is every `node:` line, or the ones the user named, each followed by eve
 
 A path in the list that also carries a `dirty:` line refuses the whole call. Name each offending path with its own word, say the user commits or discards that work and runs the command again, and stop there. A refusal is never narrowed into a smaller reset that goes ahead, and uncommitted work is never corrected into something deletable.
 
-Otherwise one `AskUserQuestion` over that exact list. On anything but approval, stop. On approval, one literal line, every path double-quoted, no interpreter word in front of it and nothing chained after it:
+Otherwise one `AskUserQuestion` over that exact list. On anything but approval, stop. On approval:
 
 ```
 "${CLAUDE_SKILL_DIR}/scripts/memory-map.sh" --reset "<path>" "<path>"
 ```
 
-- exit 0 -> the `removed:` lines are the deletion. Report them, then map the layer again with the one literal line `"${CLAUDE_SKILL_DIR}/scripts/memory-map.sh"`. That fresh map replaces the one above for the rest of the run: the preloaded one still lists the deleted nodes. Continue into step 4 with its `cand:` lines plus every directory a `removed:` line emptied, the repository root among them.
+- exit 0 -> the `removed:` lines are the deletion. Report them, then run `"${CLAUDE_SKILL_DIR}/scripts/memory-map.sh" --targets reset` with one `--removed "<path>"` per `removed:` path line, node or section, the count line left out, and continue into step 4. The map above still lists the deleted nodes and is no longer a source of any fact but its `id:`.
 - exit 3 -> nothing at all was deleted. Repeat its `refused:` lines verbatim and stop. A refusal may name a section missing from the list: one deleted and not yet committed.
 - exit 2 -> the call itself was unusable. Report it and stop.
 
 ## 4. Approve the targets
 
-Nothing is dispatched before the user has seen the target list and kept what belongs in it. Show it, one line per target, carrying what the map already measured for that path.
+Nothing is dispatched before the user has seen the target list and kept what belongs in it. The `target:` lines of the call just made are that list, `fix` for a node to verify and `create` for a node to write. Show them one line each, as printed. `NEXT: none` alone means no target: say so and stop.
 
 Then one `AskUserQuestion` over that list: all of them, or the ones the user picks. Offer the targets themselves as options while the list is short enough to show; past that, offer all of them, none of them, and take the paths a free answer names verbatim. A target the user dropped reaches no auditor and no writer. Nothing kept -> stop, having dispatched nothing and written nothing.
 
-- A `node:` target is a fix target.
-- Every other target - a candidate, an emptied directory, the directory of a section with no node, the root of an empty layer - is a create target, its node being `CLAUDE.md` inside that directory.
-- A directory holding a section on a `dirty:` line is never a create target: that section is the user's uncommitted work.
-- An orphan is offered like any other node: the auditor decides whether its area really went, and the writer is what removes the file.
-- A section is never a target of its own: it travels with the node beside it.
+Then run the same `--targets` call again, the same mode word and, on `reset`, the same `--removed` paths, with `--id "<the id: value of the map above>"` and one `--keep "<node path>"` per kept target, the path its `target:` line names after `fix` or `create`. Its `planned:` line is the planned set: it stays whole to the end of the run, a target dropped or confirmed later still counting in it.
 
-The planned set is every `node:` line of the map in use plus the node of every kept create target, root first, then by depth. It stays whole to the end of the run: a target dropped or confirmed later still counts in it, its node still being there.
-
-`review` and `both` go to step 5. `reset`, `extend` and an empty layer have no fix target and go straight to step 7.
+`review` and `both` go to step 5. `reset` and `extend` have no fix target and go straight to step 7.
 
 ## 5. Audit
 
-One `Agent` call per fix target, `subagent_type: viber:memory-auditor`, no `model:` line - the agent's own frontmatter is its strength. The calls go out in batches, here and in steps 7 and 8: at most 16 in one message, run in parallel, the next message only after every call of the previous one returned. A call the harness refuses with `Concurrent subagent limit reached` never ran: it goes into the next message, no later message carries more calls than the previous one had accepted, and it is neither a missing output line nor a `VERDICT: DENIED`. Four labelled lines each and nothing else:
-
-```
-target: <the node's own path>
-scope: <the directory holding it, the repository root for the root node>
-out: .temp/viber/<id>/
-refs: ${CLAUDE_PLUGIN_ROOT}/references
-```
-
-`<id>` is the `id:` value of the map above. Create targets are never audited: their writer reads the area itself.
+One `Agent` call per `NEXT: memory-auditor` block, `subagent_type: viber:memory-auditor`, no `model:` line - the agent's own frontmatter is its strength - and the block's body lines verbatim as its prompt, nothing added. The calls go out in batches, here and in steps 7 and 8: at most 16 in one message, run in parallel, the next message only after every call of the previous one returned. A call the harness refuses with `Concurrent subagent limit reached` never ran: it goes into the next message, no later message carries more calls than the previous one had accepted, and it is neither a missing output line nor a `VERDICT: DENIED`.
 
 Each call returns one line:
 
@@ -116,7 +103,7 @@ A target's depth is the number of path segments of the directory holding its nod
 mode: fix | create
 node: <the target's node path>
 findings: <its findings file> | none
-planned: <the planned set, comma-separated, root first>
+planned: <the planned: line of step 4, copied whole>
 refs: ${CLAUDE_PLUGIN_ROOT}/references
 ```
 
@@ -124,22 +111,11 @@ refs: ${CLAUDE_PLUGIN_ROOT}/references
 
 A dispatch returning `VERDICT: DENIED` -> before the next wave, one `AskUserQuestion` naming the node and the refused call from its `REASON:` line: permission added and retry, skip that node, or stop.
 
-Keep account while the waves return, counting only paths whose file name is `CLAUDE.md` - a section path is never a node:
-
-- a node was created when its dispatch ran in create mode and returned `VERDICT: UPDATED` with that node on `FILES:`, or when such a `FILES:` path lies outside the planned set.
-- a node was deleted for each such `DELETED:` line.
-- the nodes that now exist are the planned set, minus every create target not created, minus every deleted node, plus every created node outside the planned set.
-
 ## 8. Reconcile the lists of nodes
 
-After the last wave, check every node that exists:
+After the last wave, run `"${CLAUDE_SKILL_DIR}/scripts/memory-map.sh" --reconcile --planned "<the planned set, the value of the planned: line>"` with, for each write wave dispatch that returned `VERDICT: UPDATED`, `--fix "<its node>" --files "<its FILES: paths, comma-separated>"` on a fix dispatch or `--create "<its node>" --files "<those paths>"` on a create one. A dispatch with any other verdict adds no flag.
 
-- The root is never off: it carries no list of nodes.
-- A node one dispatch wrote is off when the nodes that now exist below its directory differ from the part of `planned:` below it plus the nodes that dispatch created.
-- A node no dispatch wrote is off when any dispatch created or deleted a node below its directory.
-- Each node off gets one more `viber:memory-node-writer`: `mode: fix`, `node:` its path, `findings: none`, `planned:` the nodes that now exist, `refs:` as above.
-- One wave per depth, the deepest first, sent in batches as in step 5, each wave's `planned:` counting what the waves before it created or deleted.
-- No node off -> dispatch nothing here.
+The call answers with one `NEXT: memory-node-writer` block per node whose list of nodes is off, all of one depth, or `NEXT: none`. Send each block as one `Agent` call, `subagent_type: viber:memory-node-writer`, no `model:` line, its body lines verbatim as the prompt, in batches as in step 5. After every call of that wave returned, run the call again with every flag it carried plus one `--done "<node>" --files "<its FILES: paths, empty when none>"` per dispatch of the wave, whatever its verdict, and act on its answer the same way, until `NEXT: none`. `NEXT: none` on the first answer -> dispatch nothing here.
 
 ## 9. Report
 
