@@ -876,6 +876,218 @@ test("an argument that is not a mode is refused as unusable argv", async () => {
   });
 });
 
+/** The labelled lines of every `NEXT: rules-auditor` block of a brief, one
+ *  array per block, the directive line itself dropped. */
+function blocks(stdout: string): string[][] {
+  const found: string[][] = [];
+  for (const line of lines(stdout)) {
+    if (line.startsWith("NEXT: ")) found.push([]);
+    else if (found.length > 0) found[found.length - 1].push(line);
+  }
+  return found;
+}
+
+/** The `refs:` value of a brief block names the plugin's references directory
+ *  as an absolute path; only its tail is compared, the root being the checkout. */
+const REFS_TAIL = /^refs: .+\/viber\/references$/;
+
+test("brief prints one rules-auditor block for a rule whose globs match tracked files", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "src/a.ts": "a\n",
+      "src/b.ts": "b\n",
+      "lib/c.ts": "c\n",
+      ".claude/rules/code.md": rule(["src/*.ts", "lib/*.ts"]),
+    });
+
+    const result = await run(repo, ["--brief", "2026-11-19-05-28-48", ".claude/rules/code.md"]);
+
+    assert.equal(result.status, 0);
+    assert.equal(lines(result.stdout)[0], "NEXT: rules-auditor");
+    const [block] = blocks(result.stdout);
+    assert.deepEqual(block.slice(0, 4), [
+      "target: .claude/rules/code.md",
+      "scope: src/*.ts,lib/*.ts",
+      "matches: 3",
+      "out: .temp/viber/2026-11-19-05-28-48/",
+    ]);
+    assert.match(block[4], REFS_TAIL);
+    assert.equal(block.length, 5);
+    assert.equal(blocks(result.stdout).length, 1);
+  });
+});
+
+test("brief gives a rule declaring no scope the scope ** and no match count", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "src/a.ts": "a\n",
+      ".claude/rules/loose.md": "# loose\n\nNo frontmatter at all.\n",
+    });
+
+    const result = await run(repo, ["--brief", "run1", ".claude/rules/loose.md"]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(blocks(result.stdout)[0].slice(0, 4), [
+      "target: .claude/rules/loose.md",
+      "scope: **",
+      "matches: none",
+      "out: .temp/viber/run1/",
+    ]);
+  });
+});
+
+test("brief writes the GONE findings file for a rule matching no tracked file and prints its AUDIT line with no block", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "src/a.ts": "a\n",
+      ".claude/rules/area/old.md": rule(["legacy/*.ts"]),
+    });
+
+    const result = await run(repo, ["--brief", "run1", ".claude/rules/area/old.md"]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(lines(result.stdout), [
+      "AUDIT: .claude/rules/area/old.md stale 0 gone 1 unverifiable 0 drop 0 miss 0 -> .temp/viber/run1/area--old-audit.md",
+      "NEXT: none",
+    ]);
+    assert.equal(
+      fs.readFileSync(path.join(repo.dir, ".temp/viber/run1/area--old-audit.md"), "utf-8"),
+      "GONE: the rule's globs match no tracked file\n",
+    );
+  });
+});
+
+test("brief hands a directory target to the auditor as a scope with no rule", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, { "src/a.ts": "a\n", "src/deep/b.ts": "b\n" });
+
+    const result = await run(repo, ["--brief", "run1", "src/"]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(blocks(result.stdout)[0].slice(0, 4), [
+      "target: none",
+      "scope: src",
+      "matches: none",
+      "out: .temp/viber/run1/",
+    ]);
+  });
+});
+
+test("brief hands the trail target the archived failures.md files holding a convention entry, and no others", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "README.md": "# repo\n",
+      "docs/specs/2026-02-01-00-00-00_b/failures.md": failures(["convention | final-review-1 | a"]),
+      "docs/specs/2026-01-01-00-00-00_a/failures.md": failures([
+        "convention | review-T1-1 | b",
+        "task | review-T2-1 | c",
+      ]),
+      "docs/specs/2026-03-01-00-00-00_c/failures.md": failures(["task | review-T3-1 | d"]),
+    });
+
+    const result = await run(repo, ["--brief", "run1", "trail"]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(blocks(result.stdout)[0].slice(0, 4), [
+      "target: trail",
+      "scope: docs/specs/2026-01-01-00-00-00_a/failures.md,docs/specs/2026-02-01-00-00-00_b/failures.md",
+      "matches: none",
+      "out: .temp/viber/run1/",
+    ]);
+  });
+});
+
+test("brief prints no block for a trail target when no failures.md holds a convention entry, closing on NEXT: none", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "README.md": "# repo\n",
+      "docs/specs/2026-03-01-00-00-00_c/failures.md": failures(["task | review-T3-1 | d"]),
+    });
+
+    const result = await run(repo, ["--brief", "run1", "trail"]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(lines(result.stdout), ["NEXT: none"]);
+  });
+});
+
+test("brief prints the AUDIT lines first, then the blocks in the order the targets were given, and no NEXT: none beside a block", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "src/a.ts": "a\n",
+      ".claude/rules/code.md": rule(["src/*.ts"]),
+      ".claude/rules/gone.md": rule(["legacy/*.ts"]),
+    });
+
+    const result = await run(repo, [
+      "--brief",
+      "run1",
+      "src",
+      ".claude/rules/gone.md",
+      ".claude/rules/code.md",
+    ]);
+
+    assert.equal(result.status, 0);
+    assert.deepEqual(
+      lines(result.stdout).filter((line) => !line.startsWith("refs: ")),
+      [
+        "AUDIT: .claude/rules/gone.md stale 0 gone 1 unverifiable 0 drop 0 miss 0 -> .temp/viber/run1/gone-audit.md",
+        "NEXT: rules-auditor",
+        "target: none",
+        "scope: src",
+        "matches: none",
+        "out: .temp/viber/run1/",
+        "NEXT: rules-auditor",
+        "target: .claude/rules/code.md",
+        "scope: src/*.ts",
+        "matches: 1",
+        "out: .temp/viber/run1/",
+      ],
+    );
+  });
+});
+
+test("brief refuses a frozen rule with one error line, an empty stdout and no file written", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, {
+      "src/a.ts": "a\n",
+      ".claude/rules/_frozen.md": rule(["src/*.ts"]),
+      ".claude/rules/gone.md": rule(["legacy/*.ts"]),
+    });
+
+    const result = await run(repo, ["--brief", "run1", ".claude/rules/gone.md", ".claude/rules/_frozen.md"]);
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr.trim(), /^error: [^\n]+$/);
+    assert.equal(fs.existsSync(path.join(repo.dir, ".temp")), false);
+  });
+});
+
+test("brief refuses a path that is neither a rule, a directory nor trail with one error line and an empty stdout", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, { "src/a.ts": "a\n", ".claude/rules/code.md": rule(["src/*.ts"]) });
+
+    const result = await run(repo, ["--brief", "run1", "src/a.ts"]);
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr.trim(), /^error: [^\n]+$/);
+  });
+});
+
+test("brief refuses a directory target escaping the repository through a parent segment", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, { "src/a.ts": "a\n" });
+
+    const result = await run(repo, ["--brief", "run1", "src/.."]);
+
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr.trim(), /^error: [^\n]+$/);
+  });
+});
+
 /** The mode git records for a shipped script. Tracked: straight out of the
  *  index. Not committed yet - which is what it is in the build that creates
  *  it - git derives the bit on the way in, from the `#!` line on Windows

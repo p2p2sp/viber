@@ -21,6 +21,12 @@
 # Contract:
 #   argv   : none                  -> map mode.
 #            --reset <path> [...]   -> reset mode, repo-relative paths.
+#            --brief <id> <target> [...]
+#                                   -> brief mode: <id> is the map id of the
+#                                      run (letters, digits, `.`, `_`, `-`),
+#                                      <target> a rule path under
+#                                      .claude/rules/, a repo-relative directory
+#                                      (`.` for the root) or the word `trail`.
 #            anything else          -> refused, exit 2.
 #   cwd    : any directory inside the host project - the repository root is
 #            resolved here and every printed path is relative to it. Outside a
@@ -39,8 +45,10 @@
 #            directory is `specs`.
 #   writes : nothing at all in map mode. In reset mode, and only once every
 #            target has passed, the given files are deleted from the working
-#            tree, and a subdirectory left empty by them is removed with it.
-#            Nothing is ever staged and nothing is ever committed.
+#            tree, and a subdirectory left empty by them is removed with it. In
+#            brief mode, once every target has passed, one findings file
+#            `.temp/viber/<id>/<slug>-audit.md` per rule matching no tracked
+#            file. Nothing is ever staged and nothing is ever committed.
 #   stdout : map mode, in this order. A section with nothing to report prints
 #            no line at all; `total:` always prints.
 #              # viber rules map
@@ -101,11 +109,37 @@
 #            or, only once every target passed:
 #              removed: <path>
 #              removed: <n>
+#            brief mode prints, in this order, the `AUDIT:` lines first, then
+#            one block per target in the order given, or `NEXT: none` alone
+#            when no block was printed. A block is the directive line and five
+#            labelled lines:
+#              NEXT: rules-auditor
+#              target: <rule path> | none | trail
+#              scope: <globs, comma-separated> | ** | <directory> | <trail paths>
+#              matches: <n> | none
+#              out: .temp/viber/<id>/
+#              refs: <plugin root>/references
+#            `<plugin root>` is resolved from this script's own path.
+#            `scope: **` and `matches: none` mark a rule declaring no scope; a
+#            directory target is `target: none` with the directory (no trailing
+#            slash) as scope; the trail target lists every `trail:` path with a
+#            `convention` count above 0 and prints no block when none has one.
+#            A rule whose globs match no tracked file - judged only when the
+#            repository tracks something - prints no block, its findings file
+#            holding the one line `GONE: the rule's globs match no tracked file`
+#            and its line being
+#              AUDIT: <rule path> stale 0 gone 1 unverifiable 0 drop 0 miss 0 -> .temp/viber/<id>/<slug>-audit.md
+#            where <slug> is the rule path below .claude/rules/ without `.md`,
+#            each `/` as `--`.
 #   exit   : 0 - map mode, ALWAYS, whatever it finds: it is called as a `!`
 #                preload, where a non-zero exit aborts the whole skill load.
-#                Also a reset that deleted every target it was given.
-#            2 - unusable argv: a first argument that is not `--reset`, or
-#                `--reset` with no target at all.
+#                Also a reset that deleted every target it was given, and a
+#                brief that answered.
+#            2 - unusable argv: a first argument that is not `--reset` or
+#                `--brief`, or `--reset` with no target at all. A brief with an
+#                unusable id, no target, a frozen rule or a target that is
+#                neither a rule, a directory nor `trail` exits 2 as well, with
+#                one `error: <reason>` line on stderr and an empty stdout.
 #            3 - the reset was refused. Nothing was deleted.
 #
 set -u
@@ -316,7 +350,7 @@ done < <(git status --porcelain -z --untracked-files=all -- "$rules_dir" 2>/dev/
 # Reset mode. The whole call is judged before a single file is deleted: a
 # partial delete would leave the layer in a state neither the user nor the
 # command that showed them the list can describe.
-if [ "$#" -gt 0 ]; then
+if [ "$#" -gt 0 ] && [ "$1" != "--brief" ]; then
   if [ "$1" != "--reset" ]; then
     printf 'refused: %s unknown-mode\n' "$1"
     exit 2
@@ -541,6 +575,139 @@ if [ "${#trail_files[@]}" -gt 0 ]; then
     END { flush() }
   ' "${trail_files[@]}" 2>/dev/null || true)
   waiting_line="waiting: convention $sum_convention place $sum_place plan $sum_plan task $sum_task test $sum_test unknown $sum_unknown"
+fi
+
+# Brief mode. Every target is judged before anything is written or printed, so
+# an unusable one leaves stdout empty and the layer untouched. Nothing prints
+# until the end: the `AUDIT:` lines of the rules that match nothing first, then
+# one block per target, in the order given.
+if [ "${1:-}" = "--brief" ]; then
+  brief_fail() {
+    printf 'error: %s\n' "$1" >&2
+    exit 2
+  }
+  [ "$#" -ge 3 ] || brief_fail "--brief takes a map id and at least one target"
+  brief_id="$2"
+  case "$brief_id" in
+    "" | . | .. | *[!A-Za-z0-9._-]*) brief_fail "$brief_id is not a usable map id" ;;
+  esac
+  shift 2
+
+  # Sets `kind` to rule, dir or trail and `dir` to the directory without its
+  # trailing slash, or sets `err` to the reason the target is unusable.
+  brief_kind() {
+    kind=""
+    err=""
+    dir=""
+    if [ "$1" = "trail" ]; then
+      kind="trail"
+      return 0
+    fi
+    case "$1" in
+      "$rules_dir"/*.md)
+        case "${1#"$rules_dir"/}" in
+          "" | /* | ..* | */..* | *//*) err="$1 is not a rule" ;;
+          *)
+            base="${1##*/}"
+            if [ "${base#_}" != "$base" ]; then
+              err="$1 is frozen"
+            elif [ -f "$1" ]; then
+              kind="rule"
+            else
+              err="$1 is not a rule file"
+            fi
+            ;;
+        esac
+        return 0
+        ;;
+    esac
+    dir="${1%/}"
+    case "$dir" in
+      "" | /* | .. | ../* | */.. | */../*) err="$1 is neither a rule, a directory nor trail" ;;
+      *)
+        if [ -d "$dir" ]; then
+          kind="dir"
+        else
+          err="$1 is neither a rule, a directory nor trail"
+        fi
+        ;;
+    esac
+    return 0
+  }
+
+  for target in "$@"; do
+    brief_kind "$target"
+    [ -z "$err" ] || brief_fail "$err"
+  done
+
+  plugin_root=""
+  if [ -n "$script_dir" ]; then
+    plugin_root="$(cd "$script_dir/../../.." 2>/dev/null && pwd || true)"
+  fi
+  brief_out_dir=".temp/viber/$brief_id"
+  audit_out=""
+  block_out=""
+  for target in "$@"; do
+    brief_kind "$target"
+    blocked=0
+    b_target="none"
+    b_scope=""
+    b_matches="none"
+    case "$kind" in
+      rule)
+        b_target="$target"
+        globs="$(globs_of "$target")"
+        if [ -z "$globs" ]; then
+          b_scope="**"
+        else
+          b_scope="$(printf '%s' "$globs" | tr '\n' ',')"
+          matched="$(printf '%s\n' "$tracked" | count_matches "$globs")"
+          b_matches="$matched"
+          # Nothing tracked at all would read every rule as gone, which says
+          # nothing about the rule: the map prints no `dead:` line then either.
+          if [ "$matched" -eq 0 ] && [ -n "$tracked" ]; then
+            rel="${target#"$rules_dir"/}"
+            rel="${rel%.md}"
+            slug="${rel//\//--}"
+            mkdir -p "$brief_out_dir" 2>/dev/null || brief_fail "cannot create $brief_out_dir"
+            printf "GONE: the rule's globs match no tracked file\n" > "$brief_out_dir/$slug-audit.md" ||
+              brief_fail "cannot write $brief_out_dir/$slug-audit.md"
+            audit_out="$audit_out"'AUDIT: '"$target"' stale 0 gone 1 unverifiable 0 drop 0 miss 0 -> '"$brief_out_dir/$slug-audit.md"'
+'
+            continue
+          fi
+        fi
+        ;;
+      dir)
+        b_scope="$dir"
+        ;;
+      trail)
+        b_target="trail"
+        while IFS= read -r entry; do
+          [ -n "$entry" ] || continue
+          rest="${entry#trail: }"
+          after="${rest##* convention }"
+          [ "${after%% *}" -gt 0 ] || continue
+          b_scope="$b_scope${b_scope:+,}${rest%% convention *}"
+        done < <(printf '%s' "$trail_lines")
+        [ -n "$b_scope" ] || continue
+        ;;
+    esac
+    block_out="$block_out"'NEXT: rules-auditor
+target: '"$b_target"'
+scope: '"$b_scope"'
+matches: '"$b_matches"'
+out: '"$brief_out_dir"'/
+refs: '"$plugin_root"'/references
+'
+  done
+  printf '%s' "$audit_out"
+  if [ -z "$block_out" ]; then
+    printf 'NEXT: none\n'
+  else
+    printf '%s' "$block_out"
+  fi
+  exit 0
 fi
 
 printf '# viber rules map\n'

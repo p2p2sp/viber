@@ -1,0 +1,5 @@
+- Brief mode sits after the trail scan, so it reuses `trail_lines`; the per-rule map loop still runs before it but prints nothing.
+- A rule is written as GONE only when the repository tracks something, the same guard as `dead:` (a repo tracking nothing would otherwise mark every rule gone); with nothing tracked it gets a block with `matches: 0`.
+- `refs:` is the absolute plugin root derived from the script's own path, not `${CLAUDE_PLUGIN_ROOT}`; the test compares its tail only.
+- Every target is validated before anything is written or printed, so a bad target leaves stdout empty and `.temp/` untouched.
+- Red run: the `--brief` branch was reached only through the argv guard, so red was taken with that one line reverted (red.log, 10 failing).
