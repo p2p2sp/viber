@@ -19,58 +19,9 @@
 
 import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import path from "node:path";
-
-import { runScript } from "../harness/run.ts";
-import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/run-changes.sh");
-
-const RUN = "docs/_specs/2026-01-01-00-00-00_demo";
-const PLAN = `${RUN}/plan.md`;
-
-function run(cwd: string, env: Record<string, string>, args: string[]) {
-  return runScript(SUT, args, { cwd, env, shell: "bash" });
-}
-
-function write(dir: string, rel: string, body: string): void {
-  const file = path.join(dir, rel);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, body);
-}
-
-async function commitAll(repo: GitRepo, message: string): Promise<string> {
-  await repo.git("add", "-A");
-  await repo.git("commit", "-m", message);
-  return (await repo.git("rev-parse", "HEAD")).stdout.trim();
-}
-
-/** Two tracked files, then the commit adding the run's plan; returns that commit. */
-async function seed(repo: GitRepo): Promise<string> {
-  // The repo keeps its git config as an untracked file in its own directory.
-  fs.appendFileSync(path.join(repo.dir, ".git/info/exclude"), ".gitconfig-global\n");
-  write(repo.dir, "tracked.txt", "one\n");
-  write(repo.dir, "other.txt", "one\n");
-  await commitAll(repo, "seed");
-  write(repo.dir, PLAN, "plan\n");
-  return commitAll(repo, "plan");
-}
-
-test("a run directory prints the commit that added its plan, then the tracked paths that differ from it and the untracked ones", async () => {
-  await withGitRepo(async (repo) => {
-    const base = await seed(repo);
-    write(repo.dir, "tracked.txt", "two\n");
-    await commitAll(repo, "work");
-    write(repo.dir, "other.txt", "two\n");
-    write(repo.dir, "new.txt", "new\n");
-
-    const result = await run(repo.dir, repo.env, [RUN]);
-
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, `base: ${base}\nchanged: other.txt\nchanged: tracked.txt\nchanged: new.txt\n`);
-  });
-});
+import { withGitRepo, withTempDir } from "../harness/tmp.ts";
+import { RUN, PLAN, run, write, commitAll, seed } from "./run-changes-fixture.ts";
 
 test("a plan added, deleted and added again starts the run at its first commit (the oldest of the commits adding it)", async () => {
   await withGitRepo(async (repo) => {

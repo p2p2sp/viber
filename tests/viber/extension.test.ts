@@ -22,47 +22,10 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-
-import { runScript, type RunResult } from "../harness/run.ts";
 import { withGitRepo } from "../harness/tmp.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/extension/scripts/extension.sh");
+import { run, writeFile, config, readConfig, lines } from "./extension-fixture.ts";
 
 const MARKER = "<!-- viber:extension -->";
-
-async function run(args: string[], cwd: string, env: Record<string, string>): Promise<RunResult> {
-  const result = await runScript(SUT, args, { cwd, env, shell: "bash" });
-  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-  return result;
-}
-
-function writeFile(root: string, rel: string, body: string): void {
-  const file = path.join(root, rel);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, body);
-}
-
-/** A viber.yml whose `build:` group carries the given extension-map lines, a key after them and a group after that. */
-function config(extensionLines: string[]): string {
-  return ["schema: 3", "build:", "  memory: true", ...extensionLines, "  rules: true", "github:", "  issues: false", ""].join("\n");
-}
-
-function readConfig(root: string): string {
-  return fs.readFileSync(path.join(root, ".claude", "viber.yml"), "utf8");
-}
-
-function lines(result: RunResult): string[] {
-  return result.stdout.split("\n").filter((line) => line !== "");
-}
-
-test("with no argument it prints the state, the listed agents that exist and the listed names with no file", async () => {
-  await withGitRepo(async (repo) => {
-    writeFile(repo.dir, ".claude/viber.yml", config(["  extensions:", "    docs:", "      parallel: false", "    gone:"]));
-    writeFile(repo.dir, ".claude/agents/docs.md", "docs agent\n");
-    const printed = lines(await run([], repo.dir, repo.env));
-    assert.deepEqual(printed.slice(0, 3), ["CONFIG=ok", "LISTED=docs", "MISSING=gone"]);
-  });
-});
 
 test("with entries a and b both parallel and both found, LISTED is the plain list `a, b`", async () => {
   await withGitRepo(async (repo) => {
@@ -99,15 +62,6 @@ test("--add y after entries writes it below the last entry's last option line at
     writeFile(repo.dir, ".claude/viber.yml", config(map));
     await run(["--add", "y"], repo.dir, repo.env);
     const expected = ["  extensions:", "    a:", "      parallel: true", "    b:", "      parallel: false", "    y:", "      parallel: false", "", "    # trailing note"];
-    assert.equal(readConfig(repo.dir), config(expected));
-  });
-});
-
-test("--add keeps a comment on the extensions line and every other line byte-identical", async () => {
-  await withGitRepo(async (repo) => {
-    writeFile(repo.dir, ".claude/viber.yml", config(["  extensions:   # run order", "    # first the docs", "    a:   # docs", "      parallel: true   # safe"]));
-    await run(["--add", "y"], repo.dir, repo.env);
-    const expected = ["  extensions:   # run order", "    # first the docs", "    a:   # docs", "      parallel: true   # safe", "    y:", "      parallel: false"];
     assert.equal(readConfig(repo.dir), config(expected));
   });
 });

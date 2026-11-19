@@ -1,10 +1,15 @@
 /*
- * build_report-fixture.ts - the minimal report-data.json both build_report test files start
- * from: it passes every check of build_report.mjs (weighted total 3.0, a
- * Pivot with its suggestion, round 2 held, three experiments).
+ * build_report-fixture.ts - what the build_report test files share: the path of the script
+ * the spawning tiers run, and the minimal report-data.json every one of them starts from, which
+ * passes every check of build_report.mjs (weighted total 3.0, a Pivot with its suggestion,
+ * round 2 held, three experiments).
  */
 
+import path from "node:path";
+
 import { DIMENSION_KEYS } from "../../viber/skills/idea-validator/scripts/build_report.mjs";
+
+export const SUT = path.resolve(import.meta.dirname, "../../viber/skills/idea-validator/scripts/build_report.mjs");
 
 export function validReport(): any {
   return {

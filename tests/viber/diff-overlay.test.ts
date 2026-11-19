@@ -21,92 +21,12 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-
-import { runScript, type RunResult } from "../harness/run.ts";
-import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
+import { withTempDir, type GitRepo } from "../harness/tmp.ts";
 import { slash } from "../harness/paths.ts";
 import { canSymlinkDir } from "../harness/symlinks.ts";
+import { assertPosix, withCheckout, overlay, stage } from "./diff-overlay-fixture.ts";
 
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/code-auditor/scripts/diff-overlay.sh");
-const WORKTREE = path.resolve(import.meta.dirname, "../../viber/skills/code-auditor/scripts/worktree.sh");
-
-const BINARY_SEED = Buffer.from([0x00, 0x01, 0x02, 0xff, 0xfe, 0x00, 0x7f]);
 const BINARY_EDIT = Buffer.from([0xff, 0x00, 0x00, 0x10, 0x80, 0xfe, 0x00, 0x00, 0x42]);
-
-async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("posix", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "posix");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-/** A repo whose HEAD holds the seed files (plus whatever `seed` writes), with a
- *  clean worktree checked out by worktree.sh (the way the skill makes one) before
- *  any working-tree change. */
-async function withCheckout<T>(
-  shell: Shell,
-  fn: (repo: GitRepo, wt: string) => T | Promise<T>,
-  seed: (repo: GitRepo) => void | Promise<void> = () => {},
-): Promise<T> {
-  return await withGitRepo(async (repo) => {
-    fs.writeFileSync(path.join(repo.dir, ".gitignore"), "*.log\n");
-    fs.writeFileSync(path.join(repo.dir, "staged.txt"), "staged seed\n");
-    fs.writeFileSync(path.join(repo.dir, "unstaged.txt"), "unstaged seed\n");
-    fs.writeFileSync(path.join(repo.dir, "gone.txt"), "gone seed\n");
-    fs.writeFileSync(path.join(repo.dir, "keep.txt"), "keep seed\n");
-    fs.writeFileSync(path.join(repo.dir, "blob.bin"), BINARY_SEED);
-    fs.writeFileSync(path.join(repo.dir, "with space.txt"), "space seed\n");
-    await seed(repo);
-    const add = await repo.git("add", "-A");
-    assert.equal(add.status, 0, `git add failed: ${add.stderr}`);
-    const commit = await repo.git("commit", "-m", "seed");
-    assert.equal(commit.status, 0, `git commit failed: ${commit.stderr}`);
-    const wt = slash(path.join(repo.dir, "wt-overlay"));
-    const ready = await runScript(WORKTREE, ["add", repo.dir, wt], { shell, cwd: repo.dir, env: repo.env });
-    assert.equal(ready.stdout, `WORKTREE_READY ${wt}\n`, `worktree add failed: ${ready.stderr}`);
-    return await fn(repo, wt);
-  });
-}
-
-async function overlay(shell: Shell, repo: GitRepo, wt: string): Promise<RunResult> {
-  return await runScript(SUT, [repo.dir, wt], { shell, cwd: repo.dir, env: repo.env });
-}
-
-async function stage(repo: GitRepo, ...paths: string[]) {
-  const add = await repo.git("add", "--", ...paths);
-  assert.equal(add.status, 0, `git add failed: ${add.stderr}`);
-}
-
-test("staged, unstaged, deleted and untracked changes land in the checkout and ignored or workspace files stay out", async () => {
-  await assertPosix(async (shell) => {
-    await withCheckout(shell, async (repo, wt) => {
-      fs.writeFileSync(path.join(repo.dir, "staged.txt"), "staged edit\n");
-      await stage(repo, "staged.txt");
-      fs.writeFileSync(path.join(repo.dir, "unstaged.txt"), "unstaged edit\n");
-      const rm = await repo.git("rm", "-q", "--", "gone.txt");
-      assert.equal(rm.status, 0, `git rm failed: ${rm.stderr}`);
-      fs.mkdirSync(path.join(repo.dir, "sub"));
-      fs.writeFileSync(path.join(repo.dir, "sub", "fresh.txt"), "fresh\n");
-      fs.writeFileSync(path.join(repo.dir, "noise.log"), "ignored\n");
-      fs.mkdirSync(path.join(repo.dir, ".temp/viber/code-auditor/run-1"), { recursive: true });
-      fs.writeFileSync(path.join(repo.dir, ".temp/viber/code-auditor/run-1/findings.md"), "workspace\n");
-
-      const result = await overlay(shell, repo, wt);
-
-      assert.equal(result.status, 0, `stderr=${result.stderr}`);
-      assert.equal(result.stdout, "OVERLAY_APPLIED 4\n");
-      assert.equal(fs.readFileSync(path.join(wt, "staged.txt"), "utf8"), "staged edit\n");
-      assert.equal(fs.readFileSync(path.join(wt, "unstaged.txt"), "utf8"), "unstaged edit\n");
-      assert.equal(fs.existsSync(path.join(wt, "gone.txt")), false);
-      assert.equal(fs.readFileSync(path.join(wt, "sub", "fresh.txt"), "utf8"), "fresh\n");
-      assert.equal(fs.readFileSync(path.join(wt, "keep.txt"), "utf8"), "keep seed\n");
-      assert.equal(fs.existsSync(path.join(wt, "noise.log")), false);
-      assert.equal(fs.existsSync(path.join(wt, ".temp/viber/code-auditor")), false);
-    });
-  });
-});
 
 test("an edited binary file arrives byte-identical", async () => {
   await assertPosix(async (shell) => {

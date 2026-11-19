@@ -1,12 +1,12 @@
 /*
- * agent-context.test.ts - integration tier: the disk adapter `readRuns` of tools/agent-context.ts
+ * agent-context.critical.test.ts - critical tier: the disk adapter `readRuns` of tools/agent-context.ts
  * against a real directory tree in a temp dir. It passes the reader contract of the `ReadRuns` port
  * (shared with the in-memory fake in agent-context.unit.test.ts) and proves what only the disk
  * reveals: runs found in a `subagents` directory several levels below the root, a meta file with no
  * transcript beside it skipped, a root that does not exist read as empty.
  *
- * Run directly by Node's type stripping (CI only, per the integration tier):
- *   node --test tests/tools/agent-context.test.ts
+ * Run directly by Node's type stripping (every operating system, per the critical tier):
+ *   node --test tests/tools/agent-context.critical.test.ts
  */
 
 import { test } from "../harness/test.ts";

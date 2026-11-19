@@ -27,50 +27,24 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
-import { slash } from "../harness/paths.ts";
 import { withStub } from "../harness/stub.ts";
-import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/rules/scripts/rules-map.sh");
+import { withGitRepo, withTempDir } from "../harness/tmp.ts";
+import {
+  SUT,
+  run,
+  write,
+  seed,
+  rule,
+  lines,
+  section,
+  QUOTED_NAMES,
+  seedQuotedNames,
+  findings,
+  ANY_TS,
+} from "./rules-map-fixture.ts";
 
 /** The run stamp the caller spends as `.temp/viber/<id>/`. */
 const ID_SHAPE = /^id: \d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}$/;
-
-function run(repo: GitRepo, args: string[] = [], cwd = repo.dir) {
-  return runScript(SUT, args, { cwd, env: repo.env, shell: "bash" });
-}
-
-/** Writes one file under the repo, creating its directory. */
-function write(repo: GitRepo, relative: string, body: string): void {
-  const file = path.join(repo.dir, relative);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, body);
-}
-
-/** Writes every entry, then commits the lot - the tree a map is taken of. */
-async function seed(repo: GitRepo, files: Record<string, string>): Promise<void> {
-  for (const [relative, body] of Object.entries(files)) write(repo, relative, body);
-  await repo.git("add", "-A");
-  await repo.git("commit", "-m", "seed");
-}
-
-/** A rule file with a block-sequence `paths:` key, the shape this repo's own
- *  rules use. */
-function rule(globs: string[], body = "# rule\n"): string {
-  return ["---", "paths:", ...globs.map((glob) => `  - "${glob}"`), "---", "", body].join("\n");
-}
-
-/** Every stdout line, separators normalized so a Windows path compares. */
-function lines(stdout: string): string[] {
-  return slash(stdout).trim().split("\n");
-}
-
-/** The lines opening on `<key>: `, that prefix stripped. */
-function section(stdout: string, key: string): string[] {
-  return lines(stdout)
-    .filter((line) => line.startsWith(key + ": "))
-    .map((line) => line.slice(key.length + 2));
-}
 
 test("map mode reports an empty layer when the rules directory is absent", async () => {
   await withGitRepo(async (repo) => {
@@ -83,28 +57,6 @@ test("map mode reports an empty layer when the rules directory is absent", async
     assert.match(lines(result.stdout)[1], ID_SHAPE);
     assert.deepEqual(section(result.stdout, "state"), ["none"]);
     assert.deepEqual(section(result.stdout, "total"), ["0 ok"]);
-  });
-});
-
-test("map mode scores a rule and counts only the tracked files its globs match", async () => {
-  await withGitRepo(async (repo) => {
-    const body = rule(["src/*.ts"]);
-    await seed(repo, {
-      "src/a.ts": "a\n",
-      "src/b.ts": "b\n",
-      "src/deep/c.ts": "c\n",
-      "docs/x.md": "x\n",
-      ".claude/rules/code.md": body,
-    });
-
-    const result = await run(repo);
-
-    assert.equal(result.status, 0);
-    assert.deepEqual(section(result.stdout, "state"), ["complete"]);
-    assert.deepEqual(section(result.stdout, "rule"), [
-      `.claude/rules/code.md ${Buffer.byteLength(body)} paths src/*.ts matches 2 ok`,
-    ]);
-    assert.deepEqual(section(result.stdout, "total"), [`${Buffer.byteLength(body)} ok`]);
   });
 });
 
@@ -242,40 +194,6 @@ test("a modified rule whose path holds a space is dirty and a reset refuses it (
     assert.equal(reset.status, 3);
     assert.deepEqual(section(reset.stdout, "refused"), [`${target} modified`]);
     assert.ok(fs.existsSync(path.join(repo.dir, target)));
-  });
-});
-
-/** Tracked names git quotes in its newline-separated listing: a `"` and a `\`
- *  cannot be spelled on a Windows filesystem, so the cases skip there. */
-const QUOTED_NAMES = {
-  skip: process.platform === "win32" ? "a double quote or backslash cannot be a Windows file name" : false,
-};
-
-async function seedQuotedNames(repo: GitRepo): Promise<void> {
-  await seed(repo, {
-    'lib/q"x.ts': "q\n",
-    "lib/back\\slash.ts": "b\n",
-    '.claude/rules/a"b.md': rule(["docs/*.md"]),
-    ".claude/rules/lib.md": rule(["lib/*.ts"]),
-    "docs/x.md": "x\n",
-  });
-}
-
-test('map mode counts tracked paths holding " or \\ as tracked and matching (git quotes them in its plain listing)', QUOTED_NAMES, async () => {
-  await withGitRepo(async (repo) => {
-    await seedQuotedNames(repo);
-    const lib = rule(["lib/*.ts"]);
-
-    const result = await run(repo);
-
-    assert.equal(result.status, 0);
-    assert.deepEqual(section(result.stdout, "dirty"), []);
-    assert.deepEqual(section(result.stdout, "dead"), []);
-    assert.ok(
-      section(result.stdout, "rule").includes(
-        `.claude/rules/lib.md ${Buffer.byteLength(lib)} paths lib/*.ts matches 2 ok`,
-      ),
-    );
   });
 });
 
@@ -743,27 +661,6 @@ test("map mode reports outside a git repository, every rule untracked and none d
   });
 });
 
-test("reset deletes every clean rule it is given", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo, {
-      "src/a.ts": "a\n",
-      ".claude/rules/one.md": rule(["src/*.ts"]),
-      ".claude/rules/two.md": rule(["src/*.ts"]),
-    });
-
-    const result = await run(repo, ["--reset", ".claude/rules/one.md", ".claude/rules/two.md"]);
-
-    assert.equal(result.status, 0);
-    assert.deepEqual(lines(result.stdout), [
-      "removed: .claude/rules/one.md",
-      "removed: .claude/rules/two.md",
-      "removed: 2",
-    ]);
-    assert.equal(fs.existsSync(path.join(repo.dir, ".claude", "rules", "one.md")), false);
-    assert.equal(fs.existsSync(path.join(repo.dir, ".claude", "rules", "two.md")), false);
-  });
-});
-
 test("reset deletes a rule inside an area subdirectory and removes the area once it is empty", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo, {
@@ -819,38 +716,6 @@ test("reset refuses the whole call when one target is frozen", async () => {
     assert.deepEqual(lines(result.stdout), ["refused: .claude/rules/_frozen.md frozen"]);
     assert.equal(fs.existsSync(path.join(repo.dir, ".claude", "rules", "one.md")), true);
     assert.equal(fs.existsSync(path.join(repo.dir, ".claude", "rules", "_frozen.md")), true);
-  });
-});
-
-test("reset names every unfit target and deletes nothing", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo, {
-      "src/a.ts": "a\n",
-      "docs/loose.md": "# not a rule\n",
-      ".claude/rules/one.md": rule(["src/*.ts"]),
-      ".claude/rules/edited.md": rule(["src/*.ts"]),
-    });
-    write(repo, ".claude/rules/edited.md", rule(["src/*.ts"], "# edited\n"));
-    write(repo, ".claude/rules/fresh.md", rule(["src/*.ts"]));
-
-    const result = await run(repo, [
-      "--reset",
-      ".claude/rules/one.md",
-      ".claude/rules/edited.md",
-      ".claude/rules/fresh.md",
-      ".claude/rules/gone.md",
-      "docs/loose.md",
-    ]);
-
-    assert.equal(result.status, 3);
-    assert.deepEqual(lines(result.stdout), [
-      "refused: .claude/rules/edited.md modified",
-      "refused: .claude/rules/fresh.md untracked",
-      "refused: .claude/rules/gone.md missing",
-      "refused: docs/loose.md not-a-rule",
-    ]);
-    assert.equal(fs.existsSync(path.join(repo.dir, ".claude", "rules", "one.md")), true);
-    assert.equal(fs.existsSync(path.join(repo.dir, "docs", "loose.md")), true);
   });
 });
 
@@ -1088,18 +953,8 @@ test("brief refuses a directory target escaping the repository through a parent 
   });
 });
 
-/** Writes one findings file of a run under `.temp/viber/<id>/`, after the seed
- *  so the tree stays what the map is taken of. */
-function findings(repo: GitRepo, id: string, name: string, body: string): void {
-  write(repo, `.temp/viber/${id}/${name}`, body);
-}
-
 const STOP_LINE = "STOP: rules: the layer already holds, no writer dispatched";
 const ASK_LINE = "ASK: fold in -> write | stop -> stop";
-
-/** A scope with no shared literal first segment, so a root rule holding it is
- *  never named misplaced. */
-const ANY_TS = "**/*.ts";
 
 test("confirm prints the stop line alone when no findings file exists, each counter reading 0", async () => {
   await withGitRepo(async (repo) => {
@@ -1497,58 +1352,6 @@ test("the script ships directly invocable, LF-only, its header printing its own 
     [],
   );
 });
-
-/** The ways a caller can spell the path it invokes the script by, each with the
- *  plugin root the script must print for it: on Windows the native `C:\...`, the
- *  mixed `C:/...` and the MSYS `/c/...` spellings, elsewhere the one absolute path. */
-function invocations(): { form: string; script: string; root: string }[] {
-  const plugin = path.resolve(import.meta.dirname, "../../viber");
-  if (process.platform !== "win32") return [{ form: "absolute", script: SUT, root: plugin }];
-  const msys = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`);
-  return [
-    { form: "C:\\", script: path.win32.normalize(SUT), root: slash(plugin) },
-    { form: "C:/", script: slash(SUT), root: slash(plugin) },
-    { form: "/c/", script: msys(SUT), root: msys(plugin) },
-  ];
-}
-
-/** The `refs:` lines of a stdout, read raw: a backslash must not be normalized away. */
-function refsLines(stdout: string): string[] {
-  return stdout.trim().split("\n").filter((line) => line.startsWith("refs: "));
-}
-
-for (const { form, script, root } of invocations()) {
-  test(`brief invoked by a ${form} path prints the references path in that spelling`, async () => {
-    await withGitRepo(async (repo) => {
-      await seed(repo, { "src/a.ts": "a\n", ".claude/rules/code.md": rule([ANY_TS]) });
-
-      const result = await runScript(script, ["--brief", "run1", ".claude/rules/code.md"], {
-        cwd: repo.dir,
-        env: repo.env,
-        shell: "bash",
-      });
-
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(refsLines(result.stdout), [`refs: ${root}/references`]);
-    });
-  });
-
-  test(`confirm invoked by a ${form} path prints the writer block's references path in that spelling`, async () => {
-    await withGitRepo(async (repo) => {
-      await seed(repo, { "src/a.ts": "a\n", ".claude/rules/code.md": rule([ANY_TS]) });
-      findings(repo, "run1", "code-audit.md", "STALE: x -> y\n");
-
-      const result = await runScript(script, ["--confirm", "run1", ".claude/rules/code.md"], {
-        cwd: repo.dir,
-        env: repo.env,
-        shell: "bash",
-      });
-
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(refsLines(result.stdout), [`refs: ${root}/references`]);
-    });
-  });
-}
 
 test("the header's reads list names the archived failures.md files and the config.sh call", () => {
   const source = fs.readFileSync(SUT, "utf-8");

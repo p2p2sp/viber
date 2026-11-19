@@ -27,74 +27,19 @@
 import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import path from "node:path";
 
-import { runScript, type RunResult } from "../harness/run.ts";
-import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
-
-const LENSES = path.resolve(import.meta.dirname, "../../viber/skills/code-auditor/references/lenses");
-const DAY_MS = 24 * 3600 * 1000;
-
-async function assertBash(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("bash", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "bash");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-/** Every ```bash block of a signals file, `<scope>` substituted by `scope` the
- *  way the mapper substitutes it (`.` for the repository-wide scope). */
-function mapSignalCommands(file: string, scope = "."): string[] {
-  const text = fs.readFileSync(path.join(LENSES, file), "utf-8");
-  return [...text.matchAll(/^```bash\r?\n([\s\S]*?)^```/gm)].map((m) => m[1].trim().replaceAll("<scope>", scope));
-}
-
-/** Commits whatever is staged `daysAgo` days in the past (author == committer
- *  date), so the 12-month window is exercised whenever the suite runs. */
-async function commitAt(repo: GitRepo, daysAgo: number, message: string): Promise<void> {
-  const date = new Date(Date.now() - daysAgo * DAY_MS).toISOString();
-  const env = { ...repo.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date };
-  const add = await runScript("git", ["add", "-A"], { cwd: repo.dir, env });
-  assert.equal(add.status, 0, `git add failed: ${add.stderr}`);
-  const commit = await runScript("git", ["commit", "-q", "-m", message], { cwd: repo.dir, env });
-  assert.equal(commit.status, 0, `git commit failed: ${commit.stderr}`);
-}
-
-function write(repo: GitRepo, file: string, content: string): void {
-  fs.mkdirSync(path.dirname(path.join(repo.dir, file)), { recursive: true });
-  fs.writeFileSync(path.join(repo.dir, file), content);
-}
-
-/** A seed of a few source files 500 days old, a fix 400 days old, a non-fix
- *  commit 10 days old and a fix 5 days old, each later commit touching a file
- *  of its own so the files a command lists name the commits it kept. */
-async function buildHistory(repo: GitRepo): Promise<void> {
-  write(repo, "README.md", "# sample\n");
-  write(repo, "config.json", '{ "retry_count": 3, "base_url": "http://localhost" }\n');
-  write(repo, "src/app.js", "try { run(); } catch (e) {}\n");
-  write(repo, "src/util.py", "try:\n    load()\nexcept OSError: pass\n");
-  write(repo, "scripts/build.sh", "#!/bin/sh\nrm -rf out 2>/dev/null || true\n");
-  await commitAt(repo, 500, "chore: seed the tree");
-
-  write(repo, "src/ancient.js", "export const ancient = 1;\n");
-  await commitAt(repo, 400, "fix: ancient crash outside the window");
-
-  write(repo, "src/feature.js", "export const feature = 1;\n");
-  await commitAt(repo, 10, "feat: add the export feature");
-
-  write(repo, "src/recent.js", "export const recent = 1;\n");
-  await commitAt(repo, 5, "fix: recent crash inside the window");
-}
-
-async function runCommand(shell: Shell, repo: GitRepo, command: string): Promise<RunResult> {
-  return await withTempDir("p2p2-lens-signal-", (dir) => {
-    const script = path.join(dir, "signal.sh");
-    fs.writeFileSync(script, `#!/usr/bin/env bash\n${command}\n`);
-    return runScript(script, [], { shell, cwd: repo.dir, env: repo.env, input: "" });
-  });
-}
+import { type RunResult } from "../harness/run.ts";
+import { withGitRepo, type GitRepo } from "../harness/tmp.ts";
+import { type Shell } from "../harness/shells.ts";
+import {
+  LENSES,
+  assertBash,
+  mapSignalCommands,
+  commitAt,
+  write,
+  buildHistory,
+  runCommand,
+} from "./lens-map-signals-fixture.ts";
 
 /** `ok` for exit 0, or exit 1 with empty stderr; otherwise what went wrong. */
 function verdict(result: RunResult): string {
@@ -124,20 +69,6 @@ for (const file of SIGNALS_FILES) {
     });
   });
 }
-
-test("the first map-signal command of bugs.signals.md, the fix history, lists a 5-day-old fix and leaves out a 400-day-old fix and a non-fix commit (git takes a --since it cannot parse as an empty window)", async () => {
-  const fixHistory = mapSignalCommands("bugs.signals.md")[0];
-  await withGitRepo(async (repo) => {
-    await buildHistory(repo);
-    await assertBash(async (shell) => {
-      const result = await runCommand(shell, repo, fixHistory);
-      assert.equal(result.status, 0, `the fix-history command must succeed: stderr=${result.stderr}`);
-      assert.match(result.stdout, /src\/recent\.js/, `a fix inside the window must be listed:\n${fixHistory}\n${result.stdout}`);
-      assert.doesNotMatch(result.stdout, /src\/ancient\.js/, "a fix older than 12 months is out of the window");
-      assert.doesNotMatch(result.stdout, /src\/feature\.js/, "a non-fix subject is out of the fix history");
-    });
-  });
-});
 
 test("on the directory scope 'src/my app' the fix-history and error-swallowing commands of bugs.signals.md list src/my app/inside.js and never app/outside.js (an unquoted scope splits into two pathspecs)", async () => {
   const commands = mapSignalCommands("bugs.signals.md", "src/my app");

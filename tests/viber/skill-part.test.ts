@@ -21,38 +21,16 @@ import path from "node:path";
 
 import { runScript, type RunResult } from "../harness/run.ts";
 import { withGitRepo, type GitRepo } from "../harness/tmp.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/skill-part.sh");
-
-const FENCE = "```";
-const MEMORY_CALL = '"${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" build.memory "${CLAUDE_SKILL_DIR}" memory';
-
-function skillDir(repo: GitRepo): string {
-  return path.join(repo.dir, "plugin", "skills", "demo");
-}
-
-function writeConfig(repo: GitRepo, body: string): void {
-  fs.mkdirSync(path.join(repo.dir, ".claude"), { recursive: true });
-  fs.writeFileSync(path.join(repo.dir, ".claude", "viber.yml"), body);
-}
-
-function writeIn(repo: GitRepo, sub: string, file: string, body: string): void {
-  const dir = path.join(skillDir(repo), sub);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, file), body);
-}
-
-function writePart(repo: GitRepo, name: string, body: string): void {
-  writeIn(repo, "parts", `${name}.md`, body);
-}
-
-function writeFragment(repo: GitRepo, file: string, body: string): void {
-  writeIn(repo, "fragments", file, body);
-}
-
-async function run(repo: GitRepo, args: string[]): Promise<RunResult> {
-  return await runScript(SUT, args, { cwd: repo.dir, env: repo.env, shell: "bash" });
-}
+import {
+  SUT,
+  FENCE,
+  MEMORY_CALL,
+  skillDir,
+  writeConfig,
+  writePart,
+  writeFragment,
+  run,
+} from "./skill-part-fixture.ts";
 
 test("a part with no fragment block prints byte for byte, a missing final newline kept", async () => {
   await withGitRepo(async (repo) => {
@@ -62,20 +40,6 @@ test("a part with no fragment block prints byte for byte, a missing final newlin
     const result = await run(repo, [skillDir(repo), "close"]);
 
     assert.deepEqual([result.status, result.stdout], [0, body]);
-  });
-});
-
-test("both root placeholders expand to the skill dir as passed and to its parent's parent", async () => {
-  await withGitRepo(async (repo) => {
-    writePart(repo, "close", "skill=${CLAUDE_SKILL_DIR} root=${CLAUDE_PLUGIN_ROOT} again=${CLAUDE_SKILL_DIR}\n");
-    const dir = `${repo.dir}/plugin/skills/demo/`;
-
-    const result = await run(repo, [dir, "close"]);
-
-    assert.deepEqual(
-      [result.status, result.stdout],
-      [0, `skill=${dir} root=${repo.dir}/plugin again=${dir}\n`],
-    );
   });
 });
 
@@ -90,19 +54,6 @@ test("a skill dir spelled with a dot-dot segment is expanded as passed, never ca
       [result.status, result.stdout],
       [0, `skill=${dir} root=${repo.dir}/plugin/skills/..\n`],
     );
-  });
-});
-
-test("a fragment block prints the fragment of the configured switch value in its place, fence lines removed", async () => {
-  await withGitRepo(async (repo) => {
-    writeConfig(repo, "build:\n  memory: true\n");
-    writeFragment(repo, "memory.true.md", "Update the memory.\n\nSecond line.\n");
-    writeFragment(repo, "memory.false.md", "No memory.\n");
-    writePart(repo, "close", `before\n\n${FENCE}!\n${MEMORY_CALL}\n${FENCE}\n\nafter\n`);
-
-    const result = await run(repo, [skillDir(repo), "close"]);
-
-    assert.deepEqual([result.status, result.stdout], [0, "before\n\nUpdate the memory.\n\nSecond line.\n\nafter\n"]);
   });
 });
 

@@ -45,240 +45,34 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-
-import { slash } from "../harness/paths.ts";
 import { runScript } from "../harness/run.ts";
 import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/plan-index.sh");
-
-/** The dated run directory plan-path.sh owns; the decomposition lands beside the plan. */
-const PLAN_DIR = "docs/_specs/2026-09-20-10-00-00_add-login";
-const PLAN_REL = `${PLAN_DIR}/plan.md`;
-
-function run(dir: string, env: Record<string, string>, args: string[]) {
-  return runScript(SUT, args, { cwd: dir, env, shell: "bash" });
-}
-
-function write(root: string, rel: string, content: string): void {
-  const file = path.join(root, rel);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, content);
-}
-
-interface TaskFields {
-  id?: string;
-  title?: string;
-  tdd?: string;
-  /** Omitted entirely unless set - an absent line is what an ordinary task looks like. */
-  exclusive?: string;
-  /** Omitted entirely unless set - only a fixing task carries the fixer's RED test. */
-  repro?: string;
-  /** Omitted entirely unless set - the plan marks only a task whose design it cannot settle. */
-  hard?: string;
-  covers?: string;
-  /** `null` omits the line entirely - the shape a plan written before `Uses:` has. */
-  uses?: string | null;
-  deps?: string;
-  files?: string;
-  /** The whole Verification value; the default names no file. */
-  verification?: string;
-  /** Semicolon-separated clauses; the decomposition numbers them one per line. */
-  dod?: string;
-  /** The whole Delivers value; the default names no contract block. */
-  delivers?: string;
-}
-
-/** The `## Contracts` appendix every default task names through `Uses: C1`. It
- *  sits BELOW the tasks, so it never reaches spec.md - only the task files whose
- *  `Uses:` line asks for it. Its `File:` line says `none` - a wire shape declared
- *  in no file of this plan - which keeps the ownership rules out of every case
- *  that is not about them; the cases that are build their own appendix. */
-const CONTRACT = [
-  "### C1 - Login endpoint",
-  "",
-  "File: none",
-  "",
-  "POST /login -> 200 | 401",
-  "",
-  "Body: `{ user, pass }`",
-];
+import {
+  SUT,
+  PLAN_DIR,
+  PLAN_REL,
+  run,
+  write,
+  type TaskFields,
+  CONTRACT,
+  liteHead,
+  planBody,
+  TWO_TASKS,
+  seed,
+  seedStatus,
+  readRun,
+  taskFiles,
+  subjects,
+  seedScope,
+  scope,
+  DISPATCH_ROOT,
+  seedDispatch,
+} from "./plan-index-fixture.ts";
 
 /** An appendix whose shape lives in a file, which is what ties it to the task
  *  map: the task holding that path is the block's writer. */
 function ownedContract(file: string): string[] {
   return ["### C1 - Login endpoint", "", `File: ${file}`, "", "POST /login -> 200 | 401"];
-}
-
-/** The acceptance criteria both spec shapes carry: two of them, the first
- *  wrapped over two lines - a criterion's continuation is part of its text and
- *  has to reach the task file with it. */
-function criteriaLines(criteria: number): string[] {
-  return [
-    "1. A user with valid credentials gets a session.",
-    "   The session survives a reload.",
-    "2. An invalid password is rejected.",
-  ].slice(0, criteria === 1 ? 2 : 3);
-}
-
-/** The head of a plan built from `templates/spec-lite.md`. */
-function liteHead(criteria: number): string[] {
-  return [
-    "# Add login",
-    "",
-    "## Goal",
-    "",
-    "Users can log in.",
-    "The session is durable.",
-    "",
-    "## Acceptance criteria",
-    "",
-    ...criteriaLines(criteria),
-    "",
-    "## Scope",
-    "",
-    "### File map",
-    "",
-    "- add - src/login.ts - the handler",
-    "",
-    "### Out of scope",
-    "",
-    "- Password reset.",
-    "- OAuth.",
-    "",
-  ];
-}
-
-/** The head of a plan built from `templates/spec-full.md`: the same four
- *  anchors, wrapped in the sections the big shape adds around them. */
-function fullHead(criteria: number): string[] {
-  return [
-    "# Add login",
-    "",
-    "## Goal",
-    "",
-    "Users can log in.",
-    "The session is durable.",
-    "",
-    "## Problem",
-    "",
-    "Anyone can read another person's orders.",
-    "",
-    "## Current behaviour",
-    "",
-    "Every page is public.",
-    "",
-    "### Must not change",
-    "",
-    "- The public catalogue stays reachable without an account.",
-    "",
-    "## Behaviour",
-    "",
-    "### S1 - Signing in [NEW]",
-    "",
-    "A returning customer reaches their own orders.",
-    "",
-    "Given a registered customer",
-    "When they submit their credentials",
-    "Then they see their own orders",
-    "",
-    "### Edge cases",
-    "",
-    "- An empty password -> the form is rejected before anything is checked.",
-    "",
-    "## Glossary",
-    "",
-    "- Session - the proof that this visitor signed in, held until they leave.",
-    "",
-    "## Acceptance criteria",
-    "",
-    ...criteriaLines(criteria),
-    "",
-    "## Scope",
-    "",
-    "### File map",
-    "",
-    "- add - src/login.ts - the handler",
-    "",
-    "### Out of scope",
-    "",
-    "- Password reset.",
-    "- OAuth.",
-    "",
-    "## Solution requirements",
-    "",
-    "- The existing session cookie name has to survive.",
-    "",
-  ];
-}
-
-/** A plan in the template's shape: one of the two spec heads, then the task
- *  half every shape shares. */
-function planBody(
-  tasks: TaskFields[],
-  criteria = 2,
-  contracts: string[] = CONTRACT,
-  shape: "lite" | "full" = "lite",
-): string {
-  return [
-    ...(shape === "full" ? fullHead(criteria) : liteHead(criteria)),
-    "## Tasks",
-    "",
-    ...tasks.flatMap((t) => [
-      "<!-- TASK -->",
-      `### ${t.id ?? "T1"} - ${t.title ?? "do the thing"}`,
-      `- TDD: ${t.tdd ?? "required"}`,
-      ...(t.exclusive === undefined ? [] : [`- Exclusive: ${t.exclusive}`]),
-      ...(t.repro === undefined ? [] : [`- Repro: ${t.repro}`]),
-      ...(t.hard === undefined ? [] : [`- Hard: ${t.hard}`]),
-      `- Covers: ${t.covers ?? "AC1"}`,
-      ...(t.uses === null ? [] : [`- Uses: ${t.uses ?? "C1"}`]),
-      `- Depends-on: ${t.deps ?? "none"}`,
-      `- Files: ${t.files ?? "src/a.ts"}`,
-      `- Delivers: ${t.delivers ?? "the thing"}`,
-      `- Verification: ${t.verification ?? "npm test -> green"}`,
-      `- DoD: ${t.dod ?? "it works"}`,
-      "<!-- /TASK -->",
-      "",
-    ]),
-    ...(contracts.length ? ["## Contracts", "", ...contracts, ""] : []),
-  ].join("\n");
-}
-
-/** T1 names the one contract block, T2 names none: the split has to be selective. */
-const TWO_TASKS: TaskFields[] = [
-  { id: "T1", title: "Add the login handler", files: "src/login.ts" },
-  {
-    id: "T2",
-    title: "Reject a bad password",
-    covers: "AC2",
-    uses: "none",
-    deps: "T1",
-    files: "src/reject.ts",
-  },
-];
-
-function seed(dir: string, body: string): void {
-  write(dir, PLAN_REL, body);
-}
-
-/** The run's state file, as --split writes it and commit-task.sh advances it.
- *  Every key is optional here: what the file does not carry is simply not set. */
-function seedStatus(dir: string, entries: Record<string, string>): void {
-  write(
-    dir,
-    `${PLAN_DIR}/status.md`,
-    ["# status", "", ...Object.entries(entries).map(([k, v]) => `${k}: ${v}`), ""].join("\n"),
-  );
-}
-
-function readRun(dir: string, rel: string): string {
-  return fs.readFileSync(path.join(dir, PLAN_DIR, rel), "utf-8");
-}
-
-function taskFiles(dir: string): string[] {
-  const tasks = path.join(dir, PLAN_DIR, "tasks");
-  return fs.existsSync(tasks) ? fs.readdirSync(tasks).sort() : [];
 }
 
 // --- the header documentation ------------------------------------------------
@@ -293,31 +87,6 @@ test("the header's example task titles carry no Conventional Commits type - a ta
 });
 
 // --- the index -------------------------------------------------------------
-
-test("the index carries one row per task: id, state, TDD marker, exclusivity, normalised deps, files and title", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    seed(dir, planBody(TWO_TASKS));
-
-    const result = await run(dir, {}, [PLAN_REL]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(
-      result.stdout,
-      [
-        `plan: ${PLAN_REL}`,
-        "title: Add login",
-        "progress: 0/2",
-        "tasks: id | state | tdd | excl | hard | deps | feeds | files | title",
-        "T1 | todo | required | - | - | - | - | src/login.ts | Add the login handler",
-        "T2 | todo | required | - | - | T1 | - | src/reject.ts | Reject a bad password",
-        "verify: T1 | npm test",
-        "verify: T2 | npm test",
-        "review: single",
-        "dispatch: viber:planner-review",
-        "",
-      ].join("\n"),
-    );
-  });
-});
 
 test("a marker mentioned mid-sentence in prose creates no task - only a marker alone on its own line opens one", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
@@ -784,75 +553,6 @@ test("a missing argument, a missing plan and an unknown second argument all exit
       assert.equal(result.status, 2, `args ${JSON.stringify(args)} -> stderr: ${result.stderr}`);
       assert.equal(result.stdout, "");
     }
-  });
-});
-
-test("--split refuses any plan but the run's own <dir>/plan.md - it rebuilds <dir>/tasks and would delete a real one", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    // the exact shape that would cost a project its own tasks/ directory:
-    // a plan sitting loose in the repository root
-    write(dir, "plan.md", planBody(TWO_TASKS));
-    write(dir, "tasks/keep.txt", "a directory this project owns\n");
-    write(dir, `${PLAN_DIR}/steps.md`, planBody(TWO_TASKS));
-
-    for (const rel of ["plan.md", `${PLAN_DIR}/steps.md`]) {
-      const result = await run(dir, {}, [rel, "--split"]);
-      assert.equal(result.status, 2, `${rel} -> stdout: ${result.stdout}`);
-      assert.equal(result.stdout, "");
-      assert.match(result.stderr, /--split expects the run/);
-    }
-
-    assert.deepEqual(fs.readdirSync(path.join(dir, "tasks")), ["keep.txt"]);
-  });
-});
-
-test(
-  "--split accepts the run's own plan.md handed over with Windows separators (dirname splits a backslash, the shell's own expansion does not - disagreeing, they refuse a legitimate plan)",
-  {
-    skip:
-      process.platform === "win32"
-        ? false
-        : "off Windows a backslash is a legal filename character, so the argument names no file",
-  },
-  async () => {
-    await withTempDir("p2p2-viber-", async (dir) => {
-      seed(dir, planBody(TWO_TASKS));
-
-      const result = await run(dir, {}, [PLAN_REL.replace(/\//g, "\\"), "--split"]);
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(taskFiles(dir), ["T1.md", "T2.md"]);
-    });
-  },
-);
-
-test("a <!-- TASK --> block above the plan's own \"## Tasks\" heading is refused, naming the task, and --split writes nothing for it", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    // the cut point IS the "## Tasks" heading: a block that opens before it has
-    // ever been seen would ride into spec.md rather than decompose into its own
-    // task file, which is silent drift a coder never notices
-    const misplaced = [
-      "<!-- TASK -->",
-      "### T0 - Misplaced task",
-      "- TDD: required",
-      "- Covers: AC1",
-      "- Uses: none",
-      "- Depends-on: none",
-      "- Files: src/misplaced.ts",
-      "- Delivers: the thing",
-      "- Verification: npm test -> green",
-      "- DoD: it works",
-      "<!-- /TASK -->",
-      "",
-      "",
-    ].join("\n");
-    const body = planBody(TWO_TASKS).replace("## Goal\n", `## Goal\n\n${misplaced}`);
-    seed(dir, body);
-
-    const result = await run(dir, {}, [PLAN_REL, "--split"]);
-    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "");
-    assert.match(result.stderr, /task T0: <!-- TASK --> block sits above the "## Tasks" heading/);
-    assert.deepEqual(fs.readdirSync(path.join(dir, PLAN_DIR)), ["plan.md"]);
   });
 });
 
@@ -2391,39 +2091,7 @@ test("a plan that introduces no shape at all validates with every task on Uses: 
   });
 });
 
-test("a rejected plan is never decomposed - --split writes nothing when validation fails", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    seed(dir, planBody([{ id: "T1", covers: "AC9" }]));
-
-    const result = await run(dir, {}, [PLAN_REL, "--split"]);
-    assert.equal(result.status, 4);
-    assert.deepEqual(fs.readdirSync(path.join(dir, PLAN_DIR)), ["plan.md"]);
-  });
-});
-
 // --- the decomposition -----------------------------------------------------
-
-test("--split writes the specification and one file per task, and still prints the index", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    seed(dir, planBody(TWO_TASKS));
-
-    const result = await run(dir, {}, [PLAN_REL, "--split"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^T2 \| todo \| required \| - \| - \| T1 \| - \| src\/reject\.ts \| Reject a bad password$/m);
-
-    assert.deepEqual(taskFiles(dir), ["T1.md", "T2.md"]);
-
-    // spec.md is everything ABOVE the task list: WHAT and WHY, no task and -
-    // because the appendix sits below the tasks - no contract either.
-    const spec = readRun(dir, "spec.md");
-    assert.match(spec, /^# Add login$/m);
-    assert.match(spec, /^- add - src\/login\.ts - the handler$/m);
-    assert.match(spec, /^### Out of scope$/m);
-    assert.doesNotMatch(spec, /## Tasks/);
-    assert.doesNotMatch(spec, /Add the login handler/);
-    assert.doesNotMatch(spec, /## Contracts|POST \/login/);
-  });
-});
 
 test("spec.md carries neither the frontmatter nor one HTML comment - the run plumbing stops at plan.md", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
@@ -2941,18 +2609,6 @@ test("a spec-full plan carrying no Must not change section decomposes exactly li
   assert.equal(files.full, files.lite);
 });
 
-test("tasks/ is rebuilt from scratch, so a task dropped from the plan leaves no stale file behind", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    seed(dir, planBody(TWO_TASKS));
-    assert.equal((await run(dir, {}, [PLAN_REL, "--split"])).status, 0);
-    assert.deepEqual(taskFiles(dir), ["T1.md", "T2.md"]);
-
-    seed(dir, planBody([TWO_TASKS[0]!], 1));
-    assert.equal((await run(dir, {}, [PLAN_REL, "--split"])).status, 0);
-    assert.deepEqual(taskFiles(dir), ["T1.md"]);
-  });
-});
-
 test("--split outside a git repository still decomposes and exits 0", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     seed(dir, planBody(TWO_TASKS));
@@ -2964,89 +2620,6 @@ test("--split outside a git repository still decomposes and exits 0", async () =
 });
 
 // --- the decomposition commit ----------------------------------------------
-
-async function subjects(repo: GitRepo): Promise<string[]> {
-  return (await repo.git("log", "--format=%s")).stdout.trim().split("\n").filter(Boolean);
-}
-
-test("the decomposition is committed with the plan, and nothing outside the run directory rides along", async () => {
-  await withGitRepo(async (repo) => {
-    write(repo.dir, "README.md", "seed\n");
-    await repo.git("add", "-A");
-    await repo.git("commit", "-m", "seed");
-
-    seed(repo.dir, planBody(TWO_TASKS));
-    // a change the user has open, and one they already staged: neither is this
-    // script's business
-    write(repo.dir, "README.md", "edited\n");
-    write(repo.dir, "src/other.ts", "staged by the user\n");
-    await repo.git("add", "src/other.ts");
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "--split"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-
-    assert.deepEqual(await subjects(repo), [
-      "chore(viber): decompose plan 2026-09-20-10-00-00_add-login",
-      "seed",
-    ]);
-    const committed = (await repo
-      .git("show", "--name-only", "--format=", "HEAD"))
-      .stdout.trim()
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .sort();
-    assert.deepEqual(committed, [
-      PLAN_REL,
-      `${PLAN_DIR}/spec.md`,
-      `${PLAN_DIR}/status.md`,
-      `${PLAN_DIR}/tasks/T1.md`,
-      `${PLAN_DIR}/tasks/T2.md`,
-    ].sort());
-
-    // the user's own work is exactly where they left it
-    assert.equal(fs.readFileSync(path.join(repo.dir, "README.md"), "utf-8"), "edited\n");
-    assert.match((await repo.git("status", "--short")).stdout, /README\.md/);
-    assert.match((await repo.git("status", "--short")).stdout, /src\/other\.ts/);
-  });
-});
-
-test("an untracked work/ trail file beside the plan stays out of the decomposition commit and stays untracked", async () => {
-  await withGitRepo(async (repo) => {
-    write(repo.dir, "README.md", "seed\n");
-    await repo.git("add", "-A");
-    await repo.git("commit", "-m", "seed");
-
-    seed(repo.dir, planBody(TWO_TASKS));
-    write(repo.dir, `${PLAN_DIR}/work/T3-notes.md`, "a coder's own trail, not the decomposition\n");
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "--split"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-
-    const committed = (await repo
-      .git("show", "--name-only", "--format=", "HEAD"))
-      .stdout.trim()
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .sort();
-    assert.deepEqual(committed, [
-      PLAN_REL,
-      `${PLAN_DIR}/spec.md`,
-      `${PLAN_DIR}/status.md`,
-      `${PLAN_DIR}/tasks/T1.md`,
-      `${PLAN_DIR}/tasks/T2.md`,
-    ].sort());
-    assert.ok(!committed.includes(`${PLAN_DIR}/work/T3-notes.md`));
-
-    // still on disk, still untracked - never staged, never committed
-    assert.equal(
-      fs.readFileSync(path.join(repo.dir, `${PLAN_DIR}/work/T3-notes.md`), "utf-8"),
-      "a coder's own trail, not the decomposition\n",
-    );
-    assert.match((await repo.git("status", "--short")).stdout, /\?\? .*work\//);
-  });
-});
 
 test("a plan tied to an issue gets its decomposition commit footed with Refs: #<N>, and one without an issue gets no footer", async () => {
   const cases: Array<[frontmatter: string[], body: RegExp]> = [
@@ -3619,29 +3192,7 @@ test("a DoD line naming another task validates under --split - a frozen plan res
 });
 
 // --- the scope command: plan-index.sh <plan> --extra <task-id> ---------------
-
-/** T1 and T4 are done, T2 is still open, T3 is the task under review. T1 claims
- *  two files, so one task can hold several paths of the coder's extras file. */
-const SCOPE_TASKS: TaskFields[] = [
-  { id: "T1", files: "src/done-a.ts,src/done-a2.ts" },
-  { id: "T2", files: "src/todo.ts" },
-  { id: "T3", files: "src/own.ts" },
-  { id: "T4", files: "src/done-b.ts" },
-];
-
-const EXTRA_CODER = `${PLAN_DIR}/work/T3-extra.md`;
 const EXTRA_REVIEWER = `${PLAN_DIR}/work/T3-extra-review.md`;
-
-/** A run with SCOPE_TASKS, T1 and T4 done, and the coder's extras file for T3 holding `coder`. */
-function seedScope(dir: string, coder: string | null): void {
-  seed(dir, planBody(SCOPE_TASKS, 1));
-  seedStatus(dir, { progress: "2/4", done: "T1 T4" });
-  if (coder !== null) write(dir, EXTRA_CODER, coder);
-}
-
-async function scope(dir: string, id = "T3") {
-  return run(dir, {}, [PLAN_REL, "--extra", id]);
-}
 
 test("a coder-file path no task claims prints on an extra line and no recheck line", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
@@ -3746,26 +3297,6 @@ test("an absolute coder-file path of a file a done task claims prints on the ext
     const result = await scope(dir);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.equal(result.stdout, "extra: src/done-a.ts\nrecheck: T1 | npm test\n");
-  });
-});
-
-test("a backslashed coder-file path prints on the extra line in its forward-slash form", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    seedScope(dir, "src\\b.ts\r\n");
-
-    const result = await scope(dir);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "extra: src/b.ts\n");
-  });
-});
-
-test("a backslashed coder-file path of a file a task not yet done claims is left off exactly as its forward-slash spelling is", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    seedScope(dir, "src\\todo.ts\n");
-
-    const result = await scope(dir);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "");
   });
 });
 
@@ -4398,21 +3929,6 @@ test("--extra of a plan of 13 tasks prints the extra line alone, no review instr
 
 // --- the dispatch lines: plan-index.sh <plan> --dispatch <task-id> coder|reviewer --
 
-/** T3 depends on T2, which depends on T1; T4 stands alone. */
-const DISPATCH_TASKS: TaskFields[] = [
-  { id: "T1", files: "src/one.ts" },
-  { id: "T2", deps: "T1", files: "src/two.ts" },
-  { id: "T3", deps: "T2", files: "src/three.ts" },
-  { id: "T4", files: "src/four.ts" },
-];
-
-const DISPATCH_ROOT = slash(SUT).replace(/\/scripts\/plan-index\.sh$/, "");
-
-function seedDispatch(dir: string, status: string[] = [], tasks: TaskFields[] = DISPATCH_TASKS): void {
-  seed(dir, planBody(tasks, 1));
-  write(dir, `${PLAN_DIR}/status.md`, ["# status", "", "progress: 0/4", "done: none", ...status, ""].join("\n"));
-}
-
 function dispatch(dir: string, id: string, form: string, env: Record<string, string> = {}) {
   return run(dir, env, [PLAN_REL, "--dispatch", id, form]);
 }
@@ -4539,33 +4055,6 @@ test("refs and scope name the plugin root in the spelling the script was invoked
     );
   });
 });
-
-// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
-// Neither spelling names a file outside Windows, so the cases skip there.
-const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
-const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
-
-const SPELLINGS: Array<{ label: string; invoked: string; root: string }> = [
-  { label: "a C:\\ path", invoked: SUT, root: DISPATCH_ROOT },
-  { label: "a C:/ path", invoked: slash(SUT), root: DISPATCH_ROOT },
-  { label: "a /c/ path", invoked: MSYS(SUT), root: MSYS(DISPATCH_ROOT) },
-];
-
-for (const row of SPELLINGS) {
-  test(`--dispatch invoked by ${row.label} prints refs and scope under the plugin root in that spelling (AC1)`, { skip: WINDOWS_ONLY }, async () => {
-    await withTempDir("p2p2-viber-", async (dir) => {
-      seedDispatch(dir);
-
-      const result = await runScript(row.invoked, [PLAN_REL, "--dispatch", "T1", "reviewer"], { cwd: dir, shell: "bash" });
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.ok(result.stdout.includes(`\nrefs: ${row.root}/references\n`), `stdout: ${result.stdout}`);
-      assert.ok(
-        result.stdout.endsWith(`\nscope: "${row.root}/scripts/plan-index.sh" "${PLAN_REL}" --extra "T1"\n`),
-        `stdout: ${result.stdout}`,
-      );
-    });
-  });
-}
 
 for (const [form, second] of [
   ["a list line with the run-failures prefix", "lessons: Public x2, State x1"],

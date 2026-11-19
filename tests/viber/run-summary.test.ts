@@ -49,26 +49,32 @@ import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
 import { slash } from "../harness/paths.ts";
-import { withStub } from "../harness/stub.ts";
 import { withTempDir } from "../harness/tmp.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/run-summary.sh");
-
-/** The epoch second a stubbed `date +%s` reports. */
-const NOW = 1750000000;
-
-/** A start mark for the token cases, whose `elapsed:` line they never read. */
-const MARK = "1750000000";
+import {
+  SUT,
+  NOW,
+  MARK,
+  runAtNow,
+  KEY,
+  SONNET,
+  NOT_COUNTED,
+  prompt,
+  assistant,
+  seed,
+  transcript,
+  run,
+  report,
+  stdoutLines,
+  reportLines,
+  PLANNED,
+  writePlan,
+  review,
+} from "./run-summary-fixture.ts";
 
 // --- the clock: no argument and the mark alone ---
 
 function runClock(args: string[] = [], cwd?: string) {
   return runScript(SUT, args, { cwd, shell: "bash" });
-}
-
-/** Runs the script with `date` frozen at NOW. */
-function runAtNow(args: string[], cwd?: string, env?: Record<string, string>) {
-  return withStub("date", `echo ${NOW}`, (dir) => runScript(SUT, args, { cwd, shell: "bash", env, stubDirs: [dir] }));
 }
 
 /** The start mark the script itself hands out, as a number. */
@@ -180,126 +186,17 @@ test("the cwd is irrelevant: a temp directory outside the repository reads the s
   });
 });
 
-test("a run directory after the mark follows the elapsed line with the token report", async () => {
-  await withTempDir("p2p2-viber-", async (tmp) => {
-    const fx = seed(tmp);
-    const result = await runAtNow([String(NOW - 8043), slash(fx.runDir)], tmp, {
-      CLAUDE_CONFIG_DIR: slash(path.join(tmp, "missing-config")),
-    });
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(
-      result.stdout,
-      "elapsed: 2h 14m 03s\ntokens: unavailable - no projects directory\nrounds: plan review unavailable - no projects directory\n",
-    );
-  });
-});
-
 // --- the token report: fixtures ---
-
-const KEY = "2020-01-02-11-25-26_token-report";
 const OPUS = "claude-opus-4";
-const SONNET = "claude-sonnet-4";
-const NOT_COUNTED = "tokens: agents only - the main session and the closeout agent are not counted";
-
-interface Usage {
-  in: number;
-  out: number;
-  cacheRead: number;
-  cacheWrite: number;
-}
-
-/** The first line of a transcript: the prompt that started the agent. */
-function prompt(runDir: string): string {
-  return JSON.stringify({ type: "user", message: { role: "user", content: `Build the run in ${runDir}/ now` } });
-}
-
-/** One assistant line of a transcript, shaped as Claude Code writes it. */
-function assistant(id: string, model: string, usage: Usage): string {
-  return JSON.stringify({
-    type: "assistant",
-    message: {
-      model,
-      id,
-      type: "message",
-      role: "assistant",
-      content: [{ type: "text", text: "working" }],
-      usage: {
-        input_tokens: usage.in,
-        cache_creation_input_tokens: usage.cacheWrite,
-        cache_read_input_tokens: usage.cacheRead,
-        cache_creation: { ephemeral_5m_input_tokens: usage.cacheWrite, ephemeral_1h_input_tokens: 0 },
-        output_tokens: usage.out,
-      },
-    },
-  });
-}
 
 /** An assistant line carrying no usage block. */
 function assistantWithoutUsage(id: string, model: string): string {
   return JSON.stringify({ type: "assistant", message: { model, id, type: "message", role: "assistant", content: [] } });
 }
 
-interface Fixture {
-  config: string;
-  runDir: string;
-  runPrompt: string;
-}
-
-/** A temp tree holding an existing run directory and an empty config directory. */
-function seed(tmp: string): Fixture {
-  const runDir = path.join(tmp, "repo", "docs", "_specs", KEY);
-  fs.mkdirSync(runDir, { recursive: true });
-  const config = path.join(tmp, "config");
-  fs.mkdirSync(path.join(config, "projects"), { recursive: true });
-  return { config, runDir, runPrompt: slash(path.join("docs", "_specs", KEY)) };
-}
-
-/** Writes `agent-<id>.jsonl` (and its meta file when `role` is given) in one session. */
-function transcript(fx: Fixture, session: string, id: string, role: string | null, lines: string[]): void {
-  const dir = path.join(fx.config, "projects", "proj", session, "subagents");
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, `agent-${id}.jsonl`), lines.join("\n") + "\n");
-  if (role !== null) fs.writeFileSync(path.join(dir, `agent-${id}.meta.json`), JSON.stringify({ agentType: role }));
-}
-
-function run(tmp: string, args: string[], env: Record<string, string>) {
-  return runScript(SUT, args, { cwd: tmp, shell: "bash", env });
-}
-
-function report(tmp: string, fx: Fixture) {
-  return run(tmp, [MARK, slash(fx.runDir)], { CLAUDE_CONFIG_DIR: slash(fx.config) });
-}
-
-function stdoutLines(stdout: string): string[] {
-  return stdout.split("\n").filter((line) => line !== "");
-}
-
-/** The lines of a report after its leading `elapsed:` line. */
-function reportLines(stdout: string): string[] {
-  return stdoutLines(stdout).slice(1);
-}
-
 /** The `tokens:` lines of a report, whatever lines follow them. */
 function tokenLines(stdout: string): string[] {
   return stdoutLines(stdout).filter((line) => line.startsWith("tokens:"));
-}
-
-const PLANNED = "C:/plans/p.md";
-
-/** Writes the run's `plan.md`, with a `planned:` line when `planned` is given. */
-function writePlan(fx: Fixture, planned: string | null): void {
-  const lines = ["---", "source: docs/_specs/x/plan.md"];
-  if (planned !== null) lines.push(`planned: ${planned}`);
-  lines.push("---", "# Plan");
-  fs.writeFileSync(path.join(fx.runDir, "plan.md"), lines.join("\n") + "\n");
-}
-
-/** A transcript of a plan reviewer: its first line, the prompt, and the assistant lines given. */
-function review(fx: Fixture, id: string, role: string, namedPath: string, lines: string[] = []): void {
-  transcript(fx, "plan", id, role, [
-    JSON.stringify({ type: "user", message: { role: "user", content: `Review the plan at ${namedPath} now` } }),
-    ...lines,
-  ]);
 }
 
 // --- DoD.1: one line per role and model, summed over sessions, a message id once ---
@@ -547,30 +444,6 @@ test("with a run directory that does not exist the elapsed line is printed, then
 });
 
 // --- the plan review rounds line closes the report ---
-
-test("every planner-review and planner-graph-review transcript naming the planned path counts once, the backslash form, a retried dispatch and a transcript older than the run day included, and the rounds line follows the token lines", async () => {
-  await withTempDir("p2p2-viber-", async (tmp) => {
-    const fx = seed(tmp);
-    writePlan(fx, PLANNED);
-    transcript(fx, "s1", "a0", "viber:task-coder", [
-      prompt(fx.runPrompt),
-      assistant("m1", SONNET, { in: 1, out: 2, cacheRead: 3, cacheWrite: 4 }),
-    ]);
-    review(fx, "r1", "viber:planner-review", PLANNED);
-    review(fx, "r2", "viber:planner-review", "C:\\plans\\p.md");
-    review(fx, "r3", "viber:planner-review", PLANNED);
-    review(fx, "r4", "viber:planner-graph-review", PLANNED);
-    const old = new Date("2019-06-01T00:00:00Z");
-    fs.utimesSync(path.join(fx.config, "projects", "proj", "plan", "subagents", "agent-r3.jsonl"), old, old);
-    const result = await report(tmp, fx);
-    assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(reportLines(result.stdout), [
-      "tokens: viber:task-coder claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
-      NOT_COUNTED,
-      "rounds: plan review 4",
-    ]);
-  });
-});
 
 test("a transcript of another review agent type, of a non-review agent or naming another plan path adds no round", async () => {
   await withTempDir("p2p2-viber-", async (tmp) => {

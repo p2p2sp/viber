@@ -27,15 +27,9 @@ import path from "node:path";
 import { runScript } from "../harness/run.ts";
 import { withGitRepo, withTempDir } from "../harness/tmp.ts";
 import { coreUtilsPath, withStub } from "../harness/stub.ts";
+import { SUT, STUB_VERSION_1_2_3, run } from "./check-playwright-fixture.ts";
 
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/check-playwright.sh");
-
-const STUB_VERSION_1_2_3 = 'echo "1.2.3"';
 const STUB_VERSION_FAILS = "exit 1";
-
-function run(dir: string, stubDirs: string[] = []) {
-  return runScript(SUT, [], { cwd: dir, env: { PATH: coreUtilsPath() }, stubDirs });
-}
 
 /** coreUtilsPath() plus the directory that resolves the real `git` binary.
  *  Git for Windows splits git.exe (mingw64/bin) away from grep and bash
@@ -61,16 +55,6 @@ test("no playwright-cli on PATH and no package.json: both lines report not found
   });
 });
 
-test("playwright-cli resolving and --version printing a line reports found with that version", async () => {
-  await withStub("playwright-cli", STUB_VERSION_1_2_3, async (stubDir) => {
-    await withTempDir("p2p2-viber-playwright-", async (dir) => {
-      const result = await run(dir, [stubDir]);
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(result.stdout, "playwright-cli: found 1.2.3\n@playwright/test: not found\n");
-    });
-  });
-});
-
 test("playwright-cli present but --version exiting 1 reports found (version unknown) rather than not found", async () => {
   await withStub("playwright-cli", STUB_VERSION_FAILS, async (stubDir) => {
     await withTempDir("p2p2-viber-playwright-", async (dir) => {
@@ -78,18 +62,6 @@ test("playwright-cli present but --version exiting 1 reports found (version unkn
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
       assert.equal(result.stdout, "playwright-cli: found (version unknown)\n@playwright/test: not found\n");
     });
-  });
-});
-
-test("a root package.json naming @playwright/test under devDependencies reports it found", async () => {
-  await withTempDir("p2p2-viber-playwright-", async (dir) => {
-    fs.writeFileSync(
-      path.join(dir, "package.json"),
-      JSON.stringify({ name: "fixture", devDependencies: { "@playwright/test": "^1.40.0" } }, null, 2),
-    );
-    const result = await run(dir);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "playwright-cli: not found\n@playwright/test: found\n");
   });
 });
 

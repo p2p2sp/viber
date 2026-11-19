@@ -17,69 +17,9 @@
 
 import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
-import { withStub } from "../harness/stub.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/factory/scripts/factory.sh");
-
-// Stub argv: -NoProfile -ExecutionPolicy Bypass -File <ps1> -Command <command> -ArgsB64 <base64>
-const STUB = [
-  'd="$(dirname "$0")"',
-  'echo "$7 $9" >> "$d/calls.log"',
-  'if [ -f "$d/fail.txt" ]; then cat "$d/fail.txt"; exit 1; fi',
-  'case "$7" in',
-  '  pending) cat "$d/pending.txt" ;;',
-  '  screen) cat "$d/screen.txt" ;;',
-  `  *) n=$(grep -c -v -e '^pending ' -e '^screen ' "$d/calls.log"); cat "$d/after-$n.txt" ;;`,
-  "esac",
-].join("\n");
-
-const PENDING = [
-  "== pending s1: status waiting (dialog)",
-  "tool: AskUserQuestion",
-  "Q1 [DB] Which database?",
-  "  1. Postgres - relational",
-  "  2. SQLite - embedded",
-  "  3. MySQL - popular",
-].join("\n");
-
-const HEAD = "== screen s1 (pid 4242), last 40 lines\n Which database?\n";
-const SCREEN_ON_1 = `${HEAD} ❯ 1. Postgres\n   2. SQLite\n   3. MySQL\n   4. Type something.`;
-const SCREEN_ON_2 = `${HEAD}   1. Postgres\n ❯ 2. SQLite\n   3. MySQL\n   4. Type something.`;
-const SCREEN_ON_3 = `${HEAD}   1. Postgres\n   2. SQLite\n ❯ 3. MySQL\n   4. Type something.`;
-const SCREEN_CLOSED = "== screen s1 (pid 4242), last 40 lines\n Thanks, using MySQL.";
-
-type Run = { status: number | null; stdout: string; stderr: string; calls: string[] };
-
-async function drive(args: string[], files: Record<string, string>): Promise<Run> {
-  return withStub("powershell.exe", STUB, async (stubDir) => {
-    for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(stubDir, name), text);
-    const result = await runScript(SUT, args, { cwd: stubDir, stubDirs: [stubDir], shell: "bash" });
-    const logPath = path.join(stubDir, "calls.log");
-    const lines = fs.existsSync(logPath) ? fs.readFileSync(logPath, "utf8").split("\n").filter(Boolean) : [];
-    const calls = lines.map((line) => {
-      const [command, b64 = ""] = line.split(" ");
-      const decoded = Buffer.from(b64, "base64").toString("utf8").split("\0").slice(0, -1);
-      return `${command}:${decoded.join("|")}`;
-    });
-    return { status: result.status, stdout: result.stdout, stderr: result.stderr, calls };
-  });
-}
-
-test("answer on a label below the cursor sends DOWN for each row, then ENTER, and prints NEXT: done with the keys and the last screen", async () => {
-  const run = await drive(["answer", "s1", "MySQL"], {
-    "pending.txt": PENDING,
-    "screen.txt": SCREEN_ON_1,
-    "after-1.txt": SCREEN_ON_3,
-    "after-2.txt": SCREEN_CLOSED,
-  });
-  assert.equal(run.status, 0, `stderr: ${run.stderr}`);
-  assert.equal(run.stdout, `NEXT: done | sent: DOWN,DOWN,ENTER\n${SCREEN_CLOSED}\n`);
-  assert.deepEqual(run.calls, ["pending:s1", "screen:s1|40", "keys:s1|DOWN,DOWN", "keys:s1|ENTER"]);
-});
+import { SUT, PENDING, SCREEN_ON_1, SCREEN_ON_3, SCREEN_CLOSED, drive } from "./factory-fixture.ts";
 
 test("answer on a label above the cursor sends UP for each row, then ENTER", async () => {
   const run = await drive(["answer", "s1", "Postgres"], {
@@ -102,17 +42,6 @@ test("answer on the label the cursor already sits on makes no move call and prin
   assert.equal(run.status, 0, `stderr: ${run.stderr}`);
   assert.equal(run.stdout, `NEXT: done | sent: ENTER\n${SCREEN_CLOSED}\n`);
   assert.deepEqual(run.calls, ["pending:s1", "screen:s1|40", "keys:s1|ENTER"]);
-});
-
-test("answer whose cursor did not land on the label after the moves prints NEXT: keys | mismatch: cursor-moved with the screen read and sends no ENTER", async () => {
-  const run = await drive(["answer", "s1", "MySQL"], {
-    "pending.txt": PENDING,
-    "screen.txt": SCREEN_ON_1,
-    "after-1.txt": SCREEN_ON_2,
-  });
-  assert.equal(run.status, 0, `stderr: ${run.stderr}`);
-  assert.equal(run.stdout, `NEXT: keys | mismatch: cursor-moved\n${SCREEN_ON_2}\n`);
-  assert.deepEqual(run.calls, ["pending:s1", "screen:s1|40", "keys:s1|DOWN,DOWN"]);
 });
 
 const TWO_QUESTIONS = `${PENDING}\nQ2 [Cache] Which cache?\n  1. Redis - fast\n  2. None - skip`;

@@ -26,7 +26,7 @@ This directory holds the scripts more than one viber skill or agent calls: the c
 
 ## Commands
 
-- Each script's test is `tests/viber/<basename>.test.ts`, integration tier (CI only); `task-step.test.ts` runs about 3 minutes. `run-branch.sh` has no file of its own: `tests/viber/plan-path.test.ts` covers it through `--branch`, `--start`, `--checkout` and `--land`.
+- Each script's test is the pair `tests/viber/<basename>.critical.test.ts` (every operating system on every push) and `tests/viber/<basename>.test.ts` (logic tier, Linux on a push), sharing `tests/viber/<basename>-fixture.ts`; `task-step.test.ts` runs about 3 minutes. `run-branch.sh` has no file of its own: `tests/viber/plan-path.test.ts` covers it through `--branch`, `--start`, `--checkout` and `--land`.
 
 ## Change together
 
@@ -34,6 +34,7 @@ This directory holds the scripts more than one viber skill or agent calls: the c
 
 ## Traps
 
+- A fork is what a script costs under Git Bash, tens of milliseconds each, and `config.sh` is called by fifteen scripts: it reads every key of its block in one awk run and hands a value back in a variable, never through a command substitution per key. A new key joins that run.
 - `skill-part.sh`, `run-summary.sh`, `run-changes.sh`, `run-suite.sh` and `task-step.sh` are invoked bare by `implementor`, so their index mode must stay 100755: the portability exec-bit sweep fails on 100644.
 - The GitHub wrappers are `#!/bin/sh` and must stay POSIX: CI runs them under every POSIX shell present, and the portability sweep flags bash-only syntax in them.
 - A failed GitHub call is never retried by its caller: `post-comment.sh` exits 1 when whether the comment landed is unknown, and `pr-create.sh` exits 1 after the push may already have happened (its ERROR line names the pushed branch); `pr-reply.sh` exits 1 when a reply may or may not have landed, and its `--all` reports a failed post as `FAILED=` and posts the next; the caller reports.

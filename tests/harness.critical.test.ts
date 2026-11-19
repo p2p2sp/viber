@@ -1,13 +1,14 @@
 /*
- * harness.test.ts - proves the shared subprocess/git/stub harness itself
+ * harness.critical.test.ts - proves the shared subprocess/git/stub harness itself
  * (tests/harness/) before any script test relies on it: runScript (including
  * its win32 transport for an argument no command line survives), withTempDir,
  * withGitRepo, withStub, forEachShell, denyRead/restoreRead and writePng each
- * get one assertion of their documented behaviour.
+ * get one assertion of their documented behaviour. The whole file is critical
+ * tier: every suite on every operating system stands on these helpers.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is
  * run directly by Node's native test runner + TypeScript type stripping:
- *   node --test tests/harness.test.ts
+ *   node --test tests/harness.critical.test.ts
  */
 
 import { test } from "./harness/test.ts";
@@ -21,7 +22,7 @@ import { runScript } from "./harness/run.ts";
 import { withTempDir, withGitRepo } from "./harness/tmp.ts";
 import { canDenyRead, denyRead, restoreRead } from "./harness/perms.ts";
 import { withStub } from "./harness/stub.ts";
-import { FULL_SHELL_MATRIX, forEachShell, shellBin } from "./harness/shells.ts";
+import { FULL_SHELL_MATRIX, forEachShell, fullShellMatrix, shellBin } from "./harness/shells.ts";
 import { writePng } from "./harness/png.ts";
 import { section } from "./harness/markdown.ts";
 
@@ -149,11 +150,38 @@ test('forEachShell("posix", ...) yields at least one shell and never throws when
     assert.ok(fs.existsSync(shellBin(shell)), `resolved shell ${shellBin(shell)} should exist`);
   });
   assert.ok(calls > 0, "expected at least one POSIX shell on this machine (/bin/sh at minimum)");
-  if (!FULL_SHELL_MATRIX) assert.equal(calls, 1, "outside CI only the first shell present runs");
+  if (!FULL_SHELL_MATRIX) assert.equal(calls, 1, "outside the full matrix only the first shell present runs");
   for (const skip of skips) {
     assert.equal(skip.kind, "posix");
     assert.ok(skip.reason.length > 0, "a skip must record a reason");
   }
+});
+
+test('forEachShell("posix", ...) never hands the same binary over twice (/bin/sh is dash on Ubuntu, and a case would pay for it twice)', async () => {
+  const seen: string[] = [];
+  await forEachShell("posix", (shell) => {
+    const [bin, ...prefix] = Array.isArray(shell) ? shell : [shell];
+    seen.push([fs.realpathSync(bin), ...prefix].join(" "));
+  });
+  assert.equal(new Set(seen).size, seen.length, `a shell ran twice: ${seen.join(", ")}`);
+});
+
+test("the full shell matrix is for a critical file in CI, and P2P2_SHELL_MATRIX overrides it either way", () => {
+  const critical = "tests/viber/commit.critical.test.ts";
+  const logic = "tests/viber/commit.test.ts";
+  assert.equal(fullShellMatrix({ CI: "true" }, critical), true);
+  assert.equal(fullShellMatrix({ CI: "1" }, critical), true);
+  assert.equal(fullShellMatrix({ CI: "true" }, logic), false, "a logic file pays for one shell, in CI too");
+  assert.equal(fullShellMatrix({}, critical), false, "a local run takes the first shell");
+  assert.equal(fullShellMatrix({ CI: "true" }, undefined), false);
+  assert.equal(fullShellMatrix({ P2P2_SHELL_MATRIX: "full" }, logic), true, "the full-suite run asks for every shell");
+  assert.equal(fullShellMatrix({ CI: "true", P2P2_SHELL_MATRIX: "first" }, critical), false);
+});
+
+test("withTempDir hands the directory over by its real path (a script prints the resolved path, never the 8.3 or symlink alias of the temp root)", async () => {
+  await withTempDir("p2p2-harness-real-", (dir) => {
+    assert.equal(dir, fs.realpathSync.native(dir));
+  });
 });
 
 test("section returns the text from its heading line up to, excluding, the next ## line", () => {

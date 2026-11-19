@@ -30,91 +30,11 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 
 import { runScript } from "../harness/run.ts";
 import { slash } from "../harness/paths.ts";
-import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-import { withStub } from "../harness/stub.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/archive-run.sh");
-
-const KEY = "2026-09-19-17-30-00_add-login";
-
-/** A specification long enough for git's rename detection to have something to
- *  work with - a one-line file edited by one word falls under the similarity
- *  threshold and would report an add plus a delete for reasons that have
- *  nothing to do with this script. */
-const SPEC_BODY = [
-  "# Add Login",
-  "",
-  "## Goal",
-  "",
-  "Let people sign in.",
-  "",
-  "## Acceptance criteria",
-  "",
-  "1. A wrong password is rejected.",
-  "2. A changed role takes effect on the next request.",
-  "3. The session survives a reload.",
-  "4. A locked account cannot sign in.",
-  "",
-].join("\n");
-
-interface RunOpts {
-  runs?: string;
-  tasks?: string[];
-  done?: string;
-  skipped?: string;
-  /** Extra files, relative to the run directory. */
-  extra?: Record<string, string>;
-}
-
-/** A finished run directory, exactly as a build leaves one: the plan, the state
- *  file, the decomposition, the trail and the two documents worth keeping. */
-function seedRun(root: string, key: string, opts: RunOpts = {}): string {
-  const runs = opts.runs ?? "_specs";
-  const tasks = opts.tasks ?? ["T1", "T2"];
-  const dir = path.join(root, "docs", runs, key);
-  fs.mkdirSync(path.join(dir, "tasks"), { recursive: true });
-  fs.mkdirSync(path.join(dir, "work"), { recursive: true });
-
-  fs.writeFileSync(
-    path.join(dir, "plan.md"),
-    [
-      "# Add Login",
-      "",
-      "## Tasks",
-      "",
-      ...tasks.flatMap((id) => ["<!-- TASK -->", `### ${id} - do ${id}`, `- Files: src/${id}.ts`, "<!-- /TASK -->", ""]),
-    ].join("\n"),
-  );
-  fs.writeFileSync(
-    path.join(dir, "status.md"),
-    [
-      "# status",
-      "",
-      `progress: ${tasks.length}/${tasks.length}`,
-      `done: ${opts.done ?? tasks.join(" ")}`,
-      `skipped: ${opts.skipped ?? "none"}`,
-      "unreviewed: none",
-      "deferred: none",
-      "closed: memory rules qa",
-      "",
-    ].join("\n"),
-  );
-  fs.writeFileSync(path.join(dir, "spec.md"), SPEC_BODY);
-  fs.writeFileSync(path.join(dir, "qa.md"), "# QA\n\n## QA-01 Sign in\n");
-  fs.writeFileSync(path.join(dir, "qa.e2e.md"), "# Handoff\n\n### QA-01 Sign in\n");
-  for (const id of tasks) fs.writeFileSync(path.join(dir, "tasks", `${id}.md`), `### ${id}\n`);
-  fs.writeFileSync(path.join(dir, "work", "T1-coder.md"), "- narrowed the cache to 5s\n");
-  for (const [rel, body] of Object.entries(opts.extra ?? {})) {
-    const file = path.join(dir, rel);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, body);
-  }
-  return `docs/${runs}/${key}`;
-}
+import { withGitRepo, withTempDir } from "../harness/tmp.ts";
+import { SUT, KEY, seedRun, run, withSeededRepo, filesUnder } from "./archive-run-fixture.ts";
 
 /** `.claude/viber.yml` carrying the `directories:` group, which is the only
  *  place either name is read from. */
@@ -124,38 +44,6 @@ function writeDirs(root: string, entries: Record<string, string>): void {
     path.join(root, ".claude", "viber.yml"),
     ["directories:", ...Object.entries(entries).map(([key, value]) => `  ${key}: ${value}`), ""].join("\n"),
   );
-}
-
-function run(dir: string, args: string[], env: Record<string, string> = {}) {
-  return runScript(SUT, args, { cwd: dir, env, shell: "bash" });
-}
-
-/** A repo whose run directory is already committed, which is what every real
- *  call sees: `plan-index.sh --split` commits the decomposition. */
-async function withSeededRepo<T>(fn: (repo: GitRepo, runDir: string) => T, opts: RunOpts = {}, key = KEY): Promise<T> {
-  return await withGitRepo(async (repo) => {
-    const runDir = seedRun(repo.dir, key, opts);
-    await repo.git("add", "-A");
-    const commit = await repo.git("commit", "-m", "docs(viber): decomposition");
-    assert.equal(commit.status, 0, `seed commit failed: ${commit.stderr}`);
-    return fn(repo, runDir);
-  });
-}
-
-/** Every path under a directory, repo-relative and slash-separated. */
-function filesUnder(root: string, rel: string): string[] {
-  const base = path.join(root, rel);
-  if (!fs.existsSync(base)) return [];
-  const out: string[] = [];
-  const walk = (dir: string) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) walk(full);
-      else out.push(slash(path.relative(base, full)));
-    }
-  };
-  walk(base);
-  return out.sort();
 }
 
 // --- the safety gate ---
@@ -170,20 +58,6 @@ test("no argument, and more than one, are both refused with the usage line and e
     const two = await run(dir, ["docs/_specs/a", "docs/_specs/b"]);
     assert.equal(two.status, 2);
     assert.equal(two.stdout, "");
-  });
-});
-
-test("a path outside docs/<runs>/ is refused, an absolute one inside the repository included, and nothing is touched", async () => {
-  await withSeededRepo(async (repo, runDir) => {
-    fs.mkdirSync(path.join(repo.dir, "docs", "other", "run"), { recursive: true });
-    for (const bad of ["docs/other/run", "src/thing", path.join(repo.dir, "docs", "other", "run")]) {
-      const result = await run(repo.dir, [bad], repo.env);
-      assert.equal(result.status, 2, `expected a refusal for ${bad}`);
-      assert.equal(result.stdout, "");
-      assert.match(result.stderr, /lives under docs\/_specs\//);
-    }
-    assert.ok(fs.existsSync(path.join(repo.dir, runDir)), "the run directory must be untouched");
-    assert.equal(filesUnder(repo.dir, "docs/specs").length, 0);
   });
 });
 
@@ -203,15 +77,6 @@ test("an absolute path carrying a '..' segment is refused before it is resolved,
     assert.equal(result.stdout, "");
     assert.match(result.stderr, /carries no '\.\.' segment/);
     assert.ok(fs.existsSync(path.join(repo.dir, runDir)), "the run directory must be untouched");
-  });
-});
-
-test("an absolute path to the run inside the repository archives it as its relative form would", async () => {
-  await withSeededRepo(async (repo, runDir) => {
-    const result = await run(repo.dir, [path.join(repo.dir, "docs", "_specs", KEY)], repo.env);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(slash(result.stdout).trim(), `ARCHIVED: docs/specs/${KEY} (3 files)`);
-    assert.ok(!fs.existsSync(path.join(repo.dir, runDir)));
   });
 });
 
@@ -297,20 +162,6 @@ test("a directory that does not exist, and one holding no status.md, are both ex
 
 // --- the completeness gate ---
 
-test("a run with a task in neither done: nor skipped: is exit 4 and nothing is moved", async () => {
-  await withSeededRepo(
-    async (repo, runDir) => {
-      const result = await run(repo.dir, [runDir], repo.env);
-      assert.equal(result.status, 4);
-      assert.equal(result.stdout, "");
-      assert.match(result.stderr, /unfinished: 1 of 3 tasks settled/);
-      assert.ok(fs.existsSync(path.join(repo.dir, runDir, "plan.md")));
-      assert.equal(filesUnder(repo.dir, "docs/specs").length, 0);
-    },
-    { tasks: ["T1", "T2", "T3"], done: "T1" },
-  );
-});
-
 test("an unknown id in place of a real task's id does not count toward settled, so the run is still refused as unfinished", async () => {
   await withSeededRepo(
     async (repo, runDir) => {
@@ -370,18 +221,6 @@ test("a TASK marker mentioned inside prose opens no block, so a heading that fol
 });
 
 // --- the archive itself ---
-
-test("the run moves to docs/specs/<same key>, keeps everything that is not scaffolding, and prints one line", async () => {
-  await withSeededRepo(async (repo, runDir) => {
-    const result = await run(repo.dir, [runDir], repo.env);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(slash(result.stdout).trim(), `ARCHIVED: docs/specs/${KEY} (3 files)`);
-    assert.equal(result.stdout.trim().split("\n").length, 1, "stdout is exactly one line");
-
-    assert.ok(!fs.existsSync(path.join(repo.dir, runDir)), "the run directory is gone");
-    assert.deepEqual(filesUnder(repo.dir, `docs/specs/${KEY}`), ["qa.e2e.md", "qa.md", "spec.md"]);
-  });
-});
 
 test("a file the run left outside the enumerated scaffolding rides into the archive on its own", async () => {
   await withSeededRepo(
@@ -471,43 +310,6 @@ test("an attachments/<name> file still uncommitted when the run is archived land
   });
 });
 
-test("the move is one commit, and a spec.md edited before the call lands as a rename plus a modification", async () => {
-  await withSeededRepo(async (repo, runDir) => {
-    // what closeout does just before calling: the drift, marked in place
-    const spec = path.join(repo.dir, runDir, "spec.md");
-    fs.writeFileSync(
-      spec,
-      fs
-        .readFileSync(spec, "utf-8")
-        .replace("on the next request.", "on the next request. [D1]")
-        .concat("\n## Deviations\n\nD1 (AC2): a 5s cache holds the old role.\n"),
-    );
-
-    const before = (await repo.git("rev-parse", "HEAD")).stdout.trim();
-    assert.equal((await run(repo.dir, [runDir], repo.env)).status, 0);
-
-    const log = (await repo.git("log", "--format=%s", `${before}..HEAD`)).stdout.trim().split("\n");
-    assert.deepEqual(log, [`docs(viber): archive run ${KEY}`]);
-
-    // rename detection, read off --name-status rather than --stat: the stat
-    // line abbreviates a long path to "..." and would hide the very thing
-    // being asserted
-    const shown = slash((await repo.git("show", "-M", "--name-status", "--format=", "HEAD")).stdout).trim().split("\n");
-    assert.ok(
-      shown.some((line) => /^R\d+\t/.test(line) && line.endsWith(`docs/specs/${KEY}/spec.md`)),
-      `spec.md must be a rename, not an add plus a delete:\n${shown.join("\n")}`,
-    );
-    assert.ok(
-      shown.some((line) => line === `D\tdocs/_specs/${KEY}/plan.md`),
-      `the scaffolding must be deleted in the same commit:\n${shown.join("\n")}`,
-    );
-
-    // the working tree is clean: the removal rode in the same commit
-    assert.equal((await repo.git("status", "--porcelain")).stdout.trim(), "");
-    assert.match(fs.readFileSync(path.join(repo.dir, "docs", "specs", KEY, "spec.md"), "utf-8"), /\[D1\]/);
-  });
-});
-
 test("the last run leaving docs/<runs>/ removes that directory too (git tracks no directory, so it would linger empty)", async () => {
   await withSeededRepo(async (repo, runDir) => {
     assert.equal((await run(repo.dir, [runDir], repo.env)).status, 0);
@@ -537,16 +339,6 @@ test("outside a git repository the empty docs/<runs>/ is removed the same way", 
   });
 });
 
-test("a path staged beside the run stays in the index: the commit's pathspec is the archive and the run alone", async () => {
-  await withSeededRepo(async (repo, runDir) => {
-    fs.writeFileSync(path.join(repo.dir, "unrelated.ts"), "export const a = 1;\n");
-    await repo.git("add", "unrelated.ts");
-
-    assert.equal((await run(repo.dir, [runDir], repo.env)).status, 0);
-    assert.equal((await repo.git("status", "--porcelain")).stdout.trim(), "A  unrelated.ts");
-  });
-});
-
 test("a run holding attachments/run.sh staged 100755 over a 0644 file archives it at 100755 under core.fileMode=false, leaving the tree clean (a pathspec commit took the mode from HEAD)", async () => {
   await withSeededRepo(
     async (repo, runDir) => {
@@ -573,45 +365,6 @@ test("a path staged beside the run stays staged under core.fileMode=false while 
     assert.equal((await run(repo.dir, [runDir], repo.env)).status, 0);
     assert.equal((await repo.git("status", "--porcelain")).stdout.trim(), "A  tool.sh");
     assert.match((await repo.git("ls-files", "-s", "tool.sh")).stdout, /^100755 /);
-  });
-});
-
-test("an existing destination is exit 3, and the run is left exactly where it was", async () => {
-  await withSeededRepo(async (repo, runDir) => {
-    fs.mkdirSync(path.join(repo.dir, "docs", "specs", KEY), { recursive: true });
-    fs.writeFileSync(path.join(repo.dir, "docs", "specs", KEY, "spec.md"), "an earlier archive\n");
-
-    const result = await run(repo.dir, [runDir], repo.env);
-    assert.equal(result.status, 3);
-    assert.equal(result.stdout, "");
-    assert.match(slash(result.stderr), /docs\/specs\/.* already exists/);
-    assert.ok(fs.existsSync(path.join(repo.dir, runDir, "plan.md")));
-    assert.equal(fs.readFileSync(path.join(repo.dir, "docs", "specs", KEY, "spec.md"), "utf-8"), "an earlier archive\n");
-  });
-});
-
-// --- a failing git step ---
-
-test("a failing 'git rm' on the scaffold removal exits 5, leaving the mv done and nothing committed", async () => {
-  await withSeededRepo(async (repo, runDir) => {
-    const realGit = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf-8" }).stdout.trim();
-    assert.ok(realGit.length > 0, "a real git must be resolvable on PATH to build the passthrough stub");
-
-    await withStub(
-      "git",
-      `if [ "$1" = "rm" ]; then exit 1; fi\nexec "${realGit}" "$@"`,
-      async (stubDir) => {
-        const result = await runScript(SUT, [runDir], { cwd: repo.dir, env: repo.env, shell: "bash", stubDirs: [stubDir] });
-        assert.equal(result.status, 5);
-        assert.equal(result.stdout, "");
-
-        // git mv already ran through the passthrough, so the directory sits at
-        // its new name with the scaffolding not yet stripped and no commit made
-        assert.ok(!fs.existsSync(path.join(repo.dir, runDir)));
-        assert.ok(fs.existsSync(path.join(repo.dir, "docs", "specs", KEY, "plan.md")));
-        assert.equal((await repo.git("log", "--format=%s", "-1")).stdout.trim(), "docs(viber): decomposition");
-      },
-    );
   });
 });
 

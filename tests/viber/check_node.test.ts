@@ -14,15 +14,12 @@
  */
 
 import { test } from "../harness/test.ts";
-import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { runScript, type RunResult } from "../harness/run.ts";
+import { runScript } from "../harness/run.ts";
 import { withStub } from "../harness/stub.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/pro-designer/scripts/check_node.sh");
+import { SUT, assertPosix, assertOneLine } from "./check_node-fixture.ts";
 
 /** The real PATH, minus every directory that resolves a real `node` - so
  *  "no node on PATH" is genuine even on a dev machine that has node
@@ -33,34 +30,7 @@ function pathWithoutNode(): string {
   const kept = dirs.filter((dir) => !nodeNames.some((name) => fs.existsSync(path.join(dir, name))));
   return kept.join(path.delimiter);
 }
-
-async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("posix", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "posix");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-function assertOneLine(result: RunResult, expected: string) {
-  assert.equal(result.status, 0, `check_node.sh must always exit 0 (fail-open): stderr=${result.stderr}`);
-  assert.equal(result.stdout, `${expected}\n`);
-}
-
-const NODE_OK_VERSIONS = ["v26.0.0", "v24.0.0", "v23.6.0"];
 const NODE_OK_STRIP_VERSIONS = ["v23.5.0", "v22.6.0"];
-const NODE_MISSING_VERSIONS = ["v22.5.0", "v20.0.0"];
-
-test("node >= 23.6 (type stripping on by default) -> NODE_OK node", async () => {
-  await assertPosix(async (shell) => {
-    for (const version of NODE_OK_VERSIONS) {
-      await withStub("node", `echo '${version}'`, async (stubDir) => {
-        const result = await runScript(SUT, [], { shell, stubDirs: [stubDir] });
-        assertOneLine(result, "NODE_OK node");
-      });
-    }
-  });
-});
 
 test("22.6 <= node < 23.6 -> NODE_OK node --experimental-strip-types", async () => {
   await assertPosix(async (shell) => {
@@ -68,17 +38,6 @@ test("22.6 <= node < 23.6 -> NODE_OK node --experimental-strip-types", async () 
       await withStub("node", `echo '${version}'`, async (stubDir) => {
         const result = await runScript(SUT, [], { shell, stubDirs: [stubDir] });
         assertOneLine(result, "NODE_OK node --experimental-strip-types");
-      });
-    }
-  });
-});
-
-test("node < 22.6 -> NODE_MISSING", async () => {
-  await assertPosix(async (shell) => {
-    for (const version of NODE_MISSING_VERSIONS) {
-      await withStub("node", `echo '${version}'`, async (stubDir) => {
-        const result = await runScript(SUT, [], { shell, stubDirs: [stubDir] });
-        assertOneLine(result, "NODE_MISSING");
       });
     }
   });

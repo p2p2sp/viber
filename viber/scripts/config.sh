@@ -237,7 +237,15 @@ if [ -n "$repo_root" ] && [ -d "$repo_root" ]; then
 else
   cfg=".claude/viber.yml"
 fi
-local_cfg="$(dirname "$cfg")/viber.local.yml"
+# A spawned process is what this script costs under Git Bash, where a fork runs
+# tens of milliseconds and fifteen other scripts call this one: a value is cut
+# with a parameter expansion and handed back in a variable wherever that
+# replaces a command substitution, and the keys the block needs are read by one
+# awk run.
+cfg_dir="${cfg%/*}"
+local_cfg="$cfg_dir/viber.local.yml"
+nl='
+'
 
 # The extension map lines, told apart by one function both passes share, fed
 # every line with its CR dropped. It returns 2 for the first `extensions:` key
@@ -260,6 +268,32 @@ function mapline(line) {
     return 2
   }
   return 0
+}
+'
+
+# The four values the block prints after the extension lines, one line each in
+# this order: directories.runs, directories.specifications, tiers.min,
+# tiers.max, an empty line for a key the file does not give. It is group_value
+# below, rule for rule, for those four keys at once, so the block and
+# --specifications cut a value the same way. It goes ahead of collect_prog in
+# the program and holds no `next`: collect_prog skips the map lines, which
+# group_value never did.
+lookup_prog='
+function lookup(id, key,  v) {
+  if ((id in gv) || $0 !~ ("^[[:space:]]+" key "[[:space:]]*:")) return
+  v = $0
+  sub(/^[^:]*:[[:space:]]*/, "", v)
+  sub(/[[:space:]#\r].*$/, "", v)
+  gv[id] = v
+}
+/^[^[:space:]#]/ { gvdirs = ($0 ~ /^directories[[:space:]]*:/); gvtiers = ($0 ~ /^tiers[[:space:]]*:/) }
+/^[[:space:]]/ && gvdirs { lookup("directories.runs", "runs"); lookup("directories.specifications", "specifications") }
+/^[[:space:]]/ && gvtiers { lookup("tiers.min", "min"); lookup("tiers.max", "max") }
+END {
+  print gv["directories.runs"]
+  print gv["directories.specifications"]
+  print gv["tiers.min"]
+  print gv["tiers.max"]
 }
 '
 
@@ -477,45 +511,53 @@ ingroup && $0 ~ "^[[:space:]]+" key "[[:space:]]*:" {
 ' "$cfg"
 }
 
-# A directory name, or the fallback. The value is one path SEGMENT, and the
-# rejection list is what stops a slash, a traversal or an absolute path from
-# turning a docs/ layer into somewhere else.
+# A directory name, or the fallback, left in `dir`. The value is one path
+# SEGMENT, and the rejection list is what stops a slash, a traversal or an
+# absolute path from turning a docs/ layer into somewhere else.
+dir_or() {
+  case "$1" in
+    ''|.|..|*[!A-Za-z0-9._-]*) dir="$2" ;;
+    *) dir="$1" ;;
+  esac
+}
+
+# The directory name of one `directories:` key, or the fallback, on stdout.
 resolve_dir() {
-  value="$(group_value directories "$1" || true)"
-  case "$value" in
-    ''|.|..|*[!A-Za-z0-9._-]*) value="$2" ;;
-  esac
-  echo "$value"
+  dir_or "$(group_value directories "$1" || true)" "$2"
+  echo "$dir"
 }
 
-# A tier's rank, 0 for anything that is not one of the four tiers.
+# A tier's rank in any letter case, left in `rank`: 0 for anything that is not
+# one of the four tiers.
 tier_rank() {
-  case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
-    haiku) echo 1 ;;
-    sonnet) echo 2 ;;
-    opus) echo 3 ;;
-    fable) echo 4 ;;
-    *) echo 0 ;;
+  case "$1" in
+    [Hh][Aa][Ii][Kk][Uu]) rank=1 ;;
+    [Ss][Oo][Nn][Nn][Ee][Tt]) rank=2 ;;
+    [Oo][Pp][Uu][Ss]) rank=3 ;;
+    [Ff][Aa][Bb][Ll][Ee]) rank=4 ;;
+    *) rank=0 ;;
   esac
 }
 
+# The tier of a rank, left in `tier`.
 tier_name() {
   case "$1" in
-    1) echo haiku ;;
-    2) echo sonnet ;;
-    4) echo fable ;;
-    *) echo opus ;;
+    1) tier=haiku ;;
+    2) tier=sonnet ;;
+    4) tier=fable ;;
+    *) tier=opus ;;
   esac
 }
 
 # The --branching report. Nesting is told by indentation alone: the first line
 # inside the group fixes the depth of its direct children, the first line under
 # `work` or `issue-type-mappings` the depth of theirs. Everything is collected
-# first, so a mapping written above the entries it names still resolves.
-branching_report() {
-  out=""
+# first, so a mapping written above the entries it names still resolves. The
+# report is left in `branching_out`, which the block reads its mode line from.
+branching_compute() {
+  branching_out=""
   if [ -f "$cfg" ]; then
-    out="$(awk -v sq="'" '
+    branching_out="$(awk -v sq="'" '
 function unquote(s,  q) {
   q = substr(s, 1, 1)
   if (length(s) >= 3 && (q == sq || q == "\"") && substr(s, length(s)) == q) s = substr(s, 2, length(s) - 2)
@@ -602,12 +644,12 @@ END {
 }
 ' "$cfg" 2>/dev/null || true)"
   fi
-  [ -n "$out" ] || out="mode: off"
-  printf '%s\n' "$out"
+  [ -n "$branching_out" ] || branching_out="mode: off"
 }
 
 if [ "${1:-}" = "--branching" ]; then
-  branching_report
+  branching_compute
+  printf '%s\n' "$branching_out"
   exit 0
 fi
 
@@ -626,8 +668,25 @@ if [ "${1:-}" = "--red-check" ]; then
   exit 0
 fi
 
-block="$(awk -v sq="'" "$map_prog$collect_prog$switches_prog" "$src" 2>/dev/null || true)"
-[ -n "$block" ] || block="$(awk -v sq="'" "$map_prog$collect_prog$switches_prog" /dev/null)"
+if [ "${1:-}" = "--questions" ]; then
+  block=""
+else
+  # One awk run for the whole block: the four lookup lines, then the switch and
+  # title lines.
+  block="$(awk -v sq="'" "$map_prog$lookup_prog$collect_prog$switches_prog" "$src" 2>/dev/null || true)"
+  case "$block" in
+    *"planning.adr: "*) ;;
+    *) block="$(awk -v sq="'" "$map_prog$lookup_prog$collect_prog$switches_prog" /dev/null)" ;;
+  esac
+  val_runs="${block%%$nl*}"
+  block="${block#*$nl}"
+  val_specs="${block%%$nl*}"
+  block="${block#*$nl}"
+  val_min="${block%%$nl*}"
+  block="${block#*$nl}"
+  val_max="${block%%$nl*}"
+  block="${block#*$nl}"
+fi
 
 loc_bt=""
 loc_gi=""
@@ -685,46 +744,60 @@ else
   printf '%s\n' "$block"
 fi
 
-agents_dir="$(dirname "$cfg")/agents"
+agents_dir="$cfg_dir/agents"
 ext_found=""
 ext_missing=""
 ext_run=""
-while IFS=' ' read -r tag par name; do
-  if [ "$tag" = V ] && [ -f "$agents_dir/$name.md" ]; then
-    if [ "$par" = P ]; then
-      ext_run="${ext_run:+$ext_run + }$name"
+# No file holds no map, so the awk run is skipped.
+if [ "$src" != /dev/null ]; then
+  while IFS=' ' read -r tag par name; do
+    if [ "$tag" = V ] && [ -f "$agents_dir/$name.md" ]; then
+      if [ "$par" = P ]; then
+        ext_run="${ext_run:+$ext_run + }$name"
+      else
+        [ -z "$ext_run" ] || ext_found="${ext_found:+$ext_found, }$ext_run"
+        ext_run=""
+        ext_found="${ext_found:+$ext_found, }$name"
+      fi
     else
-      [ -z "$ext_run" ] || ext_found="${ext_found:+$ext_found, }$ext_run"
-      ext_run=""
-      ext_found="${ext_found:+$ext_found, }$name"
+      ext_missing="${ext_missing:+$ext_missing, }$name"
     fi
-  else
-    ext_missing="${ext_missing:+$ext_missing, }$name"
-  fi
-done < <(awk "$map_prog$ext_prog" "$src" 2>/dev/null || true)
+  done < <(awk "$map_prog$ext_prog" "$src" 2>/dev/null || true)
+fi
 [ -z "$ext_run" ] || ext_found="${ext_found:+$ext_found, }$ext_run"
 printf 'build.extensions: %s\n' "${ext_found:-none}"
 printf 'build.extensions-missing: %s\n' "${ext_missing:-none}"
 
-printf 'directories.runs: %s\n' "$(resolve_dir runs _specs)"
-printf 'directories.specifications: %s\n' "$(resolve_dir specifications specs)"
+dir_or "$val_runs" _specs
+printf 'directories.runs: %s\n' "$dir"
+dir_or "$val_specs" specs
+printf 'directories.specifications: %s\n' "$dir"
 
-min="$(tier_rank "$(group_value tiers min || true)")"
-max="$(tier_rank "$(group_value tiers max || true)")"
+tier_rank "$val_min"
+min="$rank"
+tier_rank "$val_max"
+max="$rank"
 [ "$min" -eq 0 ] && min=1
 [ "$max" -eq 0 ] && max=3
-[ -z "$loc_min" ] || min="$(tier_rank "$loc_min")"
-[ -z "$loc_max" ] || max="$(tier_rank "$loc_max")"
+if [ -n "$loc_min" ]; then
+  tier_rank "$loc_min"
+  min="$rank"
+fi
+if [ -n "$loc_max" ]; then
+  tier_rank "$loc_max"
+  max="$rank"
+fi
 if [ "$min" -gt "$max" ]; then
   min=1
   max=3
 fi
-printf 'tiers.min: %s\n' "$(tier_name "$min")"
-printf 'tiers.max: %s\n' "$(tier_name "$max")"
+tier_name "$min"
+printf 'tiers.min: %s\n' "$tier"
+tier_name "$max"
+printf 'tiers.max: %s\n' "$tier"
 
-branching_lines="$(branching_report)"
-mode="${branching_lines%%
-*}"
+branching_compute
+mode="${branching_out%%$nl*}"
 mode="${mode#mode: }"
 
 printf 'branching.mode: %s\n' "$mode"

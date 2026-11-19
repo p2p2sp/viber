@@ -19,47 +19,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { runScript, type RunResult } from "../harness/run.ts";
+import { runScript } from "../harness/run.ts";
 import { withTempDir } from "../harness/tmp.ts";
-import { coreUtilsPath, withStub } from "../harness/stub.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/gh-read.sh");
-
-async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("posix", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "posix");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-/** A `gh` stub logging its argv one-arg-per-line (a "===" separator after
- *  each call) into `$ARGV_FILE`; stdout, stderr and exit come from env. */
-const GH_STUB = `
-for a in "$@"; do printf '%s\\n' "$a" >> "$ARGV_FILE"; done; printf '===\\n' >> "$ARGV_FILE"
-if [ -n "\${GH_STDERR:-}" ]; then printf '%s' "$GH_STDERR" >&2; fi
-printf '%s' "\${GH_STDOUT:-}"
-exit "\${GH_EXIT:-0}"
-`;
-
-async function runStubbed(shell: Shell, args: string[], env: Record<string, string> = {}): Promise<{ result: RunResult; calls: string[][] }> {
-  return await withTempDir("p2p2-gh-read-", (cwd) =>
-    withStub("gh", GH_STUB, async (stubDir) => {
-      const argvFile = path.join(cwd, "argv.log");
-      fs.writeFileSync(argvFile, "");
-      const result = await runScript(SUT, args, { shell, cwd, env: { ARGV_FILE: argvFile, ...env }, stubDirs: [stubDir] });
-      const calls = fs
-        .readFileSync(argvFile, "utf-8")
-        .split("===\n")
-        .map((block) => block.split("\n").filter((line) => line.length > 0))
-        .filter((call) => call.length > 0);
-      return { result, calls };
-    }),
-  );
-}
-
-const lines = (s: string) => s.split("\n").filter((l) => l.length > 0);
+import { coreUtilsPath } from "../harness/stub.ts";
+import { SUT, assertPosix, runStubbed, lines, PR_BLOCK } from "./gh-read-fixture.ts";
 
 // --- issue -----------------------------------------------------------------------
 
@@ -73,20 +36,6 @@ test("issue #N delegates to issue-facts.sh, which calls gh issue view with N", a
 });
 
 // --- pr --------------------------------------------------------------------------
-
-const PR_BLOCK = ["NUMBER=7", "URL=https://github.com/acme/w/pull/7", "TITLE=Fix", "STATE=OPEN", "AUTHOR=octocat", "LABELS=", "BASE=main", "HEAD=fix", "COMMENTS=0", "REVIEWS=0", "--- body ---", "Body."];
-
-test("pr #N reaches gh pr view with N, the fixed field list and one --jq filter, and the block is relayed with CR stripped", async () => {
-  await assertPosix(async (shell) => {
-    const { result, calls } = await runStubbed(shell, ["pr", "#7"], { GH_STDOUT: PR_BLOCK.join("\r\n") + "\r\n" });
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(lines(result.stdout), PR_BLOCK);
-    assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0].slice(0, 5), ["pr", "view", "7", "--json", "number,url,title,state,author,labels,baseRefName,headRefName,body,comments,reviews"]);
-    assert.equal(calls[0][5], "--jq");
-    assert.equal(calls[0].length, 7, "the --jq filter is one argument");
-  });
-});
 
 test("a pull request url reaches gh with its #fragment and ?query dropped", async () => {
   await assertPosix(async (shell) => {
@@ -124,18 +73,6 @@ test("list prs with an empty result prints COUNT=0 and no -R without a repositor
     assert.deepEqual(lines(result.stdout), ["KIND=prs", "COUNT=0"]);
     assert.deepEqual(calls[0].slice(0, 2), ["pr", "list"]);
     assert.ok(!calls[0].includes("-R"));
-  });
-});
-
-// --- file ------------------------------------------------------------------------
-
-test("file reads through gh api GET with the raw media type and the ref as a query", async () => {
-  await assertPosix(async (shell) => {
-    const { result, calls } = await runStubbed(shell, ["file", "acme/w", "/src/a.ts", "v1"], { GH_STDOUT: "line 1\r\nline 2\r\n" });
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(lines(result.stdout), ["REPO=acme/w", "PATH=src/a.ts", "REF=v1", "--- file ---", "line 1", "line 2"]);
-    assert.deepEqual(calls[0], ["api", "repos/acme/w/contents/src/a.ts?ref=v1", "-H", "Accept: application/vnd.github.raw"]);
-    for (const flag of ["-X", "--method", "-f", "-F", "--field", "--raw-field"]) assert.ok(!calls[0].includes(flag), `gh api must never get ${flag}`);
   });
 });
 

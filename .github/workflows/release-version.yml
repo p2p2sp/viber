@@ -17,7 +17,12 @@ concurrency:
   group: versioning
   cancel-in-progress: false
 jobs:
+  # The whole suite on Linux and Windows (full.yml): a push run leaves the
+  # logic tier out on Windows, so the release waits for it here.
+  Full:
+    uses: ./.github/workflows/full.yml
   Release:
+    needs: Full
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

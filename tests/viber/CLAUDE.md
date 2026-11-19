@@ -1,6 +1,6 @@
 # tests/viber - viber's script, hook and shipped-content suite
 
-One test file per viber script, hook script or `.ts` module, named after it, plus the checks that bind shipped markdown, templates and `hooks.json` to what the scripts and `plugin.json` carry. The helpers it imports belong to `tests/harness/`; no other plugin is tested here.
+One test per viber script, hook script or `.ts` module, named after it (the pair `<name>.test.ts` and `<name>.critical.test.ts` with their `<name>-fixture.ts`, as `tests/CLAUDE.md` defines it; a file name below means the pair), plus the checks that bind shipped markdown, templates and `hooks.json` to what the scripts and `plugin.json` carry. The helpers it imports belong to `tests/harness/`; no other plugin is tested here.
 
 ## Relationships
 
@@ -13,6 +13,8 @@ One test file per viber script, hook script or `.ts` module, named after it, plu
 - The shell follows the SUT's shebang: a `#!/bin/sh` script runs through `forEachShell("posix", ...)`, a `#!/usr/bin/env bash` one through `forEachShell("bash", ...)` or a plain `runScript`.
 - Hook scripts run with `shell: "bash"`, the way `hooks.json` invokes them (`bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/<name>.sh"`): the test proves the content, never the exec bit.
 - Hook payloads and transcript fixtures are JS objects serialized with `JSON.stringify`, never hand-escaped: the scripts read raw text with grep/sed/awk and unescape it themselves, so a hand-escaped fixture proves the wrong thing.
+- The critical files of the guard hooks `kill-guard` and `shell-guard` carry whole deny and allow tables: a gate is proven on every operating system against that system's own grep, sed and awk. Elsewhere a critical file takes single cases and short tables.
+- A case naming a drive-letter, backslash or MSYS spelling of a path is critical wherever it sits, since only the Windows leg runs it.
 - The report-name module exports pure functions, imported directly by its `*.unit.test.ts` file.
 - `code-auditor.unit.test.ts` holds every `viber:<name>` `code-auditor/SKILL.md` dispatches to a file listed in `plugin.json` `agents[]`, and every tracked file outside `docs/` and the `CLAUDE.md` nodes to naming no retired script, agent or reference: retiring one adds its token to `FORBIDDEN`.
 - `help.unit.test.ts` holds `viber/skills/setup/assets/help.html` to: a card per skill in `plugin.json`, the self-starting label on exactly the `user-invocable: false` skills, a line per agent, an entry per uncommented indent-0 or indent-2 key of the `viber.yml` template (plus `branching-issue-type-mappings`), every English piece paired with a Polish one, only `/viber:` commands a skill carries, no dash characters, no external load, 4.5:1 for every `--fg-*` on every `--bg-*` in both themes.

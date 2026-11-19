@@ -51,62 +51,21 @@ import path from "node:path";
 import { runScript } from "../harness/run.ts";
 import { canDenyRead, denyRead, restoreRead } from "../harness/perms.ts";
 import { withGitRepo, withTempDir } from "../harness/tmp.ts";
+import {
+  SUT,
+  OFF,
+  run,
+  writeConfig,
+  group,
+  inGroup,
+  config,
+  switches,
+  dirs,
+  writeLocal,
+} from "./config-fixture.ts";
 
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/config.sh");
-
-/** Every switch off and both directory keys at their default - what a project
- *  with no config file, and every unusable value, resolves to. */
-const OFF = {
-  "planning.adr": "false",
-  "planning.outside-plan-review": "false",
-  "build.baseline-tests": "off",
-  "build.final-review": "false",
-  "build.memory": "false",
-  "build.rules": "false",
-  "build.qa": "false",
-  "build.cleanup": "false",
-  "build.red-check": "false",
-  "github.issues": "false",
-};
 const DEFAULT_DIRS = { runs: "_specs", specifications: "specs" };
 const DEFAULT_TITLES = { issue: "{summary}", pr: "[{issue-number}] {summary}" };
-
-function run(dir: string, env: Record<string, string> = {}) {
-  return runScript(SUT, [], { cwd: dir, env, shell: "bash" });
-}
-
-function writeConfig(root: string, body: string): void {
-  fs.mkdirSync(path.join(root, ".claude"), { recursive: true });
-  fs.writeFileSync(path.join(root, ".claude", "viber.yml"), body);
-}
-
-/** The `directories:` group as the template writes it. */
-function group(entries: Record<string, string>): string {
-  return ["directories:", ...Object.entries(entries).map(([key, value]) => `  ${key}: ${value}`), ""].join("\n");
-}
-
-/** One group holding the given child lines, each indented two blanks. */
-function inGroup(name: string, ...children: string[]): string {
-  return [`${name}:`, ...children.map((child) => `  ${child}`), ""].join("\n");
-}
-
-/** Every key the script printed, in the fixed order it prints them; a value is
- *  everything after the first colon, since a title pattern holds colons of its own. */
-function config(stdout: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const line of stdout.trim().split("\n").slice(1)) {
-    const at = line.indexOf(":");
-    if (at > 0) out[line.slice(0, at).trim()] = line.slice(at + 1).trim();
-  }
-  return out;
-}
-
-/** The ten switches alone, so a case about a switch need not restate the
- *  titles, directory names, tiers and branching mode. */
-function switches(stdout: string): Record<string, string | undefined> {
-  const all = config(stdout);
-  return Object.fromEntries(Object.keys(OFF).map((key) => [key, all[key]]));
-}
 
 /** The printed line of one key, verbatim, or undefined when none was printed. */
 function printedLine(stdout: string, key: string): string | undefined {
@@ -126,42 +85,6 @@ function tiers(stdout: string): Record<string, string> {
 }
 
 const DEFAULT_TIERS = { min: "haiku", max: "opus" };
-
-/** The two directory keys alone, under their short names. The script prints
- *  them dotted, which is itself asserted below. */
-function dirs(stdout: string): Record<string, string> {
-  const all = config(stdout);
-  return { runs: all["directories.runs"], specifications: all["directories.specifications"] };
-}
-
-test("no config file: the block is every switch off, both title defaults, no extension, then the directory, tier and branching defaults, in the fixed order, and the exit is still 0", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const result = await run(dir);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(result.stdout.trim().split("\n"), [
-      "# viber config (resolved)",
-      "planning.adr: false",
-      "planning.outside-plan-review: false",
-      "build.baseline-tests: off",
-      "build.final-review: false",
-      "build.memory: false",
-      "build.rules: false",
-      "build.qa: false",
-      "build.cleanup: false",
-      "build.red-check: false",
-      "github.issues: false",
-      "github.issue-title: {summary}",
-      "github.pr-title: [{issue-number}] {summary}",
-      "build.extensions: none",
-      "build.extensions-missing: none",
-      "directories.runs: _specs",
-      "directories.specifications: specs",
-      "tiers.min: haiku",
-      "tiers.max: opus",
-      "branching.mode: off",
-    ]);
-  });
-});
 
 test("the group keys are printed dotted, so no reader can take one for a switch", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
@@ -268,44 +191,6 @@ test("only `true` counts as on - false, a missing key, a commented-out line and 
   });
 });
 
-test("a grouped config turns its switches on, comments, blank lines and case notwithstanding", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    writeConfig(
-      dir,
-      [
-        "# viber switches",
-        "planning:",
-        "  adr: true  # the decisions worth keeping",
-        "",
-        "# a column-0 comment inside the group",
-        "  outside-plan-review: true",
-        "build:",
-        "  # the close",
-        "  memory: TRUE",
-        "  rules: true",
-        "  qa: true",
-        "  cleanup: true",
-        "github:",
-        "  issues: true",
-        "",
-      ].join("\n"),
-    );
-
-    const result = await run(dir);
-    assert.equal(result.status, 0);
-    assert.deepEqual(switches(result.stdout), {
-      ...OFF,
-      "planning.adr": "true",
-      "planning.outside-plan-review": "true",
-      "build.memory": "true",
-      "build.rules": "true",
-      "build.qa": "true",
-      "build.cleanup": "true",
-      "github.issues": "true",
-    });
-  });
-});
-
 test("an indented `qa: true` under a group that is not `build:` stays off", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     writeConfig(dir, inGroup("some_group", "qa: true"));
@@ -393,19 +278,6 @@ test("the shipped template resolves to its own defaults: every switch, both titl
     assert.deepEqual(titles(result.stdout), DEFAULT_TITLES);
     assert.deepEqual(dirs(result.stdout), DEFAULT_DIRS);
     assert.deepEqual(tiers(result.stdout), DEFAULT_TIERS);
-  });
-});
-
-test("the file is resolved against the repository root, so a session started in a subdirectory reads the same config", async () => {
-  await withGitRepo(async (repo) => {
-    writeConfig(repo.dir, inGroup("build", "memory: true") + group({ specifications: "archive" }));
-    const nested = path.join(repo.dir, "src", "deep");
-    fs.mkdirSync(nested, { recursive: true });
-
-    const result = await runScript(SUT, [], { cwd: nested, env: repo.env, shell: "bash" });
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(switches(result.stdout), { ...OFF, "build.memory": "true" });
-    assert.deepEqual(dirs(result.stdout), { runs: "_specs", specifications: "archive" });
   });
 });
 
@@ -1165,11 +1037,6 @@ test("the agent files are looked up under the repository root, so a session star
 
 // --- the local overrides file ---
 
-function writeLocal(root: string, body: string): void {
-  fs.mkdirSync(path.join(root, ".claude"), { recursive: true });
-  fs.writeFileSync(path.join(root, ".claude", "viber.local.yml"), body);
-}
-
 /** The block's lines after the header and the C2 comment line. */
 function keyLines(stdout: string): string[] {
   return stdout.trim().split("\n").slice(2);
@@ -1201,42 +1068,6 @@ const DEFAULT_BLOCK = [
   "tiers.max: opus",
   "branching.mode: off",
 ];
-
-test("a local file setting all four keys prints the local value on those four lines and the shared value on every other line", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    writeConfig(
-      dir,
-      inGroup("planning", "adr: true") + inGroup("build", "baseline-tests: full", "memory: true") + inGroup("github", "issues: false") + inGroup("tiers", "min: haiku", "max: opus"),
-    );
-    writeLocal(dir, inGroup("tiers", "min: Sonnet", "max: fable") + inGroup("build", "baseline-tests: fast") + inGroup("github", "issues: TRUE"));
-
-    const result = await run(dir);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(result.stdout.trim().split("\n"), [
-      "# viber config (resolved)",
-      "# local: build.baseline-tests, github.issues, tiers.min, tiers.max | ignored: none",
-      "planning.adr: true",
-      "planning.outside-plan-review: false",
-      "build.baseline-tests: fast",
-      "build.final-review: false",
-      "build.memory: true",
-      "build.rules: false",
-      "build.qa: false",
-      "build.cleanup: false",
-      "build.red-check: false",
-      "github.issues: true",
-      "github.issue-title: {summary}",
-      "github.pr-title: [{issue-number}] {summary}",
-      "build.extensions: none",
-      "build.extensions-missing: none",
-      "directories.runs: _specs",
-      "directories.specifications: specs",
-      "tiers.min: sonnet",
-      "tiers.max: fable",
-      "branching.mode: off",
-    ]);
-  });
-});
 
 test("a local `tiers.max` alone leaves the shared `tiers.min` standing", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {

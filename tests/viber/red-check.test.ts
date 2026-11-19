@@ -37,14 +37,22 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
-import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
+import { withGitRepo, withTempDir } from "../harness/tmp.ts";
 import { canSymlinkDir } from "../harness/symlinks.ts";
 import { withStub } from "../harness/stub.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/red-check.sh");
-
-/** The real Windows `cmd.exe`, slash-separated, for a `cmd` stand-in to pass its calls on to. */
-const REAL_CMD = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "cmd.exe").replace(/\\/g, "/");
+import {
+  SUT,
+  REAL_CMD,
+  RUN_DIR,
+  PLAN_REL,
+  LOG_REL,
+  run,
+  write,
+  seed,
+  changeProduction,
+  status,
+  worktrees,
+} from "./red-check-fixture.ts";
 
 /** A stand-in for the tool red-check.sh links with (`cmd /c mklink /J` on
  *  Windows, `ln -s` elsewhere) that makes no link and exits 1; on Windows every
@@ -52,99 +60,6 @@ const REAL_CMD = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", 
 const FAILING_LINK = process.platform === "win32"
   ? { name: "cmd", body: 'case "$*" in *mklink*) exit 1 ;; esac\nexec "$REAL_CMD" "$@"' }
   : { name: "ln", body: "exit 1" };
-
-/** A stand-in for the same tool that makes the link and then sends TERM to
- *  red-check, so its trap runs right after an entry link exists: on Windows the
- *  one `cmd` call running the junction batch, elsewhere an `ln` whose link lies
- *  inside the worktree's node_modules. Every other call reaches the real tool. */
-const TERM_AFTER_LINK = process.platform === "win32"
-  ? { name: "cmd", body: 'case "$*" in\n  *mklink*) "$REAL_CMD" "$@"; kill -TERM "$PPID" ;;\n  *) exec "$REAL_CMD" "$@" ;;\nesac' }
-  : { name: "ln", body: 'command -p ln "$@"\ncase "$*" in */wt/node_modules/?*) kill -TERM "$PPID" ;; esac' };
-
-const RUN_DIR = "docs/_specs/2026-10-20-10-00-00_red-check";
-const PLAN_REL = `${RUN_DIR}/plan.md`;
-const LOG_REL = ".temp/viber/T1/red-check.log";
-
-function run(dir: string, env: Record<string, string>, args: string[]) {
-  return runScript(SUT, args, { cwd: dir, env, shell: "bash", timeout: 120000 });
-}
-
-function write(root: string, rel: string, content: string): void {
-  const file = path.join(root, rel);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, content);
-}
-
-/** A lite plan plan-index.sh validates: T1 owns the production file and its
- *  test, T2 owns another production file a parallel coder is editing. */
-function planBody(verification = "bash tests/check.sh"): string {
-  const task = (id: string, files: string, verification: string) => [
-    "<!-- TASK -->",
-    `### ${id} - task ${id}`,
-    "- TDD: required",
-    "- Covers: AC1",
-    "- Uses: none",
-    "- Depends-on: none",
-    `- Files: ${files}`,
-    "- Delivers: the thing",
-    `- Verification: ${verification} -> green`,
-    "- DoD: it works",
-    "<!-- /TASK -->",
-    "",
-  ];
-  return [
-    "# Red check",
-    "",
-    "## Goal",
-    "",
-    "The answer is right.",
-    "",
-    "## Acceptance criteria",
-    "",
-    "1. The answer is 42.",
-    "",
-    "## Scope",
-    "",
-    "### File map",
-    "",
-    "- edit - src/lib.sh - the answer",
-    "",
-    "### Out of scope",
-    "",
-    "- Nothing else.",
-    "",
-    "## Tasks",
-    "",
-    ...task("T1", "src/lib.sh, tests/check.sh", verification),
-    ...task("T2", "src/other.sh", "bash src/other.sh"),
-  ].join("\n");
-}
-
-/** Commits the plan, the production files at their HEAD state and an ignore
- *  file for `.temp/` and `node_modules/`, as a host project carries them. */
-async function seed(repo: GitRepo, verification?: string): Promise<void> {
-  fs.appendFileSync(path.join(repo.dir, ".git", "info", "exclude"), ".gitconfig-global\n");
-  write(repo.dir, PLAN_REL, planBody(verification));
-  write(repo.dir, ".gitignore", ".temp/\nnode_modules/\n");
-  write(repo.dir, "src/lib.sh", "answer() { echo 0; }\n");
-  write(repo.dir, "src/other.sh", "other() { echo ok; }\n");
-  await repo.git("add", "-A");
-  await repo.git("commit", "-m", "seed");
-}
-
-/** The task's production change: the answer becomes 42. */
-function changeProduction(dir: string): void {
-  write(dir, "src/lib.sh", "answer() { echo 42; }\n");
-}
-
-async function status(repo: GitRepo): Promise<string> {
-  return (await repo.git("status", "--porcelain", "-uall")).stdout;
-}
-
-async function worktrees(repo: GitRepo): Promise<string[]> {
-  const out = (await repo.git("worktree", "list", "--porcelain")).stdout;
-  return out.split("\n").filter((l) => l.startsWith("worktree "));
-}
 
 test("a test that passes on HEAD without the production change yields PASSED-WITHOUT-CHANGE naming the test file (a test written after the code proves nothing)", async () => {
   await withGitRepo(async (repo) => {
@@ -154,20 +69,6 @@ test("a test that passes on HEAD without the production change yields PASSED-WIT
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
     assert.equal(r.stdout, "red-check: PASSED-WITHOUT-CHANGE tests/check.sh\nNEXT: coder-failure | reason: tests pass without the change: tests/check.sh\n");
-  });
-});
-
-test("a test written first that fails on HEAD and passes with the change yields FAIL-AS-EXPECTED and the log", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    changeProduction(repo.dir);
-    write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
-    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
-    assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\nNEXT: review\n`);
-    const log = fs.readFileSync(path.join(repo.dir, LOG_REL), "utf-8");
-    assert.match(log, /red run exit: 1/);
-    assert.match(log, /control run exit: 0/);
   });
 });
 
@@ -181,24 +82,6 @@ test("a test file named only on the task's extras line still counts as the task'
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
     assert.equal(r.stdout, "red-check: PASSED-WITHOUT-CHANGE tests/check.sh tests/extra.test.sh\nNEXT: coder-failure | reason: tests pass without the change: tests/check.sh tests/extra.test.sh\n");
-  });
-});
-
-test("another task's dirty production file in the shared tree leaves the verdict, the tree and the worktree list untouched (parallel coders share the main tree)", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    changeProduction(repo.dir);
-    write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n. ./src/other.sh\n[ "$(answer)" = 42 ]\n');
-    // T2's work in progress: copied into the worktree, it would fail both runs.
-    write(repo.dir, "src/other.sh", "exit 3\n");
-    const before = await status(repo);
-    const listBefore = await worktrees(repo);
-    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
-    assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, `red-check: FAIL-AS-EXPECTED ${LOG_REL}\nNEXT: review\n`);
-    assert.equal(await status(repo), before);
-    assert.deepEqual(await worktrees(repo), listBefore);
-    assert.equal(fs.readFileSync(path.join(repo.dir, "src/other.sh"), "utf-8"), "exit 3\n");
   });
 });
 
@@ -416,40 +299,6 @@ for (const layout of STALE_LAYOUTS) {
     });
   });
 }
-
-// Root cause: red-check.sh recorded a link in its cleanup list only after mklink returned.
-// Actual: a TERM landing between the two ran the cleanup without that link, so
-// `git worktree remove --force` deleted the main tree's node_modules through the junction.
-// Expected: the linked directory keeps its files and red-check exits 130.
-// Fix direction: record the link before it is made.
-test("a TERM landing right after an entry link is made exits 130 and leaves no registered worktree and no temp directory, the main tree's node_modules and its entries untouched (a link made but not yet recorded is skipped by the cleanup, so the forced remove deletes through it)", {
-  skip: process.platform !== "win32" && !canSymlinkDir() ? "this account cannot create a directory symlink" : false,
-}, async () => {
-  await withGitRepo(async (repo) => {
-    await withTempDir("red-check-tmp-", async (tmp) => {
-      await seed(repo);
-      changeProduction(repo.dir);
-      write(repo.dir, "node_modules/pkg/precious.txt", "keep\n");
-      write(repo.dir, "node_modules/.bin/tool.txt", "keep too\n");
-      write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 42 ]\n');
-      await withStub(TERM_AFTER_LINK.name, TERM_AFTER_LINK.body, async (stubDir) => {
-        const r = await runScript(SUT, [PLAN_REL, "T1"], {
-          cwd: repo.dir,
-          env: { ...repo.env, TMPDIR: tmp, REAL_CMD },
-          stubDirs: [stubDir],
-          shell: "bash",
-          timeout: 120000,
-        });
-        assert.equal(r.status, 130, r.stderr);
-        assert.deepEqual(fs.readdirSync(path.join(repo.dir, "node_modules")).sort(), [".bin", "pkg"]);
-        assert.equal(fs.readFileSync(path.join(repo.dir, "node_modules/pkg/precious.txt"), "utf-8"), "keep\n");
-        assert.equal(fs.readFileSync(path.join(repo.dir, "node_modules/.bin/tool.txt"), "utf-8"), "keep too\n");
-        assert.equal((await worktrees(repo)).length, 1);
-        assert.deepEqual(fs.readdirSync(tmp), []);
-      });
-    });
-  });
-});
 
 test("a link that cannot be made yields UNRUNNABLE naming the entry (a missing node_modules entry must never pose as red)", async () => {
   await withGitRepo(async (repo) => {

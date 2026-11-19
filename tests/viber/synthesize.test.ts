@@ -27,134 +27,25 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { runScript, type RunResult } from "../harness/run.ts";
+import { type RunResult } from "../harness/run.ts";
 import { withTempDir } from "../harness/tmp.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/code-auditor/scripts/synthesize.sh");
+import { type Shell } from "../harness/shells.ts";
+import {
+  assertPosix,
+  type Finding,
+  type Fixture,
+  huntOf,
+  put,
+  report,
+  verdictFile,
+  huntLine,
+  build,
+  synthesize,
+  scenario,
+  verified,
+} from "./synthesize-fixture.ts";
 
 const DOT = "·";
-
-async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("posix", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "posix");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-interface Finding {
-  /** `<hunt id>-<k>`, k 1 to 3. */
-  id: string;
-  title?: string;
-  loc?: string;
-  cls?: string;
-  sev?: string;
-  conf?: string;
-  /** Absent: no verdict file at all. */
-  verdict?: string;
-  observed?: string;
-  crit?: string;
-  /** Replaces the whole verdict file, for a file with no `VERDICT:` line. */
-  verdictBody?: string;
-}
-
-interface Fixture {
-  scope?: string;
-  units?: string[];
-  findings?: Finding[];
-  /** Hunts whose only report is `<id>-0.md`. */
-  zeros?: string[];
-  /** Hunts the ledger names and no report file exists for. */
-  bare?: string[];
-  /** Extra files under reports/, name -> content. */
-  files?: Record<string, string>;
-  angles?: string[];
-}
-
-function huntOf(id: string): string {
-  return id.replace(/-\d$/, "");
-}
-
-function put(file: string, content: string) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, content);
-}
-
-function report(f: Finding): string {
-  return [
-    `# ${f.title ?? `Title ${f.id}`}`,
-    `LOCATION: ${f.loc ?? `src/${f.id}.ts:L10-L20`}`,
-    `CLASS: ${f.cls ?? `bugs: class ${f.id}`}`,
-    `SEVERITY: ${f.sev ?? "6.0"}`,
-    `CONFIDENCE: ${f.conf ?? "medium"}`,
-    `HUNT: ${huntOf(f.id)}`,
-    "",
-    "## Root cause",
-    "The body is never read by the script.",
-    "",
-  ].join("\n");
-}
-
-function verdictFile(f: Finding): string {
-  return [
-    `VERDICT: ${f.verdict}`,
-    "COMMAND: sh repro.sh",
-    `OBSERVED: ${f.observed ?? "it failed"}`,
-    `SEVERITY: ${f.crit ?? f.sev ?? "6.0"}`,
-    "",
-  ].join("\n");
-}
-
-function huntLine(id: string): string {
-  const unit = /^(R-)?U\d+$/.test(id) ? id.replace(/^R-/, "") : "none";
-  const angle = id.startsWith("A-") ? id.slice(2) : "none";
-  return `hunt: ${id} | wave: ${id.startsWith("R-") ? 2 : 1} | unit: ${unit} | angle: ${angle}`;
-}
-
-/** Builds a run workspace under `dir` and returns its path. */
-function build(dir: string, fx: Fixture, name = "20260101-000000"): string {
-  const ws = path.join(dir, name);
-  const lensFile = path.join(dir, "bugs.md");
-  const angles = fx.angles ?? ["first", "second"];
-  put(lensFile, ["# Bugs lens", "", "## Hunts", ...angles.flatMap((a) => [`### ${a}`, "text", ""]), "## Excluded", "- nothing", ""].join("\n"));
-  const units = fx.units ?? [];
-  put(
-    path.join(ws, "run.md"),
-    [
-      "Lens: bugs",
-      `Lens file: ${lensFile}`,
-      `Scope: ${fx.scope ?? "repo"}`,
-      "Target root: /repo",
-      "",
-      "## Map",
-      "## Conventions",
-      "none",
-      "",
-      "## Units",
-      ...units.map((u) => `- ${u} | src/${u}.ts | why`),
-      "",
-    ].join("\n"),
-  );
-  const findings = fx.findings ?? [];
-  const hunts: string[] = [];
-  for (const id of [...findings.map((f) => huntOf(f.id)), ...(fx.zeros ?? []), ...(fx.bare ?? [])]) {
-    if (!hunts.includes(id)) hunts.push(id);
-  }
-  put(path.join(ws, "ledger.md"), hunts.map(huntLine).join("\n") + "\n");
-  for (const f of findings) {
-    put(path.join(ws, "reports", `${f.id}.md`), report(f));
-    if (f.verdictBody !== undefined) put(path.join(ws, "verdicts", `${f.id}.md`), f.verdictBody);
-    else if (f.verdict !== undefined) put(path.join(ws, "verdicts", `${f.id}.md`), verdictFile(f));
-  }
-  for (const id of fx.zeros ?? []) put(path.join(ws, "reports", `${id}-0.md`), "NO FINDING\nchecked: src\n");
-  for (const [name, content] of Object.entries(fx.files ?? {})) put(path.join(ws, "reports", name), content);
-  return ws;
-}
-
-async function synthesize(shell: Shell, ws: string, args: string[] = []): Promise<RunResult> {
-  return await runScript(SUT, [ws, ...args], { shell, cwd: path.dirname(ws) });
-}
 
 /** Builds the fixture and hands the shell and the workspace to `check`, which runs the script itself. */
 async function inRun(fx: Fixture, check: (shell: Shell, ws: string) => Promise<void>) {
@@ -176,18 +67,6 @@ function addFinding(ws: string, f: Finding) {
   fs.appendFileSync(path.join(ws, "ledger.md"), huntLine(huntOf(f.id)) + "\n");
 }
 
-/** Builds the fixture, runs the script, hands both to `check`. */
-async function scenario(fx: Fixture, check: (ws: string, result: RunResult, findings: string) => void) {
-  await assertPosix(async (shell) => {
-    await withTempDir("p2p2-synth-", async (dir) => {
-      const ws = build(dir, fx);
-      const result = await synthesize(shell, ws);
-      assert.equal(result.status, 0, `unexpected exit status: stderr=${result.stderr}`);
-      check(ws, result, fs.readFileSync(path.join(ws, "findings.md"), "utf8"));
-    });
-  });
-}
-
 function markers(text: string): string[] {
   return [...text.matchAll(/^<!-- finding: (.*) -->$/gm)].map((m) => m[1]);
 }
@@ -198,10 +77,6 @@ function entry(text: string, n: number): string[] {
   const start = lines.findIndex((l) => l.startsWith(`## ${n}. `));
   const end = lines.indexOf("", start);
   return lines.slice(start, end);
-}
-
-function verified(id: string, extra: Partial<Finding> = {}): Finding {
-  return { id, verdict: "VERIFIED", ...extra };
 }
 
 test("a VERIFIED finding adopts the critic severity and the entry notes it beside the filed one", async () => {
@@ -408,40 +283,6 @@ test("the title line, the header line and the three coverage lines hold the run'
   );
 });
 
-const WINDOWS = process.platform === "win32";
-const RUN_TITLE = "# Findings - 20260101-000000 (bugs, repo)";
-const SPELLINGS: [string, (ws: string) => string][] = [
-  ["backslash separators", (ws) => ws.replaceAll("/", "\\")],
-  ["backslash separators and a trailing backslash", (ws) => ws.replaceAll("/", "\\") + "\\"],
-  ["slash separators and a trailing slash", (ws) => ws.replaceAll("\\", "/") + "/"],
-  ["slash separators and a trailing backslash", (ws) => ws.replaceAll("\\", "/") + "\\"],
-  ["backslash separators and a trailing slash", (ws) => ws.replaceAll("/", "\\") + "/"],
-];
-
-for (const [spelling, spell] of SPELLINGS) {
-  test(`a workspace written with ${spelling} gets the run id of its last component in findings.md`, { skip: WINDOWS ? false : "a Windows path resolves only on win32" }, async () => {
-    await assertPosix(async (shell) => {
-      await withTempDir("p2p2-synth-", async (dir) => {
-        const ws = build(dir, { findings: [verified("U1-1")] });
-        const result = await runScript(SUT, [spell(ws)], { shell, cwd: dir });
-        assert.equal(result.status, 0, `unexpected exit status: stderr=${result.stderr}`);
-        assert.equal(fs.readFileSync(path.join(ws, "findings.md"), "utf8").split("\n")[0], RUN_TITLE);
-      });
-    });
-  });
-}
-
-test("a workspace whose last component holds a backslash gets the run id after the backslash", { skip: WINDOWS ? "a backslash is a separator on win32, never a file name character" : false }, async () => {
-  await assertPosix(async (shell) => {
-    await withTempDir("p2p2-synth-", async (dir) => {
-      const ws = build(dir, { findings: [verified("U1-1")] }, "code-auditor\\20260101-000000");
-      const result = await runScript(SUT, [ws], { shell, cwd: dir });
-      assert.equal(result.status, 0, `unexpected exit status: stderr=${result.stderr}`);
-      assert.equal(fs.readFileSync(path.join(ws, "findings.md"), "utf8").split("\n")[0], RUN_TITLE);
-    });
-  });
-});
-
 test("on a directory scope a unit hunt with no report counts as not investigated and under hunts with no report", async () => {
   await scenario(
     { scope: "src/api", units: ["U1", "U2"], findings: [verified("U2-1")], bare: ["U1"] },
@@ -493,33 +334,6 @@ test("a report of hunt A-x-y is never counted as a report of hunt A-x", async ()
       assert.deepEqual(markers(text), []);
       assert.ok(text.includes("- Hunts with no finding: A-x\n"));
       assert.equal(result.stdout, "summary: units 0 | hunts 1 | confirmed 0 | not investigated 0\nNEXT: none\n");
-    },
-  );
-});
-
-test("stdout is the summary line, then the fill block with one entry line per full entry and the cited report", async () => {
-  await scenario(
-    {
-      scope: "repo",
-      units: ["U1", "U2", "U3"],
-      findings: [
-        verified("U1-1", { sev: "8.0", observed: "segfault seen" }),
-        { id: "U2-1", verdict: "INCONCLUSIVE", sev: "5.0", observed: "no oracle" },
-        verified("U3-1", { sev: "2.0" }),
-      ],
-    },
-    (ws, result) => {
-      assert.equal(
-        result.stdout,
-        [
-          "summary: units 3 | hunts 3 | confirmed 2 | not investigated 0",
-          `last-line: /viber:intent ${ws}/findings.md`,
-          `NEXT: fill | findings: ${ws}/findings.md`,
-          `entry: 1 | reports: ${ws}/reports/U1-1.md | verdict: VERIFIED | observed: segfault seen`,
-          `entry: 2 | reports: ${ws}/reports/U2-1.md | verdict: INCONCLUSIVE | observed: no oracle`,
-          "",
-        ].join("\n"),
-      );
     },
   );
 });

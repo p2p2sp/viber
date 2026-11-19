@@ -23,119 +23,27 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { slash } from "../harness/paths.ts";
-import { runScript } from "../harness/run.ts";
 import { withGitRepo, type GitRepo } from "../harness/tmp.ts";
+import {
+  SUT,
+  PLAN_DIR,
+  PLAN_REL,
+  ROOT,
+  type Overrides,
+  write,
+  seedPlan,
+  type Call,
+  step,
+  arrange,
+  lines,
+  coderLines,
+  START_T1,
+  START_T4_WAIVED,
+  T1_FAIL,
+  T1_PASS,
+} from "./task-step-fixture.ts";
 
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/task-step.sh");
 const REPO_ROOT = path.resolve(import.meta.dirname, "../..");
-
-const PLAN_DIR = "docs/_specs/2026-11-18-10-00-00_scripted-step";
-const PLAN_REL = `${PLAN_DIR}/plan.md`;
-const ROOT = slash(SUT).replace(/\/scripts\/task-step\.sh$/, "");
-
-/** T2 depends on T1 and T3 on T2; T4 stands alone. T1 and T3 are TDD tasks. */
-const TASKS = [
-  { id: "T1", tdd: "required", deps: "none" },
-  { id: "T2", tdd: "none", deps: "T1" },
-  { id: "T3", tdd: "required", deps: "T2" },
-  { id: "T4", tdd: "none", deps: "none" },
-];
-
-/** A task's Files and Verification, where a case needs the red check to run for real. */
-type Overrides = Record<string, { files: string; verify: string }>;
-
-function planText(overrides: Overrides = {}): string {
-  return [
-    "# Scripted step",
-    "",
-    "## Goal",
-    "",
-    "A task steps through its attempts.",
-    "",
-    "## Acceptance criteria",
-    "",
-    "1. A coder return is answered.",
-    "",
-    "## Scope",
-    "",
-    "### File map",
-    "",
-    "- add - src/one.ts - the handler",
-    "",
-    "### Out of scope",
-    "",
-    "- Everything else.",
-    "",
-    "## Tasks",
-    "",
-    ...TASKS.flatMap((t) => [
-      "<!-- TASK -->",
-      `### ${t.id} - do the thing`,
-      `- TDD: ${t.tdd}`,
-      "- Covers: AC1",
-      "- Uses: C1",
-      `- Depends-on: ${t.deps}`,
-      `- Files: ${overrides[t.id]?.files ?? `src/${t.id}.ts`}`,
-      "- Delivers: the thing",
-      `- Verification: ${overrides[t.id]?.verify ?? "npm test"} -> green`,
-      "- DoD: it works",
-      "<!-- /TASK -->",
-      "",
-    ]),
-    "## Contracts",
-    "",
-    "### C1 - Login endpoint",
-    "",
-    "File: none",
-    "",
-    "POST /login -> 200 | 401",
-    "",
-  ].join("\n");
-}
-
-function write(root: string, rel: string, content: string): void {
-  const file = path.join(root, rel);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, content);
-}
-
-function seedPlan(repo: GitRepo, config = "", overrides: Overrides = {}): void {
-  write(repo.dir, PLAN_REL, planText(overrides));
-  write(repo.dir, `${PLAN_DIR}/status.md`, "# status\n\nprogress: 0/4\ndone: none\n");
-  if (config !== "") write(repo.dir, ".claude/viber.yml", config);
-}
-
-/** One call: the task id, the started mark, then the event and its flags. */
-type Call = string[];
-
-function step(repo: GitRepo, call: Call, sut = SUT) {
-  const [id, mark, ...rest] = call;
-  return runScript(sut, [PLAN_REL, id, mark, ...rest], { cwd: repo.dir, env: repo.env, shell: "bash", timeout: 120000 });
-}
-
-/** Earlier calls of the same task, run one after another. */
-async function arrange(repo: GitRepo, calls: Call[]): Promise<void> {
-  for (const call of calls) {
-    const result = await step(repo, call);
-    assert.equal(result.status, 0, `arranging ${call.join(" ")} failed: ${result.stderr}`);
-  }
-}
-
-function lines(...parts: string[]): string {
-  return `${parts.join("\n")}\n`;
-}
-
-function coderLines(id: string, extra: string[] = []): string[] {
-  return [
-    `task: ${PLAN_DIR}/tasks/${id}.md`,
-    `notes: ${PLAN_DIR}/work/${id}-coder.md`,
-    `out: .temp/viber/${id}/`,
-    `refs: ${ROOT}/references`,
-    `extras: ${PLAN_DIR}/work/${id}-extra.md`,
-    `decide-file: ${PLAN_DIR}/work/${id}-options.md`,
-    ...extra,
-  ];
-}
 
 function reviewerLines(id: string, root = ROOT): string[] {
   return [
@@ -148,27 +56,7 @@ function reviewerLines(id: string, root = ROOT): string[] {
   ];
 }
 
-const START_T1: Call = ["T1", "100", "start", "--tier", "sonnet", "--review", "opus"];
-const START_T4_WAIVED: Call = ["T4", "100", "start", "--tier", "sonnet", "--review", "waived"];
-const T1_FAIL: Call = ["T1", "100", "coder", "FAIL"];
-
 // --- start ------------------------------------------------------------------
-
-test("start answers the first coder block with the tiers it was given and the coder lines of the plan", async () => {
-  await withGitRepo(async (repo) => {
-    seedPlan(repo);
-
-    const result = await step(repo, ["T3", "100", "start", "--tier", "sonnet", "--review", "opus"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(
-      result.stdout,
-      lines(
-        "NEXT: coder | attempt: 1 | model: sonnet | review: opus",
-        ...coderLines("T3", [`prior: ${PLAN_DIR}/work/T2-coder.md`]),
-      ),
-    );
-  });
-});
 
 test("start under a waived review answers review: waived", async () => {
   await withGitRepo(async (repo) => {
@@ -207,30 +95,6 @@ test("every path of the answer names the plugin root in the spelling the script 
     );
   });
 });
-
-// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
-// Neither spelling names a file outside Windows, so the cases skip there.
-const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
-const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
-
-const SPELLINGS: Array<{ label: string; invoked: string; root: string }> = [
-  { label: "a C:\\ path", invoked: SUT, root: ROOT },
-  { label: "a C:/ path", invoked: slash(SUT), root: ROOT },
-  { label: "a /c/ path", invoked: MSYS(SUT), root: MSYS(ROOT) },
-];
-
-for (const row of SPELLINGS) {
-  test(`invoked by ${row.label}, the RUN: commands name the plugin root in that spelling (AC1)`, { skip: WINDOWS_ONLY }, async () => {
-    await withGitRepo(async (repo) => {
-      seedPlan(repo);
-      await arrange(repo, [START_T4_WAIVED]);
-
-      const result = await step(repo, ["T4", "100", "coder", "PASS"], row.invoked);
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(result.stdout, lines("NEXT: commit", `RUN: "${row.root}/scripts/commit-task.sh" "${PLAN_REL}" "T4"`));
-    });
-  });
-}
 
 test("the script is recorded in the git index as mode 100755", () => {
   const entry = execFileSync("git", ["ls-files", "-s", "--", "viber/scripts/task-step.sh"], {
@@ -284,34 +148,6 @@ test("start under the mark unknown rewrites the lessons file even when it holds 
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.equal(result.stdout.includes("run-lessons"), false);
     assert.equal(fs.readFileSync(path.join(repo.dir, ".temp/viber/lessons"), "utf-8"), "started: unknown\n");
-  });
-});
-
-test("start under another started mark discards the state and answers attempt 1", async () => {
-  await withGitRepo(async (repo) => {
-    seedPlan(repo);
-    await arrange(repo, [START_T1, T1_FAIL]);
-
-    const result = await step(repo, ["T1", "101", "start", "--tier", "sonnet", "--review", "opus"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(
-      result.stdout,
-      lines("NEXT: coder | attempt: 1 | model: sonnet | review: opus", ...coderLines("T1")),
-    );
-  });
-});
-
-test("start under the current mark keeps the state and prints the current attempt's coder block again", async () => {
-  await withGitRepo(async (repo) => {
-    seedPlan(repo);
-    await arrange(repo, [START_T1, T1_FAIL]);
-
-    const result = await step(repo, START_T1);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(
-      result.stdout,
-      lines("NEXT: coder | attempt: 2 | model: opus | review: opus", ...coderLines("T1")),
-    );
   });
 });
 
@@ -597,26 +433,7 @@ test("retry coder after a short DOD prints the attempt's block again with its re
 });
 
 // --- a reviewer return --------------------------------------------------------
-
-const T1_PASS: Call = ["T1", "100", "coder", "PASS", "--dod", "3/3", "--red", "2"];
 const REVIEW_1 = `${PLAN_DIR}/work/review-T1-1.md`;
-
-test("a reviewer PASS answers the commit with every --with path the coder and the reviewers reported and the --defer entries", async () => {
-  await withGitRepo(async (repo) => {
-    seedPlan(repo);
-    await arrange(repo, [
-      START_T1,
-      [...T1_PASS, "--with", "lib/x.ts", "--defer", "T2:src/x.ts"],
-    ]);
-
-    const result = await step(repo, ["T1", "100", "reviewer", "PASS", "--with", "lib/y.ts,lib/x.ts"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(
-      result.stdout,
-      lines("NEXT: commit", `RUN: "${ROOT}/scripts/commit-task.sh" "${PLAN_REL}" "T1" --with "lib/x.ts" "lib/y.ts" --defer "T2:src/x.ts"`),
-    );
-  });
-});
 
 test("a coder --with list with a blank after its comma reaches the commit call as trimmed paths after a reviewer PASS", async () => {
   await withGitRepo(async (repo) => {

@@ -22,66 +22,23 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { runScript, type RunResult } from "../harness/run.ts";
-import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
+import { runScript } from "../harness/run.ts";
+import { withGitRepo, withTempDir } from "../harness/tmp.ts";
 import { withStub } from "../harness/stub.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
 import { writePng } from "../harness/png.ts";
+import {
+  SUT,
+  PLUGIN_ROOT,
+  COMMIT,
+  firstLine,
+  runContext,
+  assertBash,
+  commitFile,
+} from "./commit-context-fixture.ts";
 
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/commit/scripts/commit-context.sh");
-const PLUGIN_ROOT = path.resolve(import.meta.dirname, "../../viber");
 const SKILL = path.join(PLUGIN_ROOT, "skills", "commit", "SKILL.md");
-const ROOT = PLUGIN_ROOT.split(path.sep).join("/");
-const COMMIT = `"${ROOT}/skills/commit/scripts/commit.sh" "<message>"`;
-
-function firstLine(stdout: string): string {
-  return stdout.split("\n")[0];
-}
-
-async function runContext(bash: Shell, repo: GitRepo, selector?: string): Promise<RunResult> {
-  const args = selector === undefined ? [] : [selector];
-  return await runScript(SUT, args, { shell: bash, cwd: repo.dir, env: repo.env });
-}
-
-async function assertBash(fn: (bash: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("bash", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "bash");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-async function commitFile(repo: GitRepo, name: string, content: string) {
-  fs.writeFileSync(path.join(repo.dir, name), content);
-  const add = await repo.git("add", "-A");
-  assert.equal(add.status, 0, `git add should succeed: ${add.stderr}`);
-  const commit = await repo.git("commit", "-m", `seed ${name}`);
-  assert.equal(commit.status, 0, `git commit should succeed: ${commit.stderr}`);
-}
 
 // --- selector mode: all -------------------------------------------------------
-
-test("mode 'all': Selector/branch/recent-subjects/status/diff sections all present", async () => {
-  await assertBash(async (bash) => {
-    await withGitRepo(async (repo) => {
-      await commitFile(repo, "a.txt", "line one\n");
-      fs.writeFileSync(path.join(repo.dir, "a.txt"), "line one\nline two\n");
-      fs.writeFileSync(path.join(repo.dir, "untracked.txt"), "new\n");
-
-      const result = await runContext(bash, repo);
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(firstLine(result.stdout), `RUN: ${COMMIT}`);
-      assert.match(result.stdout, /## Current branch/);
-      assert.match(result.stdout, /## Recent commit subjects/);
-      assert.match(result.stdout, /seed a\.txt/);
-      assert.match(result.stdout, /## Changes \(git status, all untracked files\)/);
-      assert.match(result.stdout, /untracked\.txt/);
-      assert.match(result.stdout, /## Overview \(git diff HEAD --stat\)/);
-      assert.match(result.stdout, /## Diff \(all tracked changes vs HEAD; new untracked files are listed in git status above\)/);
-      assert.match(result.stdout, /line two/);
-    });
-  });
-});
 
 const FOOTER_HEADING = "## Issue footer (after the subject and one blank line; none -> no footer)";
 
@@ -205,24 +162,6 @@ test("mode paths with a list: the Selector line carries every path and status/di
       assert.match(result.stdout, /a, modified/);
       assert.match(result.stdout, /b, modified/);
       assert.doesNotMatch(result.stdout, /unrelated/);
-    });
-  });
-});
-
-test("mode paths with a bracketed path: the status lists 'app/[id]/page.tsx' only, not the sibling 'app/i/page.tsx' a glob would also match", async () => {
-  await assertBash(async (bash) => {
-    await withGitRepo(async (repo) => {
-      fs.mkdirSync(path.join(repo.dir, "app", "[id]"), { recursive: true });
-      fs.mkdirSync(path.join(repo.dir, "app", "i"), { recursive: true });
-      await commitFile(repo, "app/[id]/page.tsx", "id\n");
-      await commitFile(repo, "app/i/page.tsx", "i\n");
-      fs.writeFileSync(path.join(repo.dir, "app", "[id]", "page.tsx"), "id, changed\n");
-      fs.writeFileSync(path.join(repo.dir, "app", "i", "page.tsx"), "i, changed\n");
-
-      const result = await runContext(bash, repo, "app/[id]/page.tsx");
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.match(result.stdout, /^ M app\/\[id\]\/page\.tsx$/m);
-      assert.doesNotMatch(result.stdout, /^ M app\/i\/page\.tsx$|^\+i, changed$/m);
     });
   });
 });
@@ -391,39 +330,6 @@ test("commit-context.sh runs without `set -e`: a git failure degrades in place r
     });
   });
 });
-
-test("mode missing: stdout is the one STOP line naming the missing paths, exit 0, and no diff of the whole tree follows", async () => {
-  await assertBash(async (bash) => {
-    await withGitRepo(async (repo) => {
-      await commitFile(repo, "a.txt", "a\n");
-      fs.writeFileSync(path.join(repo.dir, "a.txt"), "a, changed\n");
-      const result = await runContext(bash, repo, "src/nope.ts");
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(result.stdout, "STOP: Nothing committed - paths not found: src/nope.ts\n");
-    });
-  });
-});
-
-// --- the plugin root spelling of the RUN: line ---------------------------------
-
-const ON_WINDOWS = process.platform === "win32";
-const SPELLINGS = [
-  { name: "a C:\\ path", sut: SUT.replace(/\//g, "\\"), root: ROOT },
-  { name: "a C:/ path", sut: SUT.replace(/\\/g, "/"), root: ROOT },
-  { name: "a /c/ path", sut: `/${ROOT[0].toLowerCase()}${ROOT.slice(2)}/skills/commit/scripts/commit-context.sh`, root: `/${ROOT[0].toLowerCase()}${ROOT.slice(2)}` },
-];
-
-for (const row of SPELLINGS) {
-  test(`invoked by ${row.name}, the RUN: line names commit.sh under ${row.root} (a backslash spelling never reaches the printed command)`, { skip: ON_WINDOWS ? false : "the drive spellings exist only on Windows" }, async () => {
-    await assertBash(async (bash) => {
-      await withGitRepo(async (repo) => {
-        const result = await runScript(row.sut, [], { shell: bash, cwd: repo.dir, env: repo.env });
-        assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-        assert.equal(firstLine(result.stdout), `RUN: "${row.root}/skills/commit/scripts/commit.sh" "<message>"`);
-      });
-    });
-  });
-}
 
 // --- the SKILL.md preload line -------------------------------------------------
 

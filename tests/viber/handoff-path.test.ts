@@ -23,74 +23,9 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-
-import { runScript, type RunResult } from "../harness/run.ts";
 import { withGitRepo, withTempDir } from "../harness/tmp.ts";
 import { slash } from "../harness/paths.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/handoff/scripts/handoff-path.sh");
-
-const STAMPED = /^(.*)\/(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})_\{slug\}\.md$/;
-
-async function run(args: string[], cwd: string, env: Record<string, string> = {}): Promise<RunResult> {
-  return await runScript(SUT, args, { cwd, env, shell: "bash" });
-}
-
-interface Printed {
-  file: string;
-  exists: string;
-  branch: string;
-  target: string;
-}
-
-/** The four lines, asserted present, in order, and nothing else. */
-function parse(result: RunResult): Printed {
-  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-  assert.equal(result.stderr, "");
-  const lines = result.stdout.split("\n");
-  assert.equal(lines.length, 5, `expected four lines, got ${JSON.stringify(result.stdout)}`);
-  assert.equal(lines[4], "");
-  assert.match(lines[0], /^FILE=/);
-  assert.match(lines[1], /^EXISTS=(true|false)$/);
-  assert.match(lines[2], /^BRANCH=/);
-  assert.match(lines[3], /^TARGET=(named|default)$/);
-  return {
-    file: lines[0].slice("FILE=".length),
-    exists: lines[1].slice("EXISTS=".length),
-    branch: lines[2].slice("BRANCH=".length),
-    target: lines[3].slice("TARGET=".length),
-  };
-}
-
-/** Two paths naming one directory, however each spells it. */
-function sameFile(a: string, b: string): boolean {
-  return fs.realpathSync.native(a) === fs.realpathSync.native(b);
-}
-
-/** The directory a stamped FILE sits in, asserted stamped. */
-function stampedDir(file: string): string {
-  const match = STAMPED.exec(file);
-  assert.ok(match, `not a stamped placeholder path: ${file}`);
-  return match[1];
-}
-
-/** The printed root, for a FILE the test expects at `<root>/<rel>`. */
-function rootOf(file: string, rel: string): string {
-  const suffix = `/${rel}`;
-  assert.ok(file.endsWith(suffix), `${file} does not end in ${suffix}`);
-  return file.slice(0, -suffix.length);
-}
-
-test("no argument inside a repository is a stamped placeholder under <root>/.temp/viber/handoff, not existing, on the current branch", async () => {
-  await withGitRepo(async (repo) => {
-    const printed = parse(await run([], repo.dir, repo.env));
-    const dir = stampedDir(printed.file);
-    assert.ok(dir.endsWith("/.temp/viber/handoff"), dir);
-    assert.ok(sameFile(dir.slice(0, -"/.temp/viber/handoff".length), repo.dir));
-    assert.equal(printed.exists, "false");
-    assert.equal(printed.branch, "main");
-  });
-});
+import { run, parse, sameFile, stampedDir, rootOf } from "./handoff-path-fixture.ts";
 
 test("an empty, blank or literal $0 argument is the default directory (Claude Code leaves $0 unsubstituted when the user named nothing)", async () => {
   await withGitRepo(async (repo) => {
@@ -148,18 +83,6 @@ test("an absolute .md argument is kept as it is, separators aside", async () => 
   });
 });
 
-test("an MSYS absolute argument (/c/...) becomes the C:/ form through cygpath", { skip: process.platform === "win32" ? false : "the /c/ spelling means a drive only under Git Bash; elsewhere it is an ordinary absolute path" }, async () => {
-  await withTempDir("p2p2-viber-", async (outside) => {
-    await withGitRepo(async (repo) => {
-      const native = slash(outside);
-      const msys = `/${native[0].toLowerCase()}${native.slice(2)}/handoff.md`;
-      const printed = parse(await run([msys], repo.dir, repo.env));
-      assert.match(printed.file, /^[A-Za-z]:\//);
-      assert.ok(sameFile(rootOf(printed.file, "handoff.md"), outside));
-    });
-  });
-});
-
 test("a path-like argument not ending in .md is a directory: stamped placeholder inside it, never EXISTS=true even when the directory exists", async () => {
   await withGitRepo(async (repo) => {
     fs.mkdirSync(path.join(repo.dir, "notes"));
@@ -169,13 +92,6 @@ test("a path-like argument not ending in .md is a directory: stamped placeholder
       assert.equal(printed.exists, "false");
       assert.equal(printed.target, "named");
     }
-  });
-});
-
-test("backslashes become forward slashes", async () => {
-  await withGitRepo(async (repo) => {
-    const printed = parse(await run(["docs\\sub\\x.md"], repo.dir, repo.env));
-    assert.ok(sameFile(rootOf(printed.file, "docs/sub/x.md"), repo.dir), printed.file);
   });
 });
 

@@ -28,113 +28,23 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { runScript, type RunResult } from "../harness/run.ts";
-import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-import { coreUtilsPath, withStub } from "../harness/stub.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/pr-threads.sh");
-
-async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("posix", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "posix");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-const PR_URL = "https://github.com/acme/widgets/pull/7";
-
-/** A `gh` stub logging its argv one-arg-per-line (a "===" separator after each
- *  call) into `$ARGV_FILE`; its stdout, stderr and exit code come from env vars. */
-const GH_STUB = `
-for a in "$@"; do printf '%s\\n' "$a" >> "$ARGV_FILE"; done; printf '===\\n' >> "$ARGV_FILE"
-if [ -n "\${GH_STDERR:-}" ]; then printf '%s' "$GH_STDERR" >&2; fi
-printf '%s' "\${GH_STDOUT:-}"
-exit "\${GH_EXIT:-0}"
-`;
-
-interface Scene {
-  work: GitRepo;
-  stubDir: string;
-  argvFile: string;
-  sha: string;
-}
-
-/** A work repo with one commit on `feature/x` and a `gh` stub first on PATH. */
-async function withScene<T>(fn: (scene: Scene) => Promise<T>): Promise<T> {
-  return await withGitRepo((work) =>
-    withStub("gh", GH_STUB, async (stubDir) => {
-      const argvFile = path.join(stubDir, "argv.log");
-      fs.writeFileSync(argvFile, "");
-      fs.writeFileSync(path.join(work.dir, "README.md"), "readme\n");
-      await work.git("add", "--", "README.md");
-      await work.git("commit", "-m", "init");
-      await work.git("checkout", "-b", "feature/x");
-      const sha = (await work.git("rev-parse", "HEAD")).stdout.trim();
-      return await fn({ work, stubDir, argvFile, sha });
-    }),
-  );
-}
-
-interface FixtureComment {
-  id: number;
-  author: string;
-  at: string;
-  body: string;
-}
-
-interface FixtureThread {
-  resolved?: boolean;
-  outdated?: boolean;
-  line?: number;
-  originalLine?: number;
-  path: string;
-  comments: FixtureComment[];
-}
-
-/** One thread as the --jq filter prints it: a T line, then per comment a C line and one B line per body line. */
-function threadText(t: FixtureThread): string {
-  const head = `T\t${t.resolved ?? false}\t${t.outdated ?? false}\t${t.line ?? ""}\t${t.originalLine ?? ""}\t${t.path}\n`;
-  const comments = t.comments.map(
-    (c) => `C\t${c.id}\t${c.author}\t${c.at}\n` + c.body.split("\n").map((l) => `B\t${l}\n`).join(""),
-  );
-  return head + comments.join("");
-}
-
-interface FixtureRemark {
-  kind: "conversation" | "review";
-  id: number;
-  author: string | null;
-  bot?: boolean;
-  at?: string;
-  state?: string;
-  body: string;
-}
-
-/** One remark as the --jq filter prints it: an R line (an empty author field is a null author), then one Q line per body line. */
-function remarkText(r: FixtureRemark): string {
-  const head = `R\t${r.kind}\t${r.id}\t${r.author ?? ""}\t${r.bot ?? false}\t${r.at ?? "2026-10-01T10:00:00Z"}\t${r.state ?? ""}\n`;
-  return head + (r.body === "" ? "" : r.body.split("\n").map((l) => `Q\t${l}\n`).join(""));
-}
-
-interface GhOutOpts {
-  url?: string;
-  more?: boolean;
-  commentsMore?: boolean;
-  reviewsMore?: boolean;
-  prAuthor?: string | null;
-  remarks?: FixtureRemark[];
-  threads?: FixtureThread[];
-}
-
-/** What the real gh prints once its --jq filter ran. */
-function ghOut(head: string, oid: string, opts: GhOutOpts = {}): string {
-  const header =
-    `URL=${opts.url ?? PR_URL}\nHEAD=${head}\nOID=${oid}\nMORE=${opts.more ?? false}\n` +
-    `CMORE=${opts.commentsMore ?? false}\nRMORE=${opts.reviewsMore ?? false}\nAUTH=${opts.prAuthor === undefined ? "pat" : (opts.prAuthor ?? "")}\n`;
-  return header + (opts.remarks ?? []).map(remarkText).join("") + (opts.threads ?? []).map(threadText).join("");
-}
+import { type RunResult } from "../harness/run.ts";
+import { withTempDir } from "../harness/tmp.ts";
+import { coreUtilsPath } from "../harness/stub.ts";
+import {
+  assertPosix,
+  PR_URL,
+  type Scene,
+  withScene,
+  type FixtureThread,
+  type FixtureRemark,
+  type GhOutOpts,
+  ghOut,
+  comment,
+  runThreads,
+  lines,
+  THREADS_PATH,
+} from "./pr-threads-fixture.ts";
 
 function conversation(id: number, author: string | null, body: string, extra: Partial<FixtureRemark> = {}): FixtureRemark {
   return { kind: "conversation", id, author, body, ...extra };
@@ -148,26 +58,12 @@ function remarkLines(result: RunResult): string[] {
   return lines(result).filter((l) => l.startsWith("REMARK="));
 }
 
-function comment(id: number, author: string, body: string, at = "2026-10-01T10:00:00Z"): FixtureComment {
-  return { id, author, at, body };
-}
-
 function threadLines(result: RunResult): string[] {
   return lines(result).filter((l) => l.startsWith("THREAD="));
 }
 
 const keyMarker = (key: string) => `<!-- viber:pr-feedback ${key} -->`;
 const marker = (id: number) => keyMarker(String(id));
-
-async function runThreads(
-  shell: Shell,
-  scene: Scene,
-  args: string[],
-  opts: { env?: Record<string, string>; cwd?: string; noGh?: boolean } = {},
-): Promise<RunResult> {
-  const env = { ...scene.work.env, ARGV_FILE: scene.argvFile, ...(opts.noGh ? { PATH: coreUtilsPath() } : {}), ...opts.env };
-  return await runScript(SUT, args, { shell, cwd: opts.cwd ?? scene.work.dir, env, stubDirs: opts.noGh ? [] : [scene.stubDir] });
-}
 
 /** Every gh call the stub logged, one argv array each. */
 function ghCalls(scene: Scene): string[][] {
@@ -182,10 +78,6 @@ function ghCalls(scene: Scene): string[][] {
 function flagValue(call: string[], flag: string): string | undefined {
   const at = call.indexOf(flag);
   return at < 0 ? undefined : call[at + 1];
-}
-
-function lines(result: RunResult): string[] {
-  return result.stdout.split("\n").filter((l) => l.length > 0);
 }
 
 function stderrLines(result: RunResult): string[] {
@@ -351,29 +243,6 @@ test("a local commit on top of headRefOid gives PUSHED=no", async () => {
 });
 
 // --- the listed threads (DoD 1) ---------------------------------------------------------
-
-const THREADS_PATH = ".temp/viber/pr-feedback/7/threads.md";
-
-test("a ready run prints THREADS_FILE=, SKIPPED=, TRUNCATED= and one THREAD= line per unresolved thread after PUSHED=, none for a resolved one", async () => {
-  await assertPosix(async (shell) => {
-    await withScene(async (scene) => {
-      const threads: FixtureThread[] = [
-        { path: "src/a.ts", line: 12, comments: [comment(101, "alice", "first")] },
-        { resolved: true, path: "src/b.ts", line: 3, comments: [comment(102, "bob", "done")] },
-        { path: "src/c.ts", line: 30, comments: [comment(103, "carol", "second"), comment(104, "dave", "reply")] },
-      ];
-      const result = await runThreads(shell, scene, ["7"], { env: { GH_STDOUT: ghOut("feature/x", scene.sha, { threads }) } });
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(lines(result).slice(6), [
-        `THREADS_FILE=${THREADS_PATH}`,
-        "SKIPPED=0",
-        "TRUNCATED=no",
-        "THREAD=1 | 101 | src/a.ts:12 | alice | current",
-        "THREAD=2 | 103 | src/c.ts:30 | carol | current",
-      ]);
-    });
-  });
-});
 
 test("a ready run with no thread prints THREADS_FILE=, SKIPPED=0 and TRUNCATED=no and no THREAD= line", async () => {
   await assertPosix(async (shell) => {

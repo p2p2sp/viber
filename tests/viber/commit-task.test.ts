@@ -74,73 +74,37 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-
-import { runScript } from "../harness/run.ts";
 import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/commit-task.sh");
-
-// commit-task.sh ships mode 100755 and the implementor invokes it directly as
-// `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" ...`, never through bash; the
-// harness below still runs it via shell: "bash" because it is testing the
-// script's content, not its exec bit (portability.unit.test.ts covers that).
-function run(dir: string, env: Record<string, string>, args: string[], timeout?: number) {
-  return runScript(SUT, args, { cwd: dir, env, shell: "bash", timeout });
-}
-
-/** The dated run directory plan-path.sh owns - the plan lives in the repo, and
- *  the run's state lives beside it in status.md, which plan-index.sh --split
- *  writes with the decomposition. */
-const RUN_DIR = "docs/_specs/2026-09-20-10-00-00_feat-x";
-const PLAN_REL = `${RUN_DIR}/plan.md`;
-const STATUS_REL = `${RUN_DIR}/status.md`;
-
-function write(root: string, rel: string, content: string): void {
-  const file = path.join(root, rel);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, content);
-}
-
-/** A plan in the template's shape: the `## Tasks` header and one `<!-- TASK -->`
- *  block per task, whose `- Files:` line is the machine-readable map the script
- *  stages literally and whose `### T<n> - <title>` heading is the commit subject
- *  it reads. It carries no progress of its own: a landed plan is never written
- *  to again. */
-function planBody(tasks: Array<[id: string, files: string, title?: string]>): string {
-  return [
-    "# Plan - feat x",
-    "",
-    "## Tasks",
-    "",
-    ...tasks.flatMap(([id, files, title]) => [
-      "<!-- TASK -->",
-      `### ${id} - ${title ?? `task ${id}`}`,
-      `- Files: ${files}`,
-      "<!-- /TASK -->",
-      "",
-    ]),
-  ].join("\n");
-}
-
-/** The state file as --split leaves it: every key present, nothing done. */
-function statusBody(total: number): string {
-  return `# status\n\nprogress: 0/${total}\ndone: none\nskipped: none\nunreviewed: none\ndeferred: none\nclosed: none\n`;
-}
-
-const TWO_TASKS: Array<[string, string, string?]> = [
-  ["T1", "src/a.ts"],
-  ["T2", "src/b.ts"],
-];
-
-/** Commits the plan, its state file and a README so the only pending change a
- *  test sees is the one the test makes. */
-async function seed(repo: GitRepo, tasks: Array<[string, string, string?]> = TWO_TASKS): Promise<void> {
-  write(repo.dir, PLAN_REL, planBody(tasks));
-  write(repo.dir, STATUS_REL, statusBody(tasks.length));
-  write(repo.dir, "README.md", "seed\n");
-  await repo.git("add", "-A");
-  await repo.git("commit", "-m", "seed");
-}
+import {
+  run,
+  RUN_DIR,
+  PLAN_REL,
+  STATUS_REL,
+  write,
+  planBody,
+  statusBody,
+  TWO_TASKS,
+  seed,
+  readStatus,
+  subjects,
+  committedFiles,
+  stagedFiles,
+  breakCommit,
+  headMode,
+  OUTSIDE_SUBJECT,
+  CMDLINE_CAP,
+  MANY_PATHS,
+  cappedGitEnv,
+  writeMany,
+  LONG_LIST_TIMEOUT,
+  OUTCOME_REL,
+  OUTCOME_HEAD,
+  NO_NOTE_REASON,
+  seedLeftovers,
+  runLeftovers,
+  readOutcome,
+  headSha,
+} from "./commit-task-fixture.ts";
 
 /** Commits a hand-written plan body verbatim, for a case `planBody`'s task
  *  shape cannot express (a Contracts appendix, prose mentioning the marker). */
@@ -178,91 +142,13 @@ const CONTRACTS_PLAN = [
   "",
 ].join("\n");
 
-function readPlan(repo: GitRepo): string {
-  return fs.readFileSync(path.join(repo.dir, PLAN_REL), "utf-8");
-}
-
-function readStatus(repo: GitRepo): string {
-  return fs.readFileSync(path.join(repo.dir, STATUS_REL), "utf-8");
-}
-
 function planDirEntries(repo: GitRepo): string[] {
   return fs.readdirSync(path.join(repo.dir, path.dirname(PLAN_REL))).sort();
-}
-
-async function subjects(repo: GitRepo): Promise<string[]> {
-  return (await repo.git("log", "--format=%s")).stdout.trim().split("\n").filter(Boolean);
-}
-
-async function committedFiles(repo: GitRepo): Promise<string[]> {
-  return (await repo
-    .git("show", "--name-only", "--format=", "HEAD"))
-    .stdout.trim()
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .sort();
-}
-
-async function stagedFiles(repo: GitRepo): Promise<string[]> {
-  return (await repo.git("diff", "--cached", "--name-only")).stdout.trim().split("\n").filter(Boolean).sort();
-}
-
-/** Makes `git commit` fail while `git add` keeps working - the pre-commit hook
- *  / rejected-signature class of failure, reproduced through an unresolvable
- *  gpg program rather than a hook script, because a hook needs an exec bit that
- *  Windows does not carry. */
-async function breakCommit(repo: GitRepo): Promise<void> {
-  await repo.git("config", "commit.gpgsign", "true");
-  await repo.git("config", "gpg.program", "p2p2-no-such-gpg");
 }
 
 async function fixCommit(repo: GitRepo): Promise<void> {
   await repo.git("config", "commit.gpgsign", "false");
 }
-
-test("a task commits only its own Files: paths, with the done entry and the counter riding in that same commit", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    const planBefore = readPlan(repo);
-    write(repo.dir, "src/a.ts", "work\n");
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^committed: [0-9a-f]{7,}\nprogress: 1\/2\n$/);
-
-    assert.match(readStatus(repo), /^done: T1$/m);
-    assert.match(readStatus(repo), /^progress: 1\/2$/m);
-    // the plan defines the work and is never edited to record how it is going
-    assert.equal(readPlan(repo), planBefore);
-    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts"].sort());
-
-    // Read back out of history, not out of the working tree: a resume after a
-    // context reset must find the entry in the commit itself.
-    const fromHistory = (await repo.git("show", `HEAD:${STATUS_REL}`)).stdout;
-    assert.match(fromHistory, /^done: T1$/m);
-    assert.match(fromHistory, /^progress: 1\/2$/m);
-  });
-});
-
-test("a Files path made of bracketed segments is staged literally - the App Router route lands, the sibling its character class covers does not", async () => {
-  await withGitRepo(async (repo) => {
-    // Every Next.js App Router route carries brackets in its own name. Git reads
-    // "[id]" in a pathspec as a wildmatch character class, so without
-    // GIT_LITERAL_PATHSPECS the neighbouring "src/app/i/page.tsx" - one char out
-    // of {i,d} - is a candidate for the same commit.
-    const route = "src/app/[id]/page.tsx";
-    await seed(repo, [["T1", route]]);
-    write(repo.dir, route, "work\n");
-    write(repo.dir, "src/app/i/page.tsx", "someone else\n");
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^committed: [0-9a-f]{7,}\nprogress: 1\/1\n$/);
-    assert.deepEqual(await committedFiles(repo), [STATUS_REL, route].sort());
-    assert.match(result.stderr, /src\/app\/i\/page\.tsx/);
-  });
-});
 
 test("a bracketed Files path its own coder never wrote commits nothing - it does not fall back to the sibling its character class covers", async () => {
   await withGitRepo(async (repo) => {
@@ -334,20 +220,6 @@ test("--with adds a path no task claims to the task's own commit, so the commit 
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts", "src/wiring.ts"].sort());
     assert.doesNotMatch(result.stderr, /claimed by no task in the plan/);
-  });
-});
-
-test("--with refuses a path another task's Files claims and commits the rest (that task may have a coder writing the file right now)", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    write(repo.dir, "src/a.ts", "work\n");
-    write(repo.dir, "src/b.ts", "another task's file\n");
-    write(repo.dir, "src/wiring.ts", "register\n");
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", "src/b.ts", "src/wiring.ts"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stderr, /refused src\/b\.ts - claimed by task T2/);
-    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts", "src/wiring.ts"].sort());
   });
 });
 
@@ -502,46 +374,6 @@ test("--with an absolute path of a file another open task claims is refused like
   });
 });
 
-test("an extras-file line spelled with a backslash for a file another open task claims is refused in its forward-slash form (a backslash is not a way past the ownership check)", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    write(repo.dir, "src/a.ts", "work\n");
-    write(repo.dir, "src/b.ts", "T2's coder, still running\n");
-    write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, "src\\b.ts\n");
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stderr, /warning: refused src\/b\.ts - claimed by task T2/);
-    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts", `${RUN_DIR}/work/T1-extra.md`].sort());
-  });
-});
-
-test("--with a backslash-spelled path of a file another open task claims gets the same refusal as its forward-slash form", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    write(repo.dir, "src/a.ts", "work\n");
-    write(repo.dir, "src/b.ts", "T2's coder, still running\n");
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", "src\\b.ts"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stderr, /warning: refused src\/b\.ts - claimed by task T2/);
-    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts"].sort());
-  });
-});
-
-test("an extras-file line spelled with a backslash for an unowned file is staged under its forward-slash name", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    write(repo.dir, "src/a.ts", "work\n");
-    write(repo.dir, "lib/c.ts", "forced\n");
-    write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, "lib\\c.ts\n");
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "lib/c.ts", "src/a.ts", `${RUN_DIR}/work/T1-extra.md`].sort());
-  });
-});
-
 test("an extras-file line with a trailing space is staged under its trimmed name", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo);
@@ -620,54 +452,6 @@ test("--defer records the repo-relative form of an absolute path", async () => {
     ]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.match(readStatus(repo), /^deferred: T2:src\/a\.ts$/m);
-  });
-});
-
-test("--defer writes a backslashed path byte for byte, on one line (awk -v would turn \\n and \\t into control characters)", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    write(repo.dir, "src/a.ts", "work\n");
-
-    const result = await run(repo.dir, repo.env, [
-      PLAN_REL,
-      "T1",
-      "--defer",
-      "T2:src\\new\\b.ts",
-    ]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(
-      readStatus(repo),
-      "# status\n\nprogress: 1/2\ndone: T1\nskipped: none\nunreviewed: none\n" +
-        "deferred: T2:src\\new\\b.ts\nclosed: none\n",
-    );
-  });
-});
-
-test("--with refuses a path whose owner's Files entry holds a backslash (the claimant check compares both in their forward-slash form)", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo, [
-      ["T1", "src/a.ts"],
-      ["T2", "src\\new\\table.ts"],
-    ]);
-    write(repo.dir, "src/a.ts", "work\n");
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", "src\\new\\table.ts"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stderr, /refused src\/new\/table\.ts - claimed by task T2/);
-  });
-});
-
-test("a task id holding a backslash is found in the plan and recorded byte for byte", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo, [
-      ["T1", "src/a.ts"],
-      ["T\\t9", "src/b.ts"],
-    ]);
-    write(repo.dir, "src/b.ts", "work\n");
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T\\t9"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(readStatus(repo), /^done: T\\t9$/m);
   });
 });
 
@@ -800,37 +584,6 @@ test("a wholly untracked directory holding another task's file is not warned abo
   });
 });
 
-test("a file staged before the run stays staged and out of the task's commit (the orchestrator has no Bash to notice a dirty index)", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    write(repo.dir, "src/a.ts", "work\n");
-    write(repo.dir, "src/PRESTAGED.ts", "staged by the user before the build\n");
-    await repo.git("add", "--", "src/PRESTAGED.ts");
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts"].sort());
-    assert.deepEqual(await stagedFiles(repo), ["src/PRESTAGED.ts"]);
-  });
-});
-
-test("a refused git commit leaves status.md byte-for-byte unchanged and exits 5 (a task marked done but never committed is skipped forever on resume)", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    write(repo.dir, "src/a.ts", "work\n");
-    const before = readStatus(repo);
-    await breakCommit(repo);
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
-    assert.equal(result.status, 5);
-    assert.equal(result.stdout, "");
-    assert.match(result.stderr, /status rolled back, task T1 is NOT marked done/);
-
-    assert.equal(readStatus(repo), before);
-    assert.deepEqual(await subjects(repo), ["seed"]);
-  });
-});
-
 test("a refused git commit leaves no backup or temp file in the run directory", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo);
@@ -945,26 +698,6 @@ test("committing the same task id twice does not duplicate it in the done entry 
   });
 });
 
-test("a fix number commits a repair of that task under 'T<n>(<round>) - <title>', naming the task it repairs and leaving the plan's progress alone", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo, [["T1", "src/a.ts", "add the plan index"], ["T2", "src/b.ts"]]);
-    write(repo.dir, "src/a.ts", "work\n");
-    await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
-    const before = readStatus(repo);
-    write(repo.dir, "src/a.ts", "repair\n");
-    write(repo.dir, "src/UNRELATED.ts", "not part of the fix\n");
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "2", "src/a.ts"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^committed: [0-9a-f]{7,}\nprogress: unchanged\n$/);
-    assert.equal(readStatus(repo), before);
-    assert.deepEqual(await committedFiles(repo), ["src/a.ts"]);
-    assert.equal((await subjects(repo))[0], "T1(2) - add the plan index");
-    assert.match(result.stderr, /changed, claimed by no task in the plan/);
-    assert.match(result.stderr, /src\/UNRELATED\.ts/);
-  });
-});
-
 test("a fix commits only the files it names, even when other work is already staged", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo);
@@ -1055,26 +788,6 @@ test("a task whose files produced no change exits 4 without touching the run's s
   });
 });
 
-test("a Files path its coder already removed with git rm rides in the task's commit, and another staged path stays staged (a path gone from index and tree fails 'git add')", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo, [["T1", "src/a.ts, src/gone.ts"], ["T2", "src/b.ts"]]);
-    write(repo.dir, "src/gone.ts", "old\n");
-    write(repo.dir, "src/other.ts", "old\n");
-    await repo.git("add", "-A");
-    await repo.git("commit", "-m", "base");
-    await repo.git("rm", "-q", "src/gone.ts");
-    write(repo.dir, "src/a.ts", "work\n");
-    write(repo.dir, "src/other.ts", "new\n");
-    await repo.git("add", "src/other.ts");
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.doesNotMatch(result.stderr, /could not stage/);
-    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts", "src/gone.ts"].sort());
-    assert.deepEqual(await stagedFiles(repo), ["src/other.ts"]);
-  });
-});
-
 test("a tracked file under a directory its .gitignore ignores is committed, staged or not (git add exits 1 on the ignored parent yet stages the file)", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo, [["T1", "skills/k-x/refs/a.md, skills/k-x/refs/b.md, skills/k-x/refs/c.md"], ["T2", "src/b.ts"]]);
@@ -1134,23 +847,6 @@ test("the exit 4 of a task commit names --landed, so the orchestrator knows how 
     const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(result.status, 4);
     assert.match(result.stderr, /--landed <sha>/);
-  });
-});
-
-test("--landed marks a task done whose work another commit already carried, in a status-only commit under a derived subject", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    write(repo.dir, "src/a.ts", "work\n");
-    await repo.git("add", "src/a.ts");
-    await repo.git("commit", "-m", "landed elsewhere");
-    const sha = (await repo.git("rev-parse", "HEAD")).stdout.trim();
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--landed", sha.slice(0, 7)]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^committed: [0-9a-f]{7,}\nsubject: chore\(viber\): record T1 done, landed in [0-9a-f]{7,}\nprogress: 1\/2\n$/);
-    assert.deepEqual(await committedFiles(repo), [STATUS_REL]);
-    assert.match(readStatus(repo), /^done: T1$/m);
-    assert.match((await repo.git("log", "-1", "--format=%b")).stdout, new RegExp(`Refs: ${PLAN_REL} task T1 landed ${sha}`));
   });
 });
 
@@ -1256,25 +952,6 @@ test("a plan path that does not exist exits 2 (never a half-run against a typo'd
 });
 
 // --- --repair: a post-test fix outside the plan's file map ------------------
-
-test("--repair commits a fix in a file no task's map names, under a derived subject and with the plan untouched", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    write(repo.dir, "src/legacy.ts", "the regression the suite caught\n");
-    const before = readStatus(repo);
-
-    const result = await run(repo.dir, repo.env, ["--repair", PLAN_REL, "2", "src/legacy.ts"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^committed: [0-9a-f]{7,}\n/);
-    assert.match(result.stdout, /^subject: fix\(viber\): post-test repair \(round 2\)$/m);
-    assert.match(result.stdout, /^progress: unchanged$/m);
-
-    assert.equal((await subjects(repo))[0], "fix(viber): post-test repair (round 2)");
-    assert.deepEqual(await committedFiles(repo), ["src/legacy.ts"]);
-    assert.match((await repo.git("log", "-1", "--format=%b")).stdout, /Refs: docs\/_specs\/\S+ post-test fix 2/);
-    assert.equal(readStatus(repo), before);
-  });
-});
 
 test("--repair without a numeric round, without a file, or against a missing plan exits 2 (the fallback never becomes a way to commit anything at all)", async () => {
   await withGitRepo(async (repo) => {
@@ -1436,30 +1113,6 @@ test("--repair failing on the first commit lists every named path as uncommitted
 });
 
 // --- --chore: what the close produced, which no task owns -------------------
-
-test("--chore derives its subject from the paths, so the orchestrator composes no commit subject here either", async () => {
-  const cases: Array<[files: string[], subject: string]> = [
-    [["CLAUDE.md"], "chore(viber): update project memory"],
-    [["src/CLAUDE.md"], "chore(viber): update project memory"],
-    [[".claude/rules/naming.md"], "chore(viber): update project rules"],
-    [["CLAUDE.md", ".claude/rules/naming.md"], "chore(viber): update project memory and rules"],
-    [["docs/notes.md"], "chore(viber): update project knowledge"],
-  ];
-
-  for (const [files, subject] of cases) {
-    await withGitRepo(async (repo) => {
-      await seed(repo);
-      for (const f of files) write(repo.dir, f, "written by the close\n");
-
-      const result = await run(repo.dir, repo.env, ["--chore", PLAN_REL, ...files]);
-      assert.equal(result.status, 0, `${files.join(",")} -> stderr: ${result.stderr}`);
-      assert.match(result.stdout, /^committed: [0-9a-f]{7,}\n/);
-      assert.match(result.stdout, new RegExp(`^subject: ${subject.replace(/[()]/g, "\\$&")}$`, "m"));
-      assert.equal((await subjects(repo))[0], subject);
-      assert.deepEqual(await committedFiles(repo), [...files, STATUS_REL].sort());
-    });
-  }
-});
 
 test("--chore commits nothing it was not given, and refuses a .temp/ path outright", async () => {
   await withGitRepo(async (repo) => {
@@ -1682,11 +1335,6 @@ test("--review leaves the progress counter unchanged", async () => {
   });
 });
 
-/** The committed mode of one path, read from HEAD's tree. */
-async function headMode(repo: GitRepo, rel: string): Promise<string> {
-  return (await repo.git("ls-tree", "HEAD", "--", rel)).stdout.split(/\s/)[0];
-}
-
 test("--review commits an exec bit staged with 'git update-index --chmod=+x' under core.fileMode=false, beside a content fix, and leaves nothing staged (a pathspec commit took the mode from HEAD and left it staged)", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo);
@@ -1718,29 +1366,6 @@ test("--review naming only a path whose staged change is its mode commits it, in
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.equal(await headMode(repo, "scripts/run.sh"), "100755");
     assert.deepEqual(await stagedFiles(repo), []);
-  });
-});
-
-test("a task commit carries a staged deletion and a staged exec bit of its own files, and still leaves a file staged before the run out of it", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo, [["T1", "src/a.ts, src/old.ts, scripts/run.sh"]]);
-    await repo.git("config", "core.fileMode", "false");
-    write(repo.dir, "src/old.ts", "old\n");
-    write(repo.dir, "scripts/run.sh", "echo run\n");
-    await repo.git("add", "--", "src/old.ts", "scripts/run.sh");
-    await repo.git("commit", "-m", "pre-existing files");
-    write(repo.dir, "src/a.ts", "work\n");
-    await repo.git("rm", "-q", "--", "src/old.ts");
-    await repo.git("update-index", "--chmod=+x", "--", "scripts/run.sh");
-    write(repo.dir, "src/PRESTAGED.ts", "staged by the user before the build\n");
-    await repo.git("add", "--", "src/PRESTAGED.ts");
-
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "scripts/run.sh", "src/a.ts", "src/old.ts"].sort());
-    assert.equal((await repo.git("ls-tree", "HEAD", "--", "src/old.ts")).stdout, "");
-    assert.equal(await headMode(repo, "scripts/run.sh"), "100755");
-    assert.deepEqual(await stagedFiles(repo), ["src/PRESTAGED.ts"]);
   });
 });
 
@@ -2455,8 +2080,6 @@ test("--repair refuses a '.temp' path even with a leading './' (the leading './'
 
 // --- --outside: changes made beside the plan, committed on their own ---------
 
-const OUTSIDE_SUBJECT = "chore(viber): commit changes made outside the plan";
-
 test("--outside commits exactly the named paths in one commit of their own under a derived subject, footed by the run's outside-the-plan Refs line and the issue link", async () => {
   await withGitRepo(async (repo) => {
     await seedWithFrontmatter(repo, [`issue: ${ISSUE_URL}`]);
@@ -2698,81 +2321,6 @@ test("the usage text lists the --extension form", async () => {
   });
 });
 
-/*
- * Root cause: commit-task.sh hands a task's whole path list to ONE git call (commit_named's
- * `git rm --cached` / `git ls-files -s`, the `git diff --cached --quiet` gate, --landed's diff/status).
- * Actual: a ~36 KB command line; expected: every git command line within Windows' CreateProcess cap
- * (32767 chars), which MSYS2 reports as E2BIG. Fix: split each path-list git call into bounded chunks.
- */
-const CMDLINE_CAP = 32767;
-const MANY_PATHS = Array.from(
-  { length: 260 },
-  (_, i) => `src/${"a-long-module-directory-name-".repeat(4)}/file-${String(i).padStart(4, "0")}.ts`,
-);
-
-/** Puts a `git` shell function in front of the real one through BASH_ENV, refusing
- *  any command line longer than CreateProcess takes, so the Windows limit holds on
- *  every OS the suite runs on. */
-function cappedGitEnv(repo: GitRepo): Record<string, string> {
-  const file = path.join(repo.dir, ".git", "cmdline-cap.sh");
-  fs.writeFileSync(
-    file,
-    [
-      "git() {",
-      '  local line="git" a',
-      '  for a in "$@"; do line="$line $a"; done',
-      `  if [ "\${#line}" -gt ${CMDLINE_CAP} ]; then`,
-      '    echo "git: Argument list too long (${#line} chars)" >&2',
-      "    return 126",
-      "  fi",
-      '  command git "$@"',
-      "}",
-      "",
-    ].join("\n"),
-  );
-  return { ...repo.env, BASH_ENV: file.replace(/\\/g, "/") };
-}
-
-function writeMany(repo: GitRepo): void {
-  for (const p of MANY_PATHS) write(repo.dir, p, `${p}\n`);
-}
-
-const LONG_TASK_FORMS: Array<[form: string, arrange: (repo: GitRepo) => Promise<string[]>]> = [
-  [
-    "a plain task commit",
-    async (repo) => {
-      writeMany(repo);
-      return [PLAN_REL, "T1"];
-    },
-  ],
-  [
-    "--landed",
-    async (repo) => {
-      writeMany(repo);
-      await repo.git("add", "-A");
-      await repo.git("commit", "-m", "landed elsewhere");
-      return [PLAN_REL, "T1", "--landed", (await repo.git("rev-parse", "HEAD")).stdout.trim()];
-    },
-  ],
-];
-
-// Seeding a repository of a few hundred paths and running the script over it
-// stays slow on Windows, so each long-list case outlasts the harness default.
-const LONG_LIST_TIMEOUT = 600000;
-
-for (const [form, arrange] of LONG_TASK_FORMS) {
-  test(`${form} of a task whose Files list runs past ${CMDLINE_CAP} chars records the task done (one git call per whole list fails on Windows with 'Argument list too long')`, { timeout: LONG_LIST_TIMEOUT }, async () => {
-    await withGitRepo(async (repo) => {
-      await seed(repo, [["T1", MANY_PATHS.join(", ")]]);
-      const args = await arrange(repo);
-
-      const result = await run(repo.dir, cappedGitEnv(repo), args, LONG_LIST_TIMEOUT);
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.match((await repo.git("show", `HEAD:${STATUS_REL}`)).stdout, /^done: T1$/m);
-    });
-  });
-}
-
 /** The whole long list is tracked and clean, so what a run does next decides on
  *  the last path alone. */
 async function seedTrackedMany(repo: GitRepo): Promise<void> {
@@ -2865,24 +2413,6 @@ test("a task whose Files list names a directory commits every changed file under
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.deepEqual(await committedFiles(repo), [...BATCH_PATHS, STATUS_REL].sort());
     assert.ok(gitProcesses(tally) < BATCH_PATHS.length, `${gitProcesses(tally)} git processes for ${BATCH_PATHS.length} files`);
-  });
-});
-
-test("--e2e run from a subdirectory commits a cwd-relative path at its real path, never moved to the root, and another staged path stays staged", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    write(repo.dir, "pkg/README.md", "pkg\n");
-    await repo.git("add", "-A");
-    await repo.git("commit", "-m", "pkg");
-    write(repo.dir, "pkg/tests/e2e/a.spec.ts", "spec\n");
-    write(repo.dir, "pkg/README.md", "pkg, staged\n");
-    await repo.git("add", "--", "pkg/README.md");
-
-    const result = await run(path.join(repo.dir, "pkg"), repo.env, ["--e2e", "tests/e2e/a.spec.ts"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(await committedFiles(repo), ["pkg/tests/e2e/a.spec.ts"]);
-    assert.equal((await repo.git("ls-tree", "HEAD", "--", "tests")).stdout, "");
-    assert.deepEqual(await stagedFiles(repo), ["pkg/README.md"]);
   });
 });
 
@@ -3408,56 +2938,6 @@ test("committing a done task again stages a new path its extras file lists that 
  * could not be staged ends the call with exit 5; an unknown or ignored-untracked path only warns.
  */
 
-/** A `git` function that holds .git/index.lock around the first `failures` "git add"
- *  calls, so the real git refuses them the way a concurrent writer makes it. */
-function lockedAddEnv(repo: GitRepo, failures: number): Record<string, string> {
-  const gitDir = path.join(repo.dir, ".git").replace(/\\/g, "/");
-  const file = path.join(repo.dir, ".git", "index-lock-shim.sh");
-  fs.writeFileSync(path.join(repo.dir, ".git", "add-calls.txt"), "");
-  fs.writeFileSync(
-    file,
-    [
-      "git() {",
-      '  if [ "$1" = add ]; then',
-      `    echo x >> "${gitDir}/add-calls.txt"`,
-      `    if [ "$(wc -l < "${gitDir}/add-calls.txt")" -le ${failures} ]; then`,
-      `      : > "${gitDir}/index.lock"`,
-      '      command git "$@"',
-      "      local rc=$?",
-      `      rm -f "${gitDir}/index.lock"`,
-      "      return $rc",
-      "    fi",
-      "  fi",
-      '  command git "$@"',
-      "}",
-      "",
-    ].join("\n"),
-  );
-  return { ...repo.env, BASH_ENV: file.replace(/\\/g, "/") };
-}
-
-test("a tracked Files path whose git add fails ends the call with exit 5, status.md restored and no commit made (the task would be recorded done with part of its work uncommitted)", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo, [["T1", "src/a.ts, src/c.ts"]]);
-    write(repo.dir, "src/a.ts", "first\n");
-    write(repo.dir, "src/c.ts", "first\n");
-    await repo.git("add", "-A");
-    await repo.git("commit", "-m", "tracked");
-    write(repo.dir, "src/a.ts", "work\n");
-    write(repo.dir, "src/c.ts", "work\n");
-    const before = readStatus(repo);
-
-    const result = await run(repo.dir, lockedAddEnv(repo, 2), [PLAN_REL, "T1"]);
-    assert.equal(result.status, 5, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "");
-    assert.match(result.stderr, /src\/a\.ts/);
-
-    assert.equal(readStatus(repo), before);
-    assert.doesNotMatch(readStatus(repo), /^done: T1$/m);
-    assert.deepEqual(await subjects(repo), ["tracked", "seed"]);
-  });
-});
-
 test("a Files path git does not know still gets 'warning: could not stage <path>' and the commit goes ahead", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo, [["T1", "src/a.ts, src/ghost.ts"]]);
@@ -3514,23 +2994,6 @@ test("the fix-number form for a skipped task still commits (only the task commit
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.match(result.stdout, /^progress: unchanged$/m);
     assert.deepEqual((await subjects(repo))[0], "T2(1) - task T2");
-  });
-});
-
-test("--drop deletes an untracked, unignored file no task or extras file lists, prints its dropped line and exits 0, leaving the index, status.md and history alone", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    write(repo.dir, "scratch.txt", "debug\n");
-    const before = readStatus(repo);
-
-    const result = await run(repo.dir, repo.env, ["--drop", PLAN_REL, "scratch.txt"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "dropped: scratch.txt\n");
-    assert.equal(result.stderr, "");
-    assert.equal(fs.existsSync(path.join(repo.dir, "scratch.txt")), false);
-    assert.deepEqual(await stagedFiles(repo), []);
-    assert.equal(readStatus(repo), before);
-    assert.deepEqual(await subjects(repo), ["seed"]);
   });
 });
 
@@ -3671,102 +3134,6 @@ test("the usage text lists the --drop form", async () => {
 
 // --- --leftovers: the leftovers section of outcome.md, the unexplained paths committed ---
 
-const OUTCOME_REL = `${RUN_DIR}/outcome.md`;
-const OUTCOME_HEAD = "Build summary.\n\n## Leftovers\n";
-const NO_NOTE_REASON = "named by no build note: a tool output or a change outside the build";
-
-interface LeftoverTask {
-  id: string;
-  files: string;
-  repro?: string;
-}
-
-const LEFTOVER_TASKS: LeftoverTask[] = [
-  { id: "T1", files: "src/a.ts" },
-  { id: "T2", files: "src/b.ts, test/b.test.ts", repro: "test/b.test.ts" },
-  { id: "T3", files: "src/c.ts" },
-];
-
-/** A plan plan-index.sh accepts: the leftovers form reads the index it prints. */
-function leftoversPlan(tasks: LeftoverTask[]): string {
-  return [
-    "# Add login",
-    "",
-    "## Goal",
-    "",
-    "Users can log in.",
-    "The session is durable.",
-    "",
-    "## Acceptance criteria",
-    "",
-    "1. A user with valid credentials gets a session.",
-    "   The session survives a reload.",
-    "",
-    "## Scope",
-    "",
-    "### File map",
-    "",
-    "- add - src/login.ts - the handler",
-    "",
-    "### Out of scope",
-    "",
-    "- Password reset.",
-    "",
-    "## Tasks",
-    "",
-    ...tasks.flatMap((t) => [
-      "<!-- TASK -->",
-      `### ${t.id} - task ${t.id}`,
-      `- TDD: ${t.repro ? "none" : "required"}`,
-      ...(t.repro ? [`- Repro: ${t.repro}`] : []),
-      "- Covers: AC1",
-      "- Uses: C1",
-      "- Depends-on: none",
-      `- Files: ${t.files}`,
-      "- Delivers: the thing",
-      "- Verification: npm test -> green",
-      "- DoD: it works",
-      "<!-- /TASK -->",
-      "",
-    ]),
-    "## Contracts",
-    "",
-    "### C1 - Login endpoint",
-    "",
-    "File: none",
-    "",
-    "POST /login -> 200 | 401",
-    "",
-  ].join("\n");
-}
-
-/** The three-task plan committed with its state file, then the outcome.md a closeout
- *  leaves behind (the summary and its heading line), uncommitted like the real one;
- *  `outcome: null` leaves the run without one. */
-async function seedLeftovers(
-  repo: GitRepo,
-  opts: { skipped?: string; outcome?: string | null } = {},
-): Promise<void> {
-  write(repo.dir, PLAN_REL, leftoversPlan(LEFTOVER_TASKS));
-  write(repo.dir, STATUS_REL, statusBody(3).replace("skipped: none", `skipped: ${opts.skipped ?? "none"}`));
-  write(repo.dir, "README.md", "seed\n");
-  await repo.git("add", "-A");
-  await repo.git("commit", "-m", "seed");
-  if (opts.outcome !== null) write(repo.dir, OUTCOME_REL, opts.outcome ?? OUTCOME_HEAD);
-}
-
-function runLeftovers(repo: GitRepo, drift = "none", env: Record<string, string> = repo.env) {
-  return run(repo.dir, env, ["--leftovers", PLAN_REL, "--drift", drift]);
-}
-
-function readOutcome(repo: GitRepo): string {
-  return fs.readFileSync(path.join(repo.dir, OUTCOME_REL), "utf-8");
-}
-
-async function headSha(repo: GitRepo): Promise<string> {
-  return (await repo.git("rev-parse", "--short", "HEAD")).stdout.trim();
-}
-
 test("--leftovers gives a skipped task's Repro path and the dirty paths of a skipped and of an open task their reasons, leaves all three uncommitted and writes them under the heading above the Drift line", async () => {
   await withGitRepo(async (repo) => {
     await seedLeftovers(repo, { skipped: "T2" });
@@ -3838,45 +3205,6 @@ test("--leftovers leaves an orphan path a skipped task's note names uncommitted 
     assert.equal(result.stdout, "left: 1\n");
     assert.match(readOutcome(repo), /^lib\/x\.ts: written by skipped task T2 outside its Files - left uncommitted$/m);
     assert.deepEqual(await subjects(repo), ["seed"]);
-  });
-});
-
-test("--leftovers commits the unexplained paths in one commit under the --outside subject and footer with one Leftover line each, linking a path to the lowest-numbered task whose note names it", async () => {
-  await withGitRepo(async (repo) => {
-    await seedLeftovers(repo);
-    write(repo.dir, `${RUN_DIR}/work/T10-coder.md`, "- also lib/x.ts\n");
-    write(repo.dir, `${RUN_DIR}/work/T3-extra.md`, "lib/x.ts\n");
-    write(repo.dir, "lib/x.ts", "changed after its commit\n");
-    write(repo.dir, "tools/y.txt", "a tool output\n");
-
-    const result = await runLeftovers(repo);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    const sha = await headSha(repo);
-    assert.equal(result.stdout, `committed: ${sha}\nleft: none\n`);
-    assert.deepEqual(await subjects(repo), [OUTSIDE_SUBJECT, "seed"]);
-    assert.deepEqual(await committedFiles(repo), ["lib/x.ts", "tools/y.txt"]);
-    assert.equal(
-      (await repo.git("log", "-1", "--format=%b")).stdout.trim(),
-      [
-        "Leftover: lib/x.ts | written by T3, changed after its commit or outside its Files",
-        `Leftover: tools/y.txt | ${NO_NOTE_REASON}`,
-        "",
-        `Refs: ${PLAN_REL} outside the plan`,
-      ].join("\n"),
-    );
-    assert.equal(
-      readOutcome(repo),
-      [
-        "Build summary.",
-        "",
-        "## Leftovers",
-        `lib/x.ts: written by T3, changed after its commit or outside its Files - committed ${sha}`,
-        `tools/y.txt: ${NO_NOTE_REASON} - committed ${sha}`,
-        "",
-        "Drift: none",
-        "",
-      ].join("\n"),
-    );
   });
 });
 

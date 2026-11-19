@@ -30,8 +30,17 @@ import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
 import { withTempDir } from "../harness/tmp.ts";
+import {
+  SUT,
+  line,
+  writeTranscript,
+  skillUse,
+  permissionMode,
+  run,
+  runPayload,
+  assertHint,
+} from "./plan-hints-fixture.ts";
 
-const SUT = path.resolve(import.meta.dirname, "../../viber/hooks/scripts/plan-hints.sh");
 const SHIPPED_HINTS = path.resolve(import.meta.dirname, "../../viber/hooks/content/plan-hints.md");
 
 /** Copies plan-hints.sh into `<dir>/hooks/scripts/`, with `<dir>/hooks/content/plan-hints.md`
@@ -50,69 +59,16 @@ function isolatedScript(dir: string, hints: string | null): string {
 
 // --- fixture builders -------------------------------------------------
 
-function line(obj: unknown): string {
-  return JSON.stringify(obj);
-}
-
-function writeTranscript(dir: string, lines: string[]): string {
-  const file = path.join(dir, "t.jsonl");
-  fs.writeFileSync(file, lines.map((l) => `${l}\n`).join(""));
-  return file;
-}
-
-function skillUse(skill = "viber:planner"): string {
-  return line({ type: "assistant", message: { content: [{ type: "tool_use", name: "Skill", input: { skill } }] } });
-}
-
 /** A typed skill command, in the shape Claude Code records it: no Skill tool_use. */
 function typedCommand(name: string): string {
   return line({ type: "user", message: { role: "user", content: `<command-message>${name}</command-message>\n<command-name>/${name}</command-name>` } });
-}
-
-function permissionMode(mode: string): string {
-  return line({ type: "permission-mode", permissionMode: mode, sessionId: "s" });
 }
 
 function enterPlanMode(): string {
   return line({ type: "assistant", message: { content: [{ type: "tool_use", id: "toolu_enter", name: "EnterPlanMode", input: {} }] } });
 }
 
-// hooks.json invokes the script as `bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/plan-hints.sh"`,
-// so the harness runs it through bash the same way.
-async function run(input: string): Promise<string> {
-  const result = await runScript(SUT, [], { shell: "bash", input });
-  assert.equal(result.status, 0, `expected exit 0, got ${result.status}; stderr: ${result.stderr}`);
-  return result.stdout;
-}
-
-async function runPayload(payload: Record<string, unknown>): Promise<string> {
-  return await run(JSON.stringify({ hook_event_name: "UserPromptSubmit", prompt: "go", ...payload }));
-}
-
-/** Parses the hint and asserts it carries every rule. */
-function assertHint(stdout: string): void {
-  let json: { hookSpecificOutput?: { hookEventName?: string; additionalContext?: string } };
-  try {
-    json = JSON.parse(stdout);
-  } catch {
-    throw new Error(`expected parseable JSON stdout, got: ${stdout}`);
-  }
-  const out = json.hookSpecificOutput;
-  assert.ok(out, `expected hookSpecificOutput, got: ${stdout}`);
-  assert.equal(out.hookEventName, "UserPromptSubmit");
-  const ctx = out.additionalContext ?? "";
-  assert.match(ctx, /dispatch the outside-plan-review agent after every write to the plan file and get its PASS on that version before ExitPlanMode/);
-  assert.match(ctx, /planning\.outside-plan-review/);
-}
-
 // --- cases ------------------------------------------------------------
-
-test("plan mode with no planner in the transcript -> additionalContext carries every rule", async () => {
-  await withTempDir("p2p2-plan-hints-", async (dir) => {
-    const f = writeTranscript(dir, [permissionMode("plan")]);
-    assertHint(await runPayload({ permission_mode: "plan", transcript_path: f }));
-  });
-});
 
 test("the hint is the one review rule alone: one line, no plan-content rule, no file limit, no line telling the model to skip it under a viber skill (the hook itself stays silent there)", async () => {
   await withTempDir("p2p2-plan-hints-", async (dir) => {
@@ -168,15 +124,6 @@ test("a payload with no permission_mode key -> nothing printed", async () => {
 
 test("empty stdin -> exit 0, nothing printed (fail-open)", async () => {
   assert.equal(await run(""), "");
-});
-
-test("a planner Skill tool_use in the current episode -> nothing printed (the viber planner covers these rules)", async () => {
-  await withTempDir("p2p2-plan-hints-", async (dir) => {
-    const f = writeTranscript(dir, [permissionMode("plan"), skillUse()]);
-    assert.equal(await runPayload({ permission_mode: "plan", transcript_path: f }), "");
-    const bare = writeTranscript(dir, [skillUse("planner")]);
-    assert.equal(await runPayload({ permission_mode: "plan", transcript_path: bare }), "");
-  });
 });
 
 test("an intent or fixer Skill tool_use in the current episode -> nothing printed (both hand off to the planner, which covers these rules)", async () => {

@@ -47,70 +47,37 @@ import { runScript } from "../harness/run.ts";
 import { slash } from "../harness/paths.ts";
 import { withStub } from "../harness/stub.ts";
 import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/plan-path.sh");
-
-/** The run directory's name: the landing stamp, then the normalized slug. */
-const KEY_SHAPE = /^(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})_([a-z0-9]+(?:-[a-z0-9]+)*)$/;
-
-function run(dir: string, args: string[] = [], stubDirs?: string[]) {
-  return runScript(SUT, args, { cwd: dir, shell: "bash", stubDirs });
-}
-
-interface Resolved {
-  path: string;
-  key: string;
-  state: string;
-}
-
-function parse(stdout: string): Resolved {
-  const out: Record<string, string> = {};
-  for (const line of slash(stdout).trim().split("\n")) {
-    // the open: lines are a list, not a field - openLines() reads those
-    if (line.startsWith("open: ")) continue;
-    const at = line.indexOf(": ");
-    if (at > 0) out[line.slice(0, at)] = line.slice(at + 2);
-  }
-  return out as unknown as Resolved;
-}
-
-/** The slug half of a key, asserting the whole key shape on the way through -
- *  a key is a directory name, so a stray character is a broken path. */
-function slugOf(key: string): string {
-  const match = KEY_SHAPE.exec(key);
-  assert.ok(match, `key is not <stamp>_<slug>: ${key}`);
-  return match[2];
-}
-
-/** How long ago the key's stamp was, in milliseconds. The script stamps with
- *  `date`, i.e. LOCAL time, which is the clock Node reads here too. */
-function stampAge(key: string): number {
-  const match = KEY_SHAPE.exec(key);
-  assert.ok(match, `key is not <stamp>_<slug>: ${key}`);
-  const [y, mo, d, h, mi, s] = match[1].split("-").map(Number);
-  return Date.now() - new Date(y, mo - 1, d, h, mi, s).getTime();
-}
-
-/** A landed plan: the run directory plus its plan.md, with a pinned mtime so
- *  "most recently worked on" is decided by the test, not by the filesystem. */
-function landPlan(root: string, key: string, mtime = "2026-01-01T00:00:00Z", body?: string): string {
-  const file = path.join(root, "docs", "_specs", key, "plan.md");
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, body ?? planWithTasks(key, ["T1"]));
-  const seconds = Date.parse(mtime) / 1000;
-  fs.utimesSync(file, seconds, seconds);
-  return file;
-}
-
-/** A source plan the way plan mode leaves one: any directory, any file name,
- *  its title on the first H1. Returned as an absolute path, because that is
- *  what a `plansDirectory` outside the repository hands over. */
-function sourcePlan(dir: string, name: string, body: string): string {
-  const file = path.join(dir, name);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, body);
-  return file;
-}
+import {
+  SUT,
+  run,
+  parse,
+  slugOf,
+  landPlan,
+  sourcePlan,
+  planWithTasks,
+  runDirs,
+  PLAN_BODY,
+  withFrontmatter,
+  withAttachments,
+  attachment,
+  posixForm,
+  withBranchRepo,
+  workEntry,
+  ON_MAIN,
+  runIn,
+  headOf,
+  commitOf,
+  treeOf,
+  branchAhead,
+  withSource,
+  branchLine,
+  linesOf,
+  SINGLE,
+  commitOnHead,
+  twoEntries,
+  workAhead,
+  PLUGIN_ROOT,
+} from "./plan-path-fixture.ts";
 
 /** The `open:` lines of one resolution, in the order printed. */
 function openLines(stdout: string): string[] {
@@ -131,41 +98,6 @@ function landStatus(root: string, key: string, entries: Record<string, string>, 
     fs.utimesSync(file, seconds, seconds);
   }
 }
-
-/** A landed plan carrying N task blocks, so a run has something to be open about. */
-function planWithTasks(title: string, ids: string[]): string {
-  return [
-    `# ${title}`,
-    "",
-    "## Tasks",
-    "",
-    ...ids.flatMap((id) => ["<!-- TASK -->", `### ${id} - do ${id}`, `- Files: src/${id}.ts`, "<!-- /TASK -->", ""]),
-  ].join("\n");
-}
-
-/** The run directories on disk, so a test can assert that a second one was -
- *  or was not - minted. */
-function runDirs(root: string): string[] {
-  const specs = path.join(root, "docs", "_specs");
-  return fs.existsSync(specs) ? fs.readdirSync(specs).sort() : [];
-}
-
-/** A plan the way one lands for a build: a head, then the task half. */
-const PLAN_BODY = [
-  "# Add Login",
-  "",
-  "## Goal",
-  "",
-  "Let people sign in.",
-  "",
-  "## Tasks",
-  "",
-  "<!-- TASK -->",
-  "### T1 - do T1",
-  "- Files: src/T1.ts",
-  "<!-- /TASK -->",
-  "",
-].join("\n");
 
 /** The same plan with its task half left off: a run with no task to resume. */
 const HEAD_BODY =["# Add Login", "", "## Goal", "", "Let people sign in.", ""].join("\n");
@@ -285,34 +217,6 @@ test("a host whose stat is missing, or answers with something that is not a time
 });
 
 // --- --land: the approved plan into the run directory ---
-
-test("--land copies a plan from outside the repository into a freshly stamped directory and leaves the source untouched", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    await withTempDir("p2p2-plans-", async (plans) => {
-      const src = sourcePlan(plans, "2026-09-20-fancy-name.md", PLAN_BODY);
-
-      const result = await run(dir, ["--land", src]);
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-
-      const resolved = parse(result.stdout);
-      assert.equal(resolved.state, "new");
-      assert.equal(slugOf(resolved.key), "add-login");
-      assert.equal(resolved.path, `docs/_specs/${resolved.key}/plan.md`);
-
-      // The landed plan is the source, byte for byte - the orchestrator never
-      // retypes it out of its context.
-      assert.equal(fs.readFileSync(path.join(dir, resolved.path), "utf-8"), PLAN_BODY);
-      // ... and the source is still where plan mode left it.
-      assert.equal(fs.readFileSync(src, "utf-8"), PLAN_BODY);
-
-      // The stamp is taken NOW, which is the whole reason a second run of one
-      // slug cannot overwrite an earlier plan. The window is wide on purpose:
-      // it has to catch a fixed or epoch-derived stamp (off by years), not to
-      // measure the clock, and a DST-ambiguous local hour must never flip it.
-      assert.ok(Math.abs(stampAge(resolved.key)) < 90 * 60_000, `the stamp must be the landing moment: ${resolved.key}`);
-    });
-  });
-});
 
 test("--land takes the slug from the plan's own first H1, never from its file name and never from an H2", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
@@ -434,29 +338,6 @@ test("an H1 in a non-Latin script normalizes to nothing, so the file name answer
       assert.equal(slugOf(resolved.key), "tingly-discovering-gizmo", `title: ${title}`);
       fs.rmSync(path.join(dir, "docs"), { recursive: true, force: true });
     }
-  });
-});
-
-test("a run already open for that slug comes back existing, and its progress is not written over", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const inProgress = [planWithTasks("Add Login", ["T1", "T2"]), "<!-- done: T1 -->", ""].join("\n");
-    landPlan(dir, "2026-09-19-17-30-00_add-login", "2026-09-19T17:30:00Z", inProgress);
-    landPlan(dir, "2026-09-20-08-00-00_other-thing", "2026-09-20T08:00:00Z");
-
-    // The same plan, edited after the build started: the landed copy is the
-    // state, so the edit must NOT reach it.
-    const src = sourcePlan(dir, "outside/add-login.md", PLAN_BODY);
-    const result = await run(dir, ["--land", src]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(parse(result.stdout), {
-      path: "docs/_specs/2026-09-19-17-30-00_add-login/plan.md",
-      key: "2026-09-19-17-30-00_add-login",
-      state: "existing",
-    });
-    assert.equal(
-      fs.readFileSync(path.join(dir, "docs", "_specs", "2026-09-19-17-30-00_add-login", "plan.md"), "utf-8"),
-      inProgress,
-    );
   });
 });
 
@@ -600,20 +481,6 @@ test("a bare first argument is a usage error, not a slug (the slug form is gone,
       assert.match(result.stderr, /usage: plan-path\.sh \[--land <src>\]/);
       assert.equal(fs.existsSync(path.join(dir, "docs")), false);
     }
-  });
-});
-
-test("a copy the filesystem refuses: exit 4, nothing on stdout and no half-made run directory left behind", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    const src = sourcePlan(dir, "outside/add-login.md", PLAN_BODY);
-
-    await withStub("cp", "exit 1", async (stubDir) => {
-      const result = await run(dir, ["--land", src], [stubDir]);
-      assert.equal(result.status, 4, `stdout: ${result.stdout}`);
-      assert.equal(result.stdout, "");
-      assert.match(result.stderr, /could not land the plan/);
-      assert.deepEqual(runDirs(dir), [], "a failed copy must not leave an empty run directory");
-    });
   });
 });
 
@@ -1020,29 +887,6 @@ test("a plan carrying no TASK block is not an open run: there is no task in it t
 
 // --- the plan's attachments ride into the run as attachments/<name> ---
 
-/** A plan whose frontmatter carries the given lines after `source:`. */
-function withFrontmatter(lines: string[], body: string): string {
-  return ["---", "source: /elsewhere/plans/round.md", ...lines, "---", "", body].join("\n");
-}
-
-/** A plan whose frontmatter lists `name: path` attachments, indented under `attachments:`. */
-function withAttachments(entries: string[], body: string): string {
-  return withFrontmatter(["attachments:", ...entries.map((entry) => `  ${entry}`)], body);
-}
-
-/** A file under the host's `.temp/`, where the skills write the files a plan is built from. */
-function attachment(root: string, name: string, content: string | Buffer): string {
-  const file = path.join(root, ".temp", "viber", "attach", name);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, content);
-  return file;
-}
-
-/** The POSIX spelling of an absolute path: as is off Windows, `/c/...` on it. */
-function posixForm(file: string): string {
-  return process.platform === "win32" ? slash(file).replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`) : file;
-}
-
 test("a plan naming two attachments lands both under attachments/<name> byte for byte, its frontmatter keeping the source values", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     const page = posixForm(attachment(dir, "login.html", "<p>accepted</p>\n"));
@@ -1134,26 +978,6 @@ test("a file attachment with no extension lands under attachments/<name>", async
     assert.equal(fs.readFileSync(landed, "utf-8"), "all:\n");
   });
 });
-
-for (const form of ["mixed", "native"] as const) {
-  test(
-    `an attachment source in the ${form === "mixed" ? "C:/" : "C:\\"} form lands too (cygpath normalizes it)`,
-    { skip: process.platform === "win32" ? false : "a drive-letter path exists only on Windows" },
-    async () => {
-      await withTempDir("p2p2-viber-", async (dir) => {
-        const file = attachment(dir, "login.html", `<p>${form}</p>\n`);
-        const source = form === "mixed" ? slash(file) : path.win32.normalize(file);
-        const src = sourcePlan(dir, "outside/add-login.md", withAttachments([`mockup.html: ${source}`], PLAN_BODY));
-
-        const result = await run(dir, ["--land", src]);
-        assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-        assert.equal(result.stderr, "");
-        const landed = path.join(dir, path.dirname(parse(result.stdout).path), "attachments", "mockup.html");
-        assert.equal(fs.readFileSync(landed, "utf-8"), `<p>${form}</p>\n`);
-      });
-    },
-  );
-}
 
 for (const [what, frontmatter, reason] of [
   ["a repeated name", ["attachments:", "  a.png: /x/one", "  a.png: /x/two"], "duplicate name a.png"],
@@ -1333,81 +1157,12 @@ test("a top-level runs: key is not directories.runs, so the default still names 
 
 // --- the run branch: a first landing puts HEAD on it before anything lands ---
 
-/** A repository on `main` with one commit carrying the branching group, so the
- *  base exists and the tree starts clean. The group's lines are the test's. */
-async function withBranchRepo(branching: string[], fn: (repo: GitRepo) => void | Promise<void>): Promise<void> {
-  await withGitRepo(async (repo) => {
-    fs.mkdirSync(path.join(repo.dir, ".claude"), { recursive: true });
-    fs.writeFileSync(path.join(repo.dir, ".claude", "viber.yml"), ["branching:", ...branching.map((l) => `  ${l}`), ""].join("\n"));
-    fs.writeFileSync(path.join(repo.dir, "README.md"), "hello\n");
-    await repo.git("add", "-A");
-    await repo.git("commit", "-q", "-m", "init");
-    await fn(repo);
-  });
-}
-
-/** One `branching.work` entry, indented as a child of `work:` inside the group. */
-function workEntry(key: string, base: string, name: string, target: string): string[] {
-  return [`  ${key}:`, `    base: ${base}`, `    name: '${name}'`, `    target: ${target}`];
-}
-
-/** The work entries a landing case runs against unless it names its own: one
- *  entry cut from and returning to main, named from the plan type and slug. */
-const ON_MAIN = ["work:", ...workEntry("feature", "main", "{type}/{slug}", "main")];
-
 /** GitFlow for a landing: features from develop, hotfixes from main. */
 const TWO_BASES = [
   "work:",
   ...workEntry("feature", "develop", "feature/{slug}", "develop"),
   ...workEntry("hotfix", "main", "hotfix/{slug}", "main"),
 ];
-
-/** plan-path.sh run inside the throwaway repository, with its pinned git identity. */
-function runIn(repo: GitRepo, args: string[] = [], stubDirs?: string[]) {
-  return runScript(SUT, args, { cwd: repo.dir, shell: "bash", env: repo.env, stubDirs });
-}
-
-/** The branch HEAD names, or "HEAD" when it is detached. */
-async function headOf(repo: GitRepo): Promise<string> {
-  return (await repo.git("rev-parse", "--abbrev-ref", "HEAD")).stdout.trim();
-}
-
-/** The commit a revision points at. */
-async function commitOf(repo: GitRepo, rev = "HEAD"): Promise<string> {
-  return (await repo.git("rev-parse", rev)).stdout.trim();
-}
-
-/** `git status --porcelain`, so a test can assert the tree came through as it was. */
-async function treeOf(repo: GitRepo): Promise<string> {
-  return (await repo.git("status", "--porcelain")).stdout;
-}
-
-/** A second commit on a new branch, HEAD back where it was: a branch at another commit. */
-async function branchAhead(repo: GitRepo, name: string): Promise<void> {
-  const from = await headOf(repo);
-  await repo.git("checkout", "-q", "-b", name);
-  fs.writeFileSync(path.join(repo.dir, `${name.replace(/\//g, "-")}.txt`), "ahead\n");
-  await repo.git("add", "-A");
-  await repo.git("commit", "-q", "-m", `ahead on ${name}`);
-  await repo.git("checkout", "-q", from);
-}
-
-/** An approved plan with frontmatter lines of the test's choosing, written to a
- *  plans directory outside the repository - as plan mode leaves one - so the
- *  source itself never dirties the tree. */
-async function withSource(frontmatter: string[], fn: (src: string) => void | Promise<void>, body = PLAN_BODY): Promise<void> {
-  await withTempDir("p2p2-plans-", async (plans) => {
-    const text = frontmatter.length ? ["---", ...frontmatter, "---", "", body].join("\n") : body;
-    await fn(sourcePlan(plans, "approved.md", text));
-  });
-}
-
-/** The `branch:` line of one resolution, or undefined when none was printed. */
-function branchLine(stdout: string): string | undefined {
-  return slash(stdout)
-    .split("\n")
-    .find((line) => line.startsWith("branch: "));
-}
 
 /** The line printed right after `branch:`, or undefined when there is none. */
 function afterBranch(stdout: string): string | undefined {
@@ -1423,18 +1178,6 @@ function targetLines(stdout: string): string[] {
     .filter((line) => line.startsWith("target: "));
 }
 
-test("an unusable attachments map exits 6 before the run branch step: HEAD stays on main and the branch is not created", async () => {
-  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
-    await withSource(["branch: feature/login", "attachments:", "  a.png: /x/one", "  a.png: /x/two"], async (src) => {
-      const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 6, `stdout: ${result.stdout}`);
-      assert.equal(result.stdout, "");
-      assert.equal(await headOf(repo), "main");
-      assert.equal((await repo.git("branch", "--list", "feature/login")).stdout.trim(), "");
-    });
-  });
-});
-
 test("branching off in a repository: a plan naming a branch lands on the current one and stdout carries no branch line", async () => {
   await withBranchRepo(["mode: off"], async (repo) => {
     await withSource(["branch: feature/login"], async (src) => {
@@ -1443,26 +1186,6 @@ test("branching off in a repository: a plan naming a branch lands on the current
       const key = parse(result.stdout).key;
       assert.equal(slash(result.stdout), [`path: docs/_specs/${key}/plan.md`, `key: ${key}`, "state: new", ""].join("\n"));
       assert.equal(await headOf(repo), "main");
-    });
-  });
-});
-
-test("a plan naming a new branch while HEAD is on the base lands on it, created from the base, with the uncommitted files carried along", async () => {
-  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
-    fs.writeFileSync(path.join(repo.dir, "README.md"), "changed\n");
-    fs.writeFileSync(path.join(repo.dir, "repro.test.ts"), "red\n");
-    await withSource(["branch: feature/login"], async (src) => {
-      const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      const key = parse(result.stdout).key;
-      assert.equal(
-        slash(result.stdout),
-        [`path: docs/_specs/${key}/plan.md`, `key: ${key}`, "state: new", "branch: feature/login (created)", "target: main", ""].join("\n"),
-      );
-      assert.equal(await headOf(repo), "feature/login");
-      assert.equal(await commitOf(repo), await commitOf(repo, "main"));
-      assert.equal(fs.readFileSync(path.join(repo.dir, "README.md"), "utf-8"), "changed\n");
-      assert.ok(fs.existsSync(path.join(repo.dir, "repro.test.ts")));
     });
   });
 });
@@ -1476,20 +1199,6 @@ test("a plan naming the current non-base branch reports it kept and switches not
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
       assert.equal(branchLine(result.stdout), "branch: feature/login (kept)");
       assert.equal(await headOf(repo), "feature/login");
-    });
-  });
-});
-
-test("a plan naming an existing branch at another commit switches to it on a clean tree, never recreating it", async () => {
-  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
-    await branchAhead(repo, "feature/login");
-    const tip = await commitOf(repo, "feature/login");
-    await withSource(["branch: feature/login"], async (src) => {
-      const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(branchLine(result.stdout), "branch: feature/login (switched)");
-      assert.equal(await headOf(repo), "feature/login");
-      assert.equal(await commitOf(repo), tip);
     });
   });
 });
@@ -1582,20 +1291,6 @@ test("an entry name pattern that expands to nothing at all makes the landing ref
   });
 });
 
-test("required and a plan naming the base: exit 5, nothing on stdout, nothing landed and HEAD where it was", async () => {
-  await withBranchRepo(["mode: required", ...ON_MAIN], async (repo) => {
-    await repo.git("checkout", "-q", "-b", "work");
-    await withSource(["branch: main"], async (src) => {
-      const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
-      assert.equal(result.stdout, "");
-      assert.match(result.stderr, /base/);
-      assert.equal(await headOf(repo), "work");
-      assert.deepEqual(runDirs(repo.dir), []);
-    });
-  });
-});
-
 test("required, a detached HEAD and a plan recording no branch: exit 5, since a detached HEAD is no branch to stay on", async () => {
   await withBranchRepo(["mode: required", ...ON_MAIN], async (repo) => {
     await repo.git("checkout", "-q", "--detach");
@@ -1617,37 +1312,6 @@ test("allowed, a detached HEAD and a plan recording no branch: reported as detac
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
       assert.equal(branchLine(result.stdout), "branch: detached (kept)");
       assert.equal(await headOf(repo), "HEAD");
-    });
-  });
-});
-
-test("a switch to a branch at another commit on a dirty tree: exit 5, no run directory, HEAD and the tree unchanged", async () => {
-  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
-    await branchAhead(repo, "feature/login");
-    fs.writeFileSync(path.join(repo.dir, "README.md"), "changed\n");
-    const tree = await treeOf(repo);
-    await withSource(["branch: feature/login"], async (src) => {
-      const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
-      assert.equal(result.stdout, "");
-      assert.match(result.stderr, /uncommitted/);
-      assert.equal(await headOf(repo), "main");
-      assert.equal(await treeOf(repo), tree);
-      assert.deepEqual(runDirs(repo.dir), []);
-    });
-  });
-});
-
-test("creating the run branch from a base at another commit on a dirty tree: exit 5 and HEAD stays on its branch", async () => {
-  await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
-    await branchAhead(repo, "work");
-    await repo.git("checkout", "-q", "work");
-    fs.writeFileSync(path.join(repo.dir, "README.md"), "changed\n");
-    await withSource(["branch: feature/login"], async (src) => {
-      const result = await runIn(repo, ["--land", src]);
-      assert.equal(result.status, 5, `stdout: ${result.stdout}`);
-      assert.equal(await headOf(repo), "work");
-      assert.deepEqual(runDirs(repo.dir), []);
     });
   });
 });
@@ -2125,16 +1789,6 @@ function reportOf(stdout: string): Record<string, string> {
   }
   return out;
 }
-
-/** The report lines starting with `prefix`, in the order printed. */
-function linesOf(stdout: string, prefix: string): string[] {
-  return slash(stdout)
-    .split("\n")
-    .filter((line) => line.startsWith(prefix));
-}
-
-/** One entry named from the plan type and slug, cut from and returning to main. */
-const SINGLE = ["mode: required", "work:", ...workEntry("feature", "main", "{type}/{slug}", "main")];
 
 /** GitFlow: features from develop, hotfixes from main, both named from the
  *  issue number, and two issue types mapped onto them. */
@@ -2627,13 +2281,6 @@ function startIn(repo: GitRepo, url?: string, stubDirs?: string[]) {
   return runIn(repo, url === undefined ? ["--start"] : ["--start", url], stubDirs);
 }
 
-/** A second commit on the current branch, so it sits one ahead of any branch cut before it. */
-async function commitOnHead(repo: GitRepo): Promise<void> {
-  fs.writeFileSync(path.join(repo.dir, "ahead.txt"), "ahead\n");
-  await repo.git("add", "-A");
-  await repo.git("commit", "-q", "-m", "ahead");
-}
-
 const ISSUE_URL = "https://github.com/acme/app/issues/6759";
 
 for (const mode of ["allowed", "required"] as const) {
@@ -2865,17 +2512,6 @@ function answersOf(stdout: string): string[] {
 /** The decision lines that are neither options nor notes. */
 function verdictOf(stdout: string): string[] {
   return decisionOf(stdout).filter((line) => !line.startsWith("option: ") && !line.startsWith("note: "));
-}
-
-/** Two entries cut from main and both usable without an issue, no mapping choosing. */
-function twoEntries(mode: string): string[] {
-  return [`mode: ${mode}`, "work:", ...workEntry("feature", "main", "feature/{slug}", "main"), ...workEntry("chore", "main", "chore/{slug}", "main")];
-}
-
-/** HEAD on a new branch one commit ahead of main: not at any base. */
-async function workAhead(repo: GitRepo): Promise<void> {
-  await repo.git("checkout", "-q", "-b", "work");
-  await commitOnHead(repo);
 }
 
 /** main one commit behind its remote-tracking branch, HEAD left where it was. */
@@ -3172,9 +2808,6 @@ test("start decision: --settled nothing without an error: line goes through the 
   });
 });
 
-/** The plugin root the run: commands open on: the directory above the scripts directory. */
-const PLUGIN_ROOT = slash(path.resolve(import.meta.dirname, "../../viber"));
-
 /** The answer, branch, run: and settle: fields of every option: line, in the order printed. */
 function runSettleOf(stdout: string): string[] {
   return linesOf(stdout, "option: ").map((line) => line.slice("option: ".length).split(" | ").slice(0, 4).join(" | "));
@@ -3243,41 +2876,6 @@ test("start options: the --checkout command names the base of the checked entry,
     assert.deepEqual(runSettleOf(result.stdout).slice(0, 1), [`switch | develop | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --checkout "develop" | settle: feature`]);
   });
 });
-
-/** The spellings Git Bash is invoked by on Windows: the root each prints its commands under follows the invoked path. */
-const INVOKED_SPELLINGS = [
-  { name: "a /c/ path", script: posixForm(SUT), root: posixForm(PLUGIN_ROOT) },
-  { name: "a C:\\ path", script: SUT, root: PLUGIN_ROOT },
-];
-
-/** Every `run:` command of the option: lines that run something, in the order printed. */
-function runCommandsOf(stdout: string): string[] {
-  return linesOf(stdout, "option: ").flatMap((line) => {
-    const run = line.split(" | ").find((field) => field.startsWith("run: "));
-    return run === undefined || run === "run: -" ? [] : [run.slice("run: ".length)];
-  });
-}
-
-for (const spelling of INVOKED_SPELLINGS) {
-  test(`start options: invoked by ${spelling.name}, every run: command opens on the plugin root in that spelling (AC1)`, { skip: process.platform === "win32" ? false : "the /c/ and C:\\ spellings are a Windows Git Bash matter" }, async () => {
-    const opening = `"${spelling.root}/scripts/plan-path.sh" `;
-    await withBranchRepo(twoEntries("allowed"), async (repo) => {
-      const result = await runScript(spelling.script, ["--start"], { cwd: repo.dir, shell: "bash", env: repo.env });
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      const commands = runCommandsOf(result.stdout);
-      assert.equal(commands.length, 2, result.stdout);
-      for (const command of commands) assert.ok(command.startsWith(opening), `${command} does not open on ${opening}`);
-    });
-    await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
-      await workAhead(repo);
-      const result = await runScript(spelling.script, ["--start"], { cwd: repo.dir, shell: "bash", env: repo.env });
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      const commands = runCommandsOf(result.stdout);
-      assert.equal(commands.length, 1, result.stdout);
-      for (const command of commands) assert.ok(command.startsWith(opening), `${command} does not open on ${opening}`);
-    });
-  });
-}
 
 test("start options: --settled nothing with --entry asks that entry's base instead of the entry question, with or without an error: line (C3)", async () => {
   await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
@@ -3507,11 +3105,6 @@ async function branchesOf(repo: GitRepo): Promise<string> {
   return (await repo.git("branch", "--format=%(refname:short)")).stdout;
 }
 
-/** The index as git records it, so a test can assert a refusal left it alone. */
-async function indexOf(repo: GitRepo): Promise<string> {
-  return (await repo.git("ls-files", "-s")).stdout;
-}
-
 test("checkout form: an existing branch at another commit on a clean tree becomes HEAD and reads switched (DoD.1)", async () => {
   await withBranchRepo(SINGLE, async (repo) => {
     await branchAhead(repo, "feature/login");
@@ -3565,24 +3158,6 @@ test("checkout form: the previous-branch shorthand is an invalid name, never a s
     assert.equal(result.status, 5, `stdout: ${result.stdout}`);
     assert.match(result.stderr, /invalid branch name/);
     assert.equal(await headOf(repo), "main");
-  });
-});
-
-test("checkout form: a dirty tree and a branch at another commit exits 5 with HEAD, index and tree unchanged (DoD.5)", async () => {
-  await withBranchRepo(SINGLE, async (repo) => {
-    await branchAhead(repo, "feature/login");
-    fs.writeFileSync(path.join(repo.dir, "README.md"), "changed\n");
-    fs.writeFileSync(path.join(repo.dir, "staged.txt"), "staged\n");
-    await repo.git("add", "staged.txt");
-    const tree = await treeOf(repo);
-    const index = await indexOf(repo);
-    const result = await runIn(repo, ["--checkout", "feature/login"]);
-    assert.equal(result.status, 5, `stdout: ${result.stdout}`);
-    assert.equal(result.stdout, "");
-    assert.match(result.stderr, /uncommitted changes and feature\/login is at another commit/);
-    assert.equal(await headOf(repo), "main");
-    assert.equal(await treeOf(repo), tree);
-    assert.equal(await indexOf(repo), index);
   });
 });
 

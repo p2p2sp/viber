@@ -52,11 +52,23 @@ import { slash } from "../harness/paths.ts";
 import { runScript } from "../harness/run.ts";
 import { coreUtilsPath, withStub } from "../harness/stub.ts";
 import { withGitRepo, withTempDir } from "../harness/tmp.ts";
+import {
+  SUT,
+  TEMPLATE_GITIGNORE,
+  TEMPLATE_CONFIG,
+  LOCAL,
+  MERGE_SETTINGS,
+  SETTINGS_TEMPLATE,
+  HELP_RUN,
+  FLAT_SWITCH,
+  run,
+  read,
+  configPath,
+  childValue,
+  claudeMdLines,
+} from "./bootstrap-fixture.ts";
 
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/setup/scripts/bootstrap.sh");
 const CONFIG_SH = path.resolve(import.meta.dirname, "../../viber/scripts/config.sh");
-const TEMPLATE_GITIGNORE = path.resolve(import.meta.dirname, "../../viber/skills/setup/templates/gitignore.txt");
-const TEMPLATE_CONFIG = path.resolve(import.meta.dirname, "../../viber/skills/setup/templates/viber.yml");
 const TEMPLATE_SETTINGS = path.resolve(import.meta.dirname, "../../viber/skills/setup/templates/settings.json");
 
 /** The key list each schema number stands for, as `templateKeyPaths` spells it.
@@ -143,48 +155,13 @@ const GROUPED_V2 = GROUPED_V3.replace("schema: 3\n", "schema: 2\n").replace("  e
 
 /** The map lines of a filled extension map: two entries, the first one parallel. */
 const MAP = "    help-writer:\n      parallel: true\n    notes-writer:\n";
-
-const LOCAL = ".claude/viber.local.yml";
-
-/** The plugin root as the script prints it: three directories above its own, slash-normalised. */
-const PLUGIN_ROOT = slash(path.resolve(import.meta.dirname, "../../viber"));
-const MERGE_SETTINGS = `"${PLUGIN_ROOT}/skills/setup/scripts/merge-settings.sh"`;
-const SETTINGS_TEMPLATE = `"${PLUGIN_ROOT}/skills/setup/templates/settings.json"`;
-const MERGE_RUN = `RUN: ${MERGE_SETTINGS} ${SETTINGS_TEMPLATE}`;
 const SETTINGS_ASK = `ASK: merge -> ${MERGE_SETTINGS} ${SETTINGS_TEMPLATE} | reset -> ${MERGE_SETTINGS} --reset ${SETTINGS_TEMPLATE}`;
-const HELP_RUN = `RUN: "${PLUGIN_ROOT}/scripts/open-page.sh" "${PLUGIN_ROOT}/skills/setup/assets/help.html"`;
-
-const FLAT_SWITCH =/^(adr|memory|rules|qa|cleanup|red-check|final-review|issues|baseline-tests)[ \t]*:/m;
-
-// A stub gh is always first on PATH, so the gh line never depends on whether
-// the machine running the suite has the real one installed.
-function run(dir: string, env: Record<string, string> = {}) {
-  return withStub("gh", "exit 0", (stubDir) =>
-    runScript(SUT, [], { cwd: dir, env, shell: "bash", stubDirs: [stubDir] }),
-  );
-}
-
-function read(file: string): string {
-  return fs.readFileSync(file, "utf-8");
-}
-
-function configPath(root: string): string {
-  return path.join(root, ".claude", "viber.yml");
-}
 
 /** The repository root as `git rev-parse --show-toplevel` spells it: the real
  *  path (macOS /var is /private/var, a Windows temp dir may carry an 8.3 short
  *  name), slash-normalised. */
 function repoRoot(dir: string): string {
   return slash(fs.realpathSync.native(dir));
-}
-
-/** The value of `<group>:`'s child `<child>` in a written config, CR dropped;
- *  undefined when the group does not hold that child. */
-function childValue(text: string, group: string, child: string): string | undefined {
-  const body = new RegExp(`^${group}[ \\t]*:[ \\t]*\\r?\\n((?:[ \\t]+\\S.*\\n|#.*\\n)*)`, "m").exec(text);
-  const line = new RegExp(`^[ \\t]+${child}[ \\t]*:[ \\t]*(.*?)\\r?$`, "m").exec(body?.[1] ?? "");
-  return line?.[1];
 }
 
 /** One `<path>` per uncommented template line opening a key at indent 0
@@ -216,34 +193,6 @@ function schemaBindingViolations(template: string, recorded: Record<string, stri
     : [`the key list changed without a schema change: ${actual.join(", ")}`];
 }
 
-/** The printed CLAUDE.md lines, slash-normalised. */
-function claudeMdLines(stdout: string): string[] {
-  return stdout.split(/\r?\n/).filter((l) => l.startsWith("CLAUDE.md:")).map(slash);
-}
-
-test("a fresh repository seeds both files from the bundled ones and prints one line each, exit 0", async () => {
-  await withGitRepo(async ({ dir, env }) => {
-    const result = await run(dir, env);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(
-      result.stdout,
-      [
-        "viber.yml: seeded from template - every switch is commented in it",
-        ".gitignore: created from template (ignores .temp/)",
-        "settings.json: absent",
-        "CLAUDE.md: missing",
-        "gh: present",
-        MERGE_RUN,
-        HELP_RUN,
-        "",
-      ].join("\n"),
-    );
-    assert.equal(read(configPath(dir)), read(TEMPLATE_CONFIG));
-    assert.equal(read(path.join(dir, ".gitignore")), read(TEMPLATE_GITIGNORE));
-  });
-});
-
 test("the bundled .gitignore already carries the .temp/ rule, so a fresh seed needs no append", () => {
   // The seeded file IS the template byte for byte (asserted above), so the run's
   // own second step must recognise the rule rather than duplicate it.
@@ -258,47 +207,6 @@ test("self-check: a key added to the template without a schema change is a viola
   const grown = read(TEMPLATE_CONFIG).replace(/^github:\n/m, "github:\n  labels: none\n");
 
   assert.equal(schemaBindingViolations(grown, SCHEMA_KEYS).length, 1);
-});
-
-test("running twice leaves both files byte-identical and reports them as already present", async () => {
-  await withGitRepo(async ({ dir, env }) => {
-    const first = await run(dir, env);
-    assert.equal(first.status, 0, `stderr: ${first.stderr}`);
-    const afterFirstConfig = read(configPath(dir));
-    const afterFirstIgnore = read(path.join(dir, ".gitignore"));
-
-    const second = await run(dir, env);
-
-    assert.equal(second.status, 0, `stderr: ${second.stderr}`);
-    assert.equal(
-      second.stdout,
-      [
-        "viber.yml: already present and complete (left untouched)",
-        ".gitignore: already ignores .temp/",
-        "settings.json: absent",
-        "CLAUDE.md: missing",
-        "gh: present",
-        MERGE_RUN,
-        HELP_RUN,
-        "",
-      ].join("\n"),
-    );
-    assert.equal(read(configPath(dir)), afterFirstConfig);
-    assert.equal(read(path.join(dir, ".gitignore")), afterFirstIgnore);
-  });
-});
-
-test("a project that already has a .gitignore keeps it: only the .temp/ rule is appended, the bundled one is never copied over it", async () => {
-  await withGitRepo(async ({ dir, env }) => {
-    const ignore = path.join(dir, ".gitignore");
-    fs.writeFileSync(ignore, "node_modules/\n*.log\n");
-
-    const result = await run(dir, env);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^\.gitignore: \.temp\/ appended$/m);
-    assert.equal(read(ignore), `node_modules/\n*.log\n.temp/\n${LOCAL}\n`);
-  });
 });
 
 test("an existing .gitignore with no final newline gets the rule on its own line (a glued '*.log.temp/' would ignore nothing)", async () => {
@@ -453,24 +361,6 @@ test("outside a repository a line reading exactly the local-file path, blanks ar
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.doesNotMatch(result.stdout, /viber\.local\.yml/);
     assert.equal(read(ignore), before);
-  });
-});
-
-test("a flat config moves `adr: false` and `memory: false` into `planning:` and `build:`, leaves no flat switch line and reports the move", async () => {
-  await withGitRepo(async ({ dir, env }) => {
-    const cfg = configPath(dir);
-    fs.mkdirSync(path.dirname(cfg), { recursive: true });
-    fs.writeFileSync(cfg, "adr: false\nmemory: false\n");
-
-    const result = await run(dir, env);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^viber\.yml: migrated to schema 6: adr, memory moved into their groups \(your own values kept\)$/m);
-    const after = read(cfg);
-    // A move that wrote the template default would silently re-enable what the user turned off.
-    assert.equal(childValue(after, "planning", "adr"), "false");
-    assert.equal(childValue(after, "build", "memory"), "false");
-    assert.doesNotMatch(after, FLAT_SWITCH);
   });
 });
 
@@ -1059,21 +949,6 @@ test("a `build: true` key carrying a value is still left alone, its flat switch 
   });
 });
 
-test("a key written with blanks before its colon counts as declared, so the file is left byte-identical (a second copy appended at its default would override the value the user set)", async () => {
-  await withGitRepo(async ({ dir, env }) => {
-    const cfg = configPath(dir);
-    fs.mkdirSync(path.dirname(cfg), { recursive: true });
-    const before = "schema : 6\nplanning :\n  adr: true\n  outside-plan-review\t: false\n  questions-per-round : 5\nbuild\t:\n  baseline-tests\t: off\n  final-review\t: true\n  memory: true\n  rules: true\n  qa: true\n  cleanup: true\n  red-check: true\n  extensions\t:\n    a:\ngithub :\n  issues\t: true\n  issue-title : 'x'\n  pr-title\t: 'y'\ndirectories :\n  runs : builds\n  specifications\t: archive\ntiers:\n  min: haiku\n  max: opus\nbranching:\n  mode: off\n";
-    fs.writeFileSync(cfg, before);
-
-    const result = await run(dir, env);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^viber\.yml: already present and complete \(left untouched\)$/m);
-    assert.equal(read(cfg), before);
-  });
-});
-
 test("a CRLF config comes back with ONE ending throughout, never a mix of the two", async () => {
   await withGitRepo(async ({ dir, env }) => {
     const cfg = configPath(dir);
@@ -1094,26 +969,6 @@ test("a CRLF config comes back with ONE ending throughout, never a mix of the tw
     assert.match(after.replace(/\r/g, ""), /^ {2}specifications: specs$/m);
     assert.match(after.replace(/\r/g, ""), /^ {2}qa: false$/m);
     assert.match(after.replace(/\r/g, ""), /^ {2}memory: true$/m);
-  });
-});
-
-test("a config already carrying every template key is byte-identical after a run", async () => {
-  await withGitRepo(async ({ dir, env }) => {
-    const cfg = configPath(dir);
-    fs.mkdirSync(path.dirname(cfg), { recursive: true });
-    // The user's own wording and ordering, not the template's: the merge reads
-    // which keys are declared, never how the file is written.
-    const before = "# my own header\nbuild:\n  cleanup: false\n  red-check: false\n  final-review: false\n  baseline-tests: fast\n  qa: true\n  rules: true\n  memory: true\n  extensions:\n    a:\n      parallel: true\n    b:\ngithub:\n  pr-title: '{type}/{summary}'\n  issues: false\n  issue-title: 'x'\nplanning:\n  outside-plan-review: false\n  adr: true\n  questions-per-round: 3\nschema: 6\n\ndirectories:\n  specifications: archive\n  runs: open\ntiers:\n  max: sonnet\n  min: sonnet\nbranching:\n  name: '{type}/{issue}-{slug}'\n  base: develop\n  mode: required\n";
-    fs.writeFileSync(cfg, before);
-
-    const result = await run(dir, env);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^viber\.yml: already present and complete \(left untouched\)$/m);
-    // final-review: false survives the merge byte-for-byte, same as every other
-    // switch the user set - a merge that reset it to the template default would
-    // silently re-enable the reviewer.
-    assert.equal(read(cfg), before);
   });
 });
 
@@ -1184,23 +1039,6 @@ test("a negated '!.temp/' rule does NOT count as present - the entry is still ap
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.match(result.stdout, /^\.gitignore: \.temp\/ appended$/m);
     assert.equal(read(ignore), `${before}.temp/\n${LOCAL}\n`);
-  });
-});
-
-test("an existing .claude/settings.json at the repository root is reported present and left byte-unchanged (the skill asks reset or merge on this line)", async () => {
-  await withGitRepo(async ({ dir, env }) => {
-    const settings = path.join(dir, ".claude", "settings.json");
-    fs.mkdirSync(path.dirname(settings), { recursive: true });
-    const before = '{ "permissions": {} }\n';
-    fs.writeFileSync(settings, before);
-    const nested = path.join(dir, "src");
-    fs.mkdirSync(nested);
-
-    const result = await run(nested, env);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^settings\.json: present$/m);
-    assert.equal(read(settings), before);
   });
 });
 
@@ -1335,21 +1173,6 @@ test(
   },
 );
 
-test("run from a subdirectory: both files land at the repository root, not in the subdirectory", async () => {
-  await withGitRepo(async ({ dir, env }) => {
-    const nested = path.join(dir, "src", "deep");
-    fs.mkdirSync(nested, { recursive: true });
-
-    const result = await run(nested, env);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.ok(fs.existsSync(configPath(dir)), "viber.yml should be seeded at the repository root");
-    assert.ok(fs.existsSync(path.join(dir, ".gitignore")), ".gitignore should be seeded at the repository root");
-    assert.equal(fs.existsSync(path.join(nested, ".gitignore")), false);
-    assert.equal(fs.existsSync(configPath(nested)), false);
-  });
-});
-
 test("outside a repository the cwd is the base - the seeding still happens and the exit is still 0", async () => {
   await withTempDir("p2p2-viber-bootstrap-", async (dir) => {
     const result = await run(dir);
@@ -1359,42 +1182,6 @@ test("outside a repository the cwd is the base - the seeding still happens and t
     assert.ok(fs.existsSync(path.join(dir, ".gitignore")));
   });
 });
-
-test("outside a repository the CLAUDE.md line names a path the reader opens as written (Git Bash /c/... is no path to a Windows reader)", async () => {
-  await withTempDir("p2p2-viber-bootstrap-", async (dir) => {
-    fs.writeFileSync(path.join(dir, "CLAUDE.md"), "# project\n");
-    const result = await run(dir);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    const line = claudeMdLines(result.stdout).find((l) => l.startsWith("CLAUDE.md: present - "));
-    assert.ok(line, `stdout: ${result.stdout}`);
-    const printed = line.slice("CLAUDE.md: present - ".length);
-    assert.equal(fs.realpathSync.native(printed), fs.realpathSync.native(path.join(dir, "CLAUDE.md")));
-  });
-});
-
-/** The spellings Git Bash is invoked by on Windows: the root the directive lines name follows the invoked path. */
-const INVOKED_SPELLINGS = [
-  { name: "a /c/ path", script: slash(SUT).replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`), root: slash(PLUGIN_ROOT).replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`) },
-  { name: "a C:\\ path", script: SUT, root: PLUGIN_ROOT },
-];
-
-for (const spelling of INVOKED_SPELLINGS) {
-  test(`invoked by ${spelling.name}, the merge-settings.sh and open-page.sh RUN: lines name the plugin root in that spelling (AC1)`, { skip: process.platform === "win32" ? false : "the /c/ and C:\\ spellings are a Windows Git Bash matter" }, async () => {
-    await withGitRepo(async ({ dir, env }) => {
-      const result = await withStub("gh", "exit 0", (stubDir) =>
-        runScript(spelling.script, [], { cwd: dir, env, shell: "bash", stubDirs: [stubDir] }),
-      );
-
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(result.stdout.split("\n").slice(-3), [
-        `RUN: "${spelling.root}/skills/setup/scripts/merge-settings.sh" "${spelling.root}/skills/setup/templates/settings.json"`,
-        `RUN: "${spelling.root}/scripts/open-page.sh" "${spelling.root}/skills/setup/assets/help.html"`,
-        "",
-      ]);
-    });
-  });
-}
 
 test("a read-only project root still exits 0 (fail-soft on every mutation)", async () => {
   await withTempDir("p2p2-viber-bootstrap-readonly-", async (scratch) => {

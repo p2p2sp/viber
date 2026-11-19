@@ -31,85 +31,25 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-
-import { runScript, type RunResult } from "../harness/run.ts";
 import { withTempDir } from "../harness/tmp.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
 import { slash } from "../harness/paths.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/code-auditor/scripts/hunt-return.sh");
-const SKILL_DIR = slash(path.resolve(import.meta.dirname, "../../viber/skills/code-auditor"));
-const PLUGIN_ROOT = slash(path.resolve(import.meta.dirname, "../../viber"));
+import {
+  SKILL_DIR,
+  PLUGIN_ROOT,
+  assertPosix,
+  lines,
+  frame,
+  run,
+  put,
+  U1_LEDGER,
+  criticBlock,
+} from "./hunt-return-fixture.ts";
 
 const CONTENT = "\x3c/content>";
 const PARAMETER = "\x3c/parameter>";
 
-async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("posix", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "posix");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-function lines(...rows: string[]): string {
-  return rows.map((row) => `${row}\n`).join("");
-}
-
-const UNITS = ["- U1 | src/m1 | why 1", "- U2 | src/m2 | why 2"];
-
-interface Frame {
-  lens?: string;
-  scope?: string;
-  worktree?: boolean;
-  ledger?: string[];
-  seeds?: string[];
-}
-
-/** Writes lens.md, run.md, map.md and ledger.md under `dir`, returns the workspace. */
-function frame(dir: string, opts: Frame = {}): { ws: string; lensFile: string } {
-  const ws = slash(path.join(dir, "ws"));
-  fs.mkdirSync(path.join(ws, "reports"), { recursive: true });
-  const lensFile = `${ws}/lens.md`;
-  fs.writeFileSync(
-    lensFile,
-    lines("# Lens", "", "## Hunts", "### alpha", "what to look for.", "", "## Verify", `Worktree: ${opts.worktree ? "required" : "none"}`),
-  );
-  fs.writeFileSync(
-    path.join(ws, "run.md"),
-    lines(`Lens: ${opts.lens ?? "bugs"}`, `Lens file: ${lensFile}`, `Scope: ${opts.scope ?? "diff"}`, `Target root: ${slash(dir)}`),
-  );
-  fs.writeFileSync(path.join(ws, "map.md"), lines("## Conventions", "none", "", "## Units", ...UNITS));
-  fs.writeFileSync(path.join(ws, "ledger.md"), lines(...(opts.ledger ?? [])));
-  if (opts.seeds) fs.writeFileSync(path.join(ws, "seeds.md"), lines(...opts.seeds));
-  return { ws, lensFile };
-}
-
-async function run(shell: Shell, ws: string, ...rest: string[]): Promise<RunResult> {
-  return await runScript(SUT, [ws, ...(rest.length ? rest : ["hunter", "U1"])], { shell, cwd: path.dirname(ws) });
-}
-
-function put(ws: string, name: string, body: string): void {
-  fs.writeFileSync(path.join(ws, "reports", name), body);
-}
-
 function read(ws: string, ...parts: string[]): string {
   return fs.readFileSync(path.join(ws, ...parts), "utf-8");
-}
-
-const U1_LEDGER = ["hunt: U1 | wave: 1 | unit: U1 | angle: none"];
-
-/** The critic block hunt-return.sh prints for the claim `<cid>`, `extra` the lens-dependent lines. */
-function criticBlock(ws: string, lensFile: string, cid: string, extra: string[] = [], tail: string[] = [], retry = false): string {
-  return lines(
-    `NEXT: critic | id: ${cid} | background${retry ? " | retry" : ""}`,
-    `Claim: ${ws}/reports/${cid}.claim.md`,
-    `Run file: ${ws}/run.md`,
-    `Lens file: ${lensFile}`,
-    `Out: ${ws}/verdicts/${cid}.md`,
-    ...extra,
-    ...tail,
-  );
 }
 
 test("every <id>-<digit>.md and .claim.md of the hunt loses a trailing closing tag, every other byte kept", async () => {
@@ -141,24 +81,6 @@ test("a file of a longer id is neither stripped nor counted (A-x-y-1.md and its 
       assert.match(result.stdout, /^NEXT: hunter \| id: A-x \| background \| retry\n/);
       assert.equal(read(ws, "reports", "A-x-y-1.md"), `LOCATION: a.ts:1\n${CONTENT}\n`);
       assert.equal(read(ws, "reports", "A-x-y-1.claim.md"), `LOCATION: a.ts:1\n${CONTENT}\n`);
-    });
-  });
-});
-
-test("each claim prints one critic block in ascending k whatever the order the sidecars were written in", async () => {
-  await assertPosix(async (shell) => {
-    await withTempDir("hunt-return-", async (dir) => {
-      const { ws, lensFile } = frame(dir, { ledger: U1_LEDGER });
-      put(ws, "U1-3.claim.md", "LOCATION: c\n");
-      put(ws, "U1-1.claim.md", "LOCATION: a\n");
-      put(ws, "U1-2.claim.md", "LOCATION: b\n");
-      put(ws, "U1-1.md", "report\n");
-      const result = await run(shell, ws);
-      assert.equal(result.status, 0, `stderr=${result.stderr}`);
-      assert.equal(
-        slash(result.stdout),
-        criticBlock(ws, lensFile, "U1-1") + criticBlock(ws, lensFile, "U1-2") + criticBlock(ws, lensFile, "U1-3"),
-      );
     });
   });
 });
@@ -208,35 +130,6 @@ test("the tests lens adds the Test rules line to a critic block", async () => {
     });
   });
 });
-
-// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
-// Neither spelling names a file outside Windows, so the cases skip there.
-const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
-const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
-
-const SPELLINGS: Array<{ label: string; invoked: string; skillDir: string; pluginRoot: string }> = [
-  { label: "a C:\\ path", invoked: SUT, skillDir: SKILL_DIR, pluginRoot: PLUGIN_ROOT },
-  { label: "a C:/ path", invoked: slash(SUT), skillDir: SKILL_DIR, pluginRoot: PLUGIN_ROOT },
-  { label: "a /c/ path", invoked: MSYS(SUT), skillDir: MSYS(SKILL_DIR), pluginRoot: MSYS(PLUGIN_ROOT) },
-];
-
-for (const row of SPELLINGS) {
-  test(`invoked by ${row.label}, a critic block prints its worktree script, overlay script and test rules in that spelling`, { skip: WINDOWS_ONLY }, async () => {
-    await assertPosix(async (shell) => {
-      await withTempDir("hunt-return-", async (dir) => {
-        const { ws } = frame(dir, { lens: "tests", worktree: true, ledger: ["hunt: A-alpha | wave: 1 | unit: none | angle: alpha"] });
-        put(ws, "A-alpha-1.claim.md", "LOCATION: a\n");
-        const result = await runScript(row.invoked, [ws, "hunter", "A-alpha"], { shell, cwd: path.dirname(ws) });
-        assert.equal(result.status, 0, `stderr=${result.stderr}`);
-        assert.deepEqual(result.stdout.split("\n").filter((line) => /^(Test rules|Worktree script|Overlay script): /.test(line)), [
-          `Worktree script: ${row.skillDir}/scripts/worktree.sh`,
-          `Overlay script: ${row.skillDir}/scripts/diff-overlay.sh`,
-          `Test rules: ${row.pluginRoot}/references/test-strategy.md`,
-        ]);
-      });
-    });
-  });
-}
 
 test("a wave 2 hunt adds Variant: yes as the last line of its critic block", async () => {
   await assertPosix(async (shell) => {

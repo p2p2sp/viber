@@ -14,22 +14,24 @@ jobs:
   Tests:
     strategy:
       fail-fast: false
-      # Every run covers Linux and Windows, where the shell-portability and
-      # path-separator assumptions actually get exercised.
-      # Windows splits the suite into 4 shards (node --test-shard, one job
-      # each): a spawned script costs an order of magnitude more there, so one
-      # job would take several times the Linux one.
+      # Linux runs every tier: a spawned script is cheap there. Windows and
+      # macOS run the unit and critical tiers only (tests/CLAUDE.md): a spawned
+      # script costs an order of magnitude more under Git Bash, so the logic
+      # tier would take a Windows job from minutes to a quarter of an hour.
+      # The whole suite runs on Windows in full.yml, nightly and before a
+      # release.
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        shard: [1, 2, 3, 4]
-        exclude:
+        include:
           - os: ubuntu-latest
-            shard: 2
-          - os: ubuntu-latest
-            shard: 3
-          - os: ubuntu-latest
-            shard: 4
-    name: ${{ matrix.os == 'windows-latest' && format('Tests ({0}, {1}/4)', matrix.os, matrix.shard) || format('Tests ({0})', matrix.os) }}
+            tiers: all
+            files: 12
+          - os: windows-latest
+            tiers: critical
+            files: 6
+          - os: macos-latest
+            tiers: critical
+            files: 6
+    name: Tests (${{ matrix.os }}, ${{ matrix.tiers }})
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -38,21 +40,27 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - name: Guard - test glob must match at least one file
+      - name: Guard - each test glob must match at least one file
         run: |
-          count=$(git ls-files 'tests/**/*.test.ts' | wc -l)
-          [ "$count" -gt 0 ]
-      # Runs both tiers: the unit tier (*.unit.test.ts, the only one a
-      # developer machine runs) and the integration tier (every other
-      # *.test.ts, CI only - see tests/CLAUDE.md).
-      # --test-concurrency: the suite spends its time waiting on spawned
-      # scripts, not on CPU, so it runs more files at once than the runner has
-      # cores. Matters on windows-latest (4 vCPU, default concurrency 3), where
-      # process creation is an order of magnitude dearer than on Linux.
-      # CI=true turns on the full shell matrix (tests/harness/shells.ts): every
-      # POSIX shell and every bash major present, which a local run skips.
+          for pattern in 'tests/**/*.unit.test.ts' 'tests/**/*.critical.test.ts' 'tests/**/*.test.ts'; do
+            count=$(git ls-files "$pattern" | wc -l)
+            [ "$count" -gt 0 ]
+          done
+      # --test-concurrency (files at once): the suite spends its time on
+      # spawned scripts, so Linux runs more files at once than the runner has
+      # cores; Windows and macOS stay close to their core count, where an
+      # overloaded runner turns slow cases into timeouts.
+      # CI=true turns on the full shell matrix for the critical files
+      # (tests/harness/shells.ts): every POSIX shell and every bash major
+      # present. A logic file runs under the first shell present.
       - name: Run tests
         env:
           CI: "true"
-          SHARD: ${{ matrix.os == 'windows-latest' && format('{0}/4', matrix.shard) || '1/1' }}
-        run: node --test --test-concurrency=12 --test-shard="$SHARD" "tests/**/*.test.ts"
+          TIERS: ${{ matrix.tiers }}
+          FILES: ${{ matrix.files }}
+        run: |
+          if [ "$TIERS" = all ]; then
+            node --test --test-concurrency="$FILES" "tests/**/*.test.ts"
+          else
+            node --test --test-concurrency="$FILES" "tests/**/*.unit.test.ts" "tests/**/*.critical.test.ts"
+          fi

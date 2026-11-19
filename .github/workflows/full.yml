@@ -1,0 +1,55 @@
+name: Full suite
+# Every tier on Linux and on Windows, every case under the full shell matrix:
+# what a push run leaves out on Windows (the logic tier) and everywhere (the
+# shell matrix of a logic file). It runs nightly, on demand and as the gate of
+# release-version.yml, so no release ships a script the whole suite did not
+# pass on Windows.
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+  workflow_call:
+defaults:
+  run:
+    shell: bash
+jobs:
+  Tests:
+    strategy:
+      fail-fast: false
+      # Windows splits the suite into 4 shards (node --test-shard, one job
+      # each): a spawned script costs an order of magnitude more there, so one
+      # job would take several times the Linux one.
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        shard: [1, 2, 3, 4]
+        exclude:
+          - os: ubuntu-latest
+            shard: 2
+          - os: ubuntu-latest
+            shard: 3
+          - os: ubuntu-latest
+            shard: 4
+    name: ${{ matrix.os == 'windows-latest' && format('Full ({0}, {1}/4)', matrix.os, matrix.shard) || format('Full ({0})', matrix.os) }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Guard - test glob must match at least one file
+        run: |
+          count=$(git ls-files 'tests/**/*.test.ts' | wc -l)
+          [ "$count" -gt 0 ]
+      # P2P2_SHELL_MATRIX=full runs every file, logic tier included, under
+      # every POSIX shell and every bash major present
+      # (tests/harness/shells.ts). Windows runs fewer files at once than
+      # Linux: an overloaded runner turns its slow cases into timeouts.
+      - name: Run tests
+        env:
+          CI: "true"
+          P2P2_SHELL_MATRIX: full
+          SHARD: ${{ matrix.os == 'windows-latest' && format('{0}/4', matrix.shard) || '1/1' }}
+          FILES: ${{ matrix.os == 'windows-latest' && '8' || '12' }}
+        run: node --test --test-concurrency="$FILES" --test-shard="$SHARD" "tests/**/*.test.ts"

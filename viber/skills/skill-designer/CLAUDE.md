@@ -20,7 +20,7 @@ Owns `skill-designer/`: authoring, audit and model tuning doctrine in `SKILL.md`
 ## Commands
 
 - Lint a skill or file: `bash viber/skills/skill-designer/scripts/lint_skill.sh <skill-dir | file.md>` (exit 1 on any FAIL).
-- The linter's own regression suite is `tests/viber/lint_skill.test.ts` (integration tier, CI only).
+- The linter's own regression suite is `tests/viber/lint_skill.test.ts` with `tests/viber/lint_skill.critical.test.ts` (logic and critical tiers).
 
 ## Change together
 

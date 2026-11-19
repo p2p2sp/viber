@@ -19,9 +19,8 @@ import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
 import { buildPrompts, main } from "../../viber/skills/idea-validator/scripts/build_report.mjs";
-import { capture, validReport } from "./build_report-fixture.ts";
+import { SUT, capture, validReport } from "./build_report-fixture.ts";
 
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/idea-validator/scripts/build_report.mjs");
 const REFERENCES = path.resolve(import.meta.dirname, "../../viber/skills/idea-validator/references");
 
 test("unparsable input exits 1 with a 'Cannot parse' line and writes no report", async () => {
@@ -70,22 +69,6 @@ test("a fact text holding a comment marker and a script tag builds OK and its re
   });
 });
 
-test("valid data exits 0 and writes the filled template with every placeholder replaced and LF line endings", async () => {
-  await withTempDir("idea-validator-", (dir) => {
-    const src = path.join(dir, "report-data.json");
-    const dest = path.join(dir, "report.html");
-    fs.writeFileSync(src, JSON.stringify(validReport()), "utf-8");
-    const out = capture();
-    assert.equal(main([src, dest], out.log), 0);
-    assert.match(out.lines[0], /^OK → .*report\.html \(\d+ KB\)$/);
-    const html = fs.readFileSync(dest, "utf-8");
-    assert.ok(html.includes('<html lang="pl">'));
-    assert.ok(html.includes("<title>Idea</title>"));
-    assert.ok(!/__REPORT_DATA__|__LANG__|__TITLE__/.test(html));
-    assert.ok(!html.includes("\r\n"));
-  });
-});
-
 const REAL_REFS = {
   process: fs.readFileSync(path.join(REFERENCES, "process.md"), "utf-8"),
   dimensions: fs.readFileSync(path.join(REFERENCES, "dimensions.md"), "utf-8"),
@@ -111,25 +94,6 @@ for (const [name, expected, forbidden] of REAL_PROMPTS) {
     assert.doesNotMatch(found.text, forbidden);
   });
 }
-
-test("--prompts research on a relative working directory creates its prompts/ and writes the three files, printing one PROMPT line each with an absolute path", async () => {
-  await withTempDir("idea-validator-", async (dir) => {
-    fs.mkdirSync(path.join(dir, "wd"));
-    const real = fs.realpathSync(dir);
-    const result = await runScript(SUT, ["--prompts", "research", "wd"], { cwd: dir });
-    assert.equal(result.status, 0);
-    assert.deepEqual(result.stdout.trim().split(/\r?\n/), [
-      `PROMPT: problem | ${path.join(real, "wd", "prompts", "research-problem.md")}`,
-      `PROMPT: market | ${path.join(real, "wd", "prompts", "research-market.md")}`,
-      `PROMPT: competition | ${path.join(real, "wd", "prompts", "research-competition.md")}`,
-    ]);
-    const problem = fs.readFileSync(path.join(dir, "wd", "prompts", "research-problem.md"), "utf-8");
-    assert.match(problem, /^### Problem research brief/);
-    assert.ok(problem.includes(`Write your output to ${path.join(real, "wd", "03-research-problem.md")}.`));
-    assert.ok(fs.existsSync(path.join(dir, "wd", "prompts", "research-market.md")));
-    assert.ok(fs.existsSync(path.join(dir, "wd", "prompts", "research-competition.md")));
-  });
-});
 
 test("--prompts research on a missing working directory exits 1 naming it and writes nothing", async () => {
   await withTempDir("idea-validator-", async (dir) => {

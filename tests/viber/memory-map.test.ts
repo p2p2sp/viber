@@ -33,33 +33,7 @@ import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
 import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/memory/scripts/memory-map.sh");
-
-function run(repo: GitRepo, args: string[] = []) {
-  return runScript(SUT, args, { cwd: repo.dir, env: repo.env, shell: "bash" });
-}
-
-/** stdout split into lines, the trailing empty one dropped. */
-function lines(stdout: string): string[] {
-  return stdout.replace(/\n$/, "").split("\n");
-}
-
-/** Writes each `path -> content` pair into the repo, creating directories. */
-function write(repo: GitRepo, files: Record<string, string>): void {
-  for (const [rel, body] of Object.entries(files)) {
-    const full = path.join(repo.dir, rel);
-    fs.mkdirSync(path.dirname(full), { recursive: true });
-    fs.writeFileSync(full, body);
-  }
-}
-
-/** Writes the files and commits them, so every one of them is tracked. */
-async function commit(repo: GitRepo, files: Record<string, string>): Promise<void> {
-  write(repo, files);
-  await repo.git("add", "-A");
-  await repo.git("commit", "-m", "seed");
-}
+import { SUT, run, lines, write, commit, pick, node, MAP_ID, body, present } from "./memory-map-fixture.ts";
 
 test("a repository with no tracked file at all is the empty map", async () => {
   await withGitRepo(async (repo) => {
@@ -72,29 +46,6 @@ test("a repository with no tracked file at all is the empty map", async () => {
     assert.deepEqual(out.slice(2), ["state: none", "total: nodes 0"]);
   });
 });
-
-/** The lines of `out` opening with `prefix`, in the order printed. */
-function pick(out: string[], prefix: string): string[] {
-  return out.filter((line) => line.startsWith(prefix));
-}
-
-test("a tracked root CLAUDE.md is one node line carrying its own and its chain's character count", async () => {
-  await withGitRepo(async (repo) => {
-    await commit(repo, { "CLAUDE.md": `${"x".repeat(99)}\n`, "README.md": "readme\n" });
-
-    const result = await run(repo);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    const out = lines(result.stdout);
-    assert.deepEqual(pick(out, "node:"), ["node: CLAUDE.md 100 chain 100 ok"]);
-    assert.deepEqual(pick(out, "total:"), ["total: nodes 1"]);
-  });
-});
-
-/** A CLAUDE.md body of exactly `chars` bytes, newline included. */
-function node(chars: number): string {
-  return `${"x".repeat(chars - 1)}\n`;
-}
 
 test("nodes come root first then in depth order, each chain adding every ancestor node above it", async () => {
   await withGitRepo(async (repo) => {
@@ -239,22 +190,6 @@ test("only a node with no other tracked file anywhere beneath its directory is a
 
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.deepEqual(pick(lines(result.stdout), "orphan:"), ["orphan: lonely/CLAUDE.md"]);
-  });
-});
-
-test("a node whose directory name holds a backslash is no orphan when four other files are tracked beside it, like the same layout under a plain name (awk -v would read the backslash as an escape)", async () => {
-  await withGitRepo(async (repo) => {
-    const files: Record<string, string> = {};
-    for (const dir of ["we\\tird", "plain"]) {
-      files[`${dir}/CLAUDE.md`] = node(40);
-      for (const name of ["a.ts", "b.ts", "c.ts", "d.ts"]) files[`${dir}/${name}`] = "export const a = 1;\n";
-    }
-    await commit(repo, files);
-
-    const result = await run(repo);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(pick(lines(result.stdout), "orphan:"), []);
   });
 });
 
@@ -582,27 +517,6 @@ test("a directory that is no repository at all maps as the empty layer and still
   });
 });
 
-test("--reset deletes every node it is given, in the order it was given them", async () => {
-  await withGitRepo(async (repo) => {
-    await commit(repo, {
-      "CLAUDE.md": node(40),
-      "docs/CLAUDE.md": node(40),
-      "docs/guide.md": "x\n",
-    });
-
-    const result = await run(repo, ["--reset", "docs/CLAUDE.md", "CLAUDE.md"]);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(lines(result.stdout), [
-      "removed: docs/CLAUDE.md",
-      "removed: CLAUDE.md",
-      "removed: 2",
-    ]);
-    assert.equal(fs.existsSync(path.join(repo.dir, "CLAUDE.md")), false);
-    assert.equal(fs.existsSync(path.join(repo.dir, "docs/CLAUDE.md")), false);
-  });
-});
-
 test("run from a subdirectory, the map and --reset still read every path relative to the repository root", async () => {
   await withGitRepo(async (repo) => {
     await commit(repo, {
@@ -621,25 +535,6 @@ test("run from a subdirectory, the map and --reset still read every path relativ
     assert.equal(reset.status, 0, `stderr: ${reset.stderr}`);
     assert.deepEqual(lines(reset.stdout), ["removed: docs/CLAUDE.md", "removed: 1"]);
     assert.equal(fs.existsSync(path.join(repo.dir, "docs/CLAUDE.md")), false);
-  });
-});
-
-test("one modified target among several refuses the whole --reset and deletes nothing", async () => {
-  await withGitRepo(async (repo) => {
-    await commit(repo, {
-      "CLAUDE.md": node(40),
-      "a/CLAUDE.md": node(40),
-      "b/CLAUDE.md": node(40),
-    });
-    write(repo, { "b/CLAUDE.md": node(60) });
-
-    const result = await run(repo, ["--reset", "CLAUDE.md", "a/CLAUDE.md", "b/CLAUDE.md"]);
-
-    assert.equal(result.status, 3, `stderr: ${result.stderr}`);
-    assert.deepEqual(lines(result.stdout), ["refused: b/CLAUDE.md modified"]);
-    assert.equal(fs.existsSync(path.join(repo.dir, "CLAUDE.md")), true);
-    assert.equal(fs.existsSync(path.join(repo.dir, "a/CLAUDE.md")), true);
-    assert.equal(fs.existsSync(path.join(repo.dir, "b/CLAUDE.md")), true);
   });
 });
 
@@ -1207,16 +1102,9 @@ test("a --removed path outside the reset mode exits 2 with one error line and an
   });
 });
 
-const MAP_ID = "2026-11-19-10-00-00";
-
 /** `--targets <mode> --id <id> --keep <path>...`, the call that follows the approval of the targets. */
 function kept(repo: GitRepo, mode: string, ...keep: string[]) {
   return targets(repo, mode, "--id", MAP_ID, ...keep.flatMap((p) => ["--keep", p]));
-}
-
-/** A node body from its `## ` sections, each a heading line followed by its content lines. */
-function body(...parts: string[]): string {
-  return `# area - what it owns\n\nOwns the area.\n\n${parts.join("\n")}`;
 }
 
 test("--keep prints the planned set first: every node of the map plus the node of each kept create target, root first then by depth", async () => {
@@ -1507,11 +1395,6 @@ test("--id without --keep exits 2 with one error line and an empty stdout", asyn
   });
 });
 
-/** Puts a CLAUDE.md at each path, tracked nowhere: the reconcile call reads the tree alone. */
-function present(repo: GitRepo, ...paths: string[]): void {
-  write(repo, Object.fromEntries(paths.map((p) => [p, node(40)])));
-}
-
 /** `--reconcile --planned <planned> ...rest`, the call the memory command makes after its write waves. */
 function reconcile(repo: GitRepo, planned: string[], ...rest: string[]) {
   return run(repo, ["--reconcile", "--planned", planned.join(","), ...rest]);
@@ -1795,50 +1678,3 @@ test("--reconcile with a --files no dispatch flag opens exits 2 with one error l
     assert.match(result.stderr, /^error: [^\n]+\n$/);
   });
 });
-
-/** The ways a caller can spell the path it invokes the script by, each with the
- *  plugin root the script must print for it: on Windows the native `C:\...`, the
- *  mixed `C:/...` and the MSYS `/c/...` spellings, elsewhere the one absolute path. */
-function invocations(): { form: string; script: string; root: string }[] {
-  const plugin = path.resolve(import.meta.dirname, "../../viber");
-  if (process.platform !== "win32") return [{ form: "absolute", script: SUT, root: plugin }];
-  const mixed = (p: string) => p.replace(/\\/g, "/");
-  const msys = (p: string) => mixed(p).replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`);
-  return [
-    { form: "C:\\", script: path.win32.normalize(SUT), root: mixed(plugin) },
-    { form: "C:/", script: mixed(SUT), root: mixed(plugin) },
-    { form: "/c/", script: msys(SUT), root: msys(plugin) },
-  ];
-}
-
-for (const { form, script, root } of invocations()) {
-  test(`--targets with --keep invoked by a ${form} path prints the references path in that spelling`, async () => {
-    await withGitRepo(async (repo) => {
-      await commit(repo, { "CLAUDE.md": node(40), "src/a.ts": "x\n" });
-
-      const result = await runScript(
-        script,
-        ["--targets", "review", "--id", MAP_ID, "--keep", "CLAUDE.md"],
-        { cwd: repo.dir, env: repo.env, shell: "bash" },
-      );
-
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(pick(lines(result.stdout), "refs: "), [`refs: ${root}/references`]);
-    });
-  });
-
-  test(`--reconcile invoked by a ${form} path prints the references path in that spelling`, async () => {
-    await withGitRepo(async (repo) => {
-      present(repo, "CLAUDE.md", "docs/CLAUDE.md");
-
-      const result = await runScript(
-        script,
-        ["--reconcile", "--planned", "CLAUDE.md,docs/CLAUDE.md,docs/a/CLAUDE.md", "--fix", "docs/CLAUDE.md", "--files", "docs/CLAUDE.md"],
-        { cwd: repo.dir, env: repo.env, shell: "bash" },
-      );
-
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(pick(lines(result.stdout), "refs: "), [`refs: ${root}/references`]);
-    });
-  });
-}

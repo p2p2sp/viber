@@ -27,59 +27,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
-import { slash } from "../harness/paths.ts";
-import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
+import { withGitRepo, withTempDir } from "../harness/tmp.ts";
+import { SUT, PLAN, write, reach, reachFile } from "./reach-fixture.ts";
 
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/planner/scripts/reach.sh");
 const REPO_ROOT = path.resolve(import.meta.dirname, "../..");
 const TRUNCATED = "truncated: past 200 lines - search this target yourself";
-const PLAN = "/work/plan file.md";
-
-function write(root: string, rel: string, content: string): void {
-  const file = path.join(root, rel);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, content);
-}
-
-function reach(repo: GitRepo, args: string[], cwd: string = repo.dir) {
-  return runScript(SUT, args, { cwd, env: repo.env, shell: "bash" });
-}
-
-/** Runs reach.sh --plan PLAN with the targets and returns its stdout lines plus the candidates file it names. */
-async function reachFile(repo: GitRepo, targets: string[], cwd?: string) {
-  const result = await reach(repo, ["--plan", PLAN, ...targets], cwd);
-  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-  const lines = result.stdout.trimEnd().split("\n");
-  const named = slash(lines[0]).match(
-    /^candidates: (.+\/\.temp\/viber\/planner\/reach-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.md)$/,
-  );
-  assert.ok(named, `no candidates line in: ${result.stdout}`);
-  return { lines, file: named[1], content: fs.readFileSync(named[1], "utf-8") };
-}
-
-test("a path target lists the files importing or naming it with their lines, never the target's own file, and prints the candidates path and the hits line", async () => {
-  await withGitRepo(async (repo) => {
-    write(repo.dir, "src/auth.ts", "// auth.ts holds the login\nexport const login = 1;\n");
-    write(repo.dir, "src/b.ts", 'import { login } from "./auth";\n');
-    write(repo.dir, "docs/x.md", "The login flow lives in src/auth.ts.\n");
-    await repo.git("add", "src", "docs");
-
-    const out = await reachFile(repo, ["src/auth.ts"], path.join(repo.dir, "src"));
-
-    assert.equal(
-      out.content,
-      [
-        "## src/auth.ts",
-        "terms: src/auth.ts, auth.ts, auth",
-        'docs/x.md:1: The login flow lives in src/auth.ts.',
-        'src/b.ts:1: import { login } from "./auth";',
-        "",
-      ].join("\n"),
-    );
-    assert.equal(out.lines[1], "hits: 2 lines in 2 files");
-    assert.ok(path.isAbsolute(out.file), out.file);
-  });
-});
 
 test("a `| parse` target lists the whole word parse and never parser", async () => {
   await withGitRepo(async (repo) => {

@@ -15,39 +15,7 @@
 
 import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
-
-import { runScript } from "../harness/run.ts";
-import { withTempDir } from "../harness/tmp.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/skill-designer/scripts/lint_skill.sh");
-
-const VALID_LINES = [
-  "---",
-  "name: sample-skill",
-  "description: Summarizes a changelog into release notes for a project. Use when the user asks for release notes or a changelog digest.",
-  "---",
-  "",
-  "# Sample skill",
-  "",
-  "Read the changelog and write the notes.",
-  "",
-];
-
-async function lint(content: string) {
-  return withTempDir("p2p2-lint-", async (dir) => {
-    const file = path.join(dir, "SKILL.md");
-    fs.writeFileSync(file, content);
-    return runScript(SUT, [file], { shell: "bash" });
-  });
-}
-
-test("a valid SKILL.md with LF endings prints FAIL=0 WARN=0 and exits 0", async () => {
-  const res = await lint(VALID_LINES.join("\n"));
-  assert.equal(res.stdout.trim(), "FAIL=0 WARN=0");
-  assert.equal(res.status, 0);
-});
+import { VALID_LINES, lint } from "./lint_skill-fixture.ts";
 
 test("the CRLF copy of a valid SKILL.md prints FAIL=0 WARN=0 and exits 0 (a carriage return on the opener must not read as missing frontmatter)", async () => {
   const res = await lint(VALID_LINES.join("\r\n"));

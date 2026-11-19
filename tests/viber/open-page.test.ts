@@ -22,40 +22,8 @@ import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
 import { withTempDir } from "../harness/tmp.ts";
-import { coreUtilsPath, withStub } from "../harness/stub.ts";
-import { slash } from "../harness/paths.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/open-page.sh");
-
-type Stub = [name: string, body: string];
-
-/** Nests one `withStub` per entry and hands `fn` every stub dir. */
-async function withStubs<T>(stubs: Stub[], fn: (dirs: string[]) => T, dirs: string[] = []): Promise<T> {
-  if (stubs.length === 0) return fn(dirs);
-  const [[name, body], ...rest] = stubs;
-  return await withStub(name, body, (dir) => withStubs(rest, fn, [...dirs, dir]));
-}
-
-/** A stub body that writes its argv, one per line, to `log`. */
-function logArgs(log: string, exit = 0): string {
-  return `printf '%s\\n' "$@" > "${slash(log)}"\nexit ${exit}`;
-}
-
-/** Windows-shaped `cygpath`: `-w` marks the path, `-m` returns it unchanged. */
-const CYGPATH: Stub = ["cygpath", 'if [ "$1" = "-w" ]; then echo "WIN:$2"; else echo "$2"; fi'];
-
-/** `settle` runs after the script exits but before the stubs are removed: an
- *  opener the script started in the background may not have exec'd its stub
- *  yet, and deleting the stub dir first would leave it nothing to run. */
-function run(dir: string, stubs: Stub[], env: Record<string, string> = {}, settle: () => void | Promise<void> = () => {}) {
-  const page = path.join(dir, "page.html");
-  fs.writeFileSync(page, "<!doctype html>");
-  return withStubs(stubs, async (stubDirs) => {
-    const result = await runScript(SUT, [page], { cwd: dir, env: { PATH: coreUtilsPath(), ...env }, stubDirs });
-    await settle();
-    return result;
-  });
-}
+import { coreUtilsPath } from "../harness/stub.ts";
+import { SUT, logArgs, run } from "./open-page-fixture.ts";
 
 /** Polls for `file` up to 5 s: the Linux desktop branch starts its opener in the background. */
 function waitFor(file: string): string {
@@ -80,42 +48,12 @@ test("a file that does not exist reports it missing at an absolute path, and the
   });
 });
 
-test("macOS hands the file to open and reports it opened", async () => {
-  await withTempDir("p2p2-viber-open-", async (dir) => {
-    const log = path.join(dir, "open.log");
-    const result = await run(dir, [["uname", "echo Darwin"], ["open", logArgs(log)]]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "page.html: opened in the browser\n");
-    assert.ok(fs.readFileSync(log, "utf8").trim().endsWith(`${path.basename(dir)}/page.html`));
-  });
-});
-
 test("an opener that fails reports the browser did not open, with the path to open by hand", async () => {
   await withTempDir("p2p2-viber-open-", async (dir) => {
     const log = path.join(dir, "open.log");
     const result = await run(dir, [["uname", "echo Darwin"], ["open", logArgs(log, 1)]]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.match(result.stdout, /^page\.html: the browser did not open - open \S+\/page\.html by hand\n$/);
-  });
-});
-
-test("Git Bash hands rundll32 the file handler and the Windows form of the path", async () => {
-  await withTempDir("p2p2-viber-open-", async (dir) => {
-    const log = path.join(dir, "rundll32.log");
-    const result = await run(dir, [["uname", "echo MINGW64_NT-10.0-26200"], CYGPATH, ["rundll32", logArgs(log)]]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "page.html: opened in the browser\n");
-    const [handler, target] = fs.readFileSync(log, "utf8").trim().split("\n");
-    assert.equal(handler, "url.dll,FileProtocolHandler");
-    assert.ok(target.startsWith("WIN:") && target.endsWith("/page.html"), target);
-  });
-});
-
-test("Git Bash with no rundll32 reports no browser and the path to open by hand", async () => {
-  await withTempDir("p2p2-viber-open-", async (dir) => {
-    const result = await run(dir, [["uname", "echo MINGW64_NT-10.0-26200"], CYGPATH]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^page\.html: no browser to open it - open \S+\/page\.html by hand\n$/);
   });
 });
 

@@ -16,55 +16,9 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-
-import { runScript, type RunResult } from "../harness/run.ts";
 import { withGitRepo, withTempDir } from "../harness/tmp.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
 import { slash } from "../harness/paths.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/commit/scripts/commit-args.sh");
-
-function wrapperScript(libPath: string): string {
-  return [
-    "#!/usr/bin/env bash",
-    `source "${libPath}"`,
-    "enter_repo_root",
-    'resolve_commit_selector "$1"',
-    "printf '%s\\n' \"$COMMIT_MODE\"",
-    "IFS='|'; printf '%s\\n' \"${COMMIT_PATHS[*]}\"",
-    "printf '%s\\n' \"$COMMIT_ISSUE_REFS\"",
-  ].join("\n") + "\n";
-}
-
-interface Selector {
-  mode: string;
-  path: string;
-  issueRefs: string;
-}
-
-/** Sources commit-args.sh into a fresh bash wrapper, calls
- *  `resolve_commit_selector <raw>` with `cwd` as the working directory
- *  (so relative-path existence checks resolve against it), and returns the
- *  three resulting variables. */
-async function resolve(bash: Shell, cwd: string, raw: string): Promise<Selector> {
-  return await withTempDir("p2p2-commit-args-wrapper-", async (wrapperDir) => {
-    const wrapper = path.join(wrapperDir, "wrapper.sh");
-    fs.writeFileSync(wrapper, wrapperScript(SUT), { mode: 0o755 });
-    fs.chmodSync(wrapper, 0o755);
-    const result: RunResult = await runScript(wrapper, [raw], { shell: bash, cwd });
-    assert.equal(result.status, 0, `wrapper should succeed: ${result.stderr}`);
-    const lines = result.stdout.split("\n");
-    return { mode: lines[0], path: lines[1], issueRefs: lines[2] };
-  });
-}
-
-async function assertBash(fn: (bash: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("bash", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "bash");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
+import { resolve, assertBash } from "./commit-args-fixture.ts";
 
 // --- selector resolution ------------------------------------------------------
 
@@ -86,55 +40,12 @@ test("'staged' is no longer a keyword: with no such path it falls back to mode '
   });
 });
 
-test("an existing path resolves to mode 'paths' with the path passed verbatim", async () => {
-  await assertBash(async (bash) => {
-    await withTempDir("p2p2-commit-args-", async (dir) => {
-      fs.writeFileSync(path.join(dir, "foo.txt"), "content\n");
-      const sel = await resolve(bash, dir, "foo.txt");
-      assert.deepEqual(sel, { mode: "paths", path: "foo.txt", issueRefs: "" });
-    });
-  });
-});
-
-test("a path that does not exist resolves to mode 'missing', never 'all' (a typo'd or stale path must not widen the commit to every change)", async () => {
-  await assertBash(async (bash) => {
-    await withTempDir("p2p2-commit-args-", async (dir) => {
-      const sel = await resolve(bash, dir, "does/not/exist.txt");
-      assert.deepEqual(sel, { mode: "missing", path: "", issueRefs: "" });
-    });
-  });
-});
-
-test("a list of backslashed Windows paths none of which exists resolves to mode 'missing'", async () => {
-  await assertBash(async (bash) => {
-    await withTempDir("p2p2-commit-args-", async (dir) => {
-      const sel = await resolve(bash, dir, "src\\gone.ts lib\\old.ts");
-      assert.equal(sel.mode, "missing");
-    });
-  });
-});
-
 test("prose that happens to hold no path-shaped token still falls back to mode 'all', while one existing path among missing ones stays mode 'paths'", async () => {
   await assertBash(async (bash) => {
     await withTempDir("p2p2-commit-args-", async (dir) => {
       fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
       assert.equal((await resolve(bash, dir, "update the docs")).mode, "all");
       assert.deepEqual(await resolve(bash, dir, "a.txt src/gone.ts"), { mode: "paths", path: "a.txt", issueRefs: "" });
-    });
-  });
-});
-
-test("a path already removed with git rm (gone from disk and index, still in HEAD) resolves to mode 'paths' (it used to be dropped, narrowing or widening the commit)", async () => {
-  await assertBash(async (bash) => {
-    await withGitRepo(async (repo) => {
-      fs.mkdirSync(path.join(repo.dir, "gone"));
-      fs.writeFileSync(path.join(repo.dir, "gone", "f.txt"), "f\n");
-      fs.writeFileSync(path.join(repo.dir, "kept.txt"), "k\n");
-      await repo.git("add", "-A");
-      await repo.git("commit", "-m", "seed");
-      await repo.git("rm", "-rq", "gone");
-      const sel = await resolve(bash, repo.dir, "kept.txt gone");
-      assert.deepEqual(sel, { mode: "paths", path: "kept.txt|gone", issueRefs: "" });
     });
   });
 });
@@ -336,16 +247,6 @@ test("a list with no existing path falls back to mode 'all' (a prose description
   await assertBash(async (bash) => {
     await withTempDir("p2p2-commit-args-", async (dir) => {
       const sel = await resolve(bash, dir, "fix the manifest wording");
-      assert.deepEqual(sel, { mode: "all", path: "", issueRefs: "" });
-    });
-  });
-});
-
-test("a glob token in a list is never expanded by the shell (only a literal existing path counts)", async () => {
-  await assertBash(async (bash) => {
-    await withTempDir("p2p2-commit-args-", async (dir) => {
-      fs.writeFileSync(path.join(dir, "a.txt"), "a\n");
-      const sel = await resolve(bash, dir, "*.txt nothing");
       assert.deepEqual(sel, { mode: "all", path: "", issueRefs: "" });
     });
   });

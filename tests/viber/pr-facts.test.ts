@@ -26,76 +26,22 @@ import path from "node:path";
 
 import { runScript, type RunResult } from "../harness/run.ts";
 import { slash } from "../harness/paths.ts";
-import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-import { coreUtilsPath, withStub } from "../harness/stub.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/pr-facts.sh");
-
-async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("posix", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "posix");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-const REPO_URL = "https://github.com/acme/widgets";
-
-/** A `gh` stub: `repo view` prints the repository URL then the default branch
- *  (or fails on REPO_FAIL), `pr list` prints PR_LIST. */
-const GH_STUB = `
-case "$1 $2" in
-  "repo view")
-    if [ -n "\${REPO_FAIL:-}" ]; then exit 1; fi
-    printf '%s\\n' "${REPO_URL}" "\${DEFAULT_BRANCH:-main}" ;;
-  "pr list")
-    if [ -n "\${PR_FAIL:-}" ]; then exit 1; fi
-    printf '%s' "\${PR_LIST:-}" ;;
-  "issue view")
-    if [ -n "\${ISSUE_FAIL:-}" ]; then exit 1; fi
-    printf '%s\\n' "title of #$3" ;;
-esac
-exit 0
-`;
-
-interface Scene {
-  work: GitRepo;
-  remote: GitRepo;
-  stubDir: string;
-}
-
-async function commit(repo: GitRepo, files: Record<string, string>, message: string, ...more: string[]) {
-  for (const [rel, content] of Object.entries(files)) {
-    fs.mkdirSync(path.dirname(path.join(repo.dir, rel)), { recursive: true });
-    fs.writeFileSync(path.join(repo.dir, rel), content);
-    await repo.git("add", "--", rel);
-  }
-  const msgs = [message, ...more].flatMap((m) => ["-m", m]);
-  await repo.git("commit", "--allow-empty", ...msgs);
-}
-
-/** `main` and `develop` at one commit, `origin` an empty bare repo, HEAD on `main`. */
-async function withScene<T>(fn: (scene: Scene) => Promise<T>): Promise<T> {
-  return await withGitRepo(
-    (remote) =>
-      withGitRepo((work) =>
-        withStub("gh", GH_STUB, async (stubDir) => {
-          await work.git("remote", "add", "origin", remote.dir);
-          await commit(work, { "README.md": "readme\n" }, "init");
-          await work.git("branch", "develop");
-          return await fn({ work, remote, stubDir });
-        }),
-      ),
-    { bare: true },
-  );
-}
-
-/** Cuts `name` from HEAD and commits one file on it. */
-async function onBranch(scene: Scene, name: string, files: Record<string, string> = { "work.txt": "work\n" }, message = "work", ...more: string[]) {
-  await scene.work.git("checkout", "-b", name);
-  await commit(scene.work, files, message, ...more);
-}
+import { withGitRepo, withTempDir } from "../harness/tmp.ts";
+import { coreUtilsPath } from "../harness/stub.ts";
+import {
+  SUT,
+  assertPosix,
+  REPO_URL,
+  type Scene,
+  commit,
+  withScene,
+  onBranch,
+  runFacts,
+  lines,
+  value,
+  shortSha,
+  PLUGIN_ROOT,
+} from "./pr-facts-fixture.ts";
 
 function writeConfig(scene: Scene, yaml: string | undefined) {
   if (yaml === undefined) return;
@@ -128,72 +74,11 @@ function planText(o: PlanOpts): string {
 const RUN = "docs/_specs/2026-01-01-00-00-00_thing";
 const ARCHIVE = "docs/specs/2026-01-01-00-00-00_done";
 
-async function runFacts(
-  shell: Shell,
-  scene: Scene,
-  args: string[] = [],
-  opts: { env?: Record<string, string>; noGh?: boolean } = {},
-): Promise<RunResult> {
-  const env = { ...scene.work.env, ...(opts.noGh ? { PATH: coreUtilsPath() } : {}), ...opts.env };
-  return await runScript(SUT, args, { shell, cwd: scene.work.dir, env, stubDirs: opts.noGh ? [] : [scene.stubDir] });
-}
-
-function lines(result: RunResult): string[] {
-  return result.stdout.split("\n").filter((l) => l.length > 0);
-}
-
-function value(result: RunResult, key: string): string | undefined {
-  return lines(result)
-    .find((l) => l.startsWith(`${key}=`))
-    ?.slice(key.length + 1);
-}
-
 function values(result: RunResult, key: string): string[] {
   return lines(result)
     .filter((l) => l.startsWith(`${key}=`))
     .map((l) => l.slice(key.length + 1));
 }
-
-/** The output lines with the stamped BODY_FILE= value masked as `<stamped path>`. */
-function stampless(result: RunResult): string[] {
-  return lines(result).map((l) => (l.startsWith("BODY_FILE=") ? "BODY_FILE=<stamped path>" : l));
-}
-
-async function shortSha(repo: GitRepo, ref: string): Promise<string> {
-  return (await repo.git("log", "-1", "--format=%h", ref)).stdout.trim();
-}
-
-// --- the whole block ----------------------------------------------------------------
-
-test("a ready block prints every C9 line in order, QA= right after SPEC=, for a target given on the command line", async () => {
-  await assertPosix(async (shell) => {
-    await withScene(async (scene) => {
-      await onBranch(scene, "feature/x");
-      const result = await runFacts(shell, scene, ["--target", "develop"]);
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(stampless(result), [
-        "STATUS=ready",
-        `REPO=${REPO_URL}`,
-        "BRANCH=feature/x",
-        "DEFAULT=main",
-        "MODE=off",
-        "ENTRY=",
-        "TARGET=develop",
-        "CLOSES=no",
-        "TYPE=feat",
-        "ISSUE_TITLE=",
-        "TEMPLATE=",
-        "SPEC=",
-        "QA=",
-        "TITLE_PATTERN=[{issue-number}] {summary}",
-        `COMMIT=${await shortSha(scene.work, "HEAD")} work`,
-        "TITLE=",
-        "TITLE_TEMPLATE=[] {summary}",
-        "BODY_FILE=<stamped path>",
-      ]);
-    });
-  });
-});
 
 // --- arguments -----------------------------------------------------------------------
 
@@ -985,9 +870,6 @@ test("BODY_FILE= names a stamped file under the repository root's .temp/viber/pr
 
 // --- ASK, RERUN ------------------------------------------------------------------------
 
-/** The plugin root RERUN= opens on: the directory above the scripts directory. */
-const PLUGIN_ROOT = slash(path.resolve(import.meta.dirname, "../../viber"));
-
 test("MODE=off with no target asks for the target and names the --target rerun command (DoD 1)", async () => {
   await assertPosix(async (shell) => {
     await withScene(async (scene) => {
@@ -1024,29 +906,6 @@ test("a branch matching one entry resolves ENTRY= and prints neither ASK= nor RE
     });
   });
 });
-
-// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
-// Neither spelling names a file outside Windows, so the cases skip there.
-const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
-const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
-
-const SPELLINGS: Array<{ label: string; invoked: string; root: string }> = [
-  { label: "a C:\\ path", invoked: SUT, root: PLUGIN_ROOT },
-  { label: "a C:/ path", invoked: slash(SUT), root: PLUGIN_ROOT },
-  { label: "a /c/ path", invoked: MSYS(SUT), root: MSYS(PLUGIN_ROOT) },
-];
-
-for (const row of SPELLINGS) {
-  test(`invoked by ${row.label}, RERUN= names pr-facts.sh under the plugin root in that spelling (AC1)`, { skip: WINDOWS_ONLY }, async () => {
-    await assertPosix(async (shell) => {
-      await withScene(async (scene) => {
-        await onBranch(scene, "feature/x");
-        const result = await runScript(row.invoked, [], { shell, cwd: scene.work.dir, env: scene.work.env, stubDirs: [scene.stubDir] });
-        assert.equal(value(result, "RERUN"), `"${row.root}/scripts/pr-facts.sh" --target "<branch>"`);
-      });
-    });
-  });
-}
 
 test("RERUN= opens on the invoked path cut before /scripts/, not on a resolved one (DoD 4)", async () => {
   await assertPosix(async (shell) => {

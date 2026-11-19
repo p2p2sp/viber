@@ -12,7 +12,7 @@ This area owns `hooks.json`, the six hook scripts under `scripts/`, the two text
 - `hooks.json` wires PreToolUse `ExitPlanMode` -> `plan-gate.sh`, PreToolUse `Bash` -> `kill-guard.sh` then `shell-guard.sh`, UserPromptSubmit -> `plan-hints.sh`, SessionStart (matcher `startup|clear|compact`) -> `session-start.sh`, SubagentStop -> `verdict-nudge.sh`, each as `bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/<name>.sh"` with a 10 s timeout, plus `"modules": ["./register.tsx"]`.
 - `session-start.sh` reads `content/manifest.md` and the `schema:` of `../skills/setup/templates/viber.yml`; `plan-hints.sh` reads `content/plan-hints.md`; `plan-gate.sh` runs `../../scripts/config.sh` (relative to itself) in the payload's `cwd`.
 - `register.tsx` is the only file importing `claude-code`; `write/report-name.ts` imports nothing, so its unit test loads it directly.
-- Tests: `tests/viber/write-report-name.unit.test.ts` (unit tier); `plan-gate.test.ts`, `plan-hints.test.ts`, `kill-guard.test.ts`, `shell-guard.test.ts`, `verdict-nudge.test.ts`, `session-start.test.ts` (integration tier, CI only).
+- Tests: `tests/viber/write-report-name.unit.test.ts` (unit tier); `plan-gate.test.ts`, `plan-hints.test.ts`, `kill-guard.test.ts`, `shell-guard.test.ts`, `verdict-nudge.test.ts`, `session-start.test.ts`, each with its `<name>.critical.test.ts` (the critical and logic tiers of `tests/CLAUDE.md`).
 
 ## Contracts
 

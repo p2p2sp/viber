@@ -36,97 +36,42 @@ import path from "node:path";
 import { runScript } from "../harness/run.ts";
 import { withTempDir } from "../harness/tmp.ts";
 import { withStub } from "../harness/stub.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/hooks/scripts/plan-gate.sh");
+import {
+  SUT,
+  line,
+  writeTranscript,
+  runPayload,
+  runCase,
+  PLAN,
+  skillUse,
+  planWrite,
+  dispatch,
+  verdict,
+  realPlan,
+  PASS,
+  FAIL,
+  PLAIN,
+  GROUPED_ON,
+  sessionWithConfig,
+  type Member,
+  SET_SPEC,
+  SET_GRAPH,
+  SET_TASK,
+  MEMBERS,
+  taskPlan,
+  setDispatch,
+  memberRound,
+  reviewSetRound,
+  ALL_PASS,
+} from "./plan-gate-fixture.ts";
 
 // --- fixture builders -------------------------------------------------
-
-function line(obj: unknown): string {
-  return JSON.stringify(obj);
-}
-
-function writeTranscript(dir: string, name: string, lines: string[]): string {
-  const file = path.join(dir, name);
-  fs.writeFileSync(file, lines.map((l) => `${l}\n`).join(""));
-  return file;
-}
-
-interface Decision {
-  decision: string;
-  reason?: string;
-}
-
-// plan-gate.sh ships mode 100755, but hooks.json invokes it as
-// `bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/plan-gate.sh"` - the harness runs it
-// the same way, because this file tests the script's content, not its exec bit.
-async function runPayload(payload: Record<string, unknown>): Promise<Decision> {
-  const result = await runScript(SUT, [], { shell: "bash", input: JSON.stringify(payload) });
-  assert.equal(result.status, 0, `expected exit 0, got ${result.status}; stderr: ${result.stderr}`);
-  let json: { hookSpecificOutput?: { hookEventName?: string; permissionDecision?: string; permissionDecisionReason?: string } };
-  try {
-    json = JSON.parse(result.stdout);
-  } catch {
-    throw new Error(`expected parseable JSON stdout, got: ${result.stdout}`);
-  }
-  const out = json.hookSpecificOutput;
-  assert.ok(out, `expected hookSpecificOutput, got: ${result.stdout}`);
-  assert.equal(out.hookEventName, "PreToolUse");
-  return { decision: out.permissionDecision ?? "", reason: out.permissionDecisionReason };
-}
-
-async function runCase(transcriptPath: string, cwd?: string): Promise<Decision> {
-  const payload: Record<string, unknown> = { transcript_path: transcriptPath, tool_name: "ExitPlanMode" };
-  if (cwd) payload.cwd = cwd;
-  return await runPayload(payload);
-}
-
-/** The dated plan layout plan-path.sh owns; `plans` is the directory segment the
- *  gate anchors on. A path that never exists on disk is fine for every case but
- *  the mtime guard - the guard is skipped when the file cannot be read. */
-const PLAN = "/repo/.claude/plans/2026-09-20-10-00-00_feat-x/plan.md";
-
-/** Signal 1a: the planner skill invoked through the Skill tool. */
-function skillUse(skill = "viber:planner"): string {
-  return line({ type: "assistant", message: { content: [{ type: "tool_use", name: "Skill", input: { skill } }] } });
-}
 
 /** NOT a signal: a typed command. The planner skill is user-invocable: false, so
  *  `/viber:planner` cannot be typed at all, and a `planner` command that IS typeable
  *  belongs to some other plugin. */
 function typedCommand(command = "/viber:planner"): string {
   return line({ type: "user", message: { content: `<command-name>${command}</command-name>` } });
-}
-
-/** Signal 2: the plan file itself, written by Write or Edit. */
-function planWrite(filePath = PLAN, name: "Write" | "Edit" = "Write"): string {
-  return line({ type: "assistant", message: { content: [{ type: "tool_use", name, input: { file_path: filePath, content: "# Plan" } }] } });
-}
-
-function dispatch(id?: string, agent = "viber:planner-review"): string {
-  const use: Record<string, unknown> = {
-    type: "tool_use",
-    name: "Agent",
-    input: { subagent_type: agent, prompt: `review ${PLAN}` },
-  };
-  if (id) use.id = id;
-  return line({ type: "assistant", message: { content: [use] } });
-}
-
-interface VerdictOpts {
-  id?: string;
-  timestamp?: string;
-  body?: string;
-}
-
-function verdict(value: "PASS" | "FAIL" | "DENIED", opts: VerdictOpts = {}): string {
-  const block: Record<string, unknown> = {
-    type: "tool_result",
-    content: opts.body ?? `## Plan Review\nVERDICT: ${value}\nnotes.`,
-  };
-  if (opts.id) block.tool_use_id = opts.id;
-  const obj: Record<string, unknown> = { type: "user", message: { content: [block] } };
-  if (opts.timestamp) obj.timestamp = opts.timestamp;
-  return line(obj);
 }
 
 function permissionMode(mode: string): string {
@@ -145,26 +90,7 @@ function userPrompt(text: string): string {
   return line({ type: "user", message: { role: "user", content: text } });
 }
 
-/** A plan file that really exists, so the mtime guard has something to stat.
- *  The default content opens with the planner's frontmatter `source:` line, the
- *  second half of planner ownership; pass other content for a plain plan. */
-function realPlan(dir: string, rel = ".claude/plans/2026-09-20-10-00-00_feat-x/plan.md", content?: string): string {
-  const file = path.join(dir, rel);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, content ?? `---\nsource: ${file}\n---\n# Plan\n`);
-  return file;
-}
-
-const PASS = verdict("PASS");
-const FAIL = verdict("FAIL");
-
 // --- fail-open matrix -------------------------------------------------
-
-test("empty stdin -> allow (a broken gate must never trap the user in plan mode)", async () => {
-  const result = await runScript(SUT, [], { shell: "bash", input: "" });
-  assert.equal(result.status, 0);
-  assert.equal(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, "allow");
-});
 
 test("a payload with no transcript_path key -> allow", async () => {
   assert.equal((await runPayload({ tool_name: "ExitPlanMode" })).decision, "allow");
@@ -197,16 +123,6 @@ test("the planner skill running with no plan write yet -> allow (nothing to revi
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const f = writeTranscript(dir, "t.jsonl", [skillUse()]);
     assert.equal((await runCase(f)).decision, "allow");
-  });
-});
-
-test("both signals but no review dispatch -> deny naming the plan file", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite()]);
-    const { decision, reason } = await runCase(f);
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /plan\.md/);
-    assert.match(reason ?? "", /planner-review agent has not run on this version/);
   });
 });
 
@@ -261,14 +177,6 @@ test("another plugin's /xyz:planner over a plan write stays out of viber's way -
 test("an Edit of the plan counts as the plan write, not only a Write", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(PLAN, "Edit")]);
-    assert.equal((await runCase(f)).decision, "deny");
-  });
-});
-
-test("a Windows plan path (backslashes) arms the gate the same way", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const win = "C:\\Users\\dariu\\repo\\docs\\plans\\2026-09-20_feat-x\\plan.md";
-    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(win)]);
     assert.equal((await runCase(f)).decision, "deny");
   });
 });
@@ -365,13 +273,6 @@ test("a mid-turn non-plan record between the planner Skill and its own EnterPlan
 
 // --- the verdict ------------------------------------------------------
 
-test("dispatch + VERDICT: PASS -> allow", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(), dispatch(), PASS]);
-    assert.equal((await runCase(f)).decision, "allow");
-  });
-});
-
 test("dispatch + VERDICT: FAIL -> deny naming the verdict it read", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(), dispatch(), FAIL]);
@@ -412,15 +313,6 @@ test("the unprefixed subagent spelling 'planner-review' is recognized -> allow",
     });
     const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(), bare, PASS]);
     assert.equal((await runCase(f)).decision, "allow");
-  });
-});
-
-test("a review that ran BEFORE the last plan write does not count -> deny (the current version was never reviewed)", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(), dispatch(), PASS, planWrite()]);
-    const { decision, reason } = await runCase(f);
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /has not run on this version/);
   });
 });
 
@@ -647,17 +539,6 @@ test("a blob line replaying an Agent call under another id never takes the dispa
 
 // --- the mtime guard: a PASS approves the plan AS REVIEWED -------------
 
-test("a plan modified after its own PASS -> deny (catches an edit made through a channel the transcript scan cannot see)", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const plan = realPlan(dir);
-    const stale = new Date(Date.now() - 3600_000).toISOString();
-    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), dispatch(), verdict("PASS", { timestamp: stale })]);
-    const { decision, reason } = await runCase(f);
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /was modified after its 'VERDICT: PASS'/);
-  });
-});
-
 test("a plan older than its own PASS -> allow (no false tamper)", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const plan = realPlan(dir);
@@ -756,32 +637,7 @@ test("the last of several plan writes is the one that must be reviewed", async (
 });
 
 // --- plain plan mode: outside-plan-review, behind the outside-plan-review switch --
-
-const PLAIN = "viber:outside-plan-review";
-
-/** The switch as `.claude/viber.yml` groups it: a child of `planning:`. */
-const GROUPED_ON = "planning:\n  outside-plan-review: true\n";
 const GROUPED_OFF = "planning:\n  outside-plan-review: false\n";
-
-/** A session cwd whose .claude/viber.yml carries the given body. */
-function sessionWithConfig(dir: string, body: string): string {
-  const cwd = path.join(dir, "session");
-  fs.mkdirSync(path.join(cwd, ".claude"), { recursive: true });
-  fs.writeFileSync(path.join(cwd, ".claude", "viber.yml"), body);
-  return cwd;
-}
-
-test("plain plan with outside-plan-review on and no review dispatch -> deny naming outside-plan-review and what to pass it", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const f = writeTranscript(dir, "t.jsonl", [planWrite()]);
-    const { decision, reason } = await runCase(f, cwd);
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /outside-plan-review agent has not run on this version/);
-    assert.match(reason ?? "", /one sentence stating the user's goal/);
-    assert.match(reason ?? "", /planning\.outside-plan-review in \.claude\/viber\.yml/);
-  });
-});
 
 test("the hooks.json description names the grouped key planning.outside-plan-review (the user-facing statement of what arms the gate)", () => {
   const manifest = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/hooks/hooks.json"), "utf8"));
@@ -804,18 +660,6 @@ test("plain plan with outside-plan-review off, absent, or no config file at all 
     const bare = path.join(dir, "c");
     fs.mkdirSync(bare);
     assert.equal((await runCase(f, bare)).decision, "allow");
-  });
-});
-
-test("plain plan with outside-plan-review on: outside-plan-review PASS -> allow, FAIL -> deny", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const cwd = sessionWithConfig(dir, GROUPED_ON);
-    const pass = writeTranscript(dir, "pass.jsonl", [planWrite(), dispatch(undefined, PLAIN), PASS]);
-    assert.equal((await runCase(pass, cwd)).decision, "allow");
-    const fail = writeTranscript(dir, "fail.jsonl", [planWrite(), dispatch(undefined, PLAIN), FAIL]);
-    const { decision, reason } = await runCase(fail, cwd);
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /outside-plan-review agent returned 'VERDICT: FAIL'/);
   });
 });
 
@@ -969,55 +813,8 @@ test("a source: line outside a leading frontmatter block does not make the plan 
 
 // --- the review set: a planner plan past 12 tasks ---------------------------
 
-type Verdict = "PASS" | "FAIL" | "DENIED";
-type Member = "spec" | "graph" | "a" | "b" | "c";
-
-const SET_SPEC = "viber:planner-spec-review";
-const SET_GRAPH = "viber:planner-graph-review";
-const SET_TASK = "viber:planner-task-review";
-
-/** The members of a 20-task plan: spec, graph and three task slices of at most 8. */
-const MEMBERS: Record<Member, { agent: string; tasks?: string }> = {
-  spec: { agent: SET_SPEC },
-  graph: { agent: SET_GRAPH },
-  a: { agent: SET_TASK, tasks: "T1-T8" },
-  b: { agent: SET_TASK, tasks: "T9-T16" },
-  c: { agent: SET_TASK, tasks: "T17-T20" },
-};
-
 const STALE = () => new Date(Date.now() - 3600_000).toISOString();
 const FRESH = () => new Date(Date.now() + 3600_000).toISOString();
-
-/** A plan file with `tasks` task blocks; `eol` and `indent` shape the marker lines. */
-function taskPlan(dir: string, tasks: number, opts: { eol?: string; indent?: string; extra?: string } = {}): string {
-  const eol = opts.eol ?? "\n";
-  const indent = opts.indent ?? "";
-  const blocks = Array.from({ length: tasks }, (_, i) => `${indent}<!-- TASK -->${eol}### T${i + 1} - task${eol}<!-- /TASK -->${eol}`).join("");
-  const head = ["---", "source: x.md", "---", "# Plan", ""].join(eol);
-  return realPlan(dir, ".claude/plans/2026-10-21-12-00-00_big/plan.md", head + blocks + (opts.extra ?? ""));
-}
-
-/** One review-set dispatch, its prompt carrying the `tasks:` line of a task slice. */
-function setDispatch(member: Member, id?: string, withTasks = true): string {
-  const { agent, tasks } = MEMBERS[member];
-  const prompt = `review ${PLAN}\nrefs: /refs${tasks && withTasks ? `\ntasks: ${tasks}` : ""}`;
-  const use: Record<string, unknown> = { type: "tool_use", name: "Agent", input: { subagent_type: agent, prompt } };
-  if (id) use.id = id;
-  return line({ type: "assistant", message: { content: [use] } });
-}
-
-/** A member's dispatch and its verdict, paired by a tool-use id of the member's own. */
-function memberRound(member: Member, value: Verdict, opts: { round?: number; timestamp?: string } = {}): [string, string] {
-  const id = `toolu_${member}_r${opts.round ?? 1}`;
-  return [setDispatch(member, id), verdict(value, { id, timestamp: opts.timestamp })];
-}
-
-/** Every member of the 20-task plan, dispatched and answered in order. */
-function reviewSetRound(values: Partial<Record<Member, Verdict>>, opts: { round?: number; timestamp?: string } = {}): string[] {
-  return (Object.keys(MEMBERS) as Member[]).flatMap((m) => (values[m] ? memberRound(m, values[m], opts) : []));
-}
-
-const ALL_PASS: Record<Member, Verdict> = { spec: "PASS", graph: "PASS", a: "PASS", b: "PASS", c: "PASS" };
 
 test("review set: a plan of exactly 12 task blocks is gated on planner-review alone -> its PASS allows", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
@@ -1065,19 +862,6 @@ test("review set: marker lines with surrounding whitespace and CRLF endings coun
   });
 });
 
-test("review set: past 12 tasks a planner-review PASS alone is refused with the review next step naming every member", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const plan = taskPlan(dir, 20);
-    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), dispatch(), PASS]);
-    const { decision, reason } = await runCase(f);
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /^Next step: review the plan/);
-    assert.match(reason ?? "", new RegExp(SET_SPEC));
-    assert.match(reason ?? "", new RegExp(SET_GRAPH));
-    assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(uncovered tasks T1-T20\\)`));
-  });
-});
-
 test("review set: the spec reviewer dispatch text describes input: as the summary file path, the summary text or the bug diagnosis", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const plan = taskPlan(dir, 20);
@@ -1110,14 +894,6 @@ test("review set: a dispatch that returned no verdict yet leaves its member miss
     assert.equal(decision, "deny");
     assert.match(reason ?? "", /^Next step: review the plan/);
     assert.match(reason ?? "", new RegExp(SET_GRAPH));
-  });
-});
-
-test("review set: every member's latest verdict PASS with the passed slices covering every task -> allow", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const plan = taskPlan(dir, 20);
-    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS)]);
-    assert.equal((await runCase(f)).decision, "allow");
   });
 });
 

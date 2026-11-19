@@ -13,9 +13,12 @@ import { runScript, type RunResult } from "./run.ts";
 /** Creates a `mkdtemp`'d dir under the OS temp root, hands it to `fn`, and
  *  removes it (recursively, ignoring already-gone/read-only files, retrying
  *  on a busy or refilled dir) once `fn` settles, whether it resolves or
- *  throws. */
+ *  throws. The dir is handed over by its real path: the OS temp root can be
+ *  an alias (a Windows 8.3 short name such as `RUNNER~1`, the macOS `/var`
+ *  symlink), while a script under test prints the path the OS resolves it
+ *  to, so an expectation built from the alias would never match. */
 export async function withTempDir<T>(prefix: string, fn: (dir: string) => T | Promise<T>): Promise<T> {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  const dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
   try {
     return await fn(dir);
   } finally {

@@ -23,54 +23,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
-import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/fixer/scripts/tree-record.sh");
-const STOP = "STOP: changed since the record - revert before the handoff";
-
-function write(root: string, rel: string, content: string): void {
-  const file = path.join(root, rel);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, content);
-}
-
-function treeRecord(repo: GitRepo, args: string[], cwd: string = repo.dir) {
-  return runScript(SUT, args, { cwd, env: repo.env, shell: "bash" });
-}
-
-function recordFile(repo: GitRepo): string {
-  return path.join(repo.dir, ".temp/viber/fixer/tree-record");
-}
-
-/** A repository holding `mod.txt` and `stg.txt` committed, with the harness config and `ign.log` excluded. */
-async function seed(repo: GitRepo): Promise<void> {
-  fs.appendFileSync(path.join(repo.dir, ".git/info/exclude"), ".gitconfig-global\nign.log\n");
-  write(repo.dir, "mod.txt", "one\n");
-  write(repo.dir, "stg.txt", "one\n");
-  await repo.git("add", "mod.txt", "stg.txt");
-  await repo.git("commit", "-m", "seed");
-}
-
-test("--save records a modified, a staged and an untracked file, leaves out an ignored file and everything under .temp/, lists an untracked directory file by file, and prints NEXT: trace then one recorded: line each", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    write(repo.dir, "mod.txt", "two\n");
-    write(repo.dir, "stg.txt", "two\n");
-    await repo.git("add", "stg.txt");
-    write(repo.dir, "new/dir/f.txt", "x\n");
-    write(repo.dir, "ign.log", "x\n");
-    write(repo.dir, ".temp/scratch.txt", "x\n");
-
-    const result = await treeRecord(repo, ["--save"]);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(
-      result.stdout,
-      ["NEXT: trace", "recorded: mod.txt", "recorded: new/dir/f.txt", "recorded: stg.txt", ""].join("\n"),
-    );
-    assert.equal(fs.readFileSync(recordFile(repo), "utf-8"), "mod.txt\nnew/dir/f.txt\nstg.txt\n");
-  });
-});
+import { withGitRepo, withTempDir } from "../harness/tmp.ts";
+import { SUT, STOP, write, treeRecord, recordFile, seed } from "./tree-record-fixture.ts";
 
 test("--save records a renamed file as its new path only", async () => {
   await withGitRepo(async (repo) => {
@@ -93,46 +47,6 @@ for (const spelling of ["tests/repro.test.ts", "./tests/repro.test.ts"]) {
       write(repo.dir, "tests/repro.test.ts", "x\n");
 
       const result = await treeRecord(repo, ["--check", spelling]);
-
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(result.stdout, "NEXT: handoff\n");
-    });
-  });
-}
-
-const WINDOWS = process.platform === "win32";
-
-/** Each spelling of the repository root's `tests/repro.test.ts` an absolute argument can take. */
-const ABSOLUTE_SPELLINGS: Array<[string, (root: string) => string]> = [
-  ["the native absolute path", (root) => path.join(root, "tests", "repro.test.ts")],
-  ...(WINDOWS
-    ? ([
-        ["the C:/ form", (root) => path.join(root, "tests", "repro.test.ts").replaceAll("\\", "/")],
-        [
-          "the /c/ form",
-          (root) => path.join(root, "tests", "repro.test.ts").replaceAll("\\", "/").replace(/^([A-Za-z]):/, (_m, d: string) => `/${d}`),
-        ],
-        [
-          "a drive letter in the other case",
-          (root) =>
-            path
-              .join(root, "tests", "repro.test.ts")
-              .replaceAll("\\", "/")
-              .replace(/^([A-Za-z]):/, (_m, d: string) => `${d === d.toUpperCase() ? d.toLowerCase() : d.toUpperCase()}:`),
-        ],
-      ] as Array<[string, (root: string) => string]>)
-    : []),
-];
-
-for (const [name, spell] of ABSOLUTE_SPELLINGS) {
-  test(`--check given the reproduction test as ${name} after only that test was added prints NEXT: handoff`, async () => {
-    await withGitRepo(async (repo) => {
-      await seed(repo);
-      write(repo.dir, "mod.txt", "two\n");
-      await treeRecord(repo, ["--save"]);
-      write(repo.dir, "tests/repro.test.ts", "x\n");
-
-      const result = await treeRecord(repo, ["--check", spell(fs.realpathSync.native(repo.dir))]);
 
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
       assert.equal(result.stdout, "NEXT: handoff\n");
@@ -179,22 +93,6 @@ test("--check given the reproduction test as an absolute path still prints the S
       path.join(fs.realpathSync.native(repo.dir), "tests", "repro.test.ts"),
     ]);
 
-    assert.equal(result.stdout, `${STOP}\npath: src/other.ts\n`);
-  });
-});
-
-test("--check after another file changed prints the STOP: line and a path: line for that file only, never a recorded path changed further nor the test path", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    write(repo.dir, "mod.txt", "two\n");
-    await treeRecord(repo, ["--save"]);
-    write(repo.dir, "mod.txt", "three\n");
-    write(repo.dir, "tests/repro.test.ts", "x\n");
-    write(repo.dir, "src/other.ts", "x\n");
-
-    const result = await treeRecord(repo, ["--check", "tests/repro.test.ts"]);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.equal(result.stdout, `${STOP}\npath: src/other.ts\n`);
   });
 });

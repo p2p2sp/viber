@@ -28,52 +28,13 @@ import { spawnSync } from "node:child_process";
 
 import { runScript } from "../harness/run.ts";
 import { withGitRepo, withTempDir } from "../harness/tmp.ts";
+import { REPO_ROOT, SUT, seedRun, lines, run, failuresFile, readFailures } from "./run-failures-fixture.ts";
 
-const REPO_ROOT = path.resolve(import.meta.dirname, "../..");
-const SUT = path.resolve(REPO_ROOT, "viber/scripts/run-failures.sh");
 const SUT_REL = "viber/scripts/run-failures.sh";
-
-const STATUS = ["# status", "", "progress: 1/1", "done: T1", "skipped: none", ""].join("\n");
-
-/** A run directory holding `status.md` and the named files under `work/`. */
-function seedRun(root: string, work: Record<string, string>, name = "run"): string {
-  const dir = path.join(root, name);
-  fs.mkdirSync(path.join(dir, "work"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "status.md"), STATUS);
-  for (const [file, body] of Object.entries(work)) fs.writeFileSync(path.join(dir, "work", file), body);
-  return dir;
-}
-
-function lines(...parts: string[]): string {
-  return parts.join("\n") + "\n";
-}
-
-function run(cwd: string, args: string[]) {
-  return runScript(SUT, args, { cwd, shell: "bash" });
-}
-
-function failuresFile(dir: string): string {
-  return path.join(dir, "failures.md");
-}
-
-function readFailures(dir: string): string {
-  return fs.readFileSync(failuresFile(dir), "utf8");
-}
 
 const NO_ENTRY_REPORT = lines("VERDICT: PASS", "", "- Minor src/a.ts:3 - a name is vague", "  rename it");
 
 // --- DoD.1: a Blocking first line becomes one entry, ordered ---
-
-test("a Blocking first line of a review report becomes one entry carrying its cause, its source and the text after the bracket", async () => {
-  await withTempDir("p2p2-viber-", async (tmp) => {
-    const dir = seedRun(tmp, {
-      "review-T1-1.md": lines("VERDICT: FAIL", "", "- Blocking [convention] src/a.ts:12 - reads the file twice", "  read it once"),
-    });
-    const result = await run(tmp, [dir]);
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(readFailures(dir), lines("# Failures", "", "- convention | review-T1-1 | src/a.ts:12 - reads the file twice"));
-  });
-});
 
 test("a Blocking first line of a final review report is read as one, its source the file name without .md", async () => {
   await withTempDir("p2p2-viber-", async (tmp) => {
@@ -510,16 +471,6 @@ test("with no entry the call removes a failures.md already there", async () => {
   });
 });
 
-test("with entries the call replaces an existing failures.md whole", async () => {
-  await withTempDir("p2p2-viber-", async (tmp) => {
-    const dir = seedRun(tmp, { "review-T1-1.md": lines("- Blocking [task] a.ts:1 - fresh") });
-    fs.writeFileSync(failuresFile(dir), lines("# Failures", "", "- task | review-T1-1 | stale", "- plan | review-T9-1 | gone"));
-    const result = await run(tmp, [dir]);
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(readFailures(dir), lines("# Failures", "", "- task | review-T1-1 | a.ts:1 - fresh"));
-  });
-});
-
 test("a second call over the same reports leaves each failure once, never doubled", async () => {
   await withTempDir("p2p2-viber-", async (tmp) => {
     const dir = seedRun(tmp, { "review-T1-1.md": lines("- Blocking [task] a.ts:1 - once") });
@@ -527,15 +478,6 @@ test("a second call over the same reports leaves each failure once, never double
     const second = await run(tmp, [dir]);
     assert.equal(second.status, 0, second.stderr);
     assert.equal(readFailures(dir), lines("# Failures", "", "- task | review-T1-1 | a.ts:1 - once"));
-  });
-});
-
-test("the call writes failures.md alone: no other file of the run directory changes", async () => {
-  await withTempDir("p2p2-viber-", async (tmp) => {
-    const dir = seedRun(tmp, { "review-T1-1.md": lines("- Blocking [task] a.ts:1 - once") });
-    await run(tmp, [dir]);
-    assert.deepEqual(fs.readdirSync(dir).sort(), ["failures.md", "status.md", "work"]);
-    assert.deepEqual(fs.readdirSync(path.join(dir, "work")), ["review-T1-1.md"]);
   });
 });
 

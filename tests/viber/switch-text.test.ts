@@ -20,44 +20,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { runScript, type RunResult } from "../harness/run.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
+import { runScript } from "../harness/run.ts";
+import { forEachShell } from "../harness/shells.ts";
 import { withGitRepo, type GitRepo } from "../harness/tmp.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/switch-text.sh");
-
-/** The skill directory every case hands the script: `<repo>/plugin/skills/demo`,
- *  so the plugin root it derives is `<repo>/plugin`. */
-function skillDir(repo: GitRepo): string {
-  return path.join(repo.dir, "plugin", "skills", "demo");
-}
-
-function writeConfig(repo: GitRepo, body: string): void {
-  fs.mkdirSync(path.join(repo.dir, ".claude"), { recursive: true });
-  fs.writeFileSync(path.join(repo.dir, ".claude", "viber.yml"), body);
-}
-
-function writeFragment(repo: GitRepo, file: string, body: string): void {
-  const dir = path.join(skillDir(repo), "fragments");
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, file), body);
-}
-
-async function run(repo: GitRepo, args: string[], cwd: string = repo.dir, shell: Shell = "bash"): Promise<RunResult> {
-  return await runScript(SUT, args, { cwd, env: repo.env, shell });
-}
-
-test("a true switch prints its .true.md fragment, byte for byte", async () => {
-  await withGitRepo(async (repo) => {
-    writeConfig(repo, "planning:\n  adr: true\n");
-    writeFragment(repo, "step.true.md", "ADR on.\n\nSecond line.\n");
-    writeFragment(repo, "step.false.md", "ADR off.\n");
-
-    const result = await run(repo, ["planning.adr", skillDir(repo), "step"]);
-
-    assert.deepEqual([result.status, result.stdout], [0, "ADR on.\n\nSecond line.\n"]);
-  });
-});
+import { SUT, skillDir, writeConfig, writeFragment, run } from "./switch-text-fixture.ts";
 
 test("`build.memory` under `build: memory: true` prints the skill's memory.true.md fragment", async () => {
   await withGitRepo(async (repo) => {
@@ -292,23 +258,6 @@ for (const [label, suffix] of [
     });
   });
 }
-
-test(
-  "a skill directory written with backslashes derives the plugin root across them (a Windows CLAUDE_SKILL_DIR)",
-  { skip: process.platform === "win32" ? "a backslash is a separator on Windows, so every other case already proves it there" : false },
-  async () => {
-    await withGitRepo(async (repo) => {
-      writeConfig(repo, "build:\n  qa: true\n");
-      const dir = "C:\\host\\plugin\\skills\\demo";
-      fs.mkdirSync(path.join(repo.dir, dir, "fragments"), { recursive: true });
-      fs.writeFileSync(path.join(repo.dir, dir, "fragments", "step.true.md"), "${CLAUDE_PLUGIN_ROOT}|${CLAUDE_SKILL_DIR}\n");
-
-      const result = await run(repo, ["build.qa", dir, "step"]);
-
-      assert.deepEqual([result.status, result.stdout], [0, `C:\\host\\plugin|${dir}\n`]);
-    });
-  },
-);
 
 /** The mode the index records for a shipped script - never the filesystem bit,
  *  which this repo's `core.filemode=false` ignores on the way in. */

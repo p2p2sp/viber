@@ -9,100 +9,11 @@
 
 import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
-import { forEachShell } from "../harness/shells.ts";
 import { withTempDir } from "../harness/tmp.ts";
-import { slash } from "../harness/paths.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/e2e/scripts/qa-ledger.sh");
-const REFS = `${slash(path.resolve(import.meta.dirname, "../../viber"))}/references`;
-
-const HEAD = [
-  "Base: http://localhost:3000",
-  "Launch: npm run dev",
-  "Accounts: admin admin@example.test - vault",
-  "",
-  "## UI scenarios",
-  "",
-  "### QA-01 Sign in",
-  "- Covers: AC1 A user signs in",
-  "- Role: admin",
-  "- Route: /login",
-  "- Seed: none",
-  "- Steps:",
-  "  1. Open the login page",
-  "- Assert: the dashboard shows",
-  "- Files: src/login.tsx",
-  "",
-  "### QA-02 Create a project",
-  "- Covers: AC2 A project is created",
-  "",
-  "### QA-03 Print an invoice",
-  "- Covers: AC3 An invoice prints",
-  "",
-  "## API scenarios",
-  "",
-  "### QA-04 List projects",
-  "- Covers: AC4 Projects are listed",
-  "",
-  "### QA-05 Delete a project",
-  "- Covers: AC5 A project is deleted",
-  "",
-  "## Not automatable",
-  "- QA-03 - the printer is physical",
-  "",
-  "## Out of scope",
-  "- AC6 Billing - no scenario",
-  "",
-];
-
-const AUTOMATION = ["## Automation", "- QA-01: file tests/e2e/qa-01-sign-in.spec.ts", "- QA-02: blocked - the project form returns 500", ""];
-
-const HANDOFF = [...HEAD, ...AUTOMATION].join("\n");
-
-const NEXT_ARGS = ["--spec-dir", "tests/e2e", "--base-url", "http://localhost:3000", "--accounts", "admin admin@example.test - vault"];
-
-/** Writes `text` as qa.e2e.md in a fresh directory, runs the script with `args` after its path. */
-async function run(text: string, args: string[]) {
-  return withTempDir("p2p2-qa-ledger-", async (dir) => {
-    const handoff = path.join(dir, "qa.e2e.md");
-    fs.writeFileSync(handoff, text);
-    const result = await runScript(SUT, [handoff, ...args], { cwd: dir });
-    return { ...result, handoff: slash(handoff) };
-  });
-}
-
-function block(handoff: string, id: string, refs: string = REFS): string {
-  return [
-    `NEXT: dispatch | id: ${id} | agent: viber:e2e-writer`,
-    `handoff: ${handoff}`,
-    `id: ${id}`,
-    "spec-dir: tests/e2e",
-    "base-url: http://localhost:3000",
-    "accounts: admin admin@example.test - vault",
-    `refs: ${refs}`,
-    "",
-  ].join("\n");
-}
-
-test("list prints one id line per automatable scenario in file order with its state and title, none for a not automatable one, then the counts", async () => {
-  const result = await run(HANDOFF, ["list"]);
-  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-  assert.equal(
-    result.stdout,
-    [
-      "id: QA-01 | file | Sign in",
-      "id: QA-02 | blocked | Create a project",
-      "id: QA-04 | pending | List projects",
-      "id: QA-05 | pending | Delete a project",
-      "counts: 1 file, 1 blocked, 2 pending",
-      "",
-    ].join("\n"),
-  );
-});
+import { SUT, HEAD, HANDOFF, NEXT_ARGS, run, block } from "./qa-ledger-fixture.ts";
 
 test("a handoff with no Automation section lists every scenario pending", async () => {
   const result = await run(HEAD.join("\n"), ["list"]);
@@ -207,30 +118,6 @@ test("report keeps a blocked reason of exactly 60 characters whole", async () =>
   assert.equal(result.status, 0, `stderr: ${result.stderr}`);
   assert.ok(result.stdout.includes("| QA-01 | blocked | the checkout form keeps returning a server error after save. |\n"), result.stdout);
 });
-
-const ON_WINDOWS = process.platform === "win32";
-const ROOT = slash(path.resolve(import.meta.dirname, "../../viber"));
-const MSYS_ROOT = `/${ROOT[0].toLowerCase()}${ROOT.slice(2)}`;
-const SPELLINGS = [
-  { name: "a C:\\ path", sut: SUT.replace(/\//g, "\\"), root: ROOT },
-  { name: "a C:/ path", sut: SUT.replace(/\\/g, "/"), root: ROOT },
-  { name: "a /c/ path", sut: `${MSYS_ROOT}/skills/e2e/scripts/qa-ledger.sh`, root: MSYS_ROOT },
-];
-
-for (const row of SPELLINGS) {
-  test(`invoked by ${row.name}, the refs: line names the references directory under ${row.root} (a backslash spelling never reaches the dispatch block)`, { skip: ON_WINDOWS ? false : "the drive spellings exist only on Windows" }, async () => {
-    const skips = await forEachShell("bash", async (bash) => {
-      await withTempDir("p2p2-qa-ledger-", async (dir) => {
-        const handoff = path.join(dir, "qa.e2e.md");
-        fs.writeFileSync(handoff, HANDOFF);
-        const result = await runScript(row.sut, [handoff, "next", ...NEXT_ARGS], { shell: bash, cwd: dir });
-        assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-        assert.equal(result.stdout, block(slash(handoff), "QA-02", `${row.root}/references`));
-      });
-    });
-    assert.ok(skips.every((skip) => skip.reason.length > 0), "a skip must record a reason");
-  });
-}
 
 const REFUSALS: Array<[string, string[]]> = [
   ["an unknown mode", ["status"]],

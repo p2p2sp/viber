@@ -44,117 +44,35 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { runScript, type RunResult } from "../harness/run.ts";
+import { runScript } from "../harness/run.ts";
 import { withGitRepo, withTempDir } from "../harness/tmp.ts";
 import { slash } from "../harness/paths.ts";
 import { coreUtilsPath, withStub } from "../harness/stub.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
+import {
+  SUT,
+  assertPosix,
+  PR_URL,
+  REPLY_URL,
+  ISSUE_REPLY_URL,
+  MARKER,
+  REPLY_TEXT,
+  ORIGINAL_URL,
+  ORIGINAL_QUOTE,
+  GH_STUB,
+  runInRepo,
+  posts,
+  EXPECTED_BODY,
+  assertOneError,
+  sectionOf,
+  runList,
+  PLUGIN_ROOT,
+  THREE_ITEMS,
+} from "./pr-reply-fixture.ts";
 
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/pr-reply.sh");
-
-async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("posix", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "posix");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-const PR_URL = "https://github.com/acme/widgets/pull/42";
 const GHE_URL = "https://ghe.example.com/acme/widgets/pull/42";
-const REPLY_URL = `${PR_URL}#discussion_r777`;
-const ISSUE_REPLY_URL = `${PR_URL}#issuecomment-888`;
-const MARKER = "<!-- viber:pr-feedback 101 -->";
-const REPLY_TEXT = "Fixed in abc123.\n\nThe guard now runs first.\r\nNo trailing newline";
-const ORIGINAL_URL = `${PR_URL}#issuecomment-55`;
-const ORIGINAL_QUOTE = "Please rename this helper";
-
-/** A `gh` stub logging its argv one-arg-per-line (a "===" separator after each
- *  call) into `$ARGV_FILE`. A call with `-X` is the POST: it copies the file of
- *  its `-F body=@<file>` into `$BODY_LOG`, then fails on POST_FAIL or prints
- *  POST_OUT (default: a review comment URL, or an issue comment URL when the POST
- *  goes to the issue comments endpoint). A read of an issue comment or a review
- *  prints ORIGINAL or fails on ORIGINAL_FAIL. Any other call is the comments
- *  read: it prints COMMENTS or fails on READ_FAIL. */
-const GH_STUB = `
-for a in "$@"; do printf '%s\\n' "$a" >> "$ARGV_FILE"; done; printf '===\\n' >> "$ARGV_FILE"
-post=""
-kind=""
-endpoint=""
-for a in "$@"; do
-  if [ "$a" = "-X" ]; then post=yes; fi
-  case $a in repos/*) endpoint=$a ;; esac
-  case $a in
-    body=@*) cat "\${a#body=@}" > "$BODY_LOG" ;;
-    repos/*/issues/comments/*|repos/*/pulls/*/reviews/*) kind=original ;;
-    repos/*/issues/*/comments) kind=issues ;;
-  esac
-done
-if [ -n "$post" ]; then
-  if [ -n "\${POST_FAIL:-}" ]; then echo "HTTP 500: server error" >&2; exit 1; fi
-  if [ -n "\${POST_FAIL_ON:-}" ]; then
-    case $endpoint in *"$POST_FAIL_ON"*) echo "HTTP 500: server error" >&2; exit 1 ;; esac
-  fi
-  if [ "\${POST_OUT+set}" = set ]; then printf '%s' "$POST_OUT"; exit 0; fi
-  if [ "$kind" = issues ]; then printf '%s\\n' "${ISSUE_REPLY_URL}"; else printf '%s\\n' "${REPLY_URL}"; fi
-  exit 0
-fi
-if [ "$kind" = original ]; then
-  if [ -n "\${ORIGINAL_FAIL:-}" ]; then echo "HTTP 404: Not Found" >&2; exit 1; fi
-  printf '%s' "\${ORIGINAL:-}"
-  exit 0
-fi
-if [ -n "\${READ_FAIL:-}" ]; then echo "HTTP 401: Bad credentials" >&2; exit 1; fi
-printf '%s' "\${COMMENTS:-}"
-exit 0
-`;
-
-interface Outcome {
-  result: RunResult;
-  calls: string[][];
-  body: string | null;
-  /** The content of .temp/viber/pr-feedback/42/posted/<key>.md after the run (null when absent). */
-  kept: string | null;
-}
-
-interface RunOpts {
-  env?: Record<string, string>;
-  /** Write no reply file. */
-  noFile?: boolean;
-  /** The remark key whose kept body file is read back (default: the thread 101). */
-  key?: string;
-}
-
-/** Runs pr-reply.sh inside a fresh repo holding reply.md (REPLY_TEXT), with the
- *  gh stub first on PATH. The token "<file>" in `args` becomes "reply.md". */
-async function runInRepo(shell: Shell, args: string[], opts: RunOpts = {}): Promise<Outcome> {
-  return await withGitRepo((repo) =>
-    withStub("gh", GH_STUB, async (stubDir) => {
-      if (!opts.noFile) fs.writeFileSync(path.join(repo.dir, "reply.md"), REPLY_TEXT);
-      const argvFile = path.join(repo.dir, "argv.log");
-      const bodyLog = path.join(repo.dir, "body.log");
-      fs.writeFileSync(argvFile, "");
-      const real = args.map((a) => (a === "<file>" ? "reply.md" : a));
-      const original = `${ORIGINAL_URL}\n${ORIGINAL_QUOTE}\n`;
-      const env = { ...repo.env, ARGV_FILE: argvFile, BODY_LOG: bodyLog, ORIGINAL: original, ...opts.env };
-      const result = await runScript(SUT, real, { shell, cwd: repo.dir, env, stubDirs: [stubDir] });
-      const calls = fs
-        .readFileSync(argvFile, "utf-8")
-        .split("===\n")
-        .map((block) => block.split("\n").filter((line) => line.length > 0))
-        .filter((call) => call.length > 0);
-      const body = fs.existsSync(bodyLog) ? fs.readFileSync(bodyLog, "utf-8") : null;
-      const keptFile = path.join(repo.dir, `.temp/viber/pr-feedback/42/posted/${opts.key ?? "101"}.md`);
-      const kept = fs.existsSync(keptFile) ? fs.readFileSync(keptFile, "utf-8") : null;
-      return { result, calls, body, kept };
-    }),
-  );
-}
 
 const endpointOf = (call: string[]) => call.find((a) => a.startsWith("repos/"));
-const posts = (calls: string[][]) => calls.filter((c) => c.includes("-X"));
 const reads = (calls: string[][]) => calls.filter((c) => !c.includes("-X"));
-const EXPECTED_BODY = `${MARKER}\n\n${REPLY_TEXT}`;
 
 // --- bad arguments ----------------------------------------------------------------
 
@@ -194,17 +112,6 @@ for (const [name, args] of BAD_ARGS) {
 }
 
 // --- skip: a viber reply already exists ---------------------------------------------
-
-test("a reply to the comment opening with its marker prints STATUS=skip and REASON=exists and posts nothing", async () => {
-  await assertPosix(async (shell) => {
-    const { result, calls } = await runInRepo(shell, ["42", "101", "<file>"], {
-      env: { COMMENTS: `300 Looks good\r\n101 ${MARKER}\r\n` },
-    });
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "STATUS=skip\nREASON=exists\nSAY=The item already holds a viber reply.\n");
-    assert.equal(posts(calls).length, 0);
-  });
-});
 
 test("a thread whose newest reply is the marker, after an older reviewer follow-up, still prints STATUS=skip and REASON=exists and posts nothing", async () => {
   await assertPosix(async (shell) => {
@@ -247,15 +154,6 @@ for (const [name, comments] of NOT_A_SKIP) {
 
 // --- posting ----------------------------------------------------------------------
 
-test("the posted body is the marker line, a blank line and the reply file verbatim, and stdout is STATUS=posted plus the reply url", async () => {
-  await assertPosix(async (shell) => {
-    const { result, body } = await runInRepo(shell, ["42", "101", "<file>"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, `STATUS=posted\nREPLY_URL=${REPLY_URL}\n`);
-    assert.equal(body, EXPECTED_BODY);
-  });
-});
-
 test("a bare number reads the comments and posts to the replies endpoint of the comment through the repository placeholders, with no hostname", async () => {
   await assertPosix(async (shell) => {
     const { calls } = await runInRepo(shell, ["42", "101", "<file>"]);
@@ -295,28 +193,12 @@ test("the body file stays under .temp/viber/pr-feedback/<N>/posted/<comment-id>.
 
 // --- gh failure -------------------------------------------------------------------
 
-function assertOneError(result: RunResult) {
-  assert.equal(result.status, 1, `stderr: ${result.stderr}`);
-  assert.equal(result.stdout, "");
-  const lines = result.stderr.split("\n").filter((l) => l.length > 0);
-  assert.equal(lines.length, 1, `expected a single ERROR line, got:\n${result.stderr}`);
-  assert.match(lines[0], /^ERROR pr-reply\.sh: /);
-}
-
 test("gh failing on the comments read: exit 1, one ERROR line carrying gh's message, nothing on stdout, nothing posted", async () => {
   await assertPosix(async (shell) => {
     const { result, calls } = await runInRepo(shell, ["42", "101", "<file>"], { env: { READ_FAIL: "1" } });
     assertOneError(result);
     assert.match(result.stderr, /Bad credentials/);
     assert.equal(posts(calls).length, 0);
-  });
-});
-
-test("gh failing on the post: exit 1, one ERROR line carrying gh's message, nothing on stdout", async () => {
-  await assertPosix(async (shell) => {
-    const { result } = await runInRepo(shell, ["42", "101", "<file>"], { env: { POST_FAIL: "1" } });
-    assertOneError(result);
-    assert.match(result.stderr, /server error/);
   });
 });
 
@@ -500,97 +382,6 @@ test(
 
 // --- --list: the ready and missing replies of a review.md ----------------------------
 
-interface Item {
-  k: number;
-  where: string;
-  key: string;
-  /** Whether the section's reply file exists. */
-  ready: boolean;
-}
-
-interface ListOpts {
-  /** The items of the review.md; absent writes no review.md. */
-  items?: Item[];
-  /** The pull request number whose pr-feedback directory holds the review. */
-  n?: number;
-  /** The script to run (default: the shipped one). */
-  script?: string;
-  /** The mode flag (default: --list). */
-  flag?: string;
-  /** Extra environment of the run (the gh stub's controls). */
-  env?: Record<string, string>;
-}
-
-interface ListOutcome {
-  result: RunResult;
-  /** The length of the gh stub's argv log: 0 when gh was never called. */
-  calls: number;
-  /** The gh calls of the run, one argv per call. */
-  argv: string[][];
-}
-
-const sectionOf = (dir: string, n: number, item: Item) =>
-  [
-    `## ${item.k} - problem - ${item.where}`,
-    `- Kind: ${item.key.startsWith("comment-") ? "conversation" : "thread"}`,
-    `- Comment: ${item.key}`,
-    `- Reply file: ${dir}/.temp/viber/pr-feedback/${n}/replies/${item.key}.md`,
-    "- Expected: rename the helper",
-    "",
-    "> Please rename this helper",
-    "",
-  ].join("\n");
-
-/** Runs `pr-reply.sh --list <pr>` in a fresh repo whose review.md holds `items`
- *  (a reply file written for each ready one), the gh stub first on PATH. */
-async function runList(shell: Shell, pr: string, opts: ListOpts = {}): Promise<ListOutcome> {
-  const n = opts.n ?? 42;
-  return await withGitRepo((repo) =>
-    withStub("gh", GH_STUB, async (stubDir) => {
-      const dir = slash(repo.dir);
-      const argvFile = path.join(repo.dir, "argv.log");
-      fs.writeFileSync(argvFile, "");
-      if (opts.items) {
-        const feedback = path.join(repo.dir, `.temp/viber/pr-feedback/${n}`);
-        fs.mkdirSync(path.join(feedback, "replies"), { recursive: true });
-        fs.writeFileSync(
-          path.join(feedback, "review.md"),
-          `# Review of pull request ${n}\n\n${opts.items.map((item) => sectionOf(dir, n, item)).join("\n")}`,
-        );
-        for (const item of opts.items) {
-          if (item.ready) fs.writeFileSync(path.join(feedback, `replies/${item.key}.md`), "Done.\n");
-        }
-      }
-      const env = {
-        ...repo.env,
-        ARGV_FILE: argvFile,
-        BODY_LOG: path.join(repo.dir, "body.log"),
-        ORIGINAL: `${ORIGINAL_URL}\n${ORIGINAL_QUOTE}\n`,
-        ...opts.env,
-      };
-      const result = await runScript(opts.script ?? SUT, [opts.flag ?? "--list", pr], {
-        shell,
-        cwd: repo.dir,
-        env,
-        stubDirs: [stubDir],
-      });
-      const logged = fs.readFileSync(argvFile, "utf-8");
-      const argv = logged
-        .split("===\n")
-        .map((block) => block.split("\n").filter((line) => line.length > 0))
-        .filter((call) => call.length > 0);
-      return { result, calls: logged.length, argv };
-    }),
-  );
-}
-
-const PLUGIN_ROOT = slash(path.resolve(import.meta.dirname, "../../viber"));
-const THREE_ITEMS: Item[] = [
-  { k: 1, where: "src/a.ts:10", key: "101", ready: true },
-  { k: 2, where: "review", key: "review-9", ready: false },
-  { k: 3, where: "conversation", key: "comment-55", ready: true },
-];
-
 test("--list of a review.md with three items, two holding a reply file, prints STATUS=ready, the two READY lines, the MISSING line and the RUN line, in section order", async () => {
   await assertPosix(async (shell) => {
     const { result } = await runList(shell, "42", { items: THREE_ITEMS });
@@ -713,30 +504,6 @@ test("--list prints the RUN path as the invoked path cut before /scripts/", asyn
     });
   });
 });
-
-// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
-// Neither spelling names a file outside Windows, so the cases skip there.
-const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
-const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
-
-const SPELLINGS: Array<{ label: string; invoked: string; root: string }> = [
-  { label: "a C:\\ path", invoked: SUT, root: PLUGIN_ROOT },
-  { label: "a C:/ path", invoked: slash(SUT), root: PLUGIN_ROOT },
-  { label: "a /c/ path", invoked: MSYS(SUT), root: MSYS(PLUGIN_ROOT) },
-];
-
-for (const row of SPELLINGS) {
-  test(`--list invoked by ${row.label} prints RUN= under the plugin root in that spelling (AC1)`, { skip: WINDOWS_ONLY }, async () => {
-    await assertPosix(async (shell) => {
-      const { result } = await runList(shell, "42", { items: [THREE_ITEMS[0]], script: row.invoked });
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(
-        result.stdout,
-        `STATUS=ready\nREADY=1 - src/a.ts:10 - 101\nRUN="${row.root}/scripts/pr-reply.sh" --all "42"\n`,
-      );
-    });
-  });
-}
 
 // --- --all: every ready reply of a review.md ---------------------------------------------
 

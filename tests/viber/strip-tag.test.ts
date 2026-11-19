@@ -21,27 +21,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { runScript, type RunResult } from "../harness/run.ts";
+import { runScript } from "../harness/run.ts";
 import { withTempDir } from "../harness/tmp.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/code-auditor/scripts/strip-tag.sh");
-
-const CONTENT = "\x3c/content>";
-const PARAMETER = "\x3c/parameter>";
-
-async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("posix", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "posix");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-function assertQuietSuccess(result: RunResult) {
-  assert.equal(result.status, 0, `unexpected exit status: stderr=${result.stderr}`);
-  assert.equal(result.stdout, "");
-}
+import { type Shell } from "../harness/shells.ts";
+import { SUT, CONTENT, PARAMETER, assertPosix, assertQuietSuccess } from "./strip-tag-fixture.ts";
 
 /** Writes `before` to a fresh file, runs the script on it, returns the bytes left. */
 async function stripOne(shell: Shell, before: string): Promise<string> {
@@ -86,18 +69,3 @@ for (const [name, content] of untouched) {
     });
   });
 }
-
-test("a missing path is skipped and the other files are still handled (exit 0, nothing on stdout)", async () => {
-  await assertPosix(async (shell) => {
-    await withTempDir("strip-tag-", async (dir) => {
-      const first = path.join(dir, "first.md");
-      const second = path.join(dir, "second.md");
-      fs.writeFileSync(first, `one\n${CONTENT}\n`);
-      fs.writeFileSync(second, `two\n${PARAMETER}\n`);
-      const result = await runScript(SUT, [first, path.join(dir, "absent.md"), second], { shell, cwd: dir });
-      assertQuietSuccess(result);
-      assert.equal(fs.readFileSync(first, "latin1"), "one\n");
-      assert.equal(fs.readFileSync(second, "latin1"), "two\n");
-    });
-  });
-});

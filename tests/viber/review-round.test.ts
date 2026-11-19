@@ -35,135 +35,16 @@
 
 import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
 import { slash } from "../harness/paths.ts";
 import { withGitRepo, type GitRepo } from "../harness/tmp.ts";
+import { REFS, PLAN_REL, write, litePlan, review, start } from "./review-round-fixture.ts";
 
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/planner/scripts/review-round.sh");
 const PLAN_INDEX = path.resolve(import.meta.dirname, "../../viber/scripts/plan-index.sh");
-const REFS = slash(path.resolve(import.meta.dirname, "../../viber/references"));
-
-const PLAN_REL = "docs/_specs/2026-09-20-10-00-00_add-login/plan.md";
 const OTHER_PLAN_REL = "docs/_specs/2026-09-21-10-00-00_add-logout/plan.md";
 const STATE_REL = ".temp/viber/planner/review-round";
-
-function write(root: string, rel: string, content: string): void {
-  const file = path.join(root, rel);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, content);
-}
-
-/** A lite plan of `count` independent tasks T1..Tcount, each on its own `add` file. */
-function litePlan(count: number): string {
-  const ids = Array.from({ length: count }, (_, i) => i + 1);
-  return [
-    "# Add login",
-    "",
-    "## Goal",
-    "",
-    "Users can log in.",
-    "",
-    "## Acceptance criteria",
-    "",
-    "1. A user with valid credentials gets a session.",
-    "",
-    "## Scope",
-    "",
-    "### File map",
-    "",
-    ...ids.map((n) => `- add - src/t${n}.ts - the part ${n}`),
-    "",
-    "### Out of scope",
-    "",
-    "- Password reset.",
-    "",
-    "## Tasks",
-    "",
-    ...ids.flatMap((n) => [
-      "<!-- TASK -->",
-      `### T${n} - Do thing ${n}`,
-      "- TDD: required",
-      "- Covers: AC1",
-      "- Uses: C1",
-      "- Depends-on: none",
-      `- Files: src/t${n}.ts`,
-      "- Delivers: the thing",
-      "- Verification: npm test -> green",
-      "- DoD: it works",
-      "<!-- /TASK -->",
-      "",
-    ]),
-    "## Contracts",
-    "",
-    "### C1 - Login endpoint",
-    "",
-    "File: none",
-    "",
-    "POST /login -> 200 | 401",
-    "",
-  ].join("\n");
-}
-
-function review(repo: GitRepo, args: string[]) {
-  return runScript(SUT, args, { cwd: repo.dir, env: repo.env, shell: "bash" });
-}
-
-function start(repo: GitRepo, plan: string, ...flags: string[]) {
-  return review(repo, [plan, "start", ...flags]);
-}
-
-test("start on a plan of 12 tasks or fewer prints one planner-review block with the plan, refs, memory and input addition lines", async () => {
-  await withGitRepo(async (repo) => {
-    write(repo.dir, PLAN_REL, litePlan(2));
-    write(repo.dir, ".claude/viber.yml", "build:\n  memory: true\n");
-
-    const result = await start(repo, PLAN_REL);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(
-      slash(result.stdout),
-      [
-        "NEXT: review | member: 1 | agent: viber:planner-review | round: 1 | add: input | add: answered",
-        `plan: ${PLAN_REL}`,
-        `refs: ${REFS}`,
-        "memory: true",
-        "",
-      ].join("\n"),
-    );
-  });
-});
-
-// The refs line spells the plugin root the way the script was invoked: a `C:\` or `C:/` path
-// prints `C:/...`, a `/c/` path prints `/c/...`. Only Windows has those spellings of a file.
-const NATIVE_SPELLINGS_SKIP = process.platform === "win32" ? false : "a drive-letter spelling of a script exists on Windows only";
-
-function refsLines(stdout: string): string[] {
-  return stdout.split("\n").filter((line) => line.startsWith("refs: "));
-}
-
-for (const spelling of [
-  { name: "a C:\\ path", script: SUT.replace(/\//g, "\\"), refs: REFS },
-  { name: "a C:/ path", script: SUT.replace(/\\/g, "/"), refs: REFS },
-  {
-    name: "a /c/ path",
-    script: SUT.replace(/\\/g, "/").replace(/^([A-Za-z]):\//, (_, drive: string) => `/${drive.toLowerCase()}/`),
-    refs: REFS.replace(/^([A-Za-z]):\//, (_, drive: string) => `/${drive.toLowerCase()}/`),
-  },
-]) {
-  test(`start invoked by ${spelling.name} prints every refs line as ${spelling.refs} (the printed plugin path keeps the invoked spelling)`, { skip: NATIVE_SPELLINGS_SKIP }, async () => {
-    await withGitRepo(async (repo) => {
-      write(repo.dir, PLAN_REL, litePlan(13));
-
-      const result = await runScript(spelling.script, [PLAN_REL, "start"], { cwd: repo.dir, env: repo.env, shell: "bash" });
-
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(refsLines(result.stdout), Array(4).fill(`refs: ${spelling.refs}`));
-    });
-  });
-}
 
 test("start on a plan of more than 12 tasks prints one block per dispatch line, the task reviewers each with their slice", async () => {
   await withGitRepo(async (repo) => {

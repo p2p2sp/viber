@@ -27,128 +27,30 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { runScript, type RunResult } from "../harness/run.ts";
-import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
+import { runScript } from "../harness/run.ts";
+import { withGitRepo, withTempDir } from "../harness/tmp.ts";
 import { coreUtilsPath, withStub } from "../harness/stub.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
+import {
+  SUT,
+  assertPosix,
+  KEY,
+  QA_REL,
+  QA_TEXT,
+  PR_URL,
+  COMMENT_URL,
+  ISSUE_URL,
+  GH_STUB,
+  runInRepo,
+  posts,
+  specWith,
+  SPEC_WITH_ISSUE,
+  EXPECTED_BODY,
+  assertOneError,
+} from "./qa-comment-fixture.ts";
 
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/qa-comment.sh");
-
-async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("posix", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "posix");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-const KEY = "2026-01-01-00-00-00_thing";
-const QA_REL = `docs/_specs/${KEY}/qa.md`;
-const QA_TEXT = "# Thing\n\n## What changed\nA person can now post.\n\n| # | Step | Expected result |\n| --- | --- | --- |\n";
-const PR_URL = "https://github.com/acme/widgets/pull/7";
-const COMMENT_URL = `${PR_URL}#issuecomment-99`;
-const ISSUE_URL = "https://github.com/acme/widgets/issues/12";
 const ISSUE_COMMENT_URL = `${ISSUE_URL}#issuecomment-55`;
 
-/** A `gh` stub logging its argv one-arg-per-line (a "===" separator after
- *  each call) into `$ARGV_FILE`. `pr list` prints the raw `--jq` rows the script
- *  asks for, `<isCrossRepository> <url>`: one `true` row per URL of
- *  PR_FORK_LIST, then one `false` row per URL of PR_LIST; `pr|issue view`
- *  prints COMMENTS or fails on VIEW_FAIL; `pr|issue comment` copies its
- *  --body-file into `$BODY_LOG`, then fails on POST_FAIL or prints POST_OUT
- *  (default: a pull request comment URL). */
-const GH_STUB = `
-for a in "$@"; do printf '%s\\n' "$a" >> "$ARGV_FILE"; done; printf '===\\n' >> "$ARGV_FILE"
-case "$1 $2" in
-  "pr list")
-    for u in \${PR_FORK_LIST:-}; do printf 'true %s\\n' "$u"; done
-    for u in \${PR_LIST:-}; do printf 'false %s\\n' "$u"; done ;;
-  "pr view"|"issue view")
-    if [ -n "\${VIEW_FAIL:-}" ]; then echo "HTTP 401: Bad credentials" >&2; exit 1; fi
-    printf '%s' "\${COMMENTS:-}" ;;
-  "pr comment"|"issue comment")
-    prev=""
-    for a in "$@"; do
-      if [ "$prev" = "--body-file" ]; then cat "$a" > "$BODY_LOG"; fi
-      prev=$a
-    done
-    if [ -n "\${POST_FAIL:-}" ]; then echo "HTTP 500: server error" >&2; exit 1; fi
-    printf '%s\\n' "\${POST_OUT-${COMMENT_URL}}" ;;
-esac
-exit 0
-`;
-
-interface Outcome {
-  result: RunResult;
-  calls: string[][];
-  body: string | null;
-}
-
-interface RunOpts {
-  env?: Record<string, string>;
-  /** Repo-relative directory the script runs in (default: the repo root). */
-  cwd?: string;
-  /** Runs after the qa file is written, before the script. */
-  setup?: (repo: GitRepo) => Promise<void>;
-  /** Write no qa file. */
-  noFile?: boolean;
-}
-
-/** Runs qa-comment.sh inside a fresh repo holding QA_REL, with the gh stub
- *  first on PATH. Returns the result, every logged gh call and the body gh
- *  was handed (null when nothing was posted). */
-async function runInRepo(shell: Shell, args: string[], opts: RunOpts = {}): Promise<Outcome> {
-  return await withGitRepo((repo) =>
-    withStub("gh", GH_STUB, async (stubDir) => {
-      if (!opts.noFile) {
-        fs.mkdirSync(path.join(repo.dir, path.dirname(QA_REL)), { recursive: true });
-        fs.writeFileSync(path.join(repo.dir, QA_REL), QA_TEXT);
-      }
-      if (opts.setup) await opts.setup(repo);
-      const argvFile = path.join(repo.dir, "argv.log");
-      const bodyLog = path.join(repo.dir, "body.log");
-      fs.writeFileSync(argvFile, "");
-      const cwd = path.join(repo.dir, opts.cwd ?? "");
-      fs.mkdirSync(cwd, { recursive: true });
-      const env = { ...repo.env, ARGV_FILE: argvFile, BODY_LOG: bodyLog, ...opts.env };
-      const result = await runScript(SUT, args, { shell, cwd, env, stubDirs: [stubDir] });
-      const calls = fs
-        .readFileSync(argvFile, "utf-8")
-        .split("===\n")
-        .map((block) => block.split("\n").filter((line) => line.length > 0))
-        .filter((call) => call.length > 0);
-      const body = fs.existsSync(bodyLog) ? fs.readFileSync(bodyLog, "utf-8") : null;
-      return { result, calls, body };
-    }),
-  );
-}
-
-function posts(calls: string[][]): string[][] {
-  return calls.filter((c) => c[1] === "comment");
-}
-
-/** A setup writing the run's spec.md beside the qa file with `text` as its content. */
-function specWith(text: string): (repo: GitRepo) => Promise<void> {
-  return async (repo) => {
-    fs.writeFileSync(path.join(repo.dir, path.dirname(QA_REL), "spec.md"), text);
-  };
-}
-
-const SPEC_WITH_ISSUE = `---\r\nissue: ${ISSUE_URL}\r\n---\r\n\r\n# Thing\n`;
-
-const EXPECTED_BODY = `<!-- viber:qa ${QA_REL} -->\nQA document: \`${QA_REL}\`\n\n${QA_TEXT}`;
-
 // --- posting ----------------------------------------------------------------------
-
-test("with --pr, the body is the marker line, the header line, an empty line and the qa file verbatim, and stdout is STATUS=posted plus the comment URL", async () => {
-  await assertPosix(async (shell) => {
-    const { result, calls, body } = await runInRepo(shell, [QA_REL, "--pr", PR_URL]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, `STATUS=posted\nCOMMENT_URL=${COMMENT_URL}\n`);
-    assert.equal(body, EXPECTED_BODY);
-    assert.equal(posts(calls)[0][2], PR_URL);
-  });
-});
 
 test("a relative qa file path resolves from the repository root when the script runs in a subdirectory", async () => {
   await assertPosix(async (shell) => {
@@ -207,18 +109,6 @@ test("a spec.md with no issue: in its frontmatter falls back to the pull request
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.equal(result.stdout, `STATUS=posted\nCOMMENT_URL=${COMMENT_URL}\n`);
     assert.deepEqual(posts(calls).map((c) => c.slice(0, 3)), [["pr", "comment", PR_URL]]);
-  });
-});
-
-test("an issue comment holding a marker of the same run key: STATUS=skip REASON=exists and no post", async () => {
-  await assertPosix(async (shell) => {
-    const { result, calls } = await runInRepo(shell, [QA_REL], {
-      env: { COMMENTS: `<!-- viber:qa ${QA_REL} -->\nQA document\n` },
-      setup: specWith(SPEC_WITH_ISSUE),
-    });
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "STATUS=skip\nREASON=exists\nSAY=the QA document of this run is already posted\n");
-    assert.equal(posts(calls).length, 0);
   });
 });
 
@@ -373,14 +263,6 @@ test("run outside any repository: STATUS=skip REASON=no-repo and gh is never cal
 
 // --- gh failures ------------------------------------------------------------------
 
-function assertOneError(result: RunResult) {
-  assert.equal(result.status, 1, `stdout: ${result.stdout}`);
-  assert.equal(result.stdout, "");
-  const lines = result.stderr.split("\n").filter((l) => l.length > 0);
-  assert.equal(lines.length, 1, `expected a single ERROR line, got:\n${result.stderr}`);
-  assert.match(lines[0], /^ERROR qa-comment\.sh: /);
-}
-
 test("gh failing to read the comments: exit 1, one ERROR line, empty stdout and no post", async () => {
   await assertPosix(async (shell) => {
     const { result, calls } = await runInRepo(shell, [QA_REL, "--pr", PR_URL], { env: { VIEW_FAIL: "1" } });
@@ -392,13 +274,6 @@ test("gh failing to read the comments: exit 1, one ERROR line, empty stdout and 
 test("gh failing to post: exit 1, one ERROR line, empty stdout", async () => {
   await assertPosix(async (shell) => {
     const { result } = await runInRepo(shell, [QA_REL, "--pr", PR_URL], { env: { POST_FAIL: "1" } });
-    assertOneError(result);
-  });
-});
-
-test("gh posting but printing no comment URL: exit 1, one ERROR line, empty stdout (a pull request URL alone is not proof a comment landed)", async () => {
-  await assertPosix(async (shell) => {
-    const { result } = await runInRepo(shell, [QA_REL, "--pr", PR_URL], { env: { POST_OUT: PR_URL } });
     assertOneError(result);
   });
 });

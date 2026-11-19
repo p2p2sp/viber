@@ -19,39 +19,8 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-
-import { runScript } from "../harness/run.ts";
 import { withGitRepo } from "../harness/tmp.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/run-suite.sh");
-
-const REPORT = "docs/_specs/x/work/T11-report.md";
-const CMD = ".temp/viber/test-runner/T11-report.cmd";
-const LOG = ".temp/viber/test-runner/T11-report.log";
-
-/** Writes `body` as the command file of the report, creating its directory. */
-function writeCommand(dir: string, body: string): void {
-  fs.mkdirSync(path.join(dir, path.dirname(CMD)), { recursive: true });
-  fs.writeFileSync(path.join(dir, CMD), body);
-}
-
-function run(repo: { dir: string; env: Record<string, string> }, args: string[], cwd = repo.dir, wait = "1") {
-  return runScript(SUT, args, { cwd, shell: "bash", env: { ...repo.env, RUN_SUITE_WAIT: wait } });
-}
-
-test("run executes the command file from the repository root and ends the log on its exit code", async () => {
-  await withGitRepo(async (repo) => {
-    fs.writeFileSync(path.join(repo.dir, "marker.txt"), "at-root\n");
-    fs.mkdirSync(path.join(repo.dir, "sub"));
-    writeCommand(repo.dir, "cat marker.txt\necho out\necho err >&2\nexit 3\n");
-
-    const result = await run(repo, ["run", REPORT, CMD], path.join(repo.dir, "sub"));
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^log: .*\/\.temp\/viber\/test-runner\/T11-report\.log\n$/);
-    assert.equal(fs.readFileSync(path.join(repo.dir, LOG), "utf-8"), "at-root\nout\nerr\nexit=3\n");
-  });
-});
+import { REPORT, CMD, LOG, writeCommand, run } from "./run-suite-fixture.ts";
 
 test("run deletes an earlier log instead of appending to it", async () => {
   await withGitRepo(async (repo) => {
@@ -73,19 +42,6 @@ test("run puts the exit line on a line of its own when the command output ends w
 
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.equal(fs.readFileSync(path.join(repo.dir, LOG), "utf-8"), "partial\nexit=0\n");
-  });
-});
-
-test("wait prints the log path and the exit line of a log that run just finished", async () => {
-  await withGitRepo(async (repo) => {
-    writeCommand(repo.dir, "echo out\nexit 3\n");
-    const ran = await run(repo, ["run", REPORT, CMD]);
-    assert.equal(ran.status, 0, `stderr: ${ran.stderr}`);
-
-    const result = await run(repo, ["wait", REPORT]);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^log: .*\/\.temp\/viber\/test-runner\/T11-report\.log\nexit=3\n$/);
   });
 });
 

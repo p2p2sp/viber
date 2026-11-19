@@ -21,61 +21,17 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { runScript, type RunResult } from "../harness/run.ts";
-import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
+import { runScript } from "../harness/run.ts";
+import { withGitRepo, withTempDir } from "../harness/tmp.ts";
 import { slash } from "../harness/paths.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/code-auditor/scripts/worktree.sh");
-
-async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("posix", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "posix");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-async function run(shell: Shell, repo: GitRepo, args: string[]): Promise<RunResult> {
-  return await runScript(SUT, args, { shell, cwd: repo.dir, env: repo.env });
-}
-
-/** A repo with one commit, so HEAD is born and `worktree add ... HEAD`
- *  has something to detach onto. Returns the slash-form worktree path the
- *  script is expected to echo back verbatim. */
-async function withSeededRepo<T>(fn: (repo: GitRepo, wt: string) => T): Promise<T> {
-  return await withGitRepo(async (repo) => {
-    fs.writeFileSync(path.join(repo.dir, "src.txt"), "one\n");
-    const add = await repo.git("add", "-A");
-    assert.equal(add.status, 0, `git add failed: ${add.stderr}`);
-    const commit = await repo.git("commit", "-m", "seed");
-    assert.equal(commit.status, 0, `git commit failed: ${commit.stderr}`);
-    const wt = slash(path.join(repo.dir, "wt-verify"));
-    return fn(repo, wt);
-  });
-}
-
-function assertOneLine(result: RunResult, expected: string, expectedStatus: number) {
-  assert.equal(result.status, expectedStatus, `unexpected exit status: stderr=${result.stderr}`);
-  assert.equal(result.stdout, `${expected}\n`);
-}
-
-function assertFailed(result: RunResult) {
-  assert.equal(result.status, 1, `expected exit 1: stdout=${result.stdout} stderr=${result.stderr}`);
-  const lines = result.stdout.trim().split("\n");
-  assert.equal(lines.length, 1, `stdout must stay one line: ${result.stdout}`);
-  assert.match(lines[0], /^WORKTREE_FAILED /);
-}
-
-test("add creates a verified worktree carrying the repo content", async () => {
-  await assertPosix(async (shell) => {
-    await withSeededRepo(async (repo, wt) => {
-      const result = await run(shell, repo, ["add", repo.dir, wt]);
-      assertOneLine(result, `WORKTREE_READY ${wt}`, 0);
-      assert.equal(fs.readFileSync(path.join(wt, "src.txt"), "utf8"), "one\n");
-    });
-  });
-});
+import {
+  assertPosix,
+  run,
+  withSeededRepo,
+  assertOneLine,
+  assertFailed,
+  assertRepoIntact,
+} from "./worktree-fixture.ts";
 
 test("add is idempotent over an already-registered worktree", async () => {
   await assertPosix(async (shell) => {
@@ -113,19 +69,6 @@ test("add recovers from an orphaned directory git never registered", async () =>
   });
 });
 
-test("remove clears a worktree holding untracked replay artifacts", async () => {
-  await assertPosix(async (shell) => {
-    await withSeededRepo(async (repo, wt) => {
-      assertOneLine(await run(shell, repo, ["add", repo.dir, wt]), `WORKTREE_READY ${wt}`, 0);
-      fs.writeFileSync(path.join(wt, "poc.py"), "print(1)\n");
-      fs.writeFileSync(path.join(wt, "src.txt"), "modified\n");
-      const result = await run(shell, repo, ["remove", repo.dir, wt]);
-      assertOneLine(result, `WORKTREE_REMOVED ${wt}`, 0);
-      assert.equal(fs.existsSync(wt), false);
-    });
-  });
-});
-
 test("remove of an absent path succeeds", async () => {
   await assertPosix(async (shell) => {
     await withSeededRepo(async (repo, wt) => {
@@ -153,47 +96,6 @@ test("a relative worktree path is rejected", async () => {
     await withSeededRepo(async (repo) => {
       assertFailed(await run(shell, repo, ["add", repo.dir, "wt-verify"]));
       assertFailed(await run(shell, repo, ["add", repo.dir, "./wt-verify"]));
-    });
-  });
-});
-
-test("a filesystem root as the worktree path is rejected", async () => {
-  await assertPosix(async (shell) => {
-    await withSeededRepo(async (repo) => {
-      assertFailed(await run(shell, repo, ["remove", repo.dir, "/"]));
-      assertFailed(await run(shell, repo, ["remove", repo.dir, "C:/"]));
-    });
-  });
-});
-
-test("the target root itself as the worktree path is rejected", async () => {
-  await assertPosix(async (shell) => {
-    await withSeededRepo(async (repo) => {
-      // slash() only rewrites separators, so this is the target root spelled a
-      // second way - the guard must recognise it as the root whichever
-      // separator the caller used, or `remove` rm -rf's the repo it was
-      // anchored to and still reports success.
-      const result = await run(shell, repo, ["remove", repo.dir, slash(repo.dir)]);
-      assertFailed(result);
-      assert.match(result.stdout, /must not be the target root/);
-      assert.ok(fs.existsSync(repo.dir), "the target root must survive a rejected remove");
-    });
-  });
-});
-
-function assertRepoIntact(repo: GitRepo) {
-  assert.ok(fs.existsSync(path.join(repo.dir, ".git")), "the target repo's .git must survive");
-  assert.equal(fs.readFileSync(path.join(repo.dir, "keep.txt"), "utf8"), "keep\n");
-}
-
-test("the parent directory of the target root as the worktree path is rejected (remove would rm -rf the repo with it)", async () => {
-  await assertPosix(async (shell) => {
-    await withSeededRepo(async (repo) => {
-      fs.writeFileSync(path.join(repo.dir, "keep.txt"), "keep\n");
-      const result = await run(shell, repo, ["remove", repo.dir, slash(path.dirname(repo.dir))]);
-      assertFailed(result);
-      assert.match(result.stdout, /holds the target root/);
-      assertRepoIntact(repo);
     });
   });
 });

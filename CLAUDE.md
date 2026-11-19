@@ -14,14 +14,16 @@ Source of the `viber` Claude Code plugin, listed as the `p2p2` marketplace by `.
 
 ## Commands
 
-- Whole test suite (both tiers, as CI runs it): `CI=true node --test --test-concurrency=12 "tests/**/*.test.ts"`
-- Single test file: `node --test tests/viber/config.test.ts`
 - Fast (unit tier only): `node --test "tests/**/*.unit.test.ts"`
+- Unit and critical tiers (what a Windows or macOS push run executes): `CI=true node --test --test-concurrency=6 "tests/**/*.unit.test.ts" "tests/**/*.critical.test.ts"`
+- Whole test suite (every tier, as the Linux push run executes it): `CI=true node --test --test-concurrency=12 "tests/**/*.test.ts"`
+- Single test file: `node --test tests/viber/config.test.ts`
 
 ## Test layers
 
-- `*.unit.test.ts`: unit tier, the only one a developer machine runs.
-- Every other `*.test.ts` under `tests/`: integration tier, run in CI only.
+- `*.unit.test.ts`: unit tier, spawns nothing; a developer machine runs it on every change.
+- `*.critical.test.ts`: critical tier, the few spawning cases every operating system runs on every push, under the full shell matrix in CI.
+- Every other `*.test.ts` under `tests/`: logic tier, run on Linux on every push and on Windows only by `.github/workflows/full.yml` (nightly, on demand and before a release).
 
 ## Traps
 

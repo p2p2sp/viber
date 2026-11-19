@@ -23,70 +23,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-import { runScript, type RunResult } from "../harness/run.ts";
+import { runScript } from "../harness/run.ts";
 import { withTempDir } from "../harness/tmp.ts";
-import { coreUtilsPath, withStub } from "../harness/stub.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/post-comment.sh");
-
-const COMMENT_URL = "https://github.com/acme/widgets/issues/42#issuecomment-1234567";
-
-async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("posix", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "posix");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-/** A `gh` stub logging its argv one-arg-per-line (a "===" separator after
- *  each call) into `$ARGV_FILE`; its stdout, stderr and exit code come from
- *  env vars, so one body serves every case. */
-const GH_STUB = `
-for a in "$@"; do printf '%s\\n' "$a" >> "$ARGV_FILE"; done; printf '===\\n' >> "$ARGV_FILE"
-if [ -n "\${GH_STDERR:-}" ]; then printf '%s' "$GH_STDERR" >&2; fi
-printf '%s' "\${GH_STDOUT:-}"
-exit "\${GH_EXIT:-0}"
-`;
-
-/** Runs post-comment.sh with a fresh `gh` stub first on PATH. `args` may use
- *  the token "<file>", replaced by the path of an existing comment file.
- *  Returns the result, every logged gh call and that file's path. */
-async function runStubbed(
-  shell: Shell,
-  args: string[],
-  env: Record<string, string> = {},
-): Promise<{ result: RunResult; calls: string[][]; file: string }> {
-  return await withTempDir("p2p2-post-comment-", (cwd) =>
-    withStub("gh", GH_STUB, async (stubDir) => {
-      const file = path.join(cwd, "comment.md");
-      fs.writeFileSync(file, "## Summary\n\nLine one.\nLine two.\n");
-      const argvFile = path.join(cwd, "argv.log");
-      fs.writeFileSync(argvFile, "");
-      const real = args.map((a) => (a === "<file>" ? file : a));
-      const result = await runScript(SUT, real, { shell, cwd, env: { ARGV_FILE: argvFile, ...env }, stubDirs: [stubDir] });
-      const calls = fs
-        .readFileSync(argvFile, "utf-8")
-        .split("===\n")
-        .map((block) => block.split("\n").filter((line) => line.length > 0))
-        .filter((call) => call.length > 0);
-      return { result, calls, file };
-    }),
-  );
-}
+import { coreUtilsPath } from "../harness/stub.ts";
+import { SUT, COMMENT_URL, assertPosix, runStubbed } from "./post-comment-fixture.ts";
 
 // --- success --------------------------------------------------------------------
-
-test("a bare number and a file reach gh issue comment through --body-file, and exactly one COMMENT_URL= line is printed", async () => {
-  await assertPosix(async (shell) => {
-    const { result, calls, file } = await runStubbed(shell, ["42", "<file>"], { GH_STDOUT: COMMENT_URL + "\n" });
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, `COMMENT_URL=${COMMENT_URL}\n`);
-    assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0], ["issue", "comment", "42", "--body-file", file]);
-  });
-});
 
 test("#42 is passed to gh as 42, an issue url verbatim, and one carrying a comment fragment or a query as the bare issue url", async () => {
   await assertPosix(async (shell) => {
@@ -111,28 +53,6 @@ test("a comment URL followed by CRLF and a stderr warning still parses cleanly",
 });
 
 // --- gh failure -------------------------------------------------------------------
-
-test("gh fails: exit 1, one ERROR line carrying gh's message, nothing on stdout", async () => {
-  await assertPosix(async (shell) => {
-    const { result } = await runStubbed(shell, ["42", "<file>"], { GH_EXIT: "1", GH_STDERR: "HTTP 401: Bad credentials\n" });
-    assert.equal(result.status, 1);
-    assert.equal(result.stdout, "");
-    const lines = result.stderr.split("\n").filter((l) => l.length > 0);
-    assert.equal(lines.length, 1, `expected a single ERROR line, got:\n${result.stderr}`);
-    assert.match(lines[0], /^ERROR post-comment\.sh: gh issue comment failed: .*Bad credentials/);
-  });
-});
-
-test("gh exits 0 but prints no comment URL: exit 1, nothing on stdout (an issue URL alone is not proof a comment landed)", async () => {
-  await assertPosix(async (shell) => {
-    for (const out of ["", "https://github.com/acme/widgets/issues/42\n", "https://github.com/acme/widgets/issues/42#issuecomment-abc\n"]) {
-      const { result } = await runStubbed(shell, ["42", "<file>"], { GH_STDOUT: out });
-      assert.equal(result.status, 1, `gh stdout ${JSON.stringify(out)}`);
-      assert.equal(result.stdout, "");
-      assert.match(result.stderr, /^ERROR post-comment\.sh: gh issue comment failed:/);
-    }
-  });
-});
 
 const ghOnCorePath = coreUtilsPath()
   .split(path.delimiter)

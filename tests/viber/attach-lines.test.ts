@@ -19,52 +19,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
-import { slash } from "../harness/paths.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
-import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/scripts/attach-lines.sh");
-
-async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("posix", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "posix");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-function write(repo: GitRepo, rel: string): void {
-  const file = path.join(repo.dir, rel);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, "x\n");
-}
-
-function rootOf(repo: GitRepo): string {
-  return slash(fs.realpathSync(repo.dir));
-}
-
-test("a file and a directory under .temp/ print one Attachment: line each, absolute with forward slashes, in argument order", async () => {
-  await assertPosix(async (shell) => {
-    await withGitRepo(async (repo) => {
-      write(repo, ".temp/viber/prototype/mock.html");
-      write(repo, ".temp/findings.md");
-      fs.mkdirSync(path.join(repo.dir, ".temp", "viber", "shots"), { recursive: true });
-      const root = rootOf(repo);
-
-      const result = await runScript(SUT, [".temp/viber/shots", ".temp/findings.md", path.join(repo.dir, ".temp", "viber", "prototype", "mock.html")], {
-        cwd: repo.dir,
-        env: repo.env,
-        shell,
-      });
-
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(
-        result.stdout,
-        `Attachment: ${root}/.temp/viber/shots\nAttachment: ${root}/.temp/findings.md\nAttachment: ${root}/.temp/viber/prototype/mock.html\n`,
-      );
-    });
-  });
-});
+import { withGitRepo, withTempDir } from "../harness/tmp.ts";
+import { SUT, assertPosix, write, rootOf } from "./attach-lines-fixture.ts";
 
 test("a path named twice, once relative and once absolute, prints once at its first place", async () => {
   await assertPosix(async (shell) => {

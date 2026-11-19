@@ -39,44 +39,15 @@ import { runScript, type RunResult } from "../harness/run.ts";
 import { withGitRepo, withTempDir } from "../harness/tmp.ts";
 import { coreUtilsPath } from "../harness/stub.ts";
 import { slash } from "../harness/paths.ts";
-
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/setup/scripts/merge-settings.sh");
-const TEMPLATE_SETTINGS = path.resolve(import.meta.dirname, "../../viber/skills/setup/templates/settings.json");
-
-/** A small file-local template so a merge assertion can name the exact entries
- *  and counts; the shipped template is used only where the case is about the
- *  shipped template itself (creation, the no-node block, its own shape). */
-const FIXTURE_TEMPLATE = {
-  $schema: "https://json.schemastore.org/claude-code-settings.json",
-  showClearContextOnPlanAccept: true,
-  permissions: {
-    defaultMode: "acceptEdits",
-    disableAutoMode: "disable",
-    allow: ["Read", "Write", "Bash"],
-    ask: ["Bash(git push:*)"],
-    deny: ["Bash(sudo:*)", "Bash(rm -rf:*)"],
-  },
-};
-
-function writeJson(file: string, value: unknown): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-function fixtureTemplate(dir: string): string {
-  const file = path.join(dir, "template.json");
-  writeJson(file, FIXTURE_TEMPLATE);
-  return file;
-}
-
-function targetPath(dir: string): string {
-  return path.join(dir, ".claude", "settings.json");
-}
-
-async function run(dir: string, template: string, target?: string): Promise<RunResult> {
-  const args = target === undefined ? [template] : [template, target];
-  return await runScript(SUT, args, { cwd: dir });
-}
+import {
+  SUT,
+  TEMPLATE_SETTINGS,
+  writeJson,
+  fixtureTemplate,
+  targetPath,
+  run,
+  readJson,
+} from "./merge-settings-fixture.ts";
 
 /** The no-node case starves PATH down to the core utilities (the script still
  *  needs bash, cat and command -v), so a developer's installed node cannot
@@ -84,20 +55,6 @@ async function run(dir: string, template: string, target?: string): Promise<RunR
 async function runWithoutNode(dir: string, template: string, target: string): Promise<RunResult> {
   return await runScript(SUT, [template, target], { cwd: dir, env: { PATH: coreUtilsPath() } });
 }
-
-function readJson(file: string): any {
-  return JSON.parse(fs.readFileSync(file, "utf-8"));
-}
-
-test("no settings.json at all: the default target is created byte-identical to the shipped template, exit 0", async () => {
-  await withTempDir("p2p2-viber-merge-settings-", async (dir) => {
-    const result = await run(dir, TEMPLATE_SETTINGS);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, "settings.json: created from template\n");
-    assert.equal(fs.readFileSync(targetPath(dir), "utf-8"), fs.readFileSync(TEMPLATE_SETTINGS, "utf-8"));
-  });
-});
 
 test("run from a subdirectory of a repository, the default target is the root's .claude/settings.json (never a nested sub/.claude/)", async () => {
   await withGitRepo(async (repo) => {
@@ -110,44 +67,6 @@ test("run from a subdirectory of a repository, the default target is the root's 
     assert.equal(result.stdout, "settings.json: created from template\n");
     assert.equal(fs.existsSync(targetPath(repo.dir)), true);
     assert.equal(fs.existsSync(path.join(sub, ".claude")), false);
-  });
-});
-
-test("partial coverage: only the missing template entries are appended, after the host's own, and every other key survives", async () => {
-  await withTempDir("p2p2-viber-merge-settings-", async (dir) => {
-    const target = targetPath(dir);
-    writeJson(target, {
-      $schema: "https://json.schemastore.org/claude-code-settings.json",
-      disableWorkflows: true,
-      permissions: {
-        additionalDirectories: ["C:/somewhere"],
-        allow: ["Read", "HostOnlyTool"],
-        ask: ["Bash(hostask:*)"],
-        deny: ["Bash(hostonly:*)", "Bash(sudo:*)"],
-      },
-    });
-
-    const result = await run(dir, fixtureTemplate(dir), target);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(
-      result.stdout,
-      "settings.json: merged - added 3 keys, 4 list entries, updated 0 values, moved 0 deny to ask\n",
-    );
-
-    const merged = readJson(target);
-    assert.deepEqual(merged.permissions.allow, ["Read", "HostOnlyTool", "Write", "Bash"]);
-    assert.deepEqual(merged.permissions.ask, ["Bash(hostask:*)", "Bash(git push:*)"]);
-    assert.deepEqual(merged.permissions.deny, ["Bash(hostonly:*)", "Bash(sudo:*)", "Bash(rm -rf:*)"]);
-    assert.equal(merged.permissions.defaultMode, "acceptEdits");
-    assert.equal(merged.permissions.disableAutoMode, "disable");
-    // Host-only keys, at both levels, are carried over untouched.
-    assert.equal(merged.disableWorkflows, true);
-    assert.deepEqual(merged.permissions.additionalDirectories, ["C:/somewhere"]);
-    // The template's own top-level key is seeded beside them.
-    assert.equal(merged.showClearContextOnPlanAccept, true);
-    // The atomic rewrite leaves no scratch file behind.
-    assert.equal(fs.existsSync(`${target}.tmp`), false);
   });
 });
 
@@ -309,73 +228,6 @@ test("a template rule a host rule of the same list already covers is not appende
   });
 });
 
-test("a narrower host rule, a sibling specifier, a rule in another list or an array outside the permission lists covers nothing (Bash(sudo:*) must never keep Bash(aws:*) out of deny)", async () => {
-  await withTempDir("p2p2-viber-merge-settings-", async (dir) => {
-    const target = targetPath(dir);
-    const template = path.join(dir, "template.json");
-    writeJson(template, {
-      permissions: { allow: ["Edit(**/*)"], deny: ["Bash(aws:*)", "Bash(sudo:*)"] },
-      other: ["Edit(**/*)"],
-    });
-    writeJson(target, {
-      permissions: { allow: ["Edit(src/**)", "Bash"], deny: ["Bash(sudo:*)"] },
-      other: ["Edit"],
-    });
-
-    const result = await run(dir, template, target);
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(
-      result.stdout,
-      "settings.json: merged - added 0 keys, 3 list entries, updated 0 values, moved 0 deny to ask\n",
-    );
-    const merged = readJson(target);
-    assert.deepEqual(merged.permissions.allow, ["Edit(src/**)", "Bash", "Edit(**/*)"]);
-    assert.deepEqual(merged.permissions.deny, ["Bash(sudo:*)", "Bash(aws:*)"]);
-    assert.deepEqual(merged.other, ["Edit", "Edit(**/*)"]);
-  });
-});
-
-test("idempotence: the second run reports 'already up to date' and leaves the file byte-identical", async () => {
-  await withTempDir("p2p2-viber-merge-settings-", async (dir) => {
-    const target = targetPath(dir);
-    const template = fixtureTemplate(dir);
-    writeJson(target, { permissions: { allow: ["HostOnlyTool"] } });
-
-    const first = await run(dir, template, target);
-    assert.equal(first.status, 0, `stderr: ${first.stderr}`);
-    assert.equal(
-      first.stdout,
-      "settings.json: merged - added 6 keys, 3 list entries, updated 0 values, moved 0 deny to ask\n",
-    );
-    const afterFirst = fs.readFileSync(target, "utf-8");
-
-    const second = await run(dir, template, target);
-
-    assert.equal(second.status, 0, `stderr: ${second.stderr}`);
-    assert.equal(second.stdout, "settings.json: already up to date\n");
-    assert.equal(fs.readFileSync(target, "utf-8"), afterFirst);
-  });
-});
-
-test("a settings.json that is not valid JSON (comments) is left byte-for-byte untouched, reported on one line, exit 2", async () => {
-  await withTempDir("p2p2-viber-merge-settings-", async (dir) => {
-    const target = targetPath(dir);
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-    const before = '{\n  // a comment JSON does not allow\n  "permissions": {}\n}\n';
-    fs.writeFileSync(target, before);
-
-    const result = await run(dir, fixtureTemplate(dir), target);
-
-    assert.equal(result.status, 2, `stderr: ${result.stderr}`);
-    assert.equal(fs.readFileSync(target, "utf-8"), before);
-    const lines = result.stdout.split("\n").filter(Boolean);
-    assert.equal(lines.length, 1);
-    assert.match(lines[0], /^settings\.json: not valid JSON - left untouched \(.+\)$/);
-    assert.equal(fs.existsSync(`${target}.tmp`), false);
-  });
-});
-
 test("no node on PATH and no target yet: the target is created from the template byte-identical, exit 0 (a missing target is a plain copy, so it needs no node)", async () => {
   await withTempDir("p2p2-viber-merge-settings-", async (dir) => {
     const target = targetPath(dir);
@@ -402,25 +254,6 @@ test("no node on PATH: the merge is skipped with the recommended block on stdout
       `settings.json: node not found - merge skipped, recommended block:\n${fs.readFileSync(TEMPLATE_SETTINGS, "utf-8")}`,
     );
     assert.equal(fs.readFileSync(target, "utf-8"), before);
-  });
-});
-
-test("--reset replaces an existing target byte-identical to the template and keeps the old file in .temp/viber/setup/, exit 0", async () => {
-  await withTempDir("p2p2-viber-merge-settings-", async (dir) => {
-    const target = targetPath(dir);
-    writeJson(target, { permissions: { allow: ["HostOnlyTool"] }, hostKey: 1 });
-    const before = fs.readFileSync(target, "utf-8");
-
-    const result = await runScript(SUT, ["--reset", TEMPLATE_SETTINGS], { cwd: dir });
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(
-      result.stdout,
-      "settings.json: reset from template (previous file saved to .temp/viber/setup/settings.json.bak)\n",
-    );
-    assert.equal(fs.readFileSync(target, "utf-8"), fs.readFileSync(TEMPLATE_SETTINGS, "utf-8"));
-    assert.equal(fs.readFileSync(path.join(dir, ".temp", "viber", "setup", "settings.json.bak"), "utf-8"), before);
-    assert.equal(fs.existsSync(`${target}.tmp`), false);
   });
 });
 

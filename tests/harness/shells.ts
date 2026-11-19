@@ -15,19 +15,30 @@
  * spawnable on Windows, where `bash --posix` is the only POSIX shell there
  * is.
  *
- * Local vs CI: the full matrix (every shell, every bash major) runs only when
- * `CI` is set to `true` or `1` - GitHub Actions sets it on every job. A local
- * run takes the first shell that resolves and records every other candidate as
- * a `ShellSkip`, so the local suite stays fast; `CI=true node --test ...` runs
- * the full matrix on a developer machine.
+ * Which runs take the full matrix (every shell, every bash major): a critical
+ * file (`*.critical.test.ts`) when `CI` is set to `true` or `1` - GitHub
+ * Actions sets it on every job - and every file when `P2P2_SHELL_MATRIX=full`,
+ * which the full-suite workflow sets. Any other run takes the first shell that
+ * resolves and records every other candidate as a `ShellSkip`: a spawned
+ * shell is the suite's dominant cost, so the many logic cases pay for one
+ * shell and the few critical ones for all of them. `P2P2_SHELL_MATRIX=first`
+ * forces one shell everywhere.
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-/** True when every shell present runs (CI); false runs only the first one. */
-export const FULL_SHELL_MATRIX = process.env.CI === "true" || process.env.CI === "1";
+/** Whether a run of `file` under `env` takes the full shell matrix. */
+export function fullShellMatrix(env: Record<string, string | undefined>, file: string | undefined): boolean {
+  if (env.P2P2_SHELL_MATRIX === "full") return true;
+  if (env.P2P2_SHELL_MATRIX === "first") return false;
+  const ci = env.CI === "true" || env.CI === "1";
+  return ci && /\.critical\.test\.ts$/.test(file ?? "");
+}
+
+/** True when every shell present runs; false runs only the first one. */
+export const FULL_SHELL_MATRIX = fullShellMatrix(process.env, process.argv[1]);
 
 /** An interpreter path, or [path, ...prefixArgs] for a two-token shell. */
 export type Shell = string | string[];
@@ -153,19 +164,33 @@ function bashCandidates(): ShellCandidate[] {
   return found.map((bashPath) => ({ name: bashPath, resolve: () => bashPath }));
 }
 
+/** The binary a resolved shell runs plus its prefix args, symlinks followed:
+ *  two candidates sharing it are one shell (`/bin/sh` is `dash` on Ubuntu). */
+function shellIdentity(shell: Shell): string {
+  const [bin, ...prefix] = Array.isArray(shell) ? shell : [shell];
+  let real = bin;
+  try {
+    real = fs.realpathSync(bin);
+  } catch {
+    // an unresolvable path stays its own identity
+  }
+  return [real, ...prefix].join("\u0000");
+}
+
 /** Calls `fn(shellPath)` for every shell of `kind` present on this machine -
  *  only the first one outside the full matrix; records a `ShellSkip` (never
- *  throws) for each one that is absent or not run. */
+ *  throws) for each one that is absent, not run or the same binary as one
+ *  already run. */
 export async function forEachShell(
   kind: "bash" | "posix",
   fn: (shell: Shell) => void | Promise<void>,
 ): Promise<ShellSkip[]> {
   const candidates = kind === "bash" ? bashCandidates() : posixCandidates();
   const skips: ShellSkip[] = [];
-  let ran = false;
+  const seen = new Map<string, string>();
   for (const candidate of candidates) {
-    if (ran && !FULL_SHELL_MATRIX) {
-      skips.push({ kind, name: candidate.name, reason: "the full shell matrix runs only in CI" });
+    if (seen.size > 0 && !FULL_SHELL_MATRIX) {
+      skips.push({ kind, name: candidate.name, reason: "the full shell matrix runs only for critical files in CI" });
       continue;
     }
     const resolved = candidate.resolve();
@@ -173,8 +198,14 @@ export async function forEachShell(
       skips.push({ kind, name: candidate.name, reason: "not found on this machine" });
       continue;
     }
+    const identity = shellIdentity(resolved);
+    const twin = seen.get(identity);
+    if (twin !== undefined) {
+      skips.push({ kind, name: candidate.name, reason: `the same binary as ${twin}` });
+      continue;
+    }
+    seen.set(identity, candidate.name);
     await fn(resolved);
-    ran = true;
   }
   return skips;
 }

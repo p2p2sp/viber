@@ -20,84 +20,30 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-
-import { runScript, type RunResult } from "../harness/run.ts";
 import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
-import { forEachShell, type Shell } from "../harness/shells.ts";
 import { slash } from "../harness/paths.ts";
+import {
+  SKILL_DIR,
+  LENS_LIST,
+  assertPosix,
+  frame,
+  git,
+  write,
+  commitFiles,
+  rootOf,
+  lines,
+  assertStdout,
+  assertWroteNothing,
+  workspaceOf,
+  runFile,
+} from "./frame-fixture.ts";
 
-const SUT = path.resolve(import.meta.dirname, "../../viber/skills/code-auditor/scripts/frame.sh");
-const SKILL_DIR = slash(path.resolve(import.meta.dirname, "../../viber/skills/code-auditor"));
 const LENSES = ["bugs", "security", "web-performance", "runtime-performance", "tests", "design"];
-const LENS_LIST = "(lenses: bugs, security, web-performance, runtime-performance, tests, design)";
 const ARGUMENT_STOP = "STOP: code-auditor: give at most one lens and one scope: [<lens>] [diff | diff:<sha> | <directory> | repo]\n";
-
-async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
-  const skips = await forEachShell("posix", fn);
-  for (const skip of skips) {
-    assert.equal(skip.kind, "posix");
-    assert.ok(skip.reason.length > 0, "a skip must record a reason");
-  }
-}
-
-async function frame(shell: Shell, repo: GitRepo, args: string[], cwd: string = repo.dir): Promise<RunResult> {
-  return await runScript(SUT, args, { shell, cwd, env: repo.env });
-}
-
-async function git(repo: GitRepo, ...args: string[]): Promise<string> {
-  const result = await repo.git(...args);
-  assert.equal(result.status, 0, `git ${args.join(" ")} failed: ${result.stderr}`);
-  return result.stdout.trim();
-}
-
-function write(repo: GitRepo, rel: string, content: string) {
-  const file = path.join(repo.dir, rel);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, content);
-}
-
-/** Writes the files, commits them all, returns the new commit sha. */
-async function commitFiles(repo: GitRepo, files: Record<string, string>): Promise<string> {
-  for (const [rel, content] of Object.entries(files)) write(repo, rel, content);
-  await git(repo, "add", "-A");
-  await git(repo, "commit", "-m", "commit");
-  return await git(repo, "rev-parse", "HEAD");
-}
 
 /** The harness keeps its git config file in the repo dir; no commit has swept it up in a fresh repo. */
 function hideHarnessConfig(repo: GitRepo) {
   write(repo, ".git/info/exclude", ".gitconfig-global\n");
-}
-
-async function rootOf(repo: GitRepo): Promise<string> {
-  return await git(repo, "rev-parse", "--show-toplevel");
-}
-
-function lines(...rows: string[]): string {
-  return rows.map((row) => `${row}\n`).join("");
-}
-
-function assertStdout(result: RunResult, expected: string) {
-  assert.equal(result.status, 0, `unexpected exit status: stderr=${result.stderr}`);
-  assert.equal(result.stdout, expected);
-}
-
-function assertWroteNothing(repo: GitRepo) {
-  assert.equal(fs.existsSync(path.join(repo.dir, ".temp")), false, "a run that is not framed writes no workspace");
-}
-
-/** Asserts stdout is the RUN line for a workspace under the root and returns that workspace. */
-function workspaceOf(result: RunResult, root: string): string {
-  assert.equal(result.status, 0, `unexpected exit status: stderr=${result.stderr}`);
-  const match = /^RUN: sh "(.+)\/scripts\/map-signals\.sh" "(.+)"\n$/.exec(slash(result.stdout));
-  assert.ok(match, `stdout is no RUN line: ${result.stdout}`);
-  assert.equal(match[1], SKILL_DIR);
-  assert.match(match[2], new RegExp(`^${slash(root).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/\\.temp/viber/code-auditor/\\d{8}-\\d{6}$`));
-  return match[2];
-}
-
-function runFile(ws: string): string {
-  return fs.readFileSync(path.join(ws, "run.md"), "utf-8");
 }
 
 const NO_LENS_ROWS: Array<{ label: string; args: string[]; stdout: string }> = [
@@ -307,53 +253,6 @@ test("the design lens frames the repo scope in a repository with no commit (it r
   });
 });
 
-test("a framed repo run writes the reports and worktrees directories and run.md, then prints the RUN line of map-signals.sh", async () => {
-  await assertPosix(async (shell) => {
-    await withGitRepo(async (repo) => {
-      await commitFiles(repo, { "src/a.txt": "1\n" });
-      const root = await rootOf(repo);
-      const ws = workspaceOf(await frame(shell, repo, ["security", "repo"]), root);
-      assert.equal(fs.statSync(path.join(ws, "reports")).isDirectory(), true);
-      assert.equal(fs.statSync(path.join(ws, "worktrees")).isDirectory(), true);
-      assert.equal(
-        runFile(ws),
-        lines(
-          "Lens: security",
-          `Lens file: ${SKILL_DIR}/references/lenses/security.md`,
-          "Scope: repo",
-          `Target root: ${slash(root)}`,
-        ),
-      );
-    });
-  });
-});
-
-// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
-// Neither spelling names a file outside Windows, so the cases skip there.
-const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
-const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
-
-const SPELLINGS: Array<{ label: string; invoked: string; skillDir: string }> = [
-  { label: "a C:\\ path", invoked: SUT, skillDir: SKILL_DIR },
-  { label: "a C:/ path", invoked: slash(SUT), skillDir: SKILL_DIR },
-  { label: "a /c/ path", invoked: MSYS(SUT), skillDir: MSYS(SKILL_DIR) },
-];
-
-for (const row of SPELLINGS) {
-  test(`invoked by ${row.label}, a framed run prints its RUN line and writes run.md with the skill paths in that spelling`, { skip: WINDOWS_ONLY }, async () => {
-    await assertPosix(async (shell) => {
-      await withGitRepo(async (repo) => {
-        const result = await runScript(row.invoked, ["design", "repo"], { shell, cwd: repo.dir, env: repo.env });
-        assert.equal(result.status, 0, `unexpected exit status: stderr=${result.stderr}`);
-        const match = /^RUN: sh "(.+)\/scripts\/map-signals\.sh" "(.+)"\n$/.exec(result.stdout);
-        assert.ok(match, `stdout is no RUN line: ${result.stdout}`);
-        assert.equal(match[1], row.skillDir);
-        assert.ok(runFile(match[2]).includes(`Lens file: ${row.skillDir}/references/lenses/design.md\n`), runFile(match[2]));
-      });
-    });
-  });
-}
-
 const SCOPE_ROWS: Array<{ label: string; token: (root: string) => string; scope: string }> = [
   { label: "a relative directory", token: () => "src/api", scope: "src/api" },
   { label: "a relative directory with a leading ./", token: () => "./src/api", scope: "src/api" },
@@ -377,50 +276,6 @@ for (const row of SCOPE_ROWS) {
     });
   });
 }
-
-// An absolute area token on Windows names the same directory in three spellings: the root's `C:/` form,
-// a `C:\` form and the `/c/` form, and a drive letter of either case. Each is read as the root's own form.
-const flipDrive = (p: string) => p.replace(/^([A-Za-z]):/, (_, drive: string) => `${drive === drive.toLowerCase() ? drive.toUpperCase() : drive.toLowerCase()}:`);
-
-const WINDOWS_FORM_ROWS: Array<{ label: string; token: (root: string) => string }> = [
-  { label: "the root in /c/ form", token: (root) => `${MSYS(root)}/src` },
-  { label: "the root in C:\\ form", token: (root) => `${slash(root).replace(/\//g, "\\")}\\src` },
-  { label: "the root with the other case of its drive letter", token: (root) => `${flipDrive(slash(root))}/src` },
-  { label: "the root in /c/ form with a trailing slash", token: (root) => `${MSYS(root)}/src/` },
-];
-
-for (const row of WINDOWS_FORM_ROWS) {
-  test(`a src directory given as ${row.label} frames with Scope: src`, { skip: WINDOWS_ONLY }, async () => {
-    await assertPosix(async (shell) => {
-      await withGitRepo(async (repo) => {
-        await commitFiles(repo, { "src/a.txt": "1\n" });
-        const root = await rootOf(repo);
-        const ws = workspaceOf(await frame(shell, repo, ["bugs", row.token(root)]), root);
-        assert.equal(
-          runFile(ws),
-          lines("Lens: bugs", `Lens file: ${SKILL_DIR}/references/lenses/bugs.md`, "Scope: src", `Target root: ${slash(root)}`),
-        );
-      });
-    });
-  });
-}
-
-test("an existing directory outside the root given in /c/ form keeps the directory stop", { skip: WINDOWS_ONLY }, async () => {
-  await assertPosix(async (shell) => {
-    await withGitRepo(async (repo) => {
-      await withTempDir("p2p2-outside-", async (outside) => {
-        await commitFiles(repo, { "src/a.txt": "1\n" });
-        const root = await rootOf(repo);
-        const token = MSYS(outside);
-        assertStdout(
-          await frame(shell, repo, ["bugs", token]),
-          lines(`STOP: code-auditor: area directory not found under ${root}: ${token} ${LENS_LIST}`),
-        );
-        assertWroteNothing(repo);
-      });
-    });
-  });
-});
 
 test("a framed diff run records the merge base and every changed path under Changed files", async () => {
   await assertPosix(async (shell) => {
