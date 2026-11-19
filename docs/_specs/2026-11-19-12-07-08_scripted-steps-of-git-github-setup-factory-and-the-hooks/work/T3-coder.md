@@ -1,0 +1,3 @@
+- `reject` reuses `press` (T2) with a fourth argument, the feedback: after the cursor check `press` runs `type` then `keys ENTER`, and `sent:` carries `type`. The feedback is passed as one encoded argument, so non-ASCII text survives.
+- The target row is the first row holding `Tell Claude what to change` as a case-sensitive substring (the live row may carry a suffix).
+- Red evidence is .temp/viber/T3/red.log: 4 new reject cases fail on assertions, 17 others pass.
