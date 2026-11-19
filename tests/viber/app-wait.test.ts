@@ -76,6 +76,19 @@ test("no answer past 4 seconds prints the ASK line with the doubled wait and no 
   });
 });
 
+test("a probe that takes 2 seconds to fail still ends a 6 second wait within 12 seconds of wall time (probe time counts against the bound)", async () => {
+  await withStub("curl", "sleep 2\nprintf '%s' 000", async (curlDir) => {
+    await withGitRepo(async (repo) => {
+      const started = Date.now();
+      const result = await runScript(SUT, ["http://localhost:3000", "6"], { cwd: repo.dir, stubDirs: [curlDir] });
+      const wallSeconds = (Date.now() - started) / 1000;
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, "ASK: no answer after 6 s | wait -> 12 | abort -> abort\n");
+      assert.ok(wallSeconds < 12, `took ${wallSeconds} s`);
+    });
+  });
+});
+
 test("no answer past 300 seconds caps the doubled wait at 540 (the longest wait a Bash call may hold)", async () => {
   await withApp("000", async (stubDirs) => {
     await withGitRepo(async (repo) => {

@@ -1,0 +1,3 @@
+- app-wait.sh elapsed = max(wall seconds from `date +%s`, seconds it slept itself): the floor keeps the existing tests (no-op `sleep` stub, instant curl stub) terminating, and never differs from wall time on a real run.
+- The 300 s case now spins 150 instant probes against the no-op sleep stub (about 10 s); it was about 0.3 s before.
+- DoD.2 and DoD.3 are held by the existing 200 and 0-second cases, which pass with and without this change (no red possible).

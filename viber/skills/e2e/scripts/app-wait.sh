@@ -12,7 +12,10 @@
 # Contract:
 #   argv   : <base-url> <seconds>, exactly two. <seconds> is digits, 0 to 540.
 #            0 probes once; otherwise it probes every 2 s until an answer or
-#            <seconds> have passed.
+#            <seconds> of wall time have passed since the script began, probe
+#            time included; the last sleep is capped at the time left. The
+#            seconds the script itself slept are a floor for the elapsed time,
+#            so a clock that stands still or steps back never lengthens the wait.
 #   cwd    : any directory inside the host project: the repository root (the
 #            cwd outside a repository) holds the launch log.
 #   env    : none.
@@ -74,12 +77,17 @@ root="$(git rev-parse --show-toplevel 2>/dev/null)" || root="$(pwd -W 2>/dev/nul
 root="$(printf '%s' "$root" | sed 's|\\|/|g')"
 log="${root}/.temp/viber/e2e/launch.log"
 
-elapsed=0
+start="$(date +%s)"
+slept=0
 while :; do
   probe
   if [ "$code" != "000" ]; then
     echo "NEXT: test | code: ${code}"
     exit 0
+  fi
+  elapsed=$(($(date +%s) - start))
+  if [ "$elapsed" -lt "$slept" ]; then
+    elapsed="$slept"
   fi
   if [ "$elapsed" -ge "$seconds" ]; then
     break
@@ -89,7 +97,7 @@ while :; do
     step=2
   fi
   sleep "$step"
-  elapsed=$((elapsed + step))
+  slept=$((slept + step))
 done
 
 if [ "$seconds" -eq 0 ]; then
