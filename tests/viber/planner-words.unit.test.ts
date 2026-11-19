@@ -22,9 +22,10 @@ const VIBER = path.resolve(import.meta.dirname, "../../viber");
 
 const SKILL = fs.readFileSync(path.join(VIBER, "skills/planner/SKILL.md"), "utf8");
 
-const PLANNER_WORD_CAP = 1800;
+const PLANNER_WORD_CAP = 1755;
 
 const WORDS_BEFORE_THE_SCRIPTED_ROUNDS = 2100;
+const WORDS_BEFORE_THE_SCRIPTED_STEPS = 1800;
 
 function words(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
@@ -37,6 +38,10 @@ test("SKILL.md stays within PLANNER_WORD_CAP words", () => {
 
 test("PLANNER_WORD_CAP sits below the 2100 words the file held before the scripted review rounds (a cap at or above them lets the prose grow back)", () => {
   assert.ok(PLANNER_WORD_CAP < WORDS_BEFORE_THE_SCRIPTED_ROUNDS);
+});
+
+test("PLANNER_WORD_CAP sits below the 1800 words the file held before the scripted steps of intent, fixer and e2e (a cap at or above them lets the prose grow back)", () => {
+  assert.ok(PLANNER_WORD_CAP < WORDS_BEFORE_THE_SCRIPTED_STEPS);
 });
 
 // [agent, cap, words before the scripted plan checks]: each plan reviewer reads its whole file on every review round.

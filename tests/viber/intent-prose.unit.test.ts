@@ -6,8 +6,8 @@
  * of a round (the `config.sh --questions` preload, its `allowed-tools` entry, `all`, the order, the remaining-count
  * line, the resume reference) and the word cap of the start text.
  * The skill's markdown is the product, so the tests read it as text. The cap is the word count of `SKILL.md` plus
- * `issues-input.false.md` (the fragment the template defaults select) after the rewrite, times 1.1, rounded up; raise
- * it only on purpose.
+ * `issues-input.false.md` (the fragment the template defaults select) after the scripted steps, counted by whitespace
+ * split, and sits below the count the text held before them; raise it only on purpose.
  */
 
 import { test } from "../harness/test.ts";
@@ -17,7 +17,8 @@ import path from "node:path";
 
 const INTENT = path.resolve(import.meta.dirname, "../../viber/skills/intent");
 
-const START_TEXT_WORD_CAP = 1128;
+const START_TEXT_WORD_CAP = 967;
+const START_TEXT_WORDS_BEFORE_SCRIPTED_STEPS = 968;
 const START_TEXT_WORDS_BEFORE_CAP_RULE = 1027;
 
 function read(rel: string): string {
@@ -224,6 +225,10 @@ test("allowed-tools lists the arg-kind.sh Bash entry the issue check needs", () 
 test("the start text (SKILL.md plus issues-input.false.md) ends below 968 words after the scripted argument check", () => {
   const count = words(SKILL) + words(read("fragments/issues-input.false.md"));
   assert.ok(count < 968, `${count} words, must stay below 968`);
+});
+
+test("START_TEXT_WORD_CAP sits below the 968 words the start text held before the scripted steps (a cap at or above them lets the prose grow back)", () => {
+  assert.ok(START_TEXT_WORD_CAP < START_TEXT_WORDS_BEFORE_SCRIPTED_STEPS);
 });
 
 test("the start text (SKILL.md plus issues-input.false.md) stays within its word cap", () => {
