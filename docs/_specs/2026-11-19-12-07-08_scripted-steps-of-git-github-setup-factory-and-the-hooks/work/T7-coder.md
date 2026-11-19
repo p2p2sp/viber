@@ -1,0 +1,4 @@
+- Only the R3 suffix is built here; the R4 suffix of C3 is not implemented (T8 or later).
+- The tokenizer drops quotes and backslashes, so `rm_suffix` checks them on the raw command: any `'`, `"` or `\` anywhere in it gives no suffix (stricter than "an operand holds a quote", so `rm a\ b` gets none too).
+- `rm` with no operand (`rm -rf`) gets no suffix, as `git rm` needs one.
+- `hooks/CLAUDE.md` still describes R3 without the suffix (memory step).

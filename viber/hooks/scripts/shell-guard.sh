@@ -74,6 +74,11 @@
 #               -options), then the subcommand stash, checkout, restore or clean.
 #            R3 (coder): rm in command position, or xargs in command position whose
 #               command word, after its options, is rm (git rm and rmdir are not rm).
+#               The reason ends, after one space, on `Run instead: `git rm -r -q --
+#               <operands>`.` only when the command is one rm word and plain words (no
+#               separator, redirect, quote, backslash, $, backtick, *, ? or [), its
+#               operands every word not opening with - (words after -- included), at
+#               least one.
 #            R4 (coder): sed in command position with an argument -i... or
 #               --in-place...; perl in command position with an option cluster
 #               holding i (-i, -pi); an unquoted >, >>, &> or <digit>> whose target
@@ -548,6 +553,34 @@ chain_suffix() {
   ((count >= 2)) && suffix=" Run instead, one call each: $list."
 }
 
+# rm_suffix: sets suffix to the git rm form of a plain rm, left empty unless the whole
+# command is one rm word followed by plain words (no separator, redirect, quote,
+# backslash, $, backtick, *, ? or [) with at least one operand.
+rm_suffix() {
+  local x=1 ops='' w dd=0 count=0
+  ((n >= 2)) || return
+  [[ "${tk[0]}" == W && "${tv[0]}" == rm ]] || return
+  case "$cmd" in *"'"* | *'"'* | *'\'*) return ;; esac
+  while ((x < n)); do
+    [[ "${tk[x]}" == W ]] || return
+    w="${tv[x]}"
+    x=$((x + 1))
+    if ((dd == 0)); then
+      if [[ "$w" == -- ]]; then
+        dd=1
+        continue
+      fi
+      [[ "$w" == -* ]] && continue
+    fi
+    case "$w" in *'$'* | *'*'* | *'?'* | *'['* | *'`'*) return ;; esac
+    ops+=" $w"
+    count=$((count + 1))
+  done
+  ((count)) || return
+  [[ "$ops" == *[[:cntrl:]]* ]] && return
+  suffix=" Run instead: \`git rm -r -q --$ops\`."
+}
+
 reason=''
 if ((coder && r1)); then
   reason='one command per Bash call - run each part of the chain as its own Bash call.'
@@ -556,6 +589,7 @@ elif ((r2)); then
   reason='git is read-only here (status, diff, log, show) - compare with git show HEAD:<path> or git diff instead.'
 elif ((coder && r3)); then
   reason='remove a file or directory with git rm -r -q -- <path>, never rm.'
+  rm_suffix
 elif ((coder && r4)); then
   reason='Bash never writes a file - change it with Edit or Write, and redirect scratch output only under .temp/.'
 elif ((coder && r5)); then

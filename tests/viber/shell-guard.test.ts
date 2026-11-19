@@ -132,10 +132,42 @@ for (const command of gitForms) {
   });
 }
 
-const rmForbidden = ["rm -rf build", "ls | xargs -r rm", "xargs -n 1 -I {} rm {}", "echo x\nrm y", "echo $(rm y)"];
+const r3With = (suffix: string): string => deny(`remove a file or directory with git rm -r -q -- <path>, never rm. ${suffix}`);
+
+const rmWithSuffix: Array<[string, string]> = [
+  ["rm -rf build/out a.txt", "Run instead: `git rm -r -q -- build/out a.txt`."],
+  ["rm x", "Run instead: `git rm -r -q -- x`."],
+  ["rm -f -- -odd.txt a.txt", "Run instead: `git rm -r -q -- -odd.txt a.txt`."],
+  ["rm   -r  dir/  # old", "Run instead: `git rm -r -q -- dir/`."],
+];
+
+for (const [command, suffix] of rmWithSuffix) {
+  test(`DoD.1: from viber:task-coder, ${JSON.stringify(command)} is refused with the R3 reason ending on the git rm form`, async () => {
+    assert.equal(await runCommand(command, CODER), r3With(suffix));
+  });
+}
+
+const rmForbidden = [
+  "ls | xargs rm",
+  "ls | xargs -r rm",
+  "xargs -n 1 -I {} rm {}",
+  "echo x\nrm y",
+  "echo $(rm y)",
+  "rm *.log",
+  "rm a?.log",
+  "rm a[12].log",
+  "rm $TARGET",
+  'rm "a b"',
+  "rm 'a'",
+  "rm a\\ b",
+  "rm -rf",
+  "rm -rf --",
+  "rm a > removed.log",
+  "rm a | cat",
+];
 
 for (const command of rmForbidden) {
-  test(`DoD.4: from viber:task-coder, ${JSON.stringify(command)} is refused with the R3 deny object`, async () => {
+  test(`DoD.2: from viber:task-coder, ${JSON.stringify(command)} is refused with today's R3 reason alone`, async () => {
     assert.equal(await runCommand(command, CODER), R3);
   });
 }
