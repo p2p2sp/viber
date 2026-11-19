@@ -102,9 +102,13 @@
 #               and bash -c or -s end the scan. perl -pi stays R4.
 #            Rules are tried in the order R1, R2, R3, R4, R5.
 #   exit 0 : always (fail-open: a broken guard must never block a command).
-#            JSON is read with bash regexes; jq is not assumed.
+#            JSON is read with bash regexes; jq is not assumed. patsub_replacement is
+#            switched off so a backslash in a replacement string stays literal.
 set -u
 LC_ALL=C
+# bash 5.2 reads a backslash or & in a ${var//pat/rep} replacement as an escape or the
+# matched text; every replacement below is literal. Older bash has no such option.
+shopt -u patsub_replacement 2>/dev/null || true
 
 IFS= read -r -d '' input || true
 

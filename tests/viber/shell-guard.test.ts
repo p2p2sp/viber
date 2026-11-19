@@ -97,6 +97,24 @@ test("DoD.2: a part holding a backslash reaches the reason JSON-escaped and the 
   );
 });
 
+const R4_TEXT = "Bash never writes a file - change it with Edit or Write, and redirect scratch output only under .temp/.";
+
+// Each row: the refused command, then the reason JSON.parse must give back, the backslashes of the
+// suggested command kept (bash 5.2 runs with patsub_replacement on, where a backslash in a
+// replacement string is eaten).
+const backslashRows: Array<[string, string, string]> = [
+  ["DoD.1", 'grep -n "a\\.b" src/x.ts && ls', `${R1_TEXT} Run instead, one call each: \`grep -n "a\\.b" src/x.ts\` then \`ls\`.`],
+  ["DoD.2", "echo a\\ b && ls", `${R1_TEXT} Run instead, one call each: \`echo a\\ b\` then \`ls\`.`],
+  ["DoD.3", 'grep -rn "foo\\|bar" src > hits.txt', `${R4_TEXT} Run instead: \`grep -rn "foo\\|bar" src > .temp/hits.txt\`.`],
+];
+
+for (const [clause, command, reason] of backslashRows) {
+  test(`${clause}: ${JSON.stringify(command)} gets deny output that parses as JSON with every backslash of the suggested command kept`, async () => {
+    const out = await runCommand(command, CODER);
+    assert.equal(JSON.parse(out).hookSpecificOutput.permissionDecisionReason, `viber guard: ${reason}`);
+  });
+}
+
 const chainedNoSuffix = ["a && b\nc", "a &&\nb", "a;\tb\tc && d", "ls;", ";ls", "(a && b)", "echo $(a && b) && c", "echo `a; b` && c", "(a; b) || c"];
 
 for (const command of chainedNoSuffix) {
