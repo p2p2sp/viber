@@ -67,11 +67,9 @@ const chained: Array<[string, string]> = [
   ["git status && git diff", "Run instead, one call each: `git status` then `git diff`."],
   ["make build && make test", "Run instead, one call each: `make build` then `make test`."],
   ["a; b", "Run instead, one call each: `a` then `b`."],
-  ["a || b", "Run instead, one call each: `a` then `b`."],
-  ["a && b || c; d", "Run instead, one call each: `a` then `b` then `c` then `d`."],
-  ["cd sub &&   ls  ;", "Run instead, one call each: `cd sub` then `ls`."],
   ["grep 'a;b' f && ls | wc", "Run instead, one call each: `grep 'a;b' f` then `ls | wc`."],
   ["(a) && b", "Run instead, one call each: `(a)` then `b`."],
+  ["npm test && cd x", "Run instead, one call each: `npm test` then `cd x`."],
 ];
 
 for (const [command, suffix] of chained) {
@@ -119,6 +117,27 @@ const chainedNoSuffix = ["a && b\nc", "a &&\nb", "a;\tb\tc && d", "ls;", ";ls", 
 
 for (const command of chainedNoSuffix) {
   test(`DoD.3: from viber:task-coder, ${JSON.stringify(command)} is refused with today's R1 reason alone`, async () => {
+    assert.equal(await runCommand(command, CODER), R1);
+  });
+}
+
+// A split of these chains would change what runs (an || guard, a cd, export, source or assignment
+// feeding a later part), so the refusal carries no "Run instead" suffix.
+const chainedSplitChangesMeaning = [
+  "test -f a.txt || echo missing",
+  "a && b || c; d",
+  "cd packages/api && npm test",
+  "cd x && make && make test",
+  "make && cd x && make test",
+  "pushd x && ls",
+  "export NODE_ENV=test && npm test",
+  "source env.sh && make",
+  ". env.sh && make",
+  "FOO=1 && make",
+];
+
+for (const command of chainedSplitChangesMeaning) {
+  test(`DoD.1: from viber:task-coder, ${JSON.stringify(command)} is refused with the R1 reason alone (splitting it would change what runs)`, async () => {
     assert.equal(await runCommand(command, CODER), R1);
   });
 }
@@ -191,7 +210,7 @@ for (const command of rmForbidden) {
 }
 
 test("a chain holding rm is refused as R1 first (the first matching rule gives the one deny)", async () => {
-  assert.equal(await runCommand("true || rm x", CODER), r1With("Run instead, one call each: `true` then `rm x`."));
+  assert.equal(await runCommand("true || rm x", CODER), R1);
 });
 
 test("a command matching R2 and R3 is refused as R2 (rule order, not position in the command)", async () => {

@@ -13,7 +13,10 @@
 #   R1 chain - one refused part refuses a whole chained call: a permission
 #      prompt or a guard deny on any one part of `a && b` stops the lot and, in an
 #      unattended build, ends the agent's run. One command per Bash call keeps a
-#      refusal local to the command that earned it.
+#      refusal local to the command that earned it. A chain whose split would change
+#      what runs gets no suggested split: one holding ||, whose later part runs only
+#      when an earlier one fails, or one whose earlier part is cd, pushd, export,
+#      source, . or a NAME=value word, whose effect on the shell no separate call keeps.
 #   R2 git   - one stash stack serves every coder sharing the tree, and a pop can
 #      restore another coder's entry. checkout, restore and clean discard
 #      uncommitted work that may belong to another coder or reviewer working in
@@ -67,8 +70,11 @@
 #               on `Run instead, one call each: `<part 1>` then `<part 2>`[ then ...].`:
 #               the parts split at each unquoted ;, && and ||, trimmed, empty ones
 #               dropped, a " or \ JSON-escaped. No such ending when fewer than two
-#               parts remain, an operator sits inside (, $( or backticks, or a part
-#               holds a control character (a newline, a tab).
+#               parts remain, an operator sits inside (, $( or backticks, a part
+#               holds a control character (a newline, a tab), the chain holds a ||
+#               (the second part runs only on the first one's failure), or a part
+#               before the last opens with cd, pushd, export, source, . or a
+#               NAME=value word (it sets state the later parts need).
 #            R2 (coder and both reviewers): git in command position, any global
 #               options (-C <arg>, -c <arg>, --git-dir=..., --work-tree=..., other
 #               -options), then the subcommand stash, checkout, restore or clean.
@@ -575,15 +581,21 @@ while ((j < n)); do
 done
 
 # chain_suffix: sets suffix to the parts of the chain as separate calls, left empty
-# when an operator sits inside (, $( or backticks, fewer than two parts remain or a
-# part holds a control character.
+# when an operator sits inside (, $( or backticks, fewer than two parts remain, a part
+# holds a control character, the chain holds a ||, or a part before the last opens with
+# cd, pushd, export, source, . or a NAME=value word (a split would change what runs).
 suffix=''
 chain_suffix() {
   ((nested)) && return
-  local prev=0 k=0 end stop=$len part list='' count=0
+  local prev=0 k=0 end stop=$len part list='' count=0 fw lead=0
   ((endpos >= 0)) && stop=$endpos
   while ((k <= nops)); do
-    if ((k < nops)); then end="${ops_s[k]}"; else end=$stop; fi
+    if ((k < nops)); then
+      end="${ops_s[k]}"
+      [[ "${cmd:end:2}" == '||' ]] && return
+    else
+      end=$stop
+    fi
     ((end < prev)) && end=$prev
     part="${cmd:prev:end-prev}"
     prev="${ops_e[k]-0}"
@@ -592,6 +604,12 @@ chain_suffix() {
     part="${part%"${part##*[![:blank:]]}"}"
     [[ -z "$part" ]] && continue
     [[ "$part" == *[[:cntrl:]]* ]] && return
+    ((lead)) && return
+    fw="${part%%[[:blank:]]*}"
+    case "$fw" in
+      cd | pushd | export | source | .) lead=1 ;;
+      *) [[ "$fw" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && lead=1 ;;
+    esac
     part="${part//\\/$sep}"
     part="${part//$dq/$bs$dq}"
     part="${part//$sep/$bs$bs}"
