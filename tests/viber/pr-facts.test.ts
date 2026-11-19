@@ -451,7 +451,10 @@ test("the pr-exists stop prints QA= after PR_URL= for the open run", async () =>
       });
       const result = await runFacts(shell, scene, [], { env: { PR_LIST: `${PR_URL}\ndevelop\n` } });
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(result.stdout, `STATUS=stop\nREASON=pr-exists\nPR_URL=${PR_URL}\nQA=${RUN}/qa.md\n`);
+      assert.equal(
+        result.stdout,
+        `STATUS=stop\nREASON=pr-exists\nPR_URL=${PR_URL}\nQA=${RUN}/qa.md\nSAY=The branch already has an open pull request: ${PR_URL}.\n`,
+      );
     });
   });
 });
@@ -461,7 +464,10 @@ test("the pr-exists stop prints QA= of the archived run its commits against the 
     await withScene(async (scene) => {
       await onBranch(scene, "feature/x", { [`${ARCHIVE}/spec.md`]: "# Spec\n", [`${ARCHIVE}/qa.md`]: "# QA\n" });
       const result = await runFacts(shell, scene, [], { env: { PR_LIST: `${PR_URL}\ndevelop\n` } });
-      assert.equal(result.stdout, `STATUS=stop\nREASON=pr-exists\nPR_URL=${PR_URL}\nQA=${ARCHIVE}/qa.md\n`);
+      assert.equal(
+        result.stdout,
+        `STATUS=stop\nREASON=pr-exists\nPR_URL=${PR_URL}\nQA=${ARCHIVE}/qa.md\nSAY=The branch already has an open pull request: ${PR_URL}.\n`,
+      );
     });
   });
 });
@@ -471,7 +477,7 @@ test("the pr-exists stop prints an empty QA= when no run resolves", async () => 
     await withScene(async (scene) => {
       await onBranch(scene, "feature/x");
       const result = await runFacts(shell, scene, [], { env: { PR_LIST: `${PR_URL}\ndevelop\n` } });
-      assert.equal(result.stdout, `STATUS=stop\nREASON=pr-exists\nPR_URL=${PR_URL}\nQA=\n`);
+      assert.equal(result.stdout, `STATUS=stop\nREASON=pr-exists\nPR_URL=${PR_URL}\nQA=\nSAY=The branch already has an open pull request: ${PR_URL}.\n`);
     });
   });
 });
@@ -482,7 +488,7 @@ test("the pr-exists stop stays pr-exists, not no-commits, when nothing is ahead 
       await onBranch(scene, "feature/x", { [`${ARCHIVE}/spec.md`]: "# Spec\n", [`${ARCHIVE}/qa.md`]: "# QA\n" });
       await scene.work.git("branch", "-f", "develop", "HEAD");
       const result = await runFacts(shell, scene, [], { env: { PR_LIST: `${PR_URL}\ndevelop\n` } });
-      assert.equal(result.stdout, `STATUS=stop\nREASON=pr-exists\nPR_URL=${PR_URL}\nQA=\n`);
+      assert.equal(result.stdout, `STATUS=stop\nREASON=pr-exists\nPR_URL=${PR_URL}\nQA=\nSAY=The branch already has an open pull request: ${PR_URL}.\n`);
     });
   });
 });
@@ -522,6 +528,7 @@ const ghOnCorePath = coreUtilsPath()
 interface StopRow {
   name: string;
   reason: string;
+  say: string;
   args?: string[];
   env?: Record<string, string>;
   noGh?: boolean;
@@ -531,31 +538,52 @@ interface StopRow {
 
 const PR_URL = `${REPO_URL}/pull/9`;
 
+const ON_BASE_SAY = "The branch is the default branch or a work entry's base or target; a pull request needs its own branch.";
+
 const STOPS: StopRow[] = [
-  { name: "gh missing", reason: "no-gh", noGh: true },
-  { name: "gh resolving no repository", reason: "no-repo", env: { REPO_FAIL: "1" } },
-  { name: "a detached HEAD", reason: "detached", arrange: (s) => s.work.git("checkout", "--detach") },
-  { name: "a tracked file changed", reason: "dirty", arrange: (s) => fs.writeFileSync(path.join(s.work.dir, "README.md"), "changed\n") },
-  { name: "the branch is the default branch", reason: "on-base", arrange: (s) => s.work.git("checkout", "main") },
+  { name: "gh missing", reason: "no-gh", say: "GitHub command line tool missing.", noGh: true },
+  { name: "gh resolving no repository", reason: "no-repo", say: "No GitHub repository reachable.", env: { REPO_FAIL: "1" } },
+  { name: "a detached HEAD", reason: "detached", say: "HEAD is detached; check out a branch.", arrange: (s) => s.work.git("checkout", "--detach") },
+  {
+    name: "a tracked file changed",
+    reason: "dirty",
+    say: "Uncommitted changes to tracked files; commit them first.",
+    arrange: (s) => fs.writeFileSync(path.join(s.work.dir, "README.md"), "changed\n"),
+  },
+  { name: "the branch is the default branch", reason: "on-base", say: ON_BASE_SAY, arrange: (s) => s.work.git("checkout", "main") },
   {
     name: "the branch is an entry base",
     reason: "on-base",
+    say: ON_BASE_SAY,
     config: branching("allowed", [{ key: "feature", name: "{type}/{slug}", base: "develop", target: "main" }]),
     arrange: (s) => s.work.git("checkout", "develop"),
   },
   {
     name: "the branch is an entry target",
     reason: "on-base",
+    say: ON_BASE_SAY,
     config: branching("allowed", [{ key: "feature", name: "{type}/{slug}", base: "main", target: "develop" }]),
     arrange: (s) => s.work.git("checkout", "develop"),
   },
-  { name: "--entry naming no entry", reason: "unknown-entry", config: branching("allowed", [FEATURE]), args: ["--entry", "nope"] },
-  { name: "nothing ahead of the target", reason: "no-commits", args: ["--target", "develop"], arrange: (s) => s.work.git("branch", "-f", "develop", "HEAD") },
+  {
+    name: "--entry naming no entry",
+    reason: "unknown-entry",
+    say: "The entry named is not a branching.work entry.",
+    config: branching("allowed", [FEATURE]),
+    args: ["--entry", "nope"],
+  },
+  {
+    name: "nothing ahead of the target",
+    reason: "no-commits",
+    say: "Nothing on the branch is ahead of its target.",
+    args: ["--target", "develop"],
+    arrange: (s) => s.work.git("branch", "-f", "develop", "HEAD"),
+  },
 ];
 
 for (const row of STOPS) {
   test(
-    `${row.name}: STATUS=stop REASON=${row.reason} and nothing else, no QA= line`,
+    `${row.name}: STATUS=stop REASON=${row.reason} then its SAY= sentence and nothing else, no QA= line`,
     { skip: row.noGh && ghOnCorePath ? "a real gh sits in the core utilities directory, so its absence cannot be staged" : false },
     async () => {
       await assertPosix(async (shell) => {
@@ -565,7 +593,7 @@ for (const row of STOPS) {
           await row.arrange?.(scene);
           const result = await runFacts(shell, scene, row.args ?? [], { env: row.env, noGh: row.noGh });
           assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-          assert.equal(result.stdout, `STATUS=stop\nREASON=${row.reason}\n`);
+          assert.equal(result.stdout, `STATUS=stop\nREASON=${row.reason}\nSAY=${row.say}\n`);
         });
       });
     },
@@ -578,7 +606,7 @@ test("outside a git repository: STATUS=stop REASON=no-repo", async () => {
       await withTempDir("pr-facts-norepo-", async (dir) => {
         const result = await runScript(SUT, [], { shell, cwd: dir, env: { ...scene.work.env, GIT_CEILING_DIRECTORIES: path.dirname(dir) }, stubDirs: [scene.stubDir] });
         assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-        assert.equal(result.stdout, "STATUS=stop\nREASON=no-repo\n");
+        assert.equal(result.stdout, "STATUS=stop\nREASON=no-repo\nSAY=No GitHub repository reachable.\n");
       });
     });
   });
@@ -612,7 +640,7 @@ test("a target known only through the remote-tracking ref with nothing ahead sto
       await scene.work.git("fetch", "origin");
       await scene.work.git("checkout", "-b", "feature/x");
       const result = await runFacts(shell, scene, ["--target", "remote-only"]);
-      assert.equal(result.stdout, "STATUS=stop\nREASON=no-commits\n");
+      assert.equal(result.stdout, "STATUS=stop\nREASON=no-commits\nSAY=Nothing on the branch is ahead of its target.\n");
     });
   });
 });
@@ -658,7 +686,10 @@ test("the pr-exists stop resolves the archived run from the commits ahead of the
     await withScene(async (scene) => {
       await aheadOfStaleLocalMain(scene, { [`${ARCHIVE}/spec.md`]: "# Spec\n", [`${ARCHIVE}/qa.md`]: "# QA\n" });
       const result = await runFacts(shell, scene, [], { env: { PR_LIST: `${PR_URL}\nmain\n` } });
-      assert.equal(result.stdout, `STATUS=stop\nREASON=pr-exists\nPR_URL=${PR_URL}\nQA=${ARCHIVE}/qa.md\n`);
+      assert.equal(
+        result.stdout,
+        `STATUS=stop\nREASON=pr-exists\nPR_URL=${PR_URL}\nQA=${ARCHIVE}/qa.md\nSAY=The branch already has an open pull request: ${PR_URL}.\n`,
+      );
     });
   });
 });

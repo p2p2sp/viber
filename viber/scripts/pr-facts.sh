@@ -40,6 +40,7 @@
 #              REASON=no-gh|no-repo|detached|dirty|on-base|pr-exists|no-commits|unknown-entry   (stop only)
 #              PR_URL=<url>                        (pr-exists only)
 #              QA=<repo-relative path or empty>    (pr-exists only)
+#              SAY=<sentence of the reason>        (stop only, the last line)
 #              REPO=<repository url>
 #              BRANCH=<current branch>
 #              DEFAULT=<default branch>
@@ -56,8 +57,9 @@
 #              QA=<repo-relative path or empty>
 #              TITLE_PATTERN=<github.pr-title>
 #              COMMIT=<short sha> <subject>        (0+, TARGET..HEAD oldest first)
-#            A stop prints only STATUS=stop, REASON= and, on pr-exists, PR_URL=
-#            and QA=.
+#            A stop prints only STATUS=stop, REASON=, on pr-exists PR_URL= and
+#            QA=, and last SAY=<the sentence of that reason, which the caller
+#            states and never rewords>.
 #            Stop checks, in order: no-gh, no-repo (not a repository, or gh
 #            resolves no repository or default branch), detached, dirty
 #            (tracked changes only), on-base (BRANCH is DEFAULT, or any entry
@@ -113,8 +115,19 @@ esac
 here=$(cd "$(dirname -- "$0")" 2>/dev/null && pwd)
 
 stop() {
+  case $1 in
+    no-gh) say="GitHub command line tool missing." ;;
+    no-repo) say="No GitHub repository reachable." ;;
+    detached) say="HEAD is detached; check out a branch." ;;
+    dirty) say="Uncommitted changes to tracked files; commit them first." ;;
+    on-base) say="The branch is the default branch or a work entry's base or target; a pull request needs its own branch." ;;
+    pr-exists) say="The branch already has an open pull request: ${2:-}." ;;
+    no-commits) say="Nothing on the branch is ahead of its target." ;;
+    unknown-entry) say="The entry named is not a branching.work entry." ;;
+  esac
   printf 'STATUS=stop\nREASON=%s\n' "$1"
   [ -z "${2:-}" ] || printf 'PR_URL=%s\nQA=%s\n' "$2" "${3:-}"
+  printf 'SAY=%s\n' "$say"
   exit 0
 }
 
