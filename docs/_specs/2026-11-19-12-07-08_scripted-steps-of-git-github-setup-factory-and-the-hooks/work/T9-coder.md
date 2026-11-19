@@ -1,0 +1,4 @@
+- commit/SKILL.md still names commit-selfcheck.sh (allowed-tools, Self-Check section) and the old "Nothing to commit." line: not in T9's Files, T10/T11 own it.
+- The FAILED branch (git exit 0, HEAD unmoved) has no test: git offers no way to stage it without a hook trick that exits 0 after resetting HEAD.
+- The rejecting-hook test passed before the change (git's stdout stayed empty on a rejection already); it stays as a guard for the git-output-to-stderr rule.
+- An unborn HEAD with FAILED prints "(none)" as the short sha.

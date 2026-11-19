@@ -1,8 +1,8 @@
 /*
  * commit.test.ts - proves commit.sh's `commit.sh <message> [selector]`
  * contract: stages according to the selector (all/paths) then commits,
- * reports "Nothing to commit." on a clean scope, and exits 1 on a missing
- * message. commit.sh is `#!/usr/bin/env bash`, so every case runs through
+ * prints the "<short sha> | <subject> (VERIFIED)" result line, or
+ * "Nothing to commit" on a clean scope, and exits 1 on a missing message. commit.sh is `#!/usr/bin/env bash`, so every case runs through
  * `forEachShell("bash", ...)` via opts.shell.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
@@ -210,6 +210,7 @@ test("a selector naming only paths that do not exist exits 3 and commits nothing
 
       const result = await runCommit(bash, repo, ["typo", "src/nope.ts lib/gone"]);
       assert.equal(result.status, 3);
+      assert.equal(result.stdout, "");
       assert.match(result.stderr, /none of the named paths exists: src\/nope\.ts lib\/gone/);
       assert.equal((await repo.git("rev-parse", "HEAD")).stdout, before);
       assert.equal((await repo.git("diff", "--cached", "--name-only")).stdout.trim(), "a.txt");
@@ -270,6 +271,77 @@ test("mode paths with a file named 'bugs/#12.md': it alone is committed, 'bugs/o
   });
 });
 
+// --- the result line --------------------------------------------------------------
+
+test("mode 'all': stdout is exactly '<short sha> | <subject> (VERIFIED)', the subject being the first line of a multi-line message", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      await commitFile(repo, "a.txt", "a\n");
+      fs.writeFileSync(path.join(repo.dir, "a.txt"), "a, changed\n");
+      const result = await runCommit(bash, repo, ["feat: change a\n\nbody paragraph"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      const sha = (await repo.git("rev-parse", "--short", "HEAD")).stdout.trim();
+      assert.equal(result.stdout, `${sha} | feat: change a (VERIFIED)\n`);
+    });
+  });
+});
+
+test("mode 'paths': stdout is exactly '<short sha> | <subject> (VERIFIED)' for its own commit, not for a staged change left out", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      await commitFile(repo, "a.txt", "a\n");
+      fs.writeFileSync(path.join(repo.dir, "a.txt"), "a, changed\n");
+      fs.writeFileSync(path.join(repo.dir, "b.txt"), "b\n");
+      await repo.git("add", "--", "b.txt");
+      const result = await runCommit(bash, repo, ["fix: only a", "a.txt"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      const sha = (await repo.git("rev-parse", "--short", "HEAD")).stdout.trim();
+      assert.equal(result.stdout, `${sha} | fix: only a (VERIFIED)\n`);
+    });
+  });
+});
+
+test("mode 'paths' with a clean scope: stdout is exactly 'Nothing to commit', exit 0, even with another path changed", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      await commitFile(repo, "a.txt", "a\n");
+      await commitFile(repo, "b.txt", "b\n");
+      fs.writeFileSync(path.join(repo.dir, "b.txt"), "b, changed\n");
+      const result = await runCommit(bash, repo, ["no-op", "a.txt"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(result.stdout, "Nothing to commit\n");
+    });
+  });
+});
+
+test("unborn branch: the first commit prints '<short sha> | <subject> (VERIFIED)'", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      fs.writeFileSync(path.join(repo.dir, "first.txt"), "first\n");
+      const result = await runCommit(bash, repo, ["chore: root"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      const sha = (await repo.git("rev-parse", "--short", "HEAD")).stdout.trim();
+      assert.equal(result.stdout, `${sha} | chore: root (VERIFIED)\n`);
+    });
+  });
+});
+
+test("a pre-commit hook that rejects: git's exit status comes back with an empty stdout and HEAD unmoved", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      await commitFile(repo, "a.txt", "a\n");
+      const before = (await repo.git("rev-parse", "HEAD")).stdout;
+      fs.mkdirSync(path.join(repo.dir, ".git", "hooks"), { recursive: true });
+      fs.writeFileSync(path.join(repo.dir, ".git", "hooks", "pre-commit"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+      fs.writeFileSync(path.join(repo.dir, "a.txt"), "a, changed\n");
+      const result = await runCommit(bash, repo, ["rejected"]);
+      assert.equal(result.status, 1);
+      assert.equal(result.stdout, "");
+      assert.equal((await repo.git("rev-parse", "HEAD")).stdout, before);
+    });
+  });
+});
+
 // --- exit codes and messages ------------------------------------------------------
 
 test("missing message -> exit 1 with usage on stderr, nothing committed", async () => {
@@ -310,13 +382,13 @@ test("a message with a leading '-' is not mistaken for an option", async () => {
   });
 });
 
-test("nothing staged, mode 'all', no working-tree changes -> 'Nothing to commit.' on stdout, exit 0", async () => {
+test("nothing staged, mode 'all', no working-tree changes -> 'Nothing to commit' on stdout, exit 0", async () => {
   await assertBash(async (bash) => {
     await withGitRepo(async (repo) => {
       await commitFile(repo, "a.txt", "content\n");
       const result = await runCommit(bash, repo, ["no-op"]);
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(result.stdout, "Nothing to commit.\n");
+      assert.equal(result.stdout, "Nothing to commit\n");
       const subject = await repo.git("log", "-1", "--format=%s");
       assert.equal(subject.stdout.trim(), "seed a.txt");
     });

@@ -4,8 +4,9 @@
 #
 # It exists so the commit skill's one write to history is a single command to
 # the permission engine rather than an add-then-commit pair the model composes
-# per call, and so the selectors resolve through one shared parser
-# (commit-args.sh) instead of once per call site.
+# per call, so the selectors resolve through one shared parser
+# (commit-args.sh) instead of once per call site, and so a model never decides
+# whether its commit landed: the result line is derived from HEAD alone.
 #
 # Usage:
 #   commit.sh <message> [selector...]
@@ -28,9 +29,16 @@
 #            commit-args.sh).
 #   env    : none read; it sets GIT_LITERAL_PATHSPECS=1 for its git calls, so a
 #            "[", "*" or "?" in a selector is part of a file name, never a glob.
-#   stdout : git's own commit line, or the single line "Nothing to commit."
-#            when the selected set holds no staged change.
-#   exit   : 0 on a commit and on "Nothing to commit." alike. 1 on a missing
+#   stdout : exactly one line, the result:
+#              <short sha> | <subject> (VERIFIED) - HEAD moved off the HEAD read
+#                before the commit (an unborn HEAD counts as moved once a commit
+#                exists); <subject> is the message's first line
+#              <short sha> | <subject> (FAILED)   - git exited 0 and HEAD did
+#                not move
+#              Nothing to commit                  - the selected set holds no
+#                staged change
+#            git's own output goes to stderr; a git failure leaves stdout empty.
+#   exit   : 0 on a commit and on "Nothing to commit" alike. 1 on a missing
 #            message (usage on stderr); 3 when the selector names paths and
 #            none of them exists (mode 'missing' in commit-args.sh - nothing
 #            is committed, never a fallback to every change); otherwise git's
@@ -53,6 +61,8 @@ fi
 
 enter_repo_root
 resolve_commit_selector "$selector"
+# HEAD before the commit; empty while it is unborn
+before="$(git rev-parse -q --verify HEAD 2>/dev/null || true)"
 
 # Gives the working tree the exec bit the index holds for every path whose staged
 # mode differs from HEAD's (a new path included): sync_tree_modes [<path>...].
@@ -116,7 +126,7 @@ if [[ "$COMMIT_MODE" == "paths" ]]; then
   done
   # those paths alone: check them, then commit them as the index holds them
   if [[ ${#known[@]} -eq 0 ]] || git diff --cached --quiet -- "${known[@]}"; then
-    echo "Nothing to commit."
+    echo "Nothing to commit"
     exit 0
   fi
   # Not "git commit -- <paths>": that partial commit re-reads each path from the
@@ -137,13 +147,23 @@ if [[ "$COMMIT_MODE" == "paths" ]]; then
   fi
   GIT_INDEX_FILE="$idx" git rm -r -q --cached --ignore-unmatch -- "${known[@]}" >/dev/null
   git ls-files -s -z --full-name -- "${known[@]}" | GIT_INDEX_FILE="$idx" git update-index -z --index-info
-  GIT_INDEX_FILE="$idx" git commit -m "$message"
+  GIT_INDEX_FILE="$idx" git commit -m "$message" >&2
 else
   sync_tree_modes
   git add -A
   if git diff --cached --quiet; then
-    echo "Nothing to commit."
+    echo "Nothing to commit"
     exit 0
   fi
-  git commit -m "$message"
+  git commit -m "$message" >&2
 fi
+
+# git exited 0: HEAD alone says whether the commit landed
+after="$(git rev-parse -q --verify HEAD 2>/dev/null || true)"
+if [[ -n "$after" && "$after" != "$before" ]]; then
+  verdict="VERIFIED"
+else
+  verdict="FAILED"
+fi
+short="$(git rev-parse --short HEAD 2>/dev/null || echo "(none)")"
+echo "$short | ${message%%$'\n'*} ($verdict)"
