@@ -57,6 +57,11 @@
 #              QA=<repo-relative path or empty>
 #              TITLE_PATTERN=<github.pr-title>
 #              COMMIT=<short sha> <subject>        (0+, TARGET..HEAD oldest first)
+#              TITLE=<[<first ISSUE>] <ISSUE_TITLE> | TITLE_PATTERN filled when it holds no {summary} | empty>
+#              TITLE_TEMPLATE=<TITLE_PATTERN filled | empty when TITLE= is set>
+#            Filling replaces {type}, {issue-number} (the first ISSUE, empty
+#            with none) and {entry}, collapses each run of blanks to one and
+#            trims; {summary} stays for the caller.
 #            A stop prints only STATUS=stop, REASON=, on pr-exists PR_URL= and
 #            QA=, and last SAY=<the sentence of that reason, which the caller
 #            states and never rewords>.
@@ -400,6 +405,42 @@ elif [ -f .github/pull_request_template.md ]; then
   template=.github/pull_request_template.md
 fi
 
+# The title: the first issue's own title once looked up, else the pattern with
+# {type}, {issue-number} and {entry} filled and runs of blanks collapsed. A
+# pattern still holding {summary} is the template the caller completes.
+title=""
+title_template=""
+if [ -n "$issue_title" ]; then
+  title="[$first_issue] $issue_title"
+else
+  filled=$(TP="$title_pattern" TY="$type" IS="$first_issue" EN="$entry" awk '
+BEGIN {
+  s = ENVIRON["TP"]
+  split("{type} {issue-number} {entry}", k, " ")
+  v[1] = ENVIRON["TY"]
+  v[2] = ENVIRON["IS"]
+  v[3] = ENVIRON["EN"]
+  for (i = 1; i <= 3; i++) {
+    out = ""
+    p = index(s, k[i])
+    while (p > 0) {
+      out = out substr(s, 1, p - 1) v[i]
+      s = substr(s, p + length(k[i]))
+      p = index(s, k[i])
+    }
+    s = out s
+  }
+  gsub(/[[:space:]]+/, " ", s)
+  sub(/^ /, "", s)
+  sub(/ $/, "", s)
+  print s
+}' | tr -d '\r')
+  case $filled in
+    *'{summary}'*) title_template=$filled ;;
+    *) title=$filled ;;
+  esac
+fi
+
 closes=""
 if [ -n "$target" ]; then
   if [ "$target" = "$default" ]; then closes=yes; else closes=no; fi
@@ -432,4 +473,6 @@ printf '%s\n' "$commits" | while IFS= read -r c; do
   [ -n "$c" ] || continue
   echo "COMMIT=$c"
 done
+echo "TITLE=$title"
+echo "TITLE_TEMPLATE=$title_template"
 exit 0

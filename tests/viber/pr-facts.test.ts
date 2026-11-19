@@ -181,6 +181,8 @@ test("a ready block prints every C9 line in order, QA= right after SPEC=, for a 
         "QA=",
         "TITLE_PATTERN=[{issue-number}] {summary}",
         `COMMIT=${await shortSha(scene.work, "HEAD")} work`,
+        "TITLE=",
+        "TITLE_TEMPLATE=[] {summary}",
       ]);
     });
   });
@@ -905,3 +907,37 @@ test("TITLE_PATTERN carries github.pr-title", async () => {
     });
   });
 });
+
+// --- TITLE, TITLE_TEMPLATE -------------------------------------------------------------
+
+interface TitleRow {
+  name: string;
+  branch: string;
+  pattern?: string;
+  refs?: string;
+  env?: Record<string, string>;
+  title: string;
+  template: string;
+}
+
+const TITLE_ROWS: TitleRow[] = [
+  { name: "an issue title gives the finished title and no template", branch: "feature/x", refs: "Refs: #7", title: "[7] title of #7", template: "" },
+  { name: "a pattern with {summary} on a fix branch gives the template with {type} filled", branch: "fix/a-bug", pattern: "{type}: {summary}", title: "", template: "fix: {summary}" },
+  { name: "the default pattern with no issue keeps an empty bracket pair in the template", branch: "feature/x", title: "", template: "[] {summary}" },
+  { name: "a pattern without {summary} gives the filled title, runs of blanks collapsed and trimmed", branch: "feature/x", pattern: "chore:    {type}   {entry}", title: "chore: feat", template: "" },
+  { name: "a failed issue lookup falls back to the template with the issue number filled", branch: "feature/x", refs: "Refs: #4", env: { ISSUE_FAIL: "1" }, title: "", template: "[4] {summary}" },
+];
+
+for (const row of TITLE_ROWS) {
+  test(`${row.name} (TITLE=${row.title}, TITLE_TEMPLATE=${row.template})`, async () => {
+    await assertPosix(async (shell) => {
+      await withScene(async (scene) => {
+        writeConfig(scene, row.pattern === undefined ? undefined : `github:\n  pr-title: "${row.pattern}"\n`);
+        await onBranch(scene, row.branch, { "a.txt": "a\n" }, "work", ...(row.refs ? [row.refs] : []));
+        const result = await runFacts(shell, scene, ["--target", "develop"], { env: row.env });
+        assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+        assert.deepEqual([value(result, "TITLE"), value(result, "TITLE_TEMPLATE")], [row.title, row.template]);
+      });
+    });
+  });
+}
