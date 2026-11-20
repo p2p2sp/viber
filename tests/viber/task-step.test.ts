@@ -1250,7 +1250,7 @@ for (const [label, id, held, before, last, add, extra] of [
   test(`${label} of the first repair attempt answers repair 2 carrying that failure`, async () => {
     await withGitRepo(async (repo) => {
       seedPlan(repo);
-      await arrange(repo, [...held, [id, "100", "repair"], ...before]);
+      await arrange(repo, [...held, [id, "100", "repair"], ...before.map((call) => [...call])]);
 
       const result = await step(repo, [...last]);
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);

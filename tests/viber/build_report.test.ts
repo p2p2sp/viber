@@ -90,8 +90,8 @@ const REAL_PROMPTS: Array<[string, RegExp, RegExp]> = [
 for (const [name, expected, forbidden] of REAL_PROMPTS) {
   test(`buildPrompts over the real reference texts makes the ${name} prompt its brief, the research rules, the two input paths and its output path in that order, holding no other brief`, () => {
     const found = buildPrompts("research", path.resolve("wd"), "en", REAL_REFS).find((f: any) => f.name === name);
-    assert.match(found.text, expected);
-    assert.doesNotMatch(found.text, forbidden);
+    assert.match(found!.text, expected);
+    assert.doesNotMatch(found!.text, forbidden);
   });
 }
 
@@ -111,7 +111,7 @@ const R1_FORMAT_AND_ISOLATION = String.raw`Write your output to [^\n]*10-council
 
 test("buildPrompts over the real reference texts makes the visionary council-r1 prompt its member file, the language line, the nine inputs, its output path, the whole round-1 format and the isolation line", () => {
   const found = buildPrompts("council-r1", path.resolve("wd"), "Polish", REAL_COUNCIL_REFS).find((f: any) => f.name === "visionary");
-  assert.match(found.text, new RegExp(String.raw`^# Council member: [^\n]*[\s\S]*\n\nWrite in Polish\.\n\nRead these files:\n- [^\n]*01-normalized\.md\n- [^\n]*02-hypotheses\.md\n[\s\S]*- [^\n]*09-autopilot-fit\.md\n\nRead all of them before answering and cite the file, and the URL inside it, for every fact you use\.\n\n${R1_FORMAT_AND_ISOLATION}`));
+  assert.match(found!.text, new RegExp(String.raw`^# Council member: [^\n]*[\s\S]*\n\nWrite in Polish\.\n\nRead these files:\n- [^\n]*01-normalized\.md\n- [^\n]*02-hypotheses\.md\n[\s\S]*- [^\n]*09-autopilot-fit\.md\n\nRead all of them before answering and cite the file, and the URL inside it, for every fact you use\.\n\n${R1_FORMAT_AND_ISOLATION}`));
 });
 
 test("--prompts council-r1 writes the seven prompt files under prompts/ and prints one PROMPT line each with an absolute path", async () => {
@@ -132,8 +132,8 @@ const R2_FORMAT_AND_RESPOND = String.raw`Write your output to [^\n]*11-council-r
 
 test("buildPrompts over the real reference texts makes the visionary council-r2 prompt its member file, its own round-1 path, the six others, the language line, its output path, the whole round-2 format and the respond-by-name line", () => {
   const found = buildPrompts("council-r2", path.resolve("wd"), "Polish", REAL_COUNCIL_REFS).find((f: any) => f.name === "visionary");
-  assert.match(found.text, new RegExp(String.raw`^# Council member: [^\n]*[\s\S]*\n\nYour round-1 file: [^\n]*10-council-r1[\\/]visionary\.md\n\nThe other members' round-1 files:\n- [^\n]*10-council-r1[\\/]customer\.md\n[\s\S]*- [^\n]*10-council-r1[\\/]risk\.md\n\nWrite in Polish\.\n\n${R2_FORMAT_AND_RESPOND}`));
-  assert.doesNotMatch(found.text, /10-council-r1[\\/]visionary\.md\n- /);
+  assert.match(found!.text, new RegExp(String.raw`^# Council member: [^\n]*[\s\S]*\n\nYour round-1 file: [^\n]*10-council-r1[\\/]visionary\.md\n\nThe other members' round-1 files:\n- [^\n]*10-council-r1[\\/]customer\.md\n[\s\S]*- [^\n]*10-council-r1[\\/]risk\.md\n\nWrite in Polish\.\n\n${R2_FORMAT_AND_RESPOND}`));
+  assert.doesNotMatch(found!.text, /10-council-r1[\\/]visionary\.md\n- /);
 });
 
 test("--prompts council-r2 writes the seven prompt files under prompts/ and prints one PROMPT line each with an absolute path", async () => {

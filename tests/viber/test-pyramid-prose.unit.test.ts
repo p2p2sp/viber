@@ -285,7 +285,7 @@ test("plan-rules stays within 20900 bytes", () => {
 
 test("task-coder first Implement bullet stops at the met done clauses and a green Verification, adding no test, file, doc or refactor, a helpful idea going to the notes", () => {
   const text = bullet(CODER, "Deliver exactly what `Delivers` and `DoD` describe");
-  assert.ok(has(text, "- Deliver exactly what `Delivers` and `DoD` describe: no tests, docs, comments or files beyond what they and `Files` name. Once every `DoD` clause is met and `Verification` is green, stop and report: don't add features, tests, files, docs or refactors the task did not ask for, and one you think would help goes into your notes instead of the tree. A pre-existing bug you find outside them goes into your notes, unfixed."));
+  assert.ok(has(text, "- Deliver exactly what `Delivers` and `DoD` describe: no tests, docs or files beyond what they and `Files` name. Once every `DoD` clause is met and `Verification` is green, stop and report: don't add features, tests, files, docs or refactors the task did not ask for, and one you think would help goes into your notes instead of the tree. A pre-existing bug you find outside them goes into your notes, unfixed."));
 });
 
 test("task-reviewer Hits its target blocks a test the task added that proves none of its DoD clauses, ahead of the clause numbers sentence", () => {

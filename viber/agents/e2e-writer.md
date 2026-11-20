@@ -37,6 +37,7 @@ Exactly one file, `<spec-dir>/<qa-id>-<slug>.spec.ts`, where `<qa-id>` is the ID
 
 - It carries `test.use({ browserName: 'chromium' })` at the top, chromium-only regardless of the host's Playwright config.
 - The test title is `QA-nn <title> (covers: <criterion text>)`.
+- A comment only for a why the code cannot show (a non-obvious wait, a workaround), never one restating a step or what the code does.
 - That spec file is the whole write: no new shared helper, no edit to an existing one, no config file, no `package.json`.
 - A `ui` entry drives the UI for its `Steps` and uses Playwright `request` for a `Seed`, an endpoint-stated assertion, and cleanup of what it seeded. An `api` entry is `request` only.
 - The closing assertion is the entry's `Assert` (an `api` entry's `Expect`) as something observable - visible text, resulting state, a response read back - never that the click happened.

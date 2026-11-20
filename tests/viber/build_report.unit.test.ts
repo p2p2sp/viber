@@ -249,7 +249,7 @@ test("buildPrompts for research gives the problem, market and competition prompt
 for (const [name, text] of PROMPT_TEXTS) {
   test(`buildPrompts for research makes the ${name} prompt its brief ${name === "problem" ? "then the Problem strength anchors, " : ""}the research rules, the two input paths and the output path, fenced lines never ending a section`, () => {
     const found = buildPrompts("research", WD, "en", REFS).find((f: any) => f.name === name);
-    assert.equal(found.text, text);
+    assert.equal(found!.text, text);
   });
 }
 
@@ -309,7 +309,7 @@ test("buildPrompts for council-r1 gives the seven member prompt files under prom
 
 test("buildPrompts for council-r1 makes a member prompt its member text, the language line, the nine input paths with the read-and-cite line, its output path, the round-1 format and the isolation line, in that order", () => {
   const found = buildPrompts("council-r1", WD, "Polish", COUNCIL_REFS).find((f: any) => f.name === "skeptic");
-  assert.equal(found.text, [
+  assert.equal(found!.text, [
     "# Council member: Skeptic\n\nSkeptic text.", "",
     "Write in Polish.", "",
     "Read these files:", NINE_PATHS, "",
@@ -325,8 +325,8 @@ const R1_MEMBER_OPENINGS: Array<[string, string]> = MEMBER_TEXTS.map(([name, tex
 for (const [name, opening] of R1_MEMBER_OPENINGS) {
   test(`buildPrompts for council-r1 opens the ${name} prompt with its own member file text and names its own output file`, () => {
     const found = buildPrompts("council-r1", WD, "Polish", COUNCIL_REFS).find((f: any) => f.name === name);
-    assert.ok(found.text.startsWith(`${opening}\n\nWrite in Polish.\n`));
-    assert.ok(found.text.includes(`Write your output to ${inWd("10-council-r1", `${name}.md`)}.\n`));
+    assert.ok(found!.text.startsWith(`${opening}\n\nWrite in Polish.\n`));
+    assert.ok(found!.text.includes(`Write your output to ${inWd("10-council-r1", `${name}.md`)}.\n`));
   });
 }
 
@@ -349,7 +349,7 @@ test("buildPrompts for council-r2 gives the seven member prompt files under prom
 test("buildPrompts for council-r2 makes a member prompt its member text, its own round-1 path, the six other round-1 paths, the language line, its output path, the round-2 format and the respond-by-name line, in that order", () => {
   const found = buildPrompts("council-r2", WD, "Polish", COUNCIL_REFS).find((f: any) => f.name === "skeptic");
   const others = ["customer", "analyst", "growth", "operator", "risk", "visionary"].map((n) => `- ${r1(n)}`).join("\n");
-  assert.equal(found.text, [
+  assert.equal(found!.text, [
     "# Council member: Skeptic\n\nSkeptic text.", "",
     `Your round-1 file: ${r1("skeptic")}`, "",
     `The other members' round-1 files:\n${others}`, "",
