@@ -38,7 +38,7 @@ const CAPPED: Capped[] = [
   { file: "agents/critic.md", cap: 610, before: 613 },
   { file: "agents/scout.md", cap: 306, before: 308 },
   { file: "agents/hunter.md", cap: 854, before: 877 },
-  { file: "agents/mapper.md", cap: 758, before: 882 },
+  { file: "agents/mapper.md", cap: 760, before: 882 },
 ];
 
 for (const { file, cap } of CAPPED) {

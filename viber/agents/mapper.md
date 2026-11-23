@@ -2,7 +2,8 @@
 name: mapper
 description: Lens-aware repository mapper - reads the target's memory, history and the lens's map signals and writes the run's map of units worth a look. Invoked only by the code-auditor skill, never directly.
 tools: Read, Write, Grep, Glob, Bash
-model: inherit
+model: sonnet
+effort: high
 color: cyan
 ---
 

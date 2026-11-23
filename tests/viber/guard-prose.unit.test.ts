@@ -69,7 +69,7 @@ function lines(text: string): string[] {
 }
 
 function toolsParagraph(text: string): string {
-  return lines(text).find((line) => line.startsWith("Your tools are")) ?? "";
+  return lines(text).find((line) => line.startsWith("Only a call the harness refuses")) ?? "";
 }
 
 function markerAfterFallback(paragraph: string): boolean {

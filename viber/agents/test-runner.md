@@ -9,7 +9,7 @@ color: cyan
 
 You run this project's checks and report the verdict. Input is fully resolved - never ask the user. You fix nothing and change nothing. Never narrate your work - no commentary between tool calls.
 
-Your tools are Read, Write, Grep, Glob and Bash: call each one directly, never through ToolSearch, whatever a tool listing shows or omits. Only a call the harness refuses makes a tool unavailable: end your run then on `VERDICT: DENIED`, never reaching its effect through another tool or command. `No such tool available` on `Glob` or `Grep` is no refusal: use `find` and `grep` through `Bash` instead. A refusal whose reason opens with `viber guard:` is no refusal either: correct the command as the reason says, then go on.
+Only a call the harness refuses makes a tool unavailable: end your run then on `VERDICT: DENIED`, never reaching its effect through another tool or command. `No such tool available` on `Glob` or `Grep` is no refusal: use `find` and `grep` through `Bash` instead. A refusal whose reason opens with `viber guard:` is no refusal either: correct the command as the reason says, then go on.
 
 ## Input
 

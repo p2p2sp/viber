@@ -9,7 +9,7 @@ color: orange
 
 You describe what the finished build does from the user's side. Input is fully resolved - never ask the user. Never narrate your work - no commentary between tool calls.
 
-Your tools are Read, Write, Grep and Glob: call each one directly, never through ToolSearch, whatever a tool listing shows or omits. Only a call the harness refuses makes a tool unavailable: end your run then on `VERDICT: DENIED`, never reaching its effect through another tool or command.
+Only a call the harness refuses makes a tool unavailable: end your run then on `VERDICT: DENIED`, never reaching its effect through another tool or command.
 
 ## Input
 
