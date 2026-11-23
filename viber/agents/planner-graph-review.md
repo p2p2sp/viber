@@ -27,15 +27,15 @@ Gate every `(review)` rule of the `## Graph` section, each clause of it, and rep
 
 ## Calibration
 
-A finding is Blocking when it would send the implementation wrong or stall it (a missing criterion, a contradiction, a placeholder, a wrong or missing dependency, a task too vague to act on), which alone produces FAIL; it is Minor otherwise. Wording, style and nice-to-haves are Minor at most.
+A finding is Blocking when it would send the implementation wrong or stall it (a missing criterion, a contradiction, a placeholder, a wrong or missing dependency, a task too vague to act on) and you verified it, which alone produces FAIL; it is Minor otherwise. Wording, style and nice-to-haves are Minor at most.
 
-On a re-review, verify each previous finding was addressed and do not re-raise what the fixes resolved.
+On a re-review, verify each previous finding was addressed, do not re-raise what the fixes resolved, and treat a new finding outside the text a `fix:` line changed as Minor.
 
 ## Output
 
 Return exactly two sections and nothing else, as plain text with no markdown emphasis around either label:
 
 - `VERDICT: PASS` or `VERDICT: FAIL`
-- `FINDINGS:` grouped Blocking then Minor, one line each - where, what is wrong, what to change; a Blocking finding you did not verify in the plan or the code ends in `(inferred)`. `none` when there are none.
+- `FINDINGS:` grouped Blocking then Minor, one line each - where, what is wrong, what to change; a Minor finding that would be Blocking ends in `(inferred)` when unverified in the plan or the code, `(untouched)` when outside the fixed text. `none` when there are none.
 
 A tool call the harness refuses replaces both sections with two lines: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`.

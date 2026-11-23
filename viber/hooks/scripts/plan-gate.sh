@@ -39,7 +39,9 @@
 # A planner plan past 12 task blocks is gated on the whole review set instead of
 # planner-review (see "The review set" below): spec, graph and every task covered by
 # a task-review slice must each have a latest PASS, refusals in the order missing
-# member, DENIED, FAIL, plan touched after the earliest deciding verdict.
+# member, DENIED, FAIL, plan touched after the earliest deciding verdict that
+# followed its last write. A PASS survives a plan write made while another member
+# holds a FAIL (the fix of a finding), so only the failed members need a new PASS.
 #
 # Every transcript scan skips the "api-request-blob" records: each replays a whole
 # earlier message on one line, so its tool_use blocks look like live events.
@@ -210,13 +212,21 @@ fi
 # line `tasks: T<a>-T<b>` holds a <= k <= b. 12 tasks or fewer, or a plan that
 # cannot be read, keep planner-review alone.
 #
-# Among the dispatches after the last plan write, every open dispatch is tracked at
-# once: a verdict line carrying a tracked dispatch id pairs with that dispatch, in
+# Among the dispatches of the episode, every open dispatch is tracked at once: a
+# verdict line carrying a tracked dispatch id pairs with that dispatch, in
 # whatever order the verdicts arrive; a verdict line matching no id pairs with the
 # earliest open dispatch that carries no id. The latest completed pair decides per
 # member (per task for the task reviewers). The verdict pattern below is the one of
 # the pair_raw awk and the verdict_value awk further down: the three must stay
 # identical.
+#
+# A plan write (a Write/Edit of a plans/*.md file) closes every open dispatch: its
+# reviewer read the text before the write. A write made while no member holds a
+# FAIL voids every verdict before it, so a plan changed after its PASS, or one
+# never reviewed, needs the whole set. A write made while a member holds a FAIL
+# is the fix of its findings: the PASS of the other members stays, and the gate
+# takes it on trust that the fix left their part of the plan alone (review-round.sh
+# sends again every member whose part changed).
 task_count=0
 if [ "$planner_owns" = "1" ] && [ -n "$plan_path" ] && [ -f "$plan_path" ] && [ -r "$plan_path" ]; then
   task_count="$(grep -cE '^[[:space:]]*<!-- TASK -->[[:space:]]*$' "$plan_path" 2>/dev/null)"
@@ -224,8 +234,21 @@ if [ "$planner_owns" = "1" ] && [ -n "$plan_path" ] && [ -f "$plan_path" ] && [ 
 fi
 
 if [ "$task_count" -gt 12 ]; then
+  # Every plan write of the transcript, as line numbers: the awk below reads the
+  # ones inside the episode.
+  plan_writes="$(
+    grep -nE '"file_path":"[^"]*[\\/]+plans[\\/]+[^"]*\.md"' "$transcript_path" 2>/dev/null \
+      | grep -vE '"type":"api-request-blob"' \
+      | grep -E '"(tool_name|name)":"(Write|Edit)"' \
+      | cut -d: -f1 \
+      | tr '\n' ' '
+  )"
   set_raw="$(
-    awk -v start="$((plan_write_line + 1))" -v n="$task_count" '
+    PLAN_WRITES="$plan_writes" awk -v start="$((episode_start + 1))" -v n="$task_count" '
+      BEGIN {
+        nw = split(ENVIRON["PLAN_WRITES"], w, " ")
+        for (i = 1; i <= nw; i++) pw[w[i] + 0] = 1
+      }
       function pick(k, kind) {
         if (kind == "all") return 1
         if (kind == "none") return tval[k] == ""
@@ -268,6 +291,17 @@ if [ "$task_count" -gt 12 ]; then
       }
       NR < start { next }
       /"type":"api-request-blob"/ { next }
+      NR in pw {
+        failing = (sv == "FAIL" || gv == "FAIL")
+        for (k = 1; k <= n && !failing; k++) if (tval[k] == "FAIL") failing = 1
+        if (!failing) {
+          sv = ""; gv = ""; sl = 0; gl = 0
+          for (k = 1; k <= n; k++) { tval[k] = ""; tln[k] = 0 }
+        }
+        for (i = 1; i <= nd; i++) opn[i] = 0
+        lastw = NR
+        next
+      }
       /"subagent_type":"([a-zA-Z0-9_.-]+:)?planner-(spec|graph|task)-review"/ {
         m = "task"
         if ($0 ~ /planner-spec-review"/) m = "spec"
@@ -307,9 +341,9 @@ if [ "$task_count" -gt 12 ]; then
         print "denied", runs("DENIED", 0)
         print "allslices", runs("all", 2)
         out = "lines"
-        if (sl && !(sl in seen)) { seen[sl] = 1; out = out " " sl }
-        if (gl && !(gl in seen)) { seen[gl] = 1; out = out " " gl }
-        for (k = 1; k <= n; k++) if (tln[k] && !(tln[k] in seen)) { seen[tln[k]] = 1; out = out " " tln[k] }
+        if (sl > lastw && !(sl in seen)) { seen[sl] = 1; out = out " " sl }
+        if (gl > lastw && !(gl in seen)) { seen[gl] = 1; out = out " " gl }
+        for (k = 1; k <= n; k++) if (tln[k] > lastw && !(tln[k] in seen)) { seen[tln[k]] = 1; out = out " " tln[k] }
         print out
       }
     ' "$transcript_path" 2>/dev/null
@@ -347,7 +381,7 @@ if [ "$task_count" -gt 12 ]; then
       names="${names:+$names, }viber:planner-task-review (uncovered tasks ${uncovered})"
       todo="${todo:+$todo; }$d_task ${uslices}"
     fi
-    emit_deny "Next step: review the plan. ${plan_name} holds ${task_count} tasks, past 12, so a planner-review PASS alone does not open ExitPlanMode: every member of the review set must return 'VERDICT: PASS' after the last write of the plan, and these still miss a dispatch or a verdict: ${names}. Dispatch ${todo} - all in one message - wait for every 'VERDICT: PASS', then retry ExitPlanMode without writing the plan again: Minor findings stay unapplied, except one showing the plan changes a behaviour today's code has that the request never asked for - fix that one and dispatch again, since any write after the PASS voids it. (This is ${gate}, not an error.)"
+    emit_deny "Next step: review the plan. ${plan_name} holds ${task_count} tasks, past 12, so a planner-review PASS alone does not open ExitPlanMode: every member of the review set must hold a 'VERDICT: PASS' for it - a write of the plan made while no member holds a FAIL voids every earlier verdict - and these still miss a dispatch or a verdict: ${names}. Dispatch ${todo} - all in one message - wait for every 'VERDICT: PASS', then retry ExitPlanMode without writing the plan again: Minor findings stay unapplied, except one showing the plan changes a behaviour today's code has that the request never asked for - fix that one and dispatch again, since any write after the PASS voids it. (This is ${gate}, not an error.)"
   fi
 
   whole_set="${d_spec}; ${d_graph}; ${d_task} ${allslices}"
@@ -365,11 +399,12 @@ if [ "$task_count" -gt 12 ]; then
   if [ "$graph_v" = "FAIL" ]; then names="${names:+$names, }viber:planner-graph-review"; fi
   if [ "$task_fail" != "-" ]; then names="${names:+$names, }viber:planner-task-review (tasks ${task_fail})"; fi
   if [ -n "$names" ]; then
-    emit_deny "Next step: fix the findings. ${names} returned 'VERDICT: FAIL' for ${plan_name}, not PASS - apply the findings to the plan, dispatch the whole review set again - ${whole_set} - with the previous findings and your fixes, then retry ExitPlanMode. (This is ${gate}, not an error.)"
+    emit_deny "Next step: fix the findings. ${names} returned 'VERDICT: FAIL' for ${plan_name}, not PASS - apply the findings to the plan, then dispatch again, with the previous findings and your fixes, every member that failed and every member whose part of the plan the fix changed (the whole set: ${whole_set}), then retry ExitPlanMode. (This is ${gate}, not an error.)"
   fi
 
   # Every member passed. The plan must be no newer than the EARLIEST deciding
-  # verdict (same 2s slack as the single-reviewer check below).
+  # verdict that followed its last write (same 2s slack as the single-reviewer
+  # check below): a PASS kept across a fix is older than that fix by design.
   plan_mtime=$(stat -c %Y "$plan_path" 2>/dev/null || stat -f %m "$plan_path" 2>/dev/null)
   case "${plan_mtime:-}" in ''|*[!0-9]*) plan_mtime="" ;; esac
   earliest=""
@@ -388,7 +423,7 @@ if [ "$task_count" -gt 12 ]; then
     if [ -z "$earliest" ] || [ "$ep" -lt "$earliest" ]; then earliest="$ep"; fi
   done
   if [ -n "$plan_mtime" ] && [ -n "$earliest" ] && [ "$plan_mtime" -gt "$((earliest + 2))" ]; then
-    emit_deny "Next step: re-review. ${plan_name} was modified after the earliest 'VERDICT: PASS' of its review set - dispatch the whole review set again - ${whole_set} - then retry ExitPlanMode. (This is ${gate}, not an error.)"
+    emit_deny "Next step: re-review. ${plan_name} was modified after the earliest 'VERDICT: PASS' that followed its last write - dispatch the whole review set again - ${whole_set} - then retry ExitPlanMode. (This is ${gate}, not an error.)"
   fi
 
   emit_allow

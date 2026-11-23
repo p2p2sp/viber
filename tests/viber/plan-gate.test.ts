@@ -997,7 +997,7 @@ test("review set: a later FAIL of a member overrides its earlier PASS -> deny", 
   });
 });
 
-test("review set: verdicts of reviews dispatched before the last plan write do not count -> deny naming every member", async () => {
+test("review set: a plan write after every member passed voids every verdict -> deny naming every member", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const plan = taskPlan(dir, 20);
     const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS), planWrite(plan, "Edit")]);
@@ -1007,6 +1007,96 @@ test("review set: verdicts of reviews dispatched before the last plan write do n
     assert.match(reason ?? "", new RegExp(SET_SPEC));
     assert.match(reason ?? "", new RegExp(SET_GRAPH));
     assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(uncovered tasks T1-T20\\)`));
+  });
+});
+
+test("review set: after a fix write only the failed member dispatched again with a PASS -> allow (a PASS survives the fix of another member)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [
+      skillUse(),
+      planWrite(plan),
+      ...reviewSetRound({ ...ALL_PASS, b: "FAIL" }),
+      planWrite(plan, "Edit"),
+      planWrite(plan, "Edit"),
+      ...memberRound("b", "PASS", { round: 2 }),
+    ]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: after a fix write the failed member failing again is refused naming it", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [
+      skillUse(),
+      planWrite(plan),
+      ...reviewSetRound({ ...ALL_PASS, graph: "FAIL" }),
+      planWrite(plan, "Edit"),
+      ...memberRound("graph", "FAIL", { round: 2 }),
+    ]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", new RegExp(`${SET_GRAPH} returned 'VERDICT: FAIL'`));
+    assert.match(reason ?? "", /every member that failed and every member whose part of the plan the fix changed/);
+  });
+});
+
+test("review set: a verdict of a dispatch opened before the fix write never counts -> the member stays at FAIL (its reviewer read the text before the fix)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const [early, late] = memberRound("spec", "PASS", { round: 2 });
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ ...ALL_PASS, spec: "FAIL" }), early, planWrite(plan, "Edit"), late]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", new RegExp(`${SET_SPEC} returned 'VERDICT: FAIL'`));
+  });
+});
+
+test("review set: a second fix round keeps the PASS a member earned in the first one -> allow", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [
+      skillUse(),
+      planWrite(plan),
+      ...reviewSetRound({ ...ALL_PASS, a: "FAIL", c: "FAIL" }),
+      planWrite(plan, "Edit"),
+      ...memberRound("a", "PASS", { round: 2 }),
+      ...memberRound("c", "FAIL", { round: 2 }),
+      planWrite(plan, "Edit"),
+      ...memberRound("c", "PASS", { round: 3 }),
+    ]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: a PASS older than the fix write does not trip the tamper check -> allow (only the verdicts after the last write date the plan)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [
+      skillUse(),
+      planWrite(plan),
+      ...reviewSetRound({ ...ALL_PASS, b: "FAIL" }, { timestamp: STALE() }),
+      planWrite(plan, "Edit"),
+      ...memberRound("b", "PASS", { round: 2, timestamp: FRESH() }),
+    ]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: a plan modified after the verdict that followed the fix write is refused with the re-review next step", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [
+      skillUse(),
+      planWrite(plan),
+      ...reviewSetRound({ ...ALL_PASS, b: "FAIL" }, { timestamp: FRESH() }),
+      planWrite(plan, "Edit"),
+      ...memberRound("b", "PASS", { round: 2, timestamp: STALE() }),
+    ]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: re-review/);
   });
 });
 

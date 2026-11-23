@@ -93,7 +93,7 @@ Dispatch every block in one message, one `Agent` call per block, the agent named
 - `add: answered`: one `Answered: <decision> -> <option>` line per user answer (step 1 or a finding).
 - `add: previous`: `previous findings:`, every member's previous findings verbatim, one `fix: <line>` per fix you applied.
 
-Every round and retry is a new `Agent` dispatch, never a `SendMessage` to an earlier reviewer: the plan gate counts only dispatches after the last plan write.
+Every round and retry is a new `Agent` dispatch, never a `SendMessage` to an earlier reviewer: the plan gate pairs a verdict only with a dispatch.
 
 Report the replies with `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" returned <k>=<word> <k>=<word>`: `<k>` the block's `member:`, `<word>` the `VERDICT:` word of its reply (`PASS`, `FAIL`, `DENIED`) or `none` without one. Act on what it prints:
 
@@ -110,6 +110,8 @@ Report the replies with `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-pa
 ## 4. Hand off
 
 Call `ExitPlanMode` only on a `NEXT: exit-plan` of a round started after your last write to the plan file. Every later write voids it, (the user's remark, an answer, a Minor finding): re-run `plan-index.sh` as in step 2, then step 3 from `start --fresh` (with `--input "<summary file>"` on a summary file input; plain `start` after an `override`'s fix) before the next `ExitPlanMode`.
+
+Before `ExitPlanMode`, show the user one list of the Minor findings ending in `(inferred)` or `(untouched)` that no fix applied.
 
 Then name `viber:implementor` as the next step, the path shown in step 2 being the whole handover. Nothing runs here.
 

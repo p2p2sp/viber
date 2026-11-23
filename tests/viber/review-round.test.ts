@@ -22,7 +22,9 @@
  * DENIED members after the planner added a permission, `override` turns the members a Minor
  * finding overrides into FAIL after `NEXT: exit-plan`, `stop` ends the review. A `start` after
  * `NEXT: fix` opens the next round with the previous findings, and after any other answer needs
- * `--fresh`. A wrong move leaves a plan unreviewed, or reviewed in the wrong round.
+ * `--fresh`. That round sends only the members without a PASS and the members whose part of the
+ * plan the fix changed, the whole set after an override or when the slices changed. A wrong move
+ * leaves a plan unreviewed, reviewed in the wrong round, or a changed part passed unread.
  *
  * The plans are lite plans with no `## Behaviour` section and only `add` file
  * map lines, so plan-index.sh accepts them. Every case builds its own throwaway
@@ -531,18 +533,111 @@ const FIXES: { name: string; arrange: Arranger }[] = [
   },
 ];
 
-for (const row of FIXES) {
-  test(`start after a NEXT: fix printed by ${row.name} prints every member at round 2 with add: previous`, async () => {
+const GRAPH_BLOCK_2_ROUND_2 = ROUND_2_SET.slice(3, 7);
+
+test("start after a NEXT: fix printed by returned, the plan unchanged, prints only the failed member at round 2 with add: previous (a member that passed is not reviewed again)", async () => {
+  await withGitRepo(async (repo) => {
+    await FIXES[0].arrange(repo);
+
+    const result = await start(repo, PLAN_REL);
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(slash(result.stdout), [...GRAPH_BLOCK_2_ROUND_2, ""].join("\n"));
+  });
+});
+
+test("start after a NEXT: fix printed by override prints every member at round 2 with add: previous (the plan gate voids every verdict on a write after a full PASS)", async () => {
+  await withGitRepo(async (repo) => {
+    await FIXES[1].arrange(repo);
+
+    const result = await start(repo, PLAN_REL);
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(slash(result.stdout), ROUND_2_SET.join("\n"));
+  });
+});
+
+function nextLines(stdout: string): string[] {
+  return stdout.split("\n").filter((line) => line.startsWith("NEXT: "));
+}
+
+const CHANGED: { name: string; failed: string[]; edit: (plan: string) => string; members: number[] }[] = [
+  {
+    name: "a fix changing a task of another slice sends the failed slice, the changed slice and the graph reviewer, the spec reviewer keeping its PASS",
+    failed: ["1=PASS", "2=PASS", "3=FAIL", "4=PASS"],
+    edit: (plan) => plan.replace("### T9 - Do thing 9", "### T9 - Do thing nine"),
+    members: [2, 3, 4],
+  },
+  {
+    name: "a fix changing the text above the tasks sends the failed slice and the spec reviewer, the graph reviewer and the other slice keeping their PASS",
+    failed: ["1=PASS", "2=PASS", "3=PASS", "4=FAIL"],
+    edit: (plan) => plan.replace("Users can log in.", "Users can sign in."),
+    members: [1, 4],
+  },
+  {
+    name: "a fix changing a contract sends the failed slice, the spec reviewer and the graph reviewer, the other slice keeping its PASS",
+    failed: ["1=PASS", "2=PASS", "3=PASS", "4=FAIL"],
+    edit: (plan) => plan.replace("POST /login -> 200 | 401", "POST /login -> 200 | 403"),
+    members: [1, 2, 4],
+  },
+];
+
+for (const row of CHANGED) {
+  test(`start after a fix: ${row.name}`, async () => {
     await withGitRepo(async (repo) => {
-      await row.arrange(repo);
+      await begin(repo, 13);
+      await returned(repo, ...row.failed);
+      write(repo.dir, PLAN_REL, row.edit(litePlan(13)));
 
       const result = await start(repo, PLAN_REL);
 
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(slash(result.stdout), ROUND_2_SET.join("\n"));
+      assert.deepEqual(
+        nextLines(result.stdout).map((line) => Number(line.split(" | ")[1].replace("member: ", ""))),
+        row.members,
+      );
     });
   });
 }
+
+test("start after a fix that adds a task prints every member at round 2 on the new slices (a kept PASS would cover other tasks than it reviewed)", async () => {
+  await withGitRepo(async (repo) => {
+    await begin(repo, 13);
+    await returned(repo, "1=PASS", "2=PASS", "3=FAIL", "4=PASS");
+    write(repo.dir, PLAN_REL, litePlan(14));
+
+    const result = await start(repo, PLAN_REL);
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(nextLines(result.stdout).length, 4);
+    assert.match(result.stdout, /^tasks: T8-T14$/m);
+  });
+});
+
+test("returned naming only the members a partial round 2 sent prints NEXT: exit-plan, the others keeping the PASS of round 1", async () => {
+  await withGitRepo(async (repo) => {
+    await FIXES[0].arrange(repo);
+    await start(repo, PLAN_REL);
+
+    const result = await returned(repo, "2=PASS");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "NEXT: exit-plan\n");
+  });
+});
+
+test("a member that failed round 2 is the only one round 3 sends when the next fix leaves the other parts alone", async () => {
+  await withGitRepo(async (repo) => {
+    await FIXES[0].arrange(repo);
+    await start(repo, PLAN_REL);
+    await returned(repo, "2=FAIL");
+
+    const result = await start(repo, PLAN_REL);
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(nextLines(result.stdout), ["NEXT: review | member: 2 | agent: viber:planner-graph-review | round: 3 | add: previous"]);
+  });
+});
 
 const NOT_CLOSED: { name: string; arrange: Arranger }[] = [
   { name: "NEXT: exit-plan", arrange: AFTER_EXIT_PLAN },

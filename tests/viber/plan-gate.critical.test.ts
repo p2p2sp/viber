@@ -3,7 +3,8 @@
  * viber/hooks/scripts/plan-gate.sh: the gate fails open on broken input,
  * denies ExitPlanMode until a current review verdict PASS exists for planner,
  * plain outside-plan-review and large review-set plans, rejects stale or
- * tampered plans, and arms on Windows backslash paths.
+ * tampered plans, keeps a PASS across a fix write only for the members that
+ * did not fail, and arms on Windows backslash paths.
  *
  * A case lives here when its failure means lost user work, an open gate, a
  * break only one platform shows or a script that no longer starts; the rest
@@ -39,6 +40,7 @@ import {
   SET_TASK,
   taskPlan,
   reviewSetRound,
+  memberRound,
   ALL_PASS,
 } from "./plan-gate-fixture.ts";
 
@@ -135,5 +137,22 @@ test("review set: every member's latest verdict PASS with the passed slices cove
     const plan = taskPlan(dir, 20);
     const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS)]);
     assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: a fix write keeps the PASS of the other members only while the failed member passes again -> the failed one alone allows, another one alone or a write after a full PASS denies", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const failed = [skillUse(), planWrite(plan), ...reviewSetRound({ ...ALL_PASS, b: "FAIL" }), planWrite(plan, "Edit")];
+    const fixed = writeTranscript(dir, "fixed.jsonl", [...failed, ...memberRound("b", "PASS", { round: 2 })]);
+    assert.equal((await runCase(fixed)).decision, "allow");
+    const other = writeTranscript(dir, "other.jsonl", [...failed, ...memberRound("a", "PASS", { round: 2 })]);
+    const kept = await runCase(other);
+    assert.equal(kept.decision, "deny");
+    assert.match(kept.reason ?? "", new RegExp(`${SET_TASK} \\(tasks T9-T16\\) returned 'VERDICT: FAIL'`));
+    const voided = writeTranscript(dir, "voided.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS), planWrite(plan, "Edit"), ...memberRound("b", "PASS", { round: 2 })]);
+    const missing = await runCase(voided);
+    assert.equal(missing.decision, "deny");
+    assert.match(missing.reason ?? "", /^Next step: review the plan/);
   });
 });

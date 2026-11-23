@@ -53,6 +53,16 @@
 #              Round 1, with no add: previous, on --fresh, with no state or with
 #              the state of another plan path; round r+1, with add: previous,
 #              when the last answer was NEXT: fix; any other state is refused.
+#              Round r+1 prints the blocks of the members to review again only:
+#              a member without a PASS, and a member whose part of the plan
+#              differs from the part it passed on. The other members keep their
+#              PASS and get no block. The whole set is printed when the
+#              dispatch: lines differ from the members of the state, or after an
+#              override. The part of a member, compared by cksum:
+#                planner-review        the whole plan
+#                planner-spec-review   every line outside the "## Tasks" section
+#                planner-graph-review  every line from "## Tasks" on
+#                planner-task-review   the task blocks of its tasks: slice
 #              --input puts the summary file path on the input: line and drops
 #              add: input.
 #   returned   (an awaited member - one of the last dispatch still without a
@@ -67,7 +77,9 @@
 #                NEXT: exit-plan                                        every member PASS
 #   retry-denied   NEXT: redispatch | members: <the DENIED ones>, then their blocks
 #   override <k>[,<k>]   only after NEXT: exit-plan: those members count as FAIL,
-#              NEXT: fix | members: <k>[,<k>]
+#              NEXT: fix | members: <k>[,<k>]; the start after it prints the
+#              whole set (a plan write with every member at PASS voids every
+#              verdict for plan-gate.sh)
 #   stop       STOP: the plan stays unreviewed - no hand-off
 #
 # Contract:
@@ -88,9 +100,10 @@
 #            the memory value, whether the round carries add: previous, the
 #            members awaiting a verdict (all of them after a start, the
 #            redispatched ones after a redispatch, none once the round is
-#            answered) and per member its agent, tasks slice, verdict and none
-#            count. A start replaces it, a returned updates it; an error
-#            leaves it as it was.
+#            answered) and per member its agent, tasks slice, verdict, none
+#            count and the cksum of its part of the plan at its last dispatch
+#            (empty after an override). A start replaces it, a returned updates
+#            it; an error leaves it as it was.
 #   stdout : the blocks above, nothing on an error.
 #   stderr : on exit 2, one "error: <message>" line; a start on a plan
 #            plan-index.sh refuses prints "error: plan-index.sh refused the plan"
@@ -162,6 +175,43 @@ emit_block() {
   fi
 }
 
+# Prints the cksum of the part of the plan member agent $1 (tasks slice $2)
+# reviews, as "<crc>-<bytes>". The task blocks are counted in file order, the
+# numbering plan-index.sh enforces; a "## " line inside a task block opens no
+# section.
+part_sum() {
+  local kind="all" lo=0 hi=0 sum
+  case "$1" in
+    viber:planner-spec-review) kind="spec" ;;
+    viber:planner-graph-review) kind="graph" ;;
+    viber:planner-task-review)
+      kind="task"
+      lo="${2#T}"
+      lo="${lo%%-*}"
+      hi="${2##*-T}"
+      ;;
+  esac
+  sum="$(
+    PART_KIND="$kind" PART_LO="$lo" PART_HI="$hi" awk '
+      BEGIN { kind = ENVIRON["PART_KIND"]; lo = ENVIRON["PART_LO"] + 0; hi = ENVIRON["PART_HI"] + 0; zone = "spec" }
+      { sub(/\r$/, "") }
+      /^[[:space:]]*<!-- TASK -->[[:space:]]*$/ { inblock = 1; n++ }
+      !inblock && /^## / {
+        if ($0 ~ /^## Tasks[[:space:]]*$/) zone = "tasks"
+        else if (zone != "spec") zone = "after"
+      }
+      {
+        if (kind == "all") print
+        else if (kind == "spec") { if (zone != "tasks") print }
+        else if (kind == "graph") { if (zone != "spec") print }
+        else if (inblock && n >= lo && n <= hi) print
+      }
+      /^[[:space:]]*<!-- \/TASK -->[[:space:]]*$/ { inblock = 0 }
+    ' "$plan" 2>/dev/null | cksum
+  )"
+  printf '%s' "${sum// /-}"
+}
+
 # Sets root, statedir and state: the state file of the repository the cwd is in.
 locate_state() {
   root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
@@ -171,9 +221,9 @@ locate_state() {
 }
 
 # Reads the state file into st_plan, st_round, st_answer, st_input, st_memory,
-# st_previous, st_awaiting and, per member, st_agents, st_slices, st_verdicts and
-# st_nones (indexed from 0), st_count of them. No file, or a round that is not a
-# number, leaves st_plan empty: no state.
+# st_previous, st_awaiting and, per member, st_agents, st_slices, st_verdicts,
+# st_nones and st_sums (indexed from 0), st_count of them. No file, or a round
+# that is not a number, leaves st_plan empty: no state.
 load_state() {
   st_plan=""
   st_round=""
@@ -187,6 +237,7 @@ load_state() {
   st_slices=()
   st_verdicts=()
   st_nones=()
+  st_sums=()
   if [ -f "$state" ]; then
     local line rest mk v
     while IFS= read -r line || [ -n "$line" ]; do
@@ -213,7 +264,12 @@ load_state() {
           v="${rest%% | *}"
           st_verdicts[$mk]="${v#verdict: }"
           rest="${rest#* | }"
-          st_nones[$mk]="${rest#none: }"
+          v="${rest%% | *}"
+          st_nones[$mk]="${v#none: }"
+          case "$rest" in
+            *" | sum: "*) st_sums[$mk]="${rest#* | sum: }" ;;
+            *) st_sums[$mk]="" ;;
+          esac
           st_count=$((st_count + 1))
           ;;
       esac
@@ -225,7 +281,7 @@ load_state() {
 }
 
 # Writes the state file from plan, round, answer, input, memory, previous,
-# awaiting and the count members of agents, slices, verdicts and nones.
+# awaiting and the count members of agents, slices, verdicts, nones and sums.
 write_state() {
   local k=1
   {
@@ -237,7 +293,7 @@ write_state() {
     printf 'previous: %s\n' "$previous"
     printf 'awaiting: %s\n' "$awaiting"
     while [ "$k" -le "$count" ]; do
-      printf 'member: %s | agent: %s | tasks: %s | verdict: %s | none: %s\n' "$k" "${agents[$((k - 1))]}" "${slices[$((k - 1))]}" "${verdicts[$((k - 1))]}" "${nones[$((k - 1))]}"
+      printf 'member: %s | agent: %s | tasks: %s | verdict: %s | none: %s | sum: %s\n' "$k" "${agents[$((k - 1))]}" "${slices[$((k - 1))]}" "${verdicts[$((k - 1))]}" "${nones[$((k - 1))]}" "${sums[$((k - 1))]-}"
       k=$((k + 1))
     done
   } > "$state" || fail "cannot write $state"
@@ -322,15 +378,37 @@ do_start() {
     esac
   done < <(printf '%s\n' "$cfg")
 
+  # A round after a fix keeps the PASS of a member whose part of the plan is the
+  # part it passed on, as long as the members are the ones of the state.
+  keep=0
+  if [ "$previous" = "yes" ] && [ "$st_count" -eq "$count" ]; then
+    keep=1
+    k=0
+    while [ "$k" -lt "$count" ]; do
+      if [ "${st_agents[$k]-}" != "${agents[$k]}" ] || [ "${st_slices[$k]-}" != "${slices[$k]}" ]; then
+        keep=0
+      fi
+      k=$((k + 1))
+    done
+  fi
+
   awaiting=""
   verdicts=()
   nones=()
+  sums=()
   k=1
   while [ "$k" -le "$count" ]; do
-    emit_block "$k" "${agents[$((k - 1))]}" "${slices[$((k - 1))]}" "$round"
-    verdicts[$((k - 1))]="-"
-    nones[$((k - 1))]=0
-    awaiting="${awaiting:+$awaiting,}$k"
+    i=$((k - 1))
+    sum="$(part_sum "${agents[$i]}" "${slices[$i]}")"
+    nones[$i]=0
+    sums[$i]="$sum"
+    if [ "$keep" -eq 1 ] && [ -n "$sum" ] && [ "${st_verdicts[$i]-}" = "PASS" ] && [ "${st_sums[$i]-}" = "$sum" ]; then
+      verdicts[$i]="PASS"
+    else
+      emit_block "$k" "${agents[$i]}" "${slices[$i]}" "$round"
+      verdicts[$i]="-"
+      awaiting="${awaiting:+$awaiting,}$k"
+    fi
     k=$((k + 1))
   done
 
@@ -359,6 +437,7 @@ adopt_state() {
   slices=(${st_slices[@]+"${st_slices[@]}"})
   verdicts=(${st_verdicts[@]+"${st_verdicts[@]}"})
   nones=(${st_nones[@]+"${st_nones[@]}"})
+  sums=(${st_sums[@]+"${st_sums[@]}"})
 }
 
 # Appends the blocks of the members named in the comma list $1, in member order.
@@ -511,12 +590,16 @@ do_override() {
     named="${named:+$named,}$k"
   done
 
+  # Every sum is emptied: the fix of an override is a plan write with every member
+  # at PASS, which voids every verdict for plan-gate.sh, so the next start must
+  # print the whole set.
   local overridden="" i
   k=1
   while [ "$k" -le "$count" ]; do
+    i=$((k - 1))
+    sums[$i]=""
     case ",$named," in
       *",$k,"*)
-        i=$((k - 1))
         verdicts[$i]="FAIL"
         overridden="${overridden:+$overridden,}$k"
         ;;
