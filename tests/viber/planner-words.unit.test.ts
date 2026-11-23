@@ -46,10 +46,10 @@ test("PLANNER_WORD_CAP sits below the 1800 words the file held before the script
 
 // [agent, cap, words before the scripted plan checks]: each plan reviewer reads its whole file on every review round.
 const REVIEWER_WORD_CAPS: [string, number, number][] = [
-  ["planner-review", 1025, 1056],
-  ["planner-spec-review", 785, 797],
-  ["planner-graph-review", 610, 618],
-  ["planner-task-review", 725, 735],
+  ["planner-review", 1033, 1056],
+  ["planner-spec-review", 790, 797],
+  ["planner-graph-review", 616, 618],
+  ["planner-task-review", 733, 735],
   ["outside-plan-review", 470, 490],
 ];
 

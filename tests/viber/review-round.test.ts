@@ -23,7 +23,9 @@
  * finding overrides into FAIL after `NEXT: exit-plan`, `stop` ends the review. A `start` after
  * `NEXT: fix` opens the next round with the previous findings, and after any other answer needs
  * `--fresh`. That round sends only the members without a PASS and the members whose part of the
- * plan the fix changed, the whole set after an override or when the slices changed. A wrong move
+ * plan the fix changed, the whole set after an override or when the slices changed; `--answered`
+ * adds the readers of the `Answered:` lines, and a member that returned no verdict at all takes
+ * the previous findings off the round. A wrong move
  * leaves a plan unreviewed, reviewed in the wrong round, or a changed part passed unread.
  *
  * The plans are lite plans with no `## Behaviour` section and only `add` file
@@ -636,6 +638,33 @@ test("a member that failed round 2 is the only one round 3 sends when the next f
 
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.deepEqual(nextLines(result.stdout), ["NEXT: review | member: 2 | agent: viber:planner-graph-review | round: 3 | add: previous"]);
+  });
+});
+
+test("start --answered after a fix also sends the spec reviewer holding a PASS on an unchanged part (the answer changes what the readers of the Answered: lines gate)", async () => {
+  await withGitRepo(async (repo) => {
+    await FIXES[0].arrange(repo);
+
+    const result = await start(repo, PLAN_REL, "--answered");
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(nextLines(result.stdout), [
+      "NEXT: review | member: 1 | agent: viber:planner-spec-review | round: 2 | add: input | add: answered | add: previous",
+      "NEXT: review | member: 2 | agent: viber:planner-graph-review | round: 2 | add: previous",
+    ]);
+  });
+});
+
+test("start after a member returned no verdict twice sends it at round 2 with no previous findings (a reviewer given them checks the fixes alone, and this one reviewed nothing)", async () => {
+  await withGitRepo(async (repo) => {
+    await begin(repo, 13);
+    await returned(repo, "1=PASS", "2=none", "3=PASS", "4=PASS");
+    await returned(repo, "2=none");
+
+    const result = await start(repo, PLAN_REL);
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(nextLines(result.stdout), ["NEXT: review | member: 2 | agent: viber:planner-graph-review | round: 2"]);
   });
 });
 

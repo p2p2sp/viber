@@ -48,7 +48,7 @@ Check when the specification carries `## Behaviour` and `## Glossary`.
 
 A finding is Blocking when it would send the implementation wrong or stall it (a missing criterion, a contradiction, a placeholder, a wrong or missing dependency, a task too vague to act on) and you verified it, which alone produces FAIL; it is Minor otherwise. Wording, style and nice-to-haves are Minor at most.
 
-On a re-review, verify each previous finding was addressed, do not re-raise what the fixes resolved, and treat a new finding outside the text a `fix:` line changed as Minor.
+On a re-review, check only the text a `fix:` line changed and what refers to it, searching the codebase for nothing else: verify each previous finding was addressed, and treat a new finding outside that text as Minor.
 
 ## Output
 

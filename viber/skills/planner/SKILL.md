@@ -85,20 +85,20 @@ Show the user the full path of the written plan.
 
 ## 3. Review gate
 
-Run `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" start`, adding `--input "<summary file>"` on a summary file input, and `--fresh` after a user's answer and after any plan write following `NEXT: exit-plan` except an `override`'s fix, which runs plain `start`. Each block it prints opens on a `NEXT: review` line.
+Run `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" start`, adding `--input "<summary file>"` on a summary file input, `--answered` after an answer to a finding, and `--fresh` after any plan write following `NEXT: exit-plan` except an `override`'s fix, which runs plain `start`. Each block it prints opens on a `NEXT: review` line.
 
 Dispatch every block in one message, one `Agent` call per block, the agent named on its `agent:` field. The prompt is the block's lines below its `NEXT:` line, never that line, then the text of each `add:` field:
 
 - `add: input`: `input:` then the confirmed summary or fixer diagnosis, verbatim.
 - `add: answered`: one `Answered: <decision> -> <option>` line per user answer (step 1 or a finding).
-- `add: previous`: `previous findings:`, every member's previous findings verbatim, one `fix: <line>` per fix you applied.
+- `add: previous`: `previous findings:`, every member's previous findings verbatim, one `fix: <where> - <change>` per fix applied.
 
 Every round and retry is a new `Agent` dispatch, never a `SendMessage` to an earlier reviewer: the plan gate pairs a verdict only with a dispatch.
 
 Report the replies with `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" returned <k>=<word> <k>=<word>`: `<k>` the block's `member:`, `<word>` the `VERDICT:` word of its reply (`PASS`, `FAIL`, `DENIED`) or `none` without one. Act on what it prints:
 
 - `NEXT: redispatch`: dispatch the blocks under it, then report those replies the same way.
-- `NEXT: fix`: show all findings. Fix every Blocking finding, and every Minor one showing a change of a behaviour today's code has that neither the input nor an `Answered:` line asks for, across its whole class in the plan; any other Minor one only where a Blocking fix rewrites its text. Re-run `plan-index.sh` after every fix as in step 2, then `start` again. A finding needing a decision only the user can make is asked first through one `AskUserQuestion`; keep its answer as an `Answered:` line and run `start` with `--fresh`.
+- `NEXT: fix`: show all findings. Fix every Blocking finding, and every Minor one showing a change of a behaviour today's code has that neither the input nor an `Answered:` line asks for, across its whole class in the plan; any other Minor one only where a Blocking fix rewrites its text. Re-run `plan-index.sh` after every fix as in step 2, then `start` again. A finding needing a decision only the user can make is asked first through one `AskUserQuestion`; keep its answer as an `Answered:` line and run `start --answered`.
 - `NEXT: exit-plan`: go to step 4 without writing the plan again; its Minor findings stay unapplied, except one showing such an unasked change of today's behaviour: report it first with `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" override <k>` and act on the `NEXT: fix` it prints.
 - `ASK:`: one `AskUserQuestion` naming the refused call from the `REASON:` line of the `DENIED` reply: permission added runs its `retry-denied` event, stop its `stop` event; act on what they print.
 - `STOP:`: the plan stays unreviewed, no hand-off.

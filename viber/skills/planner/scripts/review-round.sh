@@ -11,7 +11,7 @@
 # only runs it and sends what it prints.
 #
 # Usage:
-#   review-round.sh <plan> start [--input <summary file>] [--fresh]
+#   review-round.sh <plan> start [--input <summary file>] [--fresh] [--answered]
 #   review-round.sh <plan> returned <k>=<PASS|FAIL|DENIED|none> [<k>=<word>]...
 #   review-round.sh <plan> retry-denied
 #   review-round.sh <plan> override <k>[,<k>]
@@ -43,8 +43,8 @@
 #                  "Answered: <decision> -> <option>" per user answer, none when
 #                  none
 #   add: previous  round 2 on: append a "previous findings:" line, then every
-#                  member's previous findings verbatim and one "fix: <line>" per
-#                  fix applied
+#                  member's previous findings verbatim and one
+#                  "fix: <where> - <change>" per fix applied
 #
 # Events:
 #   start      runs <plugin root>/scripts/plan-index.sh "<plan>" and opens a round
@@ -58,7 +58,13 @@
 #              differs from the part it passed on. The other members keep their
 #              PASS and get no block. The whole set is printed when the
 #              dispatch: lines differ from the members of the state, or after an
-#              override. The part of a member, compared by cksum:
+#              override. --answered (after a user's answer to a finding) also
+#              prints the members that read the Answered: lines, planner-review
+#              and planner-spec-review, whatever they hold. A round after a
+#              member returned no verdict at all (its FAIL is a second none)
+#              carries no add: previous: that member reviewed nothing, and a
+#              reviewer given the previous findings checks the fixes alone.
+#              The part of a member, compared by cksum:
 #                planner-review        the whole plan
 #                planner-spec-review   every line outside the "## Tasks" section
 #                planner-graph-review  every line from "## Tasks" on
@@ -300,11 +306,15 @@ write_state() {
 }
 
 do_start() {
-  local fresh=0
+  local fresh=0 answered=0 resend
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --fresh)
         fresh=1
+        shift
+        ;;
+      --answered)
+        answered=1
         shift
         ;;
       --input)
@@ -392,6 +402,19 @@ do_start() {
     done
   fi
 
+  # A member whose FAIL is a second none reviewed nothing, and a reviewer given the
+  # previous findings checks the fixes alone: the round then carries no add:
+  # previous, so every member it sends reviews its whole part.
+  if [ "$previous" = "yes" ]; then
+    k=0
+    while [ "$k" -lt "$st_count" ]; do
+      if [ "${st_nones[$k]:-0}" -ge 2 ]; then
+        previous="no"
+      fi
+      k=$((k + 1))
+    done
+  fi
+
   awaiting=""
   verdicts=()
   nones=()
@@ -402,7 +425,14 @@ do_start() {
     sum="$(part_sum "${agents[$i]}" "${slices[$i]}")"
     nones[$i]=0
     sums[$i]="$sum"
-    if [ "$keep" -eq 1 ] && [ -n "$sum" ] && [ "${st_verdicts[$i]-}" = "PASS" ] && [ "${st_sums[$i]-}" = "$sum" ]; then
+    # An answer of the user changes what the readers of the Answered: lines gate.
+    resend=0
+    if [ "$answered" -eq 1 ]; then
+      case "${agents[$i]}" in
+        viber:planner-review | viber:planner-spec-review) resend=1 ;;
+      esac
+    fi
+    if [ "$keep" -eq 1 ] && [ "$resend" -eq 0 ] && [ -n "$sum" ] && [ "${st_verdicts[$i]-}" = "PASS" ] && [ "${st_sums[$i]-}" = "$sum" ]; then
       verdicts[$i]="PASS"
     else
       emit_block "$k" "${agents[$i]}" "${slices[$i]}" "$round"

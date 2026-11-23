@@ -5,7 +5,8 @@
  * its four sections and says where the scripted ones went. The planner reviewers also carry no
  * check `plan-index.sh` decides (attachment names, template slots outside fences, whole-path
  * reads) and keep the part no script can make. Three of them search the code only where the plan
- * changes something callers see, and the graph reviewer keeps its exploration. The files read here are shipped prompts,
+ * changes something callers see, the graph reviewer keeps its exploration, and all four narrow a
+ * re-review to the text the fixes changed. The files read here are shipped prompts,
  * whose text is the behaviour. Nothing is spawned. Each check is a pure function proven on a
  * synthetic bad sample before it is held to the tree.
  *
@@ -179,6 +180,14 @@ for (const name of REVIEWERS) {
   });
 }
 
+const RE_REVIEW = "On a re-review, check only the text a `fix:` line changed and what refers to it, searching the codebase for nothing else: verify each previous finding was addressed, and treat a new finding outside that text as Minor.";
+
+for (const name of REVIEWERS) {
+  test(`${name} narrows a re-review to the text the fixes changed (a re-review repeating the whole review costs a full round per fix)`, () => {
+    assert.ok(section(read(`agents/${name}.md`), "Calibration").includes(RE_REVIEW));
+  });
+}
+
 function bulletOf(text: string, label: string): string {
   return lines(text).find((line) => line.startsWith(`- ${label}:`)) ?? "";
 }
@@ -297,7 +306,9 @@ const REVIEW_ROUND_CALL = '"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-
 
 const STEP_THREE_PHRASES = [
   `${REVIEW_ROUND_CALL} start`,
-  "`--fresh` after a user's answer and after any plan write following `NEXT: exit-plan` except an `override`'s fix, which runs plain `start`",
+  "`--answered` after an answer to a finding, and `--fresh` after any plan write following `NEXT: exit-plan` except an `override`'s fix, which runs plain `start`",
+  "run `start --answered`",
+  "one `fix: <where> - <change>` per fix applied",
   "Dispatch every block in one message",
   "then the text of each `add:` field",
   `${REVIEW_ROUND_CALL} returned <k>=<word>`,
