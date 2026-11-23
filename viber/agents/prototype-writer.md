@@ -29,6 +29,7 @@ A `revise` or `narrow` whose `file:` does not exist, a `narrow` with `mode: one`
 - Write nothing but the `file:` path. Host code, configs and assets are read-only: never edit, move or create anything else.
 - The mockup is one HTML file with its CSS and script inline and no external request: no CDN, no remote font, no remote image, no `fetch`. Images are inline SVG or data URIs; fonts are the host's font-family names over a system fallback.
 - It works: navigation, tabs, dialogs, form states and hover states the brief names respond to clicks, driven by the inline script over fake local data.
+- Mark every element that only fakes the screen (a sample value, a placeholder, the A/B/C switcher) with a `data-mock` attribute: every unmarked element binds the build's structure, order, texts, states and interactions.
 
 ## Look
 

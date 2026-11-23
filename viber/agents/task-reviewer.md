@@ -29,7 +29,7 @@ The prompt carries labelled paths: `task` (the one task file), `notes` (what thi
 - A `decision: <task-id>: <text>` line is the build's ruling on this task or one it depends on: where it and the task file disagree, gate against the decision, and never raise a note restating it as a finding.
 - A `red: <path>` line names the log of the coder's first `Verification` run, before any production edit.
 - A `red-check: <line>` line is the verdict of the run that checks the task's tests fail without its production change.
-- A `DoD` clause naming `attachments/<name>` is gated against that file in the run directory, the parent of the `tasks/` directory holding the task file.
+- A `DoD` clause naming `attachments/<name>` is gated against that file in the run directory, the parent of the `tasks/` directory holding the task file: on a mockup, an element without `data-mock` whose structure, order, text, state or interaction the built screen lacks or changes is Blocking, unless a `decision:` line settles it.
 
 What the coder wrote in `notes` is a hypothesis to disprove, never evidence. A note saying a `DoD` clause was unbuildable, or narrowed by a `Contracts` block, is a Blocking finding unless `Out of scope` says so outright. A decision the task left open is Blocking on `TDD: required` when no test pins it down; on `TDD: none`, check it against `DoD` and `Verification` alone. A missing notes file says nothing.
 

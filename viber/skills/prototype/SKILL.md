@@ -51,7 +51,7 @@ Branch on its `VERDICT:` line:
 
 - `PASS` -> name what the mockup shows, one line per `VARIANT:` line, and its basis in one plain line: `design-system` built from the project's design system, `code` styled from the project's code, `brief` no UI code found, so it follows the conversation alone.
   - The run's first PASS -> run `"${CLAUDE_PLUGIN_ROOT}/scripts/open-page.sh" "<FILE value>"` and show its line as it stands; any line but `opened in the browser` already tells the user where to open it by hand, and the conversation goes on.
-  - Every later PASS -> remind the user to refresh the browser tab. Never run `open-page.sh` again.
+  - Every later PASS -> remind the user to refresh the tab. Never run `open-page.sh` again.
   - Close on one `AskUserQuestion`; a change request travels through its free-text field:
     - One variant -> `Ready` or `Change it` (the change typed in its free-text field).
     - Three variants -> `Keep A`, `Keep B`, `Keep C` and `Ready`.
@@ -77,8 +77,8 @@ One `AskUserQuestion` over the options below:
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" github.issues "${CLAUDE_SKILL_DIR}" issues-exit
 ```
 
-The conclusions, in the language the user is writing in: the change, the chosen variant and why (a three-variant run), the UI decisions, the open points outside UI, and one line `Attachment: <the mockup path>`.
+The conclusions, in the user's language: the change, the chosen variant and why (a three-variant run), the UI decisions, `Mockup remarks:` the user's change requests verbatim, the open points outside UI, and one line `Attachment: <the mockup path>`.
 
 ## 7. Intent hand-off
 
-Print the conclusions, the `Attachment:` line included, then invoke the `viber:intent` skill. Its argument is the `URL=` value alone when the run is tied to an issue, else the conclusions.
+Print the conclusions, the `Attachment:` line included, then invoke `viber:intent`. Its argument is the `URL=` value alone when the run is tied to an issue, else the conclusions.
