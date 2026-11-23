@@ -775,14 +775,31 @@ test("a task id that is not in the plan exits 3 without touching the run's state
   });
 });
 
-test("a task whose files produced no change exits 4 without touching the run's state", async () => {
+test("a task whose tracked files produced no change is recorded done in a record-only commit (a verification task that found nothing to fix needs no question)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "verified\n");
+    await repo.git("add", "-A");
+    await repo.git("commit", "-m", "seed");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stdout, /^subject: chore\(viber\): record T1 done, no change needed$/m);
+    assert.match(result.stdout, /^progress: 1\/\d+$/m);
+    assert.match(readStatus(repo), /^done: T1$/m);
+    assert.deepEqual(await subjects(repo), ["chore(viber): record T1 done, no change needed", "seed", "seed"]);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL]);
+  });
+});
+
+test("a task whose file was never written exits 4 without touching the run's state (an unwritten new file is unfinished work, not verified work)", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo);
     const before = readStatus(repo);
 
     const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(result.status, 4);
-    assert.match(result.stderr, /task T1 produced no changes to commit/);
+    assert.match(result.stderr, /task T1 committed nothing - a path it names is missing/);
     assert.equal(readStatus(repo), before);
     assert.deepEqual(await subjects(repo), ["seed"]);
   });
@@ -838,15 +855,6 @@ test("--repair stages a path already removed with git rm (the flag forms share t
     const result = await run(repo.dir, repo.env, ["--repair", PLAN_REL, "1", "lib/x.ts"]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.deepEqual(await committedFiles(repo), ["lib/x.ts"]);
-  });
-});
-
-test("the exit 4 of a task commit names --landed, so the orchestrator knows how to record work another commit already carried", async () => {
-  await withGitRepo(async (repo) => {
-    await seed(repo);
-    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
-    assert.equal(result.status, 4);
-    assert.match(result.stderr, /--landed <sha>/);
   });
 });
 
@@ -2342,13 +2350,13 @@ test(`a task commit of a Files list past ${CMDLINE_CAP} chars whose only change 
   });
 });
 
-test(`a task commit of a Files list past ${CMDLINE_CAP} chars with no change exits 4 naming --landed`, { timeout: LONG_LIST_TIMEOUT }, async () => {
+test(`a task commit of a Files list past ${CMDLINE_CAP} chars with no change records the task done with status.md alone`, { timeout: LONG_LIST_TIMEOUT }, async () => {
   await withGitRepo(async (repo) => {
     await seedTrackedMany(repo);
 
     const result = await run(repo.dir, cappedGitEnv(repo), [PLAN_REL, "T1"], LONG_LIST_TIMEOUT);
-    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
-    assert.match(result.stderr, /--landed/);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL]);
   });
 });
 

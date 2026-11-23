@@ -28,8 +28,7 @@
 #     reviewer PASS|FAIL|DENIED [--report <path>] [--with <path>[,<path>]...]
 #     retry coder [--denied] | retry reviewer
 #     accept
-#     commit <exit code> [--landed]
-#     landed <sha>
+#     commit <exit code>
 #     ruled --case decide|cap|baseline|tests|final-review|commit [--options "<a> | <b>"]
 #           [--refused]   (the subject is a task id on decide and cap, else the case name)
 #     resume-failed
@@ -70,7 +69,7 @@
 #         without its prefix> when the red check ran on that return; the
 #         directive line then carries the field "red-check: <result word>"
 #   NEXT: commit
-#   RUN: "<plugin root>/scripts/commit-task.sh" "<plan>" "<id>" [--with "<path>"... | --landed "<sha>"] [--defer "<entry>"...] [--unreviewed]
+#   RUN: "<plugin root>/scripts/commit-task.sh" "<plan>" "<id>" [--with "<path>"...] [--defer "<entry>"...] [--unreviewed]
 #   NEXT: arbiter [| add: reason]
 #         case: decide, options: <the DECIDE: options of <dir>/work/<id>-options.md>,
 #         task:, report: <dir>/work/<id>-coder.md, ruling: <dir>/work/ruling-<id>.md,
@@ -124,9 +123,8 @@
 #         after coder DENIED
 #   ASK: retry -> retry reviewer | accept -> accept | abort
 #         after reviewer DENIED; "accept" answers the commit with --unreviewed
-#   ASK: [already committed -> landed <sha> | ]retry | skip -> skip | abort
-#         after commit 4 (the first answer when it carried --landed); "landed
-#         <sha>" answers the commit with --landed in place of the --with paths
+#   ASK: retry | skip -> skip | abort
+#         after commit 4
 #
 # Attempts: a task gets 5 per session; a coder failure (a FAIL, a PASS whose --dod
 # is short, a PASS of a TDD: required task with no --red or --red 0), a reviewer
@@ -212,7 +210,6 @@ shift 4
 
 verdict=""
 exit_code=""
-sha=""
 case "$event" in
   start|accept|ruled|resume-failed|repair|skip) ;;
   coder|reviewer)
@@ -234,11 +231,6 @@ case "$event" in
     exit_code=$((10#$1))
     shift
     ;;
-  landed)
-    [[ $# -ge 1 && "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._~^/-]*$ ]] || die "landed needs a commit sha"
-    sha="$1"
-    shift
-    ;;
   *) die "unknown event: $event" ;;
 esac
 
@@ -252,7 +244,6 @@ f_with=""
 f_defer=""
 f_report=""
 f_denied=0
-f_landed=0
 f_timeout=0
 f_decide=0
 f_refused=0
@@ -264,7 +255,6 @@ while [[ $# -gt 0 ]]; do
     --refused) f_refused=1; shift ;;
     --red-timeout) f_timeout=1; shift ;;
     --denied) f_denied=1; shift ;;
-    --landed) f_landed=1; shift ;;
     --tier|--review|--resume|--dod|--red|--red-log|--with|--defer|--report|--case|--options)
       [[ $# -ge 2 ]] || die "$1 needs a value"
       case "$1" in
@@ -620,13 +610,10 @@ run_red_check() {
   rc="UNRUNNABLE no NEXT: line"
 }
 
-# The commit answer; $1 is a sha the task's work already landed under, else the
-# --with paths stand.
+# The commit answer, carrying the --with paths.
 commit_block() {
   local paths="" unr=""
-  if [[ -n "${1:-}" ]]; then
-    paths=" --landed \"$1\""
-  elif [[ -n "$with" ]]; then
+  if [[ -n "$with" ]]; then
     paths=" --with$(quoted_list "$with")"
   fi
   if [[ $unrev -eq 1 ]]; then
@@ -990,20 +977,11 @@ case "$event" in
     if [[ $exit_code -eq 0 ]]; then
       say "NEXT: done"
     elif [[ $exit_code -eq 4 ]]; then
-      if [[ $f_landed -eq 1 ]]; then
-        say "ASK: already committed -> landed <sha> | retry | skip -> skip | abort"
-      else
-        say "ASK: retry | skip -> skip | abort"
-      fi
+      say "ASK: retry | skip -> skip | abort"
     else
       next_attempt "" "add: reason" ""
       save_state
     fi
-    ;;
-
-  landed)
-    require_state
-    commit_block "$sha"
     ;;
 
   resume-failed)

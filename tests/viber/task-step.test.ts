@@ -1,6 +1,6 @@
 /*
  * task-step.test.ts - proves viber/scripts/task-step.sh's answers to the
- * `start`, `coder`, `reviewer`, `retry`, `accept`, `commit`, `landed`, `ruled`,
+ * `start`, `coder`, `reviewer`, `retry`, `accept`, `commit`, `ruled`,
  * `resume-failed`, `repair` and `skip` events: the one directive block the
  * implementor sends next after a coder, a reviewer, a commit or an arbiter returns.
  *
@@ -650,31 +650,6 @@ test("commit 4 answers the retry, skip and abort question", async () => {
     const result = await step(repo, ["T1", "100", "commit", "4"]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.equal(result.stdout, lines("ASK: retry | skip -> skip | abort"));
-  });
-});
-
-test("commit 4 naming --landed opens the question on the already committed answer", async () => {
-  await withGitRepo(async (repo) => {
-    seedPlan(repo);
-    await arrange(repo, T1_REVIEWED);
-
-    const result = await step(repo, ["T1", "100", "commit", "4", "--landed"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(result.stdout, lines("ASK: already committed -> landed <sha> | retry | skip -> skip | abort"));
-  });
-});
-
-test("landed answers the commit with the sha in place of the --with paths and keeps the --defer entries", async () => {
-  await withGitRepo(async (repo) => {
-    seedPlan(repo);
-    await arrange(repo, [...T1_REVIEWED, ["T1", "100", "commit", "4", "--landed"]]);
-
-    const result = await step(repo, ["T1", "100", "landed", "abc1234"]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.equal(
-      result.stdout,
-      lines("NEXT: commit", `RUN: "${ROOT}/scripts/commit-task.sh" "${PLAN_REL}" "T1" --landed "abc1234" --defer "T2:src/x.ts"`),
-    );
   });
 });
 

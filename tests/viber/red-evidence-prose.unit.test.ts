@@ -66,8 +66,9 @@ test("implementor step 3 names no tier rule of the index columns (plan-index.sh 
   assert.ok(!has(SKILL, "raised to `sonnet` from `haiku`"));
 });
 
-test("implementor reports an exit-4 commit whose error names --landed with --landed (commit-task.sh refuses --landed with --with)", () => {
-  assert.ok(has(SKILL, "`commit <exit>` with `--landed` when its error names `--landed`"));
+test("implementor reports a commit as its bare exit (a plain task commit with no change records the task done, so nothing asks for --landed)", () => {
+  assert.ok(has(SKILL, "The `RUN:` line of a commit: `commit <exit>`."));
+  assert.ok(!has(SKILL, "already committed"));
 });
 
 test("implementor builds no red: line for the reviewer (the review block of task-step.sh carries it)", () => {

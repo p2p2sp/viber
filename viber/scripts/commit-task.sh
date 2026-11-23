@@ -71,8 +71,8 @@
 # --landed records a task whose work ANOTHER commit already carried - a coder
 # that committed on its own, a manual commit, a commit that swept the files in,
 # a --no-ff merge that brought a branch's commits in. The task's files then
-# show no change, a plain call exits 4, and nothing else could ever mark the
-# task done. It stages nothing: status.md (and the task's trail) ride in a
+# show no change, and a plain call would record the task done without naming
+# that commit. It stages nothing: status.md (and the task's trail) ride in a
 # commit of their own, subject derived
 # ("chore(viber): record T3 done, landed in <short-sha>"), footer naming the
 # full sha. The sha must be in HEAD's history (else exit 2) and touch at least
@@ -259,7 +259,9 @@
 # cannot ride along.
 #
 # stdout by form:
-#   task (--unreviewed / --with / --defer): "committed: <sha>", "progress: x/N"
+#   task (--unreviewed / --with / --defer): "committed: <sha>", "progress: x/N";
+#                                a task whose named files carry no change adds
+#                                "subject: <line>" between them (record-only commit)
 #   --landed:                    "committed: <sha>", "subject: <line>", "progress: x/N"
 #   <fix-number>:                "committed: <sha>", "progress: unchanged"
 #   --repair:                    "committed: <sha>", "subject: <line>" per commit, then
@@ -292,9 +294,11 @@
 #       written); any other outcome of --leftovers exits 0
 #   3 - no task with that id in the plan (for --rule, a subject shaped like a
 #       task id, "T<n>...", that the plan does not hold)
-#   4 - the named files produced no change to the working tree (a task
-#       commit's message names --landed); for --landed, the sha touches none
-#       of the task's files or those files still carry uncommitted changes
+#   4 - a fix's named files produced no change to the working tree; for
+#       --landed, the sha touches none of the task's files or those files still
+#       carry uncommitted changes; for a task commit staging nothing, a named
+#       path is not tracked or still differs from HEAD. A task commit whose named
+#       paths are all tracked and clean records the task done in a commit of its own
 #   5 - staging or committing failed, a named path git tracks (in the index or in
 #       HEAD) that "git add" could not stage included; status.md is restored,
 #       nothing is recorded (the named files stay staged, so the call can be
@@ -1812,6 +1816,7 @@ unreviewed=0
 extra=""
 deferred=""
 landed=""
+unchanged=0
 case "${3:-}" in
   "") ;;
   --unreviewed|--with|--defer|--landed)
@@ -2027,10 +2032,23 @@ if [[ -z "$landed" ]]; then
   if [[ ${#paths[@]} -eq 0 ]] || git_paths diff --cached --quiet -- "${paths[@]}"; then
     if [[ -n "$fix_n" ]]; then
       echo "error: the fix for task $task_id produced no changes to commit" >&2
-    else
-      echo "error: task $task_id produced no changes to commit - if its work already landed in another commit, record it with --landed <sha>" >&2
+      exit 4
     fi
-    exit 4
+    # A reviewed task that changed nothing is done: a verification task whose
+    # check found nothing to fix, or work another commit already carried. The
+    # entry rides in a record-only commit, like --landed, instead of a question.
+    # Only when every named path is tracked and clean: a new file never written,
+    # or a change git could not stage, is unfinished work, not verified work.
+    if [[ ${#named[@]} -eq 0 ]] \
+      || ! git_paths ls-files --error-unmatch -- "${named[@]}" >/dev/null 2>&1 \
+      || ! dirty="$(git_paths status --porcelain --untracked-files=all -- "${named[@]}" 2>/dev/null)" \
+      || [[ -n "$dirty" ]]; then
+      echo "error: task $task_id committed nothing - a path it names is missing, untracked or could not be staged" >&2
+      exit 4
+    fi
+    unchanged=1
+    paths=()
+    subject="chore(viber): record $task_id done, no change needed"
   fi
 fi
 
@@ -2111,7 +2129,7 @@ rm -f "$backup"
 backup=""
 
 echo "committed: $(git rev-parse --short HEAD)"
-[[ -z "$landed" ]] || echo "subject: $subject"
+[[ -z "$landed" && $unchanged -eq 0 ]] || echo "subject: $subject"
 echo "progress: $progress"
 
 warn_unclaimed "$plan"

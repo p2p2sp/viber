@@ -114,7 +114,7 @@ Events:
 - A coder return: `coder PASS`, `coder FAIL` or `coder DENIED`, adding `--dod <m>/<n>` for its `DOD:` line, `--red <n>|missing` and `--red-log "<path>"` for its `RED:` line, `--decide` for its `DECIDE:` line, `--with "<path>,..."` for its `EXTRA:` paths and `--defer "<id>:<path>,..."` for its `DEFERRED:` lines; a `DEFERRED: <path> -> none` line takes no `--defer` and goes to the final summary as a deferred path without an owner. The call of a `PASS` of a `TDD: required` task runs the red check: Bash timeout 600000, never in the background; cut off by it, run the same call again with `--red-timeout`.
 - A coder `VERDICT: FAIL` carrying `WAIT:` -> hold the task and report nothing; once every task in flight at that return has returned, `retry coder` it, counting as no attempt and asking nothing. Nothing else in flight at that return, or the task already waited once on a path it names -> report it as `coder FAIL`.
 - A reviewer return: `reviewer PASS`, `reviewer FAIL` or `reviewer DENIED`, adding `--report "<path>"` for its `REVIEW` path and `--with` for its `EXTRA:` paths.
-- The `RUN:` line of a commit: `commit <exit>` with `--landed` when its error names `--landed`.
+- The `RUN:` line of a commit: `commit <exit>`.
 - A refused `SendMessage`: `resume-failed`.
 - An answer to an `ASK:` line: the event after its `->`.
 
@@ -131,7 +131,7 @@ Directives:
 - `RUN:` line: run it exactly as written, a `--skip` one in the message carrying its task's `TaskUpdate` -> completed.
   - A `--rule` one exiting non-zero -> name it in the final summary, record no further ruling, retry nothing, and carry the ruling out all the same.
   - A `--decide` or `--skip` one exiting non-zero after a ruling -> name it in the final summary and act on the next block.
-- `ASK:` line: one `AskUserQuestion` naming the task and offering those answers, the chosen one's event reported next; `retry` reruns the last `RUN:` line and reports its exit, `abort` goes to step 7. An `already committed` answer has the user name the commit.
+- `ASK:` line: one `AskUserQuestion` naming the task and offering those answers, the chosen one's event reported next; `retry` reruns the last `RUN:` line and reports its exit, `abort` goes to step 7.
 - `STOP:` line: report its sentence and stop.
 
 Count for the final summary: the `red-check:` field of each directive (`FAIL-AS-EXPECTED` sealed, `PASSED-WITHOUT-CHANGE` rejected, `UNRUNNABLE` by task id), the highest `attempt:` field of each task and the `round:` field of each review block.
