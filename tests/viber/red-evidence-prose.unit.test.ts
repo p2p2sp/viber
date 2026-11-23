@@ -120,8 +120,8 @@ test("task-coder voids a PASS whose own text admits skipping a required step int
   assert.ok(has(CODER, "A PASS whose own text admits skipping a step the task requires is void: return `VERDICT: FAIL` with that step in `REASON`"));
 });
 
-test("task-coder redirects Verification into red.log after the tests and before the first production edit", () => {
-  assert.ok(has(CODER, "After writing the tests and before the first production edit, run `Verification` redirected `> <out>/red.log 2>&1`"));
+test("task-coder redirects Verification into red.log after the first test and before the first production edit (every test written up front is the horizontal slicing tdd.md bars)", () => {
+  assert.ok(has(CODER, "After writing the first test and before the first production edit, run `Verification` redirected `> <out>/red.log 2>&1`"));
   assert.ok(has(CODER, "read only the failing count from the log"));
 });
 

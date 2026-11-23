@@ -18,7 +18,7 @@
 
 - A test goes through the public contract alone, as a real caller does: no private member, no reflection, no method added for a test. A double stands only for the outside world, never for another module of the code's own.
 
-- A build writes one test per regression, and none for a name or a data shape: two tests failing on exactly the same regressions are one test too many, whatever their layer.
+- A build writes one test per regression, and none for a name, a data shape or what a user interface renders: two tests failing on exactly the same regressions are one test too many, whatever their layer.
 
 - Unit and component tests must outnumber integration tests by a wide margin.
 

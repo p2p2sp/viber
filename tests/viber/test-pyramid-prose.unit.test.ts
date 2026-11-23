@@ -279,6 +279,24 @@ test("plan-rules Provable leaves every CLAUDE.md out of that grep with build.mem
   assert.ok(has(rule("Provable"), "with `build.memory` on, that grep leaves out every `CLAUDE.md` too."));
 });
 
+test("plan-rules Layered proves a clause through an entry tests already call before a new one, the highest that reaches it, named on the test file's File map line (a test file per clause multiplies harnesses and tests)", () => {
+  assert.ok(has(rule("Layered"), "Within its layer a clause is proven through a public entry that tests already call before a new one, the highest that reaches it, and each test file's `### File map` line names the entry its tests call; a new entry for behaviour an existing or higher one reaches is a finding."));
+});
+
+test("plan-rules keeps a user interface out of the tests: TDD none for one that only renders or styles, a Mockup clause no test proves, the rendering task after the behaviour's", () => {
+  assert.ok(has(rule("TDD"), "a 1:1 mapping, a constant table, a user interface that only renders or styles);"));
+  assert.ok(has(rule("Mockup"), "no test proves that clause (`Earned`), so its task is `TDD: none`, and a decision behind a state or interaction is a done clause of the task holding it. (review)"));
+  assert.ok(has(rule("Size"), "lands in a `TDD: none` task ahead of it and the user interface rendering it in one after it; one behaviour runs through every other layer it needs inside that task. (review)"));
+});
+
+test("plan-rules Owned has the task delete an existing test its own tests make a duplicate", () => {
+  assert.ok(has(rule("Owned"), "an existing test that fails on exactly the regressions the task's own tests catch, which the task deletes,"));
+});
+
+test("test-strategy exempts no snapshot of a user interface from the blocking rules (a rendered snapshot is the test Earned rules out)", () => {
+  assert.ok(has(WRITING, "a snapshot assertion of no user interface, and a loop inside a property-based generator"));
+});
+
 test("plan-rules stays within 20900 bytes", () => {
   assert.ok(Buffer.byteLength(PLAN_RULES, "utf8") <= 20900);
 });
@@ -329,6 +347,7 @@ for (const [label, name, sentence] of LAYER_ROWS) {
 const PROOF_ROWS: [string, string][] = [
   ["a unit test for a domain rule, a value object or an algorithm", "a domain rule, a value object or an algorithm is proven by a unit test;"],
   ["a component test on fakes for a use case's decisions and error paths", "a use case's decisions and error paths by a component test on fakes;"],
+  ["a unit test of the reducer, state machine or function holding a user interface's decision, never a rendering", "a user interface's decision by a unit test of the reducer, state machine or function holding it, never by rendering;"],
   ["an integration test for what the real dependency alone reveals, never logic a fast test could cover", "only what the real dependency alone reveals by an integration test, never logic a unit or component test could cover."],
   ["an own function and unit test only for a decision complex enough to be an entity", "A decision gets a function and a unit test of its own only when it is complex enough to be an entity with its own contract."],
   ["unit and component tests far outnumbering integration tests", "Unit and component tests far outnumber integration tests."],
@@ -401,10 +420,10 @@ function bytes(text: string): number {
 }
 
 const SIZE_ROWS: [string, number, string][] = [
-  ["the whole file", 6800, STRATEGY],
+  ["the whole file", 6950, STRATEGY],
   ["Proves", 2000, PROVES],
-  ["Layers, Proves and Ports together", 4000, LAYERS + PROVES + PORTS],
-  ["Layers, Proves and Writing together", 6000, LAYERS + PROVES + WRITING],
+  ["Layers, Proves and Ports together", 4200, LAYERS + PROVES + PORTS],
+  ["Layers, Proves and Writing together", 6150, LAYERS + PROVES + WRITING],
 ];
 
 for (const [label, limit, text] of SIZE_ROWS) {
@@ -417,7 +436,7 @@ const RULE_ROWS: [string, string, string, string][] = [
   ["Public bars a private member, reflection, a widened visibility, a method added for a test and a test of an internal class on its own", "Proves", "Public:", "a test goes through the public contract alone, as a real caller does: no private member, no reflection, no visibility widened and no method added for a test, no test of an internal class on its own."],
   ["State counts the state a fake holds and a published event as observed", "Proves", "State:", "the state a fake holds, a published event,"],
   ["State bars a call, a call count and a call order on a collaborator, excepting a call that is the behaviour and leaves no state to observe", "Proves", "State:", "Never a call, a call count or a call order on a collaborator, unless the call is the behaviour and leaves no state to observe."],
-  ["Earned adds a count of fields, members or entries, a type's visibility or modifiers, an export and a registration to what is never tested", "Proves", "Earned:", "the shape of data, a count of fields, members or entries, a type's visibility or modifiers, an export, a registration."],
+  ["Earned adds a count of fields, members or entries, a type's visibility or modifiers, an export, a registration and what a user interface renders to what is never tested", "Proves", "Earned:", "the shape of data, a count of fields, members or entries, a type's visibility or modifiers, an export, a registration, what a user interface renders (markup, element order, static text, styling)."],
   ["Architecture allows one test per rule over the whole codebase and no test of one type's structure", "Proves", "Architecture:", "one test per rule over the whole codebase (the direction of dependencies between modules, the fast tests staying off the outside world) is allowed; a test of one type's structure is never that."],
   ["Marked keeps the marker of a test the task leaves otherwise unchanged", "Writing", "Marked:", "A test the task leaves otherwise unchanged keeps the marker it has."],
   ["Isolated injects the clock, randomness and identifiers", "Writing", "Isolated:", "The clock, randomness and identifiers are injected."],

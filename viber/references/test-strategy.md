@@ -1,6 +1,6 @@
 # Test strategy
 
-Where two rules pull against each other, catching a real regression and surviving a refactor win over speed and convenience. A rule ending in `(blocking)` is a blocking finding for a reviewer. The integration layer has its own rules in `integration-tests.md`.
+Where two rules pull against each other, catching a real regression and surviving a refactor win over speed and convenience. A rule ending in `(blocking)` is a blocking finding for a reviewer.
 
 ## Layers
 
@@ -9,14 +9,14 @@ Where two rules pull against each other, catching a real regression and survivin
 - Component: several entities assembled into a component and called through its public entry (a module's facade, a command or query handler, a use case), domain objects real, every output port replaced by its fake. Never the outside world, never an in-memory database dialect or an object-relational mapper's in-memory provider. The whole application run in the test process from its own entry point with those fakes is a component test too, kept to a few per entry point: routing, input validation, error mapping, serialisation.
 - Integration: one adapter against its real dependency, under integration-tests.md.
 - E2E: the deployed application driven from outside, written and run only on the user's own request.
-- Proof: a domain rule, a value object or an algorithm is proven by a unit test; a use case's decisions and error paths by a component test on fakes; only what the real dependency alone reveals by an integration test, never logic a unit or component test could cover. A decision gets a function and a unit test of its own only when it is complex enough to be an entity with its own contract. Unit and component tests far outnumber integration tests. A reproduction test on a `Repro:` line is exempt: where the diverging code has no port, it may reach the real dependency. (blocking)
+- Proof: a domain rule, a value object or an algorithm is proven by a unit test; a use case's decisions and error paths by a component test on fakes; a user interface's decision by a unit test of the reducer, state machine or function holding it, never by rendering; only what the real dependency alone reveals by an integration test, never logic a unit or component test could cover. A decision gets a function and a unit test of its own only when it is complex enough to be an entity with its own contract. Unit and component tests far outnumber integration tests. A reproduction test on a `Repro:` line is exempt: where the diverging code has no port, it may reach the real dependency. (blocking)
 
 ## Proves
 
 - Public: a test goes through the public contract alone, as a real caller does: no private member, no reflection, no visibility widened and no method added for a test, no test of an internal class on its own. (blocking)
 - State: Assert on what a caller observes: the returned value, the public state, the state a fake holds, a published event, the raised error. Never a call, a call count or a call order on a collaborator, unless the call is the behaviour and leaves no state to observe. Never on log output, and never on data the test did not arrange itself. (blocking)
 - Source: A test never reads the source of the code under test as text to assert its shape: no regular expression, substring or line match over a source file. The one exception is a file the host declares as its product, whose text is the behaviour. (blocking)
-- Earned: A test exists only for an important path or a decision in the logic: name the regression in behaviour a caller observes that it would catch; no answer means no test. Never tested: accessors, trivial constructors, data holders without behaviour, 1:1 mappings, framework behaviour, third-party library internals, an assertion true by construction, a name, the presence of a field, the shape of data, a count of fields, members or entries, a type's visibility or modifiers, an export, a registration. A test that fails on a refactor keeping the observed behaviour is a finding. (blocking)
+- Earned: A test exists only for an important path or a decision in the logic: name the regression in behaviour a caller observes that it would catch; no answer means no test. Never tested: accessors, trivial constructors, data holders without behaviour, 1:1 mappings, framework behaviour, third-party library internals, an assertion true by construction, a name, the presence of a field, the shape of data, a count of fields, members or entries, a type's visibility or modifiers, an export, a registration, what a user interface renders (markup, element order, static text, styling). A test that fails on a refactor keeping the observed behaviour is a finding. (blocking)
 - Architecture: one test per rule over the whole codebase (the direction of dependencies between modules, the fast tests staying off the outside world) is allowed; a test of one type's structure is never that.
 
 ## Ports
@@ -36,4 +36,4 @@ Where two rules pull against each other, catching a real regression and survivin
 - Literal: An expected value is written as a literal, never computed by the algorithm under test. (blocking)
 - Built: Construct whatever can be constructed. A double for a value, a record or a config lookup hides the real shape.
 
-Three shapes raise none of the blocking findings except the end-to-end rule: an end-to-end scenario whose steps model one user flow, a snapshot assertion, and a loop inside a property-based generator - control flow in the property body still counts. A test taking one of these carries a comment naming which; an undocumented one is a finding.
+Three shapes raise none of the blocking findings except the end-to-end rule: an end-to-end scenario whose steps model one user flow, a snapshot assertion of no user interface, and a loop inside a property-based generator - control flow in the property body still counts. A test taking one of these carries a comment naming which; an undocumented one is a finding.

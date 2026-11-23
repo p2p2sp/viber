@@ -43,7 +43,7 @@ const SYNTHESIS = "viber/skills/code-auditor/references/synthesis.md";
 const READ_SETS: ReadSet[] = [
   {
     role: "planner",
-    cap: 46609,
+    cap: 47140,
     entries: [
       { file: "viber/skills/planner/SKILL.md" },
       { file: "viber/references/plan-rules.md" },
@@ -64,7 +64,7 @@ const READ_SETS: ReadSet[] = [
   },
   {
     role: "task-coder",
-    cap: 26046,
+    cap: 26199,
     entries: [
       { file: "viber/agents/task-coder.md" },
       { file: "viber/references/tdd.md" },
@@ -73,7 +73,7 @@ const READ_SETS: ReadSet[] = [
   },
   {
     role: "task-reviewer",
-    cap: 17824,
+    cap: 18039,
     entries: [
       { file: "viber/agents/task-reviewer.md" },
       { file: TEST_STRATEGY, sections: ["Layers", "Proves", "Writing"] },
