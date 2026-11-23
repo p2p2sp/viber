@@ -445,6 +445,44 @@ test("outside a git repository the same move happens, without a commit, and the 
   });
 });
 
+// --- the scratch under .temp/viber/ ---
+
+test("an archived run takes the build and planning scratch under .temp/viber/ with it, and leaves every other file there (a mockup or a finding of another skill is not the run's)", async () => {
+  await withSeededRepo(async (repo, runDir) => {
+    const gone = [
+      "T1/state", "T2/red.log", "lessons", "test-runner/T1.cmd", "final-fix/x.log", "repair-1/x.log",
+      "extension-docs/x.md", "intent/summary-2026-09-19-17-00-00.md", "planner/reach-2026-09-19-17-10-00.md",
+      "planner/review-round", "fixer/tree-record",
+    ];
+    const kept = ["T9/state", "prototype/mockup.html", "code-auditor/r1/findings.md", "intent/notes.md", "e2e/run.log"];
+    for (const rel of [...gone, ...kept]) {
+      const file = path.join(repo.dir, ".temp", "viber", rel);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, "x\n");
+    }
+
+    const result = await run(repo.dir, [runDir], repo.env);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(slash(result.stdout).trim(), `ARCHIVED: docs/specs/${KEY} (3 files)`);
+    assert.deepEqual(filesUnder(repo.dir, ".temp/viber"), [...kept].sort());
+  });
+});
+
+test("a refused run leaves .temp/viber/ untouched (an unfinished build still resumes from its task state)", async () => {
+  await withSeededRepo(
+    async (repo, runDir) => {
+      const state = path.join(repo.dir, ".temp", "viber", "T2", "state");
+      fs.mkdirSync(path.dirname(state), { recursive: true });
+      fs.writeFileSync(state, "x\n");
+
+      const result = await run(repo.dir, [runDir], repo.env);
+      assert.equal(result.status, 4);
+      assert.ok(fs.existsSync(state));
+    },
+    { done: "T1" },
+  );
+});
+
 // --- the caller's cwd ---
 
 test("the argument is repository-relative whatever the cwd, so a call from a subdirectory archives the same run", async () => {

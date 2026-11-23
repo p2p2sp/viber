@@ -53,6 +53,10 @@ With `build.cleanup` on, the build ends by moving what is worth keeping to `docs
   cache write counts), the main session and the `closeout` agent not counted
 
 It drops the plan, the progress file and the working notes. They stay in git, so nothing is lost.
+It also deletes the scratch the build and its planning left under `.temp/viber/`: each task's
+directory, `lessons`, `test-runner/`, `final-fix/`, `repair-*/`, `extension-*/`, the intent
+summaries, the planner's reach and review round files and the fixer's tree record. The files of
+other skills there (mockups, audit findings, pull request feedback) stay.
 The archive is the half you would want to read a year later.
 
 ## Memory and rules

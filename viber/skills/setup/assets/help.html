@@ -1592,13 +1592,15 @@ na innym komputerze.</p>
 <p lang="en">With <a href="#key-build-cleanup"><code>build.cleanup</code></a> on, the build ends by moving the run to
 <code>docs/specs/&lt;stamp&gt;_&lt;slug&gt;/</code> in one commit. The archive keeps the specification and the QA
 documents and drops <code>plan.md</code>, <code>status.md</code>, <code>tasks/</code> and <code>work/</code>, which
-git history still holds; <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code>, the failure trail <code>failures.md</code> and the build summary <code>outcome.md</code> stay in the archive with them. A run with a task neither done
+git history still holds; <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code>, the failure trail <code>failures.md</code> and the build summary <code>outcome.md</code> stay in the archive with them. The scratch the build and its planning left
+under <code>.temp/viber/</code> is deleted too; the files of other skills there stay. A run with a task neither done
 nor skipped is never archived.
 <a href="#key-directories"><code>directories</code></a> renames both directories.</p>
 <p lang="pl">Przy włączonym <a href="#key-build-cleanup"><code>build.cleanup</code></a> build kończy się przeniesieniem
 przebiegu do <code>docs/specs/&lt;stamp&gt;_&lt;slug&gt;/</code> w jednym commicie. Archiwum zachowuje
 specyfikację i dokumenty QA, a usuwa <code>plan.md</code>, <code>status.md</code>, <code>tasks/</code>
 i <code>work/</code>, które nadal są w historii gita; <code>roadmap.md</code>, <code>attachments/</code>, <code>rulings.md</code>, ślad porażek <code>failures.md</code> i podsumowanie buildu <code>outcome.md</code> zostają w archiwum razem z nimi.
+Pliki robocze, które build i jego planowanie zostawiły w <code>.temp/viber/</code>, też są usuwane; pliki innych skilli zostają.
 Przebieg z zadaniem ani ukończonym, ani pominiętym nigdy nie trafia do archiwum. Nazwy obu katalogów zmienisz kluczem
 <a href="#key-directories"><code>directories</code></a>.</p>
 

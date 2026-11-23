@@ -45,6 +45,10 @@
 #            `specifications` inside its `directories:` group, resolved and
 #            sanitized exactly as config.sh resolves them, defaulting to
 #            `_specs` and `specs`. An unusable value is ignored.
+#   removes: once the run is archived, the scratch the build and its planning
+#            left under <repo root>/.temp/viber/ (see clear_scratch below).
+#            Best effort: a path that cannot be removed is left, silently, and
+#            changes neither stdout nor the exit code.
 #   stdout : ALWAYS exactly one line, and never anything else - every byte of
 #            git noise goes to stderr:
 #              ARCHIVED: docs/specs/<key> (<n> files)
@@ -70,6 +74,16 @@
 # The scaffolding is an enumerated list - plan.md, status.md, tasks/, work/ -
 # so anything else the run left behind travels into the archive on its own,
 # without this script having to know what it is.
+#
+# The scratch is an enumerated list too, never all of .temp/viber/: each task
+# directory the plan names, `lessons`, `test-runner/`, `final-fix/`,
+# `repair-*/` and `extension-*/` of the build, and `intent/summary-*.md`,
+# `planner/reach-*.md`, `planner/review-round` and `fixer/tree-record` of its
+# planning. Left behind, they pile up run after run, and a stale task state or
+# lessons file is read by the next build of the same task id. Every other skill
+# keeps its files (prototype mockups, code-auditor findings, pr-feedback,
+# handoff, e2e). A build running at the same time in the same repository shares
+# these names, so its scratch goes too.
 #
 # Once the last run has left, docs/<runs>/ is removed too, before the commit:
 # git tracks no directory, so an empty one would only linger in the working
@@ -258,6 +272,36 @@ fi
 
 scaffold=(plan.md status.md tasks work)
 
+# The task ids, read before plan.md leaves with the scaffolding. Only a plain
+# name becomes a path: an id like ".." would reach outside .temp/viber/.
+task_ids=()
+if [[ -f "$dir/plan.md" ]]; then
+  while IFS= read -r tid; do
+    case "$tid" in ''|.|..|*[!A-Za-z0-9._-]*) continue ;; esac
+    task_ids+=("$tid")
+  done < <(awk '
+/^[[:space:]]*<!--[[:space:]]*TASK[[:space:]]*-->[[:space:]]*$/ { intask = 1; next }
+intask && /^###[[:space:]]/ {
+  h = $0
+  sub(/^###[[:space:]]*/, "", h)
+  p = index(h, " - ")
+  print (p ? substr(h, 1, p - 1) : h)
+  intask = 0
+}
+' "$dir/plan.md")
+fi
+
+clear_scratch() {
+  local t=".temp/viber" id
+  [[ -d "$t" ]] || return 0
+  for id in ${task_ids[@]+"${task_ids[@]}"}; do
+    rm -rf -- "$t/$id" 2>/dev/null || true
+  done
+  rm -rf -- "$t/lessons" "$t/test-runner" "$t/final-fix" "$t"/repair-* "$t"/extension-* \
+    "$t"/intent/summary-*.md "$t"/planner/reach-*.md "$t/planner/review-round" \
+    "$t/fixer/tree-record" 2>/dev/null || true
+}
+
 mkdir -p -- "$archive_root"
 
 # --- outside a repository: the same result, without the history ---
@@ -267,6 +311,7 @@ if [[ $in_git -eq 0 ]]; then
     rm -rf -- "$dest/$leaf"
   done
   rmdir -- "docs/$runs_dir" 2>/dev/null || true
+  clear_scratch
   n="$(find "$dest" -type f | awk 'END { print NR + 0 }')"
   echo "ARCHIVED: $dest ($n files - no git repository)"
   exit 0
@@ -336,5 +381,7 @@ fi
 rmdir -- "docs/$runs_dir" 2>/dev/null || true
 
 commit_named -q -m "docs(viber): archive run $key" -- "${paths[@]}" >&2 || exit 5
+
+clear_scratch
 
 echo "ARCHIVED: $dest ($n files)"
