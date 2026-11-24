@@ -39,10 +39,11 @@ const LINUX_ONLY: Record<string, string> = {
   "github/release.test.ts": "release.sh runs only in the release workflow, on ubuntu-latest",
 };
 
-type Tier = "unit" | "critical" | "logic";
+type Tier = "unit" | "integration" | "critical" | "logic";
 
 function tierOf(file: string): Tier | null {
   if (file.endsWith(".unit.test.ts")) return "unit";
+  if (file.endsWith(".integration.test.ts")) return "integration";
   if (file.endsWith(".critical.test.ts")) return "critical";
   if (file.endsWith(".test.ts")) return "logic";
   return null;
@@ -91,6 +92,11 @@ function read(file: string): string {
 test("self-check: a logic file with no critical sibling is reported, one with a sibling or an exemption is not", () => {
   const files = ["viber/a.test.ts", "viber/a.critical.test.ts", "viber/b.test.ts", "viber/c.unit.test.ts", "github/r.test.ts"];
   assert.deepEqual(missingCritical(files, { "github/r.test.ts": "linux only" }), ["viber/b.test.ts"]);
+});
+
+test("self-check: an integration file is a tier of its own and needs no critical sibling", () => {
+  assert.equal(tierOf("viber/lib/a.integration.test.ts"), "integration");
+  assert.deepEqual(missingCritical(["viber/lib/a.integration.test.ts"], {}), []);
 });
 
 test("self-check: an exemption for a missing file, a non-logic file or a file that has a sibling is reported stale", () => {
