@@ -98,6 +98,25 @@ test("final-reviewer holds no rule finding a task's commits by subject", () => {
   assert.equal(REVIEWER.includes("<task id>(<n>) - <title>"), false);
 });
 
+const RUN_BAN =
+  "Run no build, test, type checker or linter, not one file of them: the build's own test run proves those, and a red result on a tree other work shares says nothing about your slice.";
+
+test("final-reviewer's opening paragraph bans every build, test, type checker and linter run right after its read-only git sentence", () => {
+  const opening = lines(REVIEWER).find((line) => line.startsWith("You review one slice")) ?? "";
+  assert.ok(opening.includes("or `clean`; `git show HEAD:<path>` or `git diff` is how you read a commit's change. " + RUN_BAN));
+});
+
+test("final-reviewer calls a finding Blocking on the code it read and states an inference as such, naming no command it ran", () => {
+  const calibration = between(REVIEWER, "## Calibration", "An owner finding");
+  assert.ok(calibration.includes("Blocking: the code you read shows it breaks behaviour, a test, the build or a consumer."));
+  assert.ok(
+    calibration.includes(
+      "A finding resting on inference rather than on code you read or a search you ran says so in its first line, never stated as fact.",
+    ),
+  );
+  assert.equal(REVIEWER.includes("command you ran"), false);
+});
+
 test("task-coder declares the memory input of a review dispatch, false when the line is missing", () => {
   const bullet = coderMemoryBullet();
   assert.ok(bullet.includes("`memory: <true|false>`"));
