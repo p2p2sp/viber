@@ -383,7 +383,7 @@ for (const [label, sentence] of PORT_ROWS) {
 }
 
 const KEPT_ROWS: [string, string, string][] = [
-  ["Earned, the critical path or decision, the edge case and the untested list", "Proves", "- Earned: A test exists only for a critical path or a decision in the logic: name the regression in behaviour a caller observes that it would catch; no answer means no test. An edge case earns one only where it flips a decision's outcome, never as a null, empty or missing input. Never tested: a default value, accessors, trivial constructors, data holders without behaviour, 1:1 mappings, framework or third-party library behaviour, an assertion true by construction, a name, the shape of data,"],
+  ["Earned, the critical path or decision, the edge case and the untested list", "Proves", "- Earned: A test exists only for a critical path or a decision in the logic: name the bug it would catch; none, or only a deliberate change (a constant, default or name), means no test. Plain code earns one only where it validates, normalises, derives, enforces or has a side effect, an edge case only where it flips a decision's outcome, never as a null, empty or missing input. Never tested: what the compiler, type checker, linter or schema rejects, framework or third-party library behaviour, an assertion true by construction, the shape of data,"],
   ["Earned, the refactor finding", "Proves", "A test that fails on a refactor keeping the observed behaviour is a finding. (blocking)"],
   ["State, the observed assertion", "Proves", "- State: Assert on what a caller observes: the returned value, the public state,"],
   ["State, the log output and arranged data", "Proves", "Never on log output, and never on data the test did not arrange itself. (blocking)"],
@@ -460,6 +460,13 @@ for (const [label, where, name, sentence] of RULE_ROWS) {
     assert.ok(has(bullet(where === "Proves" ? PROVES : WRITING, name), sentence));
   });
 }
+
+test("test-strategy Earned never tests a default value, accessors, trivial constructors, data holders without behaviour, 1:1 mappings or a name (the bug gate covers them)", () => {
+  const earned = bullet(PROVES, "Earned:");
+  for (const gone of ["a default value,", "accessors", "trivial constructors", "data holders without behaviour", "1:1 mappings", "a name, the shape"]) {
+    assert.ok(!has(earned, gone));
+  }
+});
 
 test("test-strategy Built never sends a decision out into a function over plain values", () => {
   assert.ok(!has(STRATEGY, "extract the decision into a function over plain values"));
