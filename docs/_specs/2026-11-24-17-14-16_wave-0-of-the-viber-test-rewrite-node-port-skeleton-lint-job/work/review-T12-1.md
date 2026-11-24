@@ -1,0 +1,6 @@
+- Blocking [task] tests/tools/lint/forbidden.unit.test.ts:29 - DoD.5 fails once the file is tracked: the test file holds literal em and en dash characters (lines 29-32 and 35) and is not among the dash rule's excludes, so `node tools/lint/run.ts forbidden` reports 5 findings on it (I ran the rule on that file to confirm). It exits 0 now only because the file is untracked.
+  Write the two characters in the test as escapes ("—", "–", built by String.fromCharCode or an escape in the string literal) so the file holds neither, and keep the exclude list as DoD.5 names it. The same goes for the user's global rule: no em or en dash in code.
+- Blocking [task] tools/lint/data/dashes.ts:13 - the header says the characters are written as escapes so the file never holds them, but line 13 holds the literal characters (checked with od). The file is only spared by its own exclude entry, and the comment is false.
+  Write the tokens as "—" and "–" in the file, which makes the header true. Keep the self-exclude, since DoD.5 names the file.
+- Minor tools/lint/rules/forbidden.ts:42 - the rule reads every tracked path under `**`, binary files included, while DoD.5 says "text files". A binary tracked file that happens to hold the UTF-8 bytes of a dash would be reported.
+  Nothing to change now unless a binary file shows up in the tree.
