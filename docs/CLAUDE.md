@@ -10,7 +10,7 @@ Holds what this repo keeps for reference but never ships: the retired plugin sou
 
 ## Contracts
 
-- Every path starting with `docs/` is outside the repo-wide sweeps: `tests/orphan-tags.unit.test.ts` and `tests/portability.unit.test.ts` both filter it out of the git index, so no file here is checked for orphan closing tags or Windows/macOS portability.
+- Every path starting with `docs/` is outside the repo-wide sweeps: the `orphan-tags/tracked` and `script-portability/shipped` rules of `tools/lint/` both exclude it, so no file here is checked for orphan closing tags or Windows/macOS portability.
 
 ## Traps
 
