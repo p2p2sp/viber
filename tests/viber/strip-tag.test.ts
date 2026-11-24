@@ -9,7 +9,7 @@
  * case runs through forEachShell("posix", ...) via opts.shell. Each case builds
  * its own temp directory. Every closing-tag fixture is built from an escape
  * (`\x3c`), so no line of this file is a bare closing tag and
- * orphan-tags.unit.test.ts stays green over it.
+ * the orphan-tags/tracked lint rule stays green over it.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:
