@@ -24,8 +24,12 @@ export interface Fs {
   makeDir(path: string): boolean;
   /** Replaces the file's content by exactly these bytes, creating it in an existing directory; false when it cannot, the file then left as it was. */
   writeBytes(path: string, bytes: Uint8Array): boolean;
+  /** Adds the bytes at the end of the file, what it holds left untouched, creating it in an existing directory; false when it cannot. */
+  appendBytes(path: string, bytes: Uint8Array): boolean;
   /** Removes the file at the path, a link itself and never what it names; true when no file is left there, an absent path included, false for a directory or a file that cannot be removed. */
   remove(path: string): boolean;
+  /** Removes the directory at the path when it holds nothing; false for one holding an entry, a file, a link to a directory and an absent path, each left as it was. */
+  removeEmptyDir(path: string): boolean;
 }
 
 /** path: repo-relative, forward slashes. mode: as the index holds it, "100644" or "100755". */

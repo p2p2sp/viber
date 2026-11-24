@@ -96,10 +96,30 @@ export function fakeFs(files: Record<string, string | Uint8Array>, opts: FakeFsO
       store.set(key, bytes.slice());
       return true;
     },
+    appendBytes(p, bytes) {
+      const key = resolve(p);
+      if (kindOf(key) === "dir" || kindOf(key.slice(0, key.lastIndexOf("/")) || "/") !== "dir") return false;
+      const old = store.get(key) ?? new Uint8Array(0);
+      const whole = new Uint8Array(old.length + bytes.length);
+      whole.set(old);
+      whole.set(bytes, old.length);
+      store.set(key, whole);
+      return true;
+    },
     remove(p) {
       const key = resolve(p);
       if (kindOf(key) === "dir") return false;
-      store.delete(key);
+      // The directory stays behind its last file, as on disk.
+      if (store.delete(key)) dirs.add(key.slice(0, key.lastIndexOf("/")) || "/");
+      return true;
+    },
+    removeEmptyDir(p) {
+      const key = resolve(p);
+      if (links.some(([from]) => from === clean(p) || from.startsWith(below(key))) || kindOf(key) !== "dir") return false;
+      if (known().some((f) => f.startsWith(below(key)))) return false;
+      dirs.delete(key);
+      const parent = key.slice(0, key.lastIndexOf("/")) || "/";
+      if (parent !== key) dirs.add(parent);
       return true;
     },
   };

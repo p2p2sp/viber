@@ -6,6 +6,7 @@
  */
 
 import { runDiffFiles } from "./diff-files.ts";
+import { rootAbove } from "./plugin-root.ts";
 import type { Clock, Fs, Git } from "./ports.ts";
 
 const LENSES = ["bugs", "security", "web-performance", "runtime-performance", "tests", "design"];
@@ -79,8 +80,7 @@ export function runFrame(argv: string[], cwd: string, script: string, ports: { f
 
   const here = cwd.replaceAll("\\", "/").replace(/(.)\/$/, "$1");
   const root = ports.git.repoRoot(here) ?? here;
-  // The skill directory holds scripts/<entry>: two segments up, in the spelling the entry was started by.
-  const skillDir = script.replaceAll("\\", "/").split("/").slice(0, -2).join("/");
+  const skillDir = rootAbove(script, 1);
   const lensFile = `${skillDir}/references/lenses/${lens}.md`;
   const needsClean = (): boolean => (ports.fs.readText(lensFile) ?? "").split("\n").some((line) => line.startsWith("Worktree: required"));
 

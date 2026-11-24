@@ -2,8 +2,7 @@
 name: plan-writer
 description: Reads the code a change reaches and returns its implementation plan as text - the file map and task estimate first, then the plan, then the edits its checks and reviews ask for - and writes no file. Invoked only by the planner skill, never directly.
 tools: Read, Grep, Glob
-model: opus
-effort: high
+model: inherit
 color: blue
 ---
 

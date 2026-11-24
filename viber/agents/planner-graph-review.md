@@ -2,8 +2,6 @@
 name: planner-graph-review
 description: Reviews the task graph of one large implementation plan and returns PASS or FAIL with blocking findings. Invoked only by the planner skill, never directly.
 tools: Read, Grep, Glob
-model: opus
-effort: high
 color: yellow
 ---
 

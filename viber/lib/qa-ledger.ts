@@ -6,6 +6,7 @@
  */
 
 import { absolutePath } from "./abs-path.ts";
+import { rootAbove } from "./plugin-root.ts";
 import type { Fs } from "./ports.ts";
 
 export interface QaLedgerResult {
@@ -128,7 +129,6 @@ export function runQaLedger(argv: string[], cwd: string, script: string, ports: 
   }
   if (!found) return fail(`--after ${after} names no listed scenario`);
   if (next === "") return answer(["NEXT: commit"]);
-  const pluginRoot = script.replaceAll("\\", "/").split("/").slice(0, -4).join("/");
   return answer([
     `NEXT: dispatch | id: ${next} | agent: viber:e2e-writer`,
     `handoff: ${path}`,
@@ -136,6 +136,6 @@ export function runQaLedger(argv: string[], cwd: string, script: string, ports: 
     `spec-dir: ${given.get("--spec-dir")}`,
     `base-url: ${given.get("--base-url")}`,
     `accounts: ${given.get("--accounts")}`,
-    `refs: ${pluginRoot}/references`,
+    `refs: ${rootAbove(script, 3)}/references`,
   ]);
 }

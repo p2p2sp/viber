@@ -229,6 +229,49 @@ export function fsContract(label: string, make: () => { fs: Fs; root: string; sc
     assert.equal(fs.writeBytes(`${dir}/f.txt`, Uint8Array.of(0x78)), true);
     assert.deepEqual([fs.remove(dir), fs.remove(`${dir}/empty`), fs.listDir(dir)], [false, false, ["empty", "f.txt"]]);
   });
+
+  test(`${label}: appendBytes creates a file, then adds its bytes after what it holds, invalid UTF-8 included`, () => {
+    const { fs, scratch } = make();
+    const file = `${scratch}/append/raw.bin`;
+    assert.equal(fs.makeDir(`${scratch}/append`), true);
+    assert.deepEqual([fs.appendBytes(file, Uint8Array.of(0xff, 0x0a)), fs.appendBytes(file, Uint8Array.of(0xc3, 0x61))], [true, true]);
+    assert.deepEqual([...(fs.readBytes(file) ?? [])], [0xff, 0x0a, 0xc3, 0x61]);
+  });
+
+  test(`${label}: appendBytes into an absent directory or onto a directory is false and creates nothing`, () => {
+    const { fs, scratch } = make();
+    const dir = `${scratch}/append-refused`;
+    assert.equal(fs.makeDir(dir), true);
+    assert.deepEqual([fs.appendBytes(`${dir}/absent/f.txt`, Uint8Array.of(0x78)), fs.appendBytes(dir, Uint8Array.of(0x78))], [false, false]);
+    assert.deepEqual([fs.exists(`${dir}/absent`), fs.kind(dir), fs.listDir(dir)], [false, "dir", []]);
+  });
+
+  test(`${label}: removeEmptyDir deletes a directory whose last file was removed, its parent left, and is false for the path then absent`, () => {
+    const { fs, scratch } = make();
+    const dir = `${scratch}/remove-empty-dir`;
+    assert.equal(fs.makeDir(`${dir}/area`), true);
+    assert.deepEqual([fs.writeBytes(`${dir}/area/f.txt`, Uint8Array.of(0x78)), fs.remove(`${dir}/area/f.txt`)], [true, true]);
+    assert.deepEqual([fs.removeEmptyDir(`${dir}/area`), fs.exists(`${dir}/area`), fs.kind(dir), fs.removeEmptyDir(`${dir}/area`)], [true, false, "dir", false]);
+  });
+
+  test(`${label}: removeEmptyDir is false for a directory holding a file or a directory and for a file, each left as it was`, () => {
+    const { fs, scratch } = make();
+    const dir = `${scratch}/remove-full-dir`;
+    assert.equal(fs.makeDir(`${dir}/outer/inner`), true);
+    assert.equal(fs.makeDir(`${dir}/full`), true);
+    assert.equal(fs.writeBytes(`${dir}/full/f.txt`, Uint8Array.of(0x78)), true);
+    assert.deepEqual([fs.removeEmptyDir(`${dir}/full`), fs.removeEmptyDir(`${dir}/outer`), fs.removeEmptyDir(`${dir}/full/f.txt`)], [false, false, false]);
+    assert.deepEqual([fs.listDir(`${dir}/full`), fs.listDir(`${dir}/outer`)], [["f.txt"], ["inner"]]);
+  });
+
+  test(`${label}: removeEmptyDir on a directory link is false and leaves the link and what it names`, (t) => {
+    const { fs, root, linked } = make();
+    if (!linked) {
+      t.skip("this account cannot create a directory link");
+      return;
+    }
+    assert.deepEqual([fs.removeEmptyDir(`${root}/link`), fs.kind(`${root}/link`), fs.listDir(`${root}/src`)], [false, "dir", ["a.txt", "b.txt"]]);
+  });
 }
 
 export function clockContract(label: string, make: () => Clock): void {

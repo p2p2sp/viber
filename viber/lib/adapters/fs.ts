@@ -70,10 +70,28 @@ export const nodeFs: Fs = {
       return false;
     }
   },
+  appendBytes(path, bytes) {
+    try {
+      fs.appendFileSync(path, bytes);
+      return true;
+    } catch {
+      return false;
+    }
+  },
   remove(path) {
     try {
       // force passes an absent path; without recursive a directory is refused.
       fs.rmSync(path, { force: true });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  removeEmptyDir(path) {
+    try {
+      // On Windows rmdir takes a junction too, so a link is told apart first.
+      if (!fs.lstatSync(path).isDirectory()) return false;
+      fs.rmdirSync(path);
       return true;
     } catch {
       return false;
