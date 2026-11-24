@@ -1,4 +1,4 @@
-# viber/skills - the twenty-four viber skills and their bundled files
+# viber/skills - the twenty-five viber skills and their bundled files
 
 Owns every `skills/<name>/` directory: its `SKILL.md` and the `fragments/`, `parts/`, `templates/`, `references/`, `assets/` and skill-local `scripts/` beside it. The plugin-level scripts the skills call belong to `viber/scripts/`, the agents they dispatch to `viber/agents/`; a skill's own body is its contract.
 

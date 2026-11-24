@@ -1,6 +1,6 @@
 # viber/scripts - editing the GitHub comment and issue wrappers
 
-Read for a change to `qa-comment.sh`, `pr-threads.sh`, `pr-reply.sh`, `issue-facts.sh` or `post-comment.sh`: what each posts or lists, and the grammar and stubs they share. The node holds the wrappers' common rules.
+Read for a change to `qa-comment.sh`, `pr-threads.sh`, `pr-reply.sh`, `issue-facts.sh`, `post-comment.sh` or `artifact-create.sh`: what each posts or lists, and the grammar and stubs they share. The node holds the wrappers' common rules.
 
 ## Contracts
 
@@ -10,5 +10,6 @@ Read for a change to `qa-comment.sh`, `pr-threads.sh`, `pr-reply.sh`, `issue-fac
 
 ## Change together
 
-- The issue reference grammar (`<N>`, `#<N>`, or `https://<host>/<owner>/<repo>/issues/<N>` with any `#...` fragment or `?...` query dropped) is parsed the same way in `issue-facts.sh` and `post-comment.sh`; `qa-comment.sh` applies it to the run's `issue:` and to `--pr` pull request URLs.
+- The issue reference grammar (`<N>`, `#<N>`, or `https://<host>/<owner>/<repo>/issues/<N>` with any `#...` fragment or `?...` query dropped) is parsed the same way in `issue-facts.sh`, `post-comment.sh` and `artifact-create.sh` (which refuses a pull request, by URL or by the URL `gh issue view` resolves a number to, with exit 2); `qa-comment.sh` applies it to the run's `issue:` and to `--pr` pull request URLs.
 - The reply marker `<!-- viber:pr-feedback <key> -->` is matched in `pr-threads.sh` (its awk block) and written and matched in `pr-reply.sh`; the `--jq` output shape of each (`pr-threads.sh`: `R`/`Q` remark lines first, then `T`/`C`/`B` tab lines, with a header of `CMORE=`, `RMORE=` and `AUTH=`; `pr-reply.sh`: `<in_reply_to_id> <first body line>` for a thread, the original's url and first body line for a remark) is emulated by the stub of `tests/viber/pr-threads.test.ts` / `pr-reply.test.ts`, so a filter change changes the stub. The pull request reference grammar is parsed the same way in both.
+- The `gh issue artifact create` result line (`<status> TAB <number> TAB <name> TAB <source> TAB <reason>`) and the unknown-command text of a gh before 2.103 are parsed in `artifact-create.sh` and emulated by the stub of `tests/viber/artifact-create-fixture.ts`, so a change to either changes the other. An old gh is recognised only from the first create call (exit 3), never by a version check.
