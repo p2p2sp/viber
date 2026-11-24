@@ -31,7 +31,8 @@ export const SCENE_STATE: { files: Record<string, string>; exec: string[]; untra
  * work tree changed after it, null removing the file. staged: the paths then
  * added to the index. The rest is what git answers over that state: status,
  * the files changed against HEAD (head), against the first commit (first) and
- * against no base (none), and the untracked files.
+ * against no base (none), the untracked files, the tracked files an ignore rule
+ * excludes (trackedIgnored) and every path one excludes (ignored).
  */
 export const HISTORY_STATE: {
   commits: Array<Record<string, string | null>>;
@@ -40,6 +41,8 @@ export const HISTORY_STATE: {
   status: StatusEntry[];
   changed: { head: ChangedFile[]; first: ChangedFile[]; none: ChangedFile[] };
   untracked: string[];
+  trackedIgnored: string[];
+  ignored: string[];
 } = {
   commits: [
     {
@@ -47,11 +50,12 @@ export const HISTORY_STATE: {
       "kept.txt": "kept\nthe second line\n",
       "edited.txt": "one\n",
       "gone.txt": "gone\n",
+      "noted.log": "a note\n",
       "staged.txt": "one\n",
       "old name.txt": "the same text under both names\n",
       "docs/run/plan.md": "plan\n",
     },
-    { "docs/run/plan.md": null },
+    { ".gitignore": "ignored.log\nnoted.log\nb[12]*.log\n", "docs/run/plan.md": null },
     { "docs/run/plan.md": "plan again\n", "late.txt": "late\n" },
   ],
   tree: {
@@ -79,6 +83,7 @@ export const HISTORY_STATE: {
       { status: "M", path: "staged.txt" },
     ],
     first: [
+      { status: "M", path: ".gitignore" },
       { status: "M", path: "docs/run/plan.md" },
       { status: "M", path: "edited.txt" },
       { status: "D", path: "gone.txt" },
@@ -93,10 +98,13 @@ export const HISTORY_STATE: {
       { status: "A", path: "kept.txt" },
       { status: "A", path: "late.txt" },
       { status: "A", path: "new name.txt" },
+      { status: "A", path: "noted.log" },
       { status: "A", path: "staged.txt" },
     ],
   },
   untracked: ["untracked dir/za\u017c\u00f3\u0142\u0107.txt"],
+  trackedIgnored: ["noted.log"],
+  ignored: ["ignored.log", "noted.log", "b1 za\u017c.log", "absent dir/ignored.log"],
 };
 
 /** scratch: an existing directory the cases may write into. linked: whether the scene holds its directory link. execBits: whether the system refuses to run a file given no exec bit. */
@@ -135,6 +143,14 @@ export function fsContract(label: string, make: () => { fs: Fs; root: string; sc
     const { fs, root } = make();
     assert.deepEqual([...(fs.readBytes(`${root}/src/a.txt`) ?? [])], [0x61, 0x79, 0x0a]);
     assert.deepEqual([fs.readBytes(`${root}/nope.txt`), fs.readBytes(`${root}/src`)], [null, null]);
+  });
+
+  test(`${label}: size is the byte count of a file, its link followed, null for a directory and for an absent path`, () => {
+    const { fs, root, scratch } = make();
+    const file = `${scratch}/size/f.txt`;
+    assert.equal(fs.makeDir(`${scratch}/size`), true);
+    assert.equal(fs.writeBytes(file, new TextEncoder().encode("\u017c\n")), true);
+    assert.deepEqual([fs.size(file), fs.size(`${root}/src/a.txt`), fs.size(`${root}/src`), fs.size(`${root}/nope`)], [3, 3, null, null]);
   });
 
   test(`${label}: kind is file for a file, dir for a directory and null for an absent path`, () => {
@@ -244,6 +260,27 @@ export function fsContract(label: string, make: () => { fs: Fs; root: string; sc
     assert.equal(fs.makeDir(dir), true);
     assert.deepEqual([fs.appendBytes(`${dir}/absent/f.txt`, Uint8Array.of(0x78)), fs.appendBytes(dir, Uint8Array.of(0x78))], [false, false]);
     assert.deepEqual([fs.exists(`${dir}/absent`), fs.kind(dir), fs.listDir(dir)], [false, "dir", []]);
+  });
+
+  test(`${label}: replace moves a file over another, whose content is then its own, and to an absent path, leaving nothing behind`, () => {
+    const { fs, scratch } = make();
+    const dir = `${scratch}/replace`;
+    assert.equal(fs.makeDir(dir), true);
+    assert.deepEqual([fs.writeBytes(`${dir}/new.txt`, Uint8Array.of(0xff, 0x0a)), fs.writeBytes(`${dir}/old.txt`, new TextEncoder().encode("a longer content\n"))], [true, true]);
+    assert.deepEqual([fs.replace(`${dir}/new.txt`, `${dir}/old.txt`), fs.listDir(dir), [...(fs.readBytes(`${dir}/old.txt`) ?? [])]], [true, ["old.txt"], [0xff, 0x0a]]);
+    assert.deepEqual([fs.replace(`${dir}/old.txt`, `${dir}/moved.txt`), fs.listDir(dir)], [true, ["moved.txt"]]);
+  });
+
+  test(`${label}: replace is false for an absent file, for a directory, onto a directory and into an absent one, everything left as it was`, () => {
+    const { fs, scratch } = make();
+    const dir = `${scratch}/replace-refused`;
+    assert.equal(fs.makeDir(`${dir}/sub`), true);
+    assert.equal(fs.writeBytes(`${dir}/f.txt`, Uint8Array.of(0x78)), true);
+    assert.deepEqual(
+      [fs.replace(`${dir}/nope`, `${dir}/f.txt`), fs.replace(`${dir}/sub`, `${dir}/other`), fs.replace(`${dir}/f.txt`, `${dir}/sub`), fs.replace(`${dir}/f.txt`, `${dir}/absent/f.txt`)],
+      [false, false, false, false],
+    );
+    assert.deepEqual([fs.listDir(dir), fs.listDir(`${dir}/sub`), fs.readText(`${dir}/f.txt`)], [["f.txt", "sub"], [], "x"]);
   });
 
   test(`${label}: removeEmptyDir deletes a directory whose last file was removed, its parent left, and is false for the path then absent`, () => {
@@ -382,6 +419,20 @@ export function gitContract(label: string, make: () => { git: Git; root: string;
   test(`${label}: untrackedFiles lists an untracked directory file by file, a blank and a non-ASCII character as they are, an ignored file left out, and nothing outside a repository`, () => {
     const { git, outside, history } = make();
     assert.deepEqual([git.untrackedFiles(history), git.untrackedFiles(outside)], [HISTORY_STATE.untracked, []]);
+  });
+
+  test(`${label}: trackedIgnored lists a file tracked before its ignore rule, never an untracked ignored one, and nothing outside a repository`, () => {
+    const { git, outside, history } = make();
+    assert.deepEqual([git.trackedIgnored(history), git.trackedIgnored(outside)], [HISTORY_STATE.trackedIgnored, []]);
+  });
+
+  test(`${label}: ignored is true for a path the rules exclude, untracked, tracked or absent, a blank and a non-ASCII character in it, and false for another, for a name an expanded glob would match (the path is literal) and outside a repository`, () => {
+    const { git, outside, history } = make();
+    assert.deepEqual(
+      HISTORY_STATE.ignored.map((path) => git.ignored(history, path)),
+      HISTORY_STATE.ignored.map(() => true),
+    );
+    assert.deepEqual([git.ignored(history, "edited.txt"), git.ignored(history, "untracked dir/new.txt"), git.ignored(history, "ignored.*"), git.ignored(outside, "ignored.log")], [false, false, false, false]);
   });
 
   test(`${label}: status lists the unstaged, staged, renamed (its old path dropped) and untracked paths with their two letters, an ignored file left out, and nothing outside a repository`, () => {

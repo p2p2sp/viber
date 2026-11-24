@@ -1,14 +1,15 @@
 /*
  * memory-map.critical.test.ts - the critical tier of
- * viber/skills/memory/scripts/memory-map.sh: a tracked root node prints its
- * map line, reset deletes the given nodes in order and refuses the whole call
- * when one target is modified, and backslash directory names and Windows
- * invocation spellings are handled.
+ * viber/skills/memory/scripts/memory-map.sh, the wrapper of the memory-map.ts
+ * entry: a tracked root node prints its map line, reset deletes the given nodes
+ * in order and refuses the whole call when one target is modified, and backslash
+ * directory names and Windows invocation spellings are handled.
  *
  * A case lives here when its failure means lost user work, an open gate, a
  * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by memory-map.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * of the contract is proven in process by
+ * tests/viber/lib/memory-map.unit.test.ts. This file runs on every operating
+ * system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:
@@ -20,7 +21,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
+import { slash } from "../harness/paths.ts";
 import { runScript } from "../harness/run.ts";
+import { shellUtilsPath } from "../harness/stub.ts";
 import { withGitRepo } from "../harness/tmp.ts";
 import { SUT, run, lines, write, commit, pick, node, MAP_ID, present } from "./memory-map-fixture.ts";
 
@@ -95,47 +98,48 @@ test("one modified target among several refuses the whole --reset and deletes no
 
 /** The ways a caller can spell the path it invokes the script by, each with the
  *  plugin root the script must print for it: on Windows the native `C:\...`, the
- *  mixed `C:/...` and the MSYS `/c/...` spellings, elsewhere the one absolute path. */
+ *  mixed `C:/...` and the MSYS `/c/...` spellings, all printed as `C:/...` (the
+ *  MSYS runtime hands node that form), elsewhere the one absolute path. */
 function invocations(): { form: string; script: string; root: string }[] {
   const plugin = path.resolve(import.meta.dirname, "../../viber");
   if (process.platform !== "win32") return [{ form: "absolute", script: SUT, root: plugin }];
-  const mixed = (p: string) => p.replace(/\\/g, "/");
-  const msys = (p: string) => mixed(p).replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`);
+  const msys = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`);
   return [
-    { form: "C:\\", script: path.win32.normalize(SUT), root: mixed(plugin) },
-    { form: "C:/", script: mixed(SUT), root: mixed(plugin) },
-    { form: "/c/", script: msys(SUT), root: msys(plugin) },
+    { form: "C:\\", script: path.win32.normalize(SUT), root: slash(plugin) },
+    { form: "C:/", script: slash(SUT), root: slash(plugin) },
+    { form: "/c/", script: msys(SUT), root: slash(plugin) },
   ];
 }
 
 for (const { form, script, root } of invocations()) {
-  test(`--targets with --keep invoked by a ${form} path prints the references path in that spelling`, async () => {
+  test(`--targets with --keep and --reconcile invoked by a ${form} path print the references path in the absolute forward-slash form`, async () => {
     await withGitRepo(async (repo) => {
       await commit(repo, { "CLAUDE.md": node(40), "src/a.ts": "x\n" });
+      present(repo, "docs/CLAUDE.md");
 
-      const result = await runScript(
-        script,
+      for (const args of [
         ["--targets", "review", "--id", MAP_ID, "--keep", "CLAUDE.md"],
-        { cwd: repo.dir, env: repo.env, shell: "bash" },
-      );
-
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(pick(lines(result.stdout), "refs: "), [`refs: ${root}/references`]);
-    });
-  });
-
-  test(`--reconcile invoked by a ${form} path prints the references path in that spelling`, async () => {
-    await withGitRepo(async (repo) => {
-      present(repo, "CLAUDE.md", "docs/CLAUDE.md");
-
-      const result = await runScript(
-        script,
         ["--reconcile", "--planned", "CLAUDE.md,docs/CLAUDE.md,docs/a/CLAUDE.md", "--fix", "docs/CLAUDE.md", "--files", "docs/CLAUDE.md"],
-        { cwd: repo.dir, env: repo.env, shell: "bash" },
-      );
+      ]) {
+        const result = await runScript(script, args, { cwd: repo.dir, env: repo.env, shell: "bash" });
 
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(pick(lines(result.stdout), "refs: "), [`refs: ${root}/references`]);
+        assert.equal(result.status, 0, `${args[0]} stderr: ${result.stderr}`);
+        assert.deepEqual(pick(lines(result.stdout), "refs: "), [`refs: ${root}/references`], args[0]);
+      }
     });
   });
 }
+
+test("with no node on PATH the map prints nothing and exits 0 (a preload never aborts the skill load), and a reset exits non-zero and deletes nothing", async () => {
+  await withGitRepo(async (repo) => {
+    await commit(repo, { "CLAUDE.md": node(40) });
+    const bare = { ...repo.env, PATH: shellUtilsPath() };
+
+    const map = await runScript(SUT, [], { cwd: repo.dir, env: bare, shell: "bash" });
+    assert.deepEqual([map.status, map.stdout], [0, ""]);
+
+    const reset = await runScript(SUT, ["--reset", "CLAUDE.md"], { cwd: repo.dir, env: bare, shell: "bash" });
+    assert.notEqual(reset.status, 0);
+    assert.equal(fs.existsSync(path.join(repo.dir, "CLAUDE.md")), true);
+  });
+});

@@ -21,6 +21,14 @@ export const nodeFs: Fs = {
       return null;
     }
   },
+  size(path) {
+    try {
+      const stat = fs.statSync(path);
+      return stat.isFile() ? stat.size : null;
+    } catch {
+      return null;
+    }
+  },
   exists(path) {
     return fs.existsSync(path);
   },
@@ -73,6 +81,16 @@ export const nodeFs: Fs = {
   appendBytes(path, bytes) {
     try {
       fs.appendFileSync(path, bytes);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  replace(from, to) {
+    try {
+      // A rename also moves a directory, so one is told apart first.
+      if (fs.lstatSync(from).isDirectory()) return false;
+      fs.renameSync(from, to);
       return true;
     } catch {
       return false;

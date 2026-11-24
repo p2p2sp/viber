@@ -62,6 +62,9 @@ export function fakeFs(files: Record<string, string | Uint8Array>, opts: FakeFsO
     readBytes(p) {
       return bytesOf(p)?.slice() ?? null;
     },
+    size(p) {
+      return bytesOf(p)?.length ?? null;
+    },
     exists(p) {
       return kindOf(resolve(p)) !== null;
     },
@@ -106,6 +109,17 @@ export function fakeFs(files: Record<string, string | Uint8Array>, opts: FakeFsO
       store.set(key, whole);
       return true;
     },
+    replace(from, to) {
+      const [source, target] = [resolve(from), resolve(to)];
+      const bytes = store.get(source);
+      if (bytes === undefined || kindOf(target) === "dir" || kindOf(target.slice(0, target.lastIndexOf("/")) || "/") !== "dir") return false;
+      if (source === target) return true;
+      store.delete(source);
+      // The directory stays behind its last file, as on disk.
+      dirs.add(source.slice(0, source.lastIndexOf("/")) || "/");
+      store.set(target, bytes);
+      return true;
+    },
     remove(p) {
       const key = resolve(p);
       if (kindOf(key) === "dir") return false;
@@ -142,6 +156,10 @@ export interface FakeRepo {
   /** The files differing from a base, by the base as asked; the key `""` holds the answer for no base. */
   changed?: Record<string, ChangedFile[]>;
   untracked?: string[];
+  /** The tracked files the ignore rules exclude all the same, in index order. */
+  trackedIgnored?: string[];
+  /** The paths the ignore rules exclude, each as asked. */
+  ignored?: string[];
   status?: StatusEntry[];
   /** The text files grep reads, a repo-relative path to its content, in git order: the one answer the fake derives, a line held when it holds a term. */
   texts?: Record<string, string>;
@@ -183,6 +201,12 @@ export function fakeGit(repos: FakeRepo | FakeRepo[] | null): Git {
     },
     untrackedFiles(root) {
       return [...(at(root)?.untracked ?? [])];
+    },
+    trackedIgnored(root) {
+      return [...(at(root)?.trackedIgnored ?? [])];
+    },
+    ignored(root, path) {
+      return at(root)?.ignored?.includes(path) ?? false;
     },
     status(root) {
       return at(root)?.status?.map((entry) => ({ ...entry })) ?? [];
@@ -248,6 +272,8 @@ export function fakeScene(root = "/scene/repo"): { fs: Fs; git: Git; root: strin
       added,
       changed: { HEAD: HISTORY_STATE.changed.head, "HEAD~2": HISTORY_STATE.changed.first, "": HISTORY_STATE.changed.none },
       untracked: HISTORY_STATE.untracked,
+      trackedIgnored: HISTORY_STATE.trackedIgnored,
+      ignored: HISTORY_STATE.ignored,
       status: HISTORY_STATE.status,
       texts,
     },

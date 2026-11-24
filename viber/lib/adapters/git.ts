@@ -74,6 +74,14 @@ export const gitCommand: Git = {
     const out = run(root, ["ls-files", "--others", "--exclude-standard", "-z"]);
     return out ? out.split("\0").filter((path) => path !== "") : [];
   },
+  trackedIgnored(root) {
+    const out = run(root, ["ls-files", "-z", "-c", "-i", "--exclude-standard"]);
+    return out ? out.split("\0").filter((path) => path !== "") : [];
+  },
+  ignored(root, path) {
+    // Exit 1 names no rule; --no-index asks the rules alone, so a tracked path is judged too.
+    return run(root, ["check-ignore", "-q", "--no-index", "--", path]) !== null;
+  },
   status(root) {
     const out = run(root, ["status", "--porcelain", "-z", "-uall"]);
     if (!out) return [];

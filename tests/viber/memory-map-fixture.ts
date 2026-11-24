@@ -1,7 +1,6 @@
 /*
- * memory-map-fixture.ts - the helpers memory-map.test.ts and
- * memory-map.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/memory/scripts/memory-map.sh. It holds no case of its own.
+ * memory-map-fixture.ts - what memory-map.critical.test.ts uses to seed a case
+ * and run viber/skills/memory/scripts/memory-map.sh. It holds no case of its own.
  */
 
 import fs from "node:fs";
@@ -48,11 +47,6 @@ export function node(chars: number): string {
 }
 
 export const MAP_ID = "2026-11-19-10-00-00";
-
-/** A node body from its `## ` sections, each a heading line followed by its content lines. */
-export function body(...parts: string[]): string {
-  return `# area - what it owns\n\nOwns the area.\n\n${parts.join("\n")}`;
-}
 
 /** Puts a CLAUDE.md at each path, tracked nowhere: the reconcile call reads the tree alone. */
 export function present(repo: GitRepo, ...paths: string[]): void {

@@ -30,6 +30,8 @@ export const rules: RuleInstance[] = [
         "viber/skills/code-auditor/scripts/keep-units.ts",
         "viber/skills/code-auditor/scripts/hunt-return.ts",
         "viber/skills/rules/scripts/rules-map.ts",
+        "viber/skills/memory/scripts/memory-map.ts",
+        "viber/skills/setup/scripts/merge-settings.ts",
         "tools/lint/run.ts",
       ],
       entryMaxLines: 40,

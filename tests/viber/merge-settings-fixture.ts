@@ -1,8 +1,7 @@
 /*
- * merge-settings-fixture.ts - the helpers merge-settings.test.ts and
- * merge-settings.critical.test.ts share: what both tiers need to seed a case
- * and run viber/skills/setup/scripts/merge-settings.sh. It holds no case of
- * its own.
+ * merge-settings-fixture.ts - what merge-settings.critical.test.ts uses to seed
+ * a case and run viber/skills/setup/scripts/merge-settings.sh. It holds no case
+ * of its own.
  */
 
 import fs from "node:fs";

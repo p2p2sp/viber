@@ -10,6 +10,8 @@ export interface Fs {
   readText(path: string): string | null;
   /** The file's bytes, undecoded; null when the path is absent, a directory or unreadable. */
   readBytes(path: string): Uint8Array | null;
+  /** The size of a file in bytes, its content never read and a link followed; null for an absent path and for anything but a file. */
+  size(path: string): number | null;
   /** True for an existing file or directory. */
   exists(path: string): boolean;
   /** "file" for a regular file, "dir" for a directory, a symlink followed; null for an absent path or any other kind. */
@@ -26,6 +28,8 @@ export interface Fs {
   writeBytes(path: string, bytes: Uint8Array): boolean;
   /** Adds the bytes at the end of the file, what it holds left untouched, creating it in an existing directory; false when it cannot. */
   appendBytes(path: string, bytes: Uint8Array): boolean;
+  /** Moves the file at from to the path to in one step, a file standing there replaced whole; false when it cannot (from absent or a directory, to a directory or in an absent one), both then left as they were. */
+  replace(from: string, to: string): boolean;
   /** Removes the file at the path, a link itself and never what it names; true when no file is left there, an absent path included, false for a directory or a file that cannot be removed. */
   remove(path: string): boolean;
   /** Removes the directory at the path when it holds nothing; false for one holding an entry, a file, a link to a directory and an absent path, each left as it was. */
@@ -76,6 +80,10 @@ export interface Git {
   changedFiles(root: string, base: string | null): ChangedFile[];
   /** The files below the top level root that git neither tracks nor ignores, an untracked directory file by file, in git order. */
   untrackedFiles(root: string): string[];
+  /** The tracked files the ignore rules of the repository at the top level root exclude all the same, in index order; empty outside a repository. */
+  trackedIgnored(root: string): string[];
+  /** True when those ignore rules exclude the repo-relative path, whether the index holds it or not and whether it exists or not, read as a literal path; false outside a repository. */
+  ignored(root: string, path: string): boolean;
   /** One entry per path `git status` reports at the top level root: staged, unstaged or untracked (an untracked directory file by file), an ignored one left out, in git order. */
   status(root: string): StatusEntry[];
   /** The lines holding one of the terms as a fixed string, with word true only as a whole word, in the text files of the work tree at the top level root: tracked or untracked, an ignored and a binary file left out, in git order. Empty with no term and outside a repository. */

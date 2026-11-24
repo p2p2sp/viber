@@ -7,15 +7,10 @@
 
 import { byteOrder } from "./byte-order.ts";
 import { runConfig } from "./config/run.ts";
+import { answer, baseOf, fail, projectRoot, type MapAnswer } from "./map-answer.ts";
 import { rootAbove } from "./plugin-root.ts";
 import type { Clock, Fs, Git } from "./ports.ts";
 import { stampOf } from "./stamp.ts";
-
-export interface RulesMapResult {
-  stdout: string;
-  stderr: string;
-  exit: number;
-}
 
 type Ports = { fs: Fs; git: Git; clock: Clock };
 
@@ -65,9 +60,6 @@ const DIR_CAP = 40000;
 const CAUSES = ["convention", "place", "plan", "task", "test", "unknown"];
 const GONE = "GONE: the rule's globs match no tracked file\n";
 
-const fail = (reason: string): RulesMapResult => ({ stdout: "", stderr: `error: ${reason}\n`, exit: 2 });
-const answer = (lines: string[], exit = 0): RulesMapResult => ({ stdout: lines.map((line) => `${line}\n`).join(""), stderr: "", exit });
-const baseOf = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
 const slugOf = (path: string): string => path.slice(RULES.length + 1, -".md".length).replaceAll("/", "--");
 const verdictOf = (size: number): string => (size > FILE_CAP ? "OVER-FILE" : "ok");
 const ruleLine = (rule: Rule): string => `rule: ${rule.path} ${rule.size} paths ${rule.globs.join(",") || "none"} matches ${rule.matches} ${verdictOf(rule.size)}`;
@@ -248,7 +240,7 @@ function trailsOf(repo: Repo, ports: Ports): Trail[] {
     });
 }
 
-function mapMode(layer: Layer, trails: Trail[], at: Date): RulesMapResult {
+function mapMode(layer: Layer, trails: Trail[], at: Date): MapAnswer {
   const sums = CAUSES.map((cause, index) => `${cause} ${trails.reduce((sum, trail) => sum + trail.counts[index], 0)}`);
   return answer([
     "# viber rules map",
@@ -274,7 +266,7 @@ function unfit(target: string, repo: Repo, fs: Fs): string {
 }
 
 /** The whole call is judged before one file is deleted. */
-function resetMode(targets: string[], repo: Repo, fs: Fs): RulesMapResult {
+function resetMode(targets: string[], repo: Repo, fs: Fs): MapAnswer {
   if (targets.length === 0) return answer(["refused: - no-target"], 2);
   const refusals = targets.map((target) => ({ target, reason: unfit(target, repo, fs) })).filter(({ reason }) => reason !== "");
   if (refusals.length > 0) return answer(refusals.map(({ target, reason }) => `refused: ${target} ${reason}`), 3);
@@ -300,7 +292,7 @@ function targetOf(given: string, root: string, fs: Fs): Target | string {
   return usable ? { given, kind: "dir", dir } : `${given} is neither a rule, a directory nor trail`;
 }
 
-function briefMode(targets: Target[], out: string, refs: string, repo: Repo, trails: Trail[], fs: Fs): RulesMapResult {
+function briefMode(targets: Target[], out: string, refs: string, repo: Repo, trails: Trail[], fs: Fs): MapAnswer {
   const audits: string[] = [];
   const blocks: string[] = [];
   for (const { given, kind, dir } of targets) {
@@ -328,7 +320,7 @@ function briefMode(targets: Target[], out: string, refs: string, repo: Repo, tra
 }
 
 /** The targets given are the kept ones. */
-function confirmMode(targets: Target[], id: string, out: string, refs: string, repo: Repo, layer: Layer, trails: Trail[], fs: Fs): RulesMapResult {
+function confirmMode(targets: Target[], id: string, out: string, refs: string, repo: Repo, layer: Layer, trails: Trail[], fs: Fs): MapAnswer {
   const confirms: string[] = [];
   for (const { given, kind, dir } of targets) {
     const words = kind === "trail" ? ["MISS", "IGNORED", "REJECTED"] : ["STALE", "GONE", "DROP", "MISS"];
@@ -364,13 +356,12 @@ function confirmMode(targets: Target[], id: string, out: string, refs: string, r
 }
 
 /** The stdout, stderr and exit code of one rules-map call, script being the path its entry was started by. Never throws. */
-export function runRulesMap(argv: string[], cwd: string, script: string, ports: Ports): RulesMapResult {
+export function runRulesMap(argv: string[], cwd: string, script: string, ports: Ports): MapAnswer {
   const { fs, git } = ports;
   const [mode, ...args] = argv;
   if (mode !== undefined && !["--reset", "--brief", "--confirm"].includes(mode)) return answer([`refused: ${mode} unknown-mode`], 2);
 
-  const here = cwd.replaceAll("\\", "/");
-  const root = (git.repoRoot(here) ?? here).replace(/\/$/, "");
+  const root = projectRoot(cwd, git);
   const tracked = git.trackedFiles(root).map((file) => file.path);
   const modified = git.status(root).filter((entry) => entry.code !== "??").map((entry) => entry.path);
   const repo: Repo = { root, tracked, isTracked: new Set(tracked), modified: new Set(modified) };
