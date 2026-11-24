@@ -974,6 +974,11 @@ oknie<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="current
     pracę wykonaną poza buildem. Wystarczy też powiedzieć <q>zacommituj</q>.</span></dd>
   </div>
   <div>
+    <dt><a href="#skill-attach"><code data-copy>/viber:attach</code></a></dt>
+    <dd><span lang="en">Attaches files or links to a GitHub issue as issue artifacts.</span><span lang="pl">Dołącza pliki
+    albo linki do issue na GitHubie jako artefakty issue.</span></dd>
+  </div>
+  <div>
     <dt><a href="#skill-factory"><code data-copy>/viber:factory</code></a></dt>
     <dd><span lang="en">Supervises your other Claude Code sessions and answers their dialogs toward a goal. Windows
     only for now.</span><span lang="pl">Nadzoruje twoje pozostałe sesje Claude Code i odpowiada na ich dialogi
@@ -3193,6 +3198,44 @@ z nich mówi, jak nim sterować.</p>
       <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
       <dd><span lang="en">One commit. It never pushes.</span><span lang="pl">Jeden commit. Nigdy nie
       wypycha.</span></dd>
+    </div>
+  </dl>
+</article>
+
+<article class="card" id="skill-attach">
+  <h4><code>/viber:attach</code></h4>
+  <p lang="en">Attaches the files and links you name to a GitHub issue as issue artifacts (<code>gh</code> 2.103 or
+  later, a GitHub private preview) and reports each artifact's link. An image or video becomes a Markdown
+  document carrying the file. Any other file type, a file GitHub refuses, or a <code>gh</code> without the
+  command comes back with the instruction to attach it in the browser on the issue. A pull request is refused:
+  artifacts exist on issues only.</p>
+  <p lang="pl">Dołącza podane pliki i linki do issue na GitHubie jako artefakty issue (<code>gh</code> 2.103 albo
+  nowszy, prywatna wersja zapoznawcza GitHuba) i podaje link do każdego artefaktu. Obraz albo wideo staje się
+  dokumentem Markdown z dołączonym plikiem. Inny typ pliku, plik odrzucony przez GitHub albo <code>gh</code> bez
+  tego polecenia wraca z instrukcją, by dołączyć go w przeglądarce na stronie issue. Pull request jest
+  odrzucany: artefakty istnieją tylko przy issue.</p>
+  <dl>
+    <div>
+      <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
+      <dd><span lang="en">Type the command, or ask to attach a file to an issue.</span><span lang="pl">Wpisz
+      polecenie albo poproś o dołączenie pliku do issue.</span></dd>
+    </div>
+    <div>
+      <dt><span lang="en">Arguments</span><span lang="pl">Argumenty</span></dt>
+      <dd><span lang="en">The issue (<code>42</code>, <code>#42</code> or a link), then the files or links:
+      <code>/viber:attach 42 mockup.html notes.md</code>.</span><span lang="pl">Issue (<code>42</code>,
+      <code>#42</code> albo link), potem pliki lub linki: <code>/viber:attach 42 mockup.html
+      notes.md</code>.</span></dd>
+    </div>
+    <div>
+      <dt><span lang="en">Switches</span><span lang="pl">Przełączniki</span></dt>
+      <dd><span lang="en">None: it works whatever <code>github.issues</code> reads.</span><span lang="pl">Brak:
+      działa niezależnie od wartości <code>github.issues</code>.</span></dd>
+    </div>
+    <div>
+      <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
+      <dd><span lang="en">One artifact per file or link on the issue. No file in your project.</span><span lang="pl">Jeden
+      artefakt na plik lub link przy issue. Żadnego pliku w projekcie.</span></dd>
     </div>
   </dl>
 </article>
