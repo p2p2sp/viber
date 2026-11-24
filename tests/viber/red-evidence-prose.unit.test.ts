@@ -103,8 +103,8 @@ test("task-coder returns RED: <n> failing pointing at its red.log on a TDD: requ
   assert.ok(has(CODER, "on PASS of a `TDD: required` task with a task file: `RED: <n> failing | <out>/red.log`"));
 });
 
-test("task-coder on an attempt starting with the production code in the tree takes red from the revert route into a fresh log (a green rerun must not fail the attempt or overwrite earlier evidence)", () => {
-  assert.ok(has(CODER, "On a dispatch carrying `reason`, `report`, `resume` or `repair`, where the production code is already in the tree, a new test's red comes from `tdd.md`'s revert route instead"));
+test("task-coder on an attempt starting with the production code in the tree, or for a test green on its first run, takes red from the revert route into a fresh log (a green rerun must not fail the attempt or overwrite earlier evidence)", () => {
+  assert.ok(has(CODER, "On a dispatch carrying `reason`, `report`, `resume` or `repair`, where the production code is already in the tree, or for a test green on its first run, a new test's red comes from `tdd.md`'s revert route instead"));
   assert.ok(has(CODER, "goes to the next free log of `<out>` (`red-2.log`, `red-3.log`, ...), never over an earlier one"));
 });
 

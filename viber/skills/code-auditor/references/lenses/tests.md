@@ -3,7 +3,7 @@ Audits whether the tests would catch a real regression: code that runs under tes
 
 ## Hunts
 ### pseudo-tested
-Critical code no test reaches, or reaches without checking: emptying a function body, returning the type's default or flipping one condition leaves every test green. A `## History` fix whose commit changed no test is a candidate: the missing test is the finding, never the fixed bug, and the fix's reverted lines are the mutant. The core angle, and a finding only when a mutant survives.
+Critical code no test reaches, or reaches without checking: emptying a function body, returning the type's default or flipping one condition leaves every test green. A `## History` fix whose commit changed no test is a candidate: the missing test is the finding, never the fixed bug, and the fix's reverted lines are the mutant. The core angle.
 
 ### hollow-assertions
 Tests that pass whatever the code does: no assertion, `assert true`, `toBeDefined` or `toBeTruthy` on an always-set value, a snapshot standing in for logic, assertions only on mocks (`toHaveBeenCalled`) instead of outputs or state. An assertion that never runs: inside a `catch`, a callback, an `if` or a loop over a possibly empty list, or an unawaited `expect(...).resolves`, `expect.poll` or Playwright call. An error test any exception satisfies: `toThrow()`, `pytest.raises(Exception)`, several statements inside the `raises` block. An expected value computed by the code under test.
@@ -12,10 +12,10 @@ Tests that pass whatever the code does: no assertion, `assert true`, `toBeDefine
 The code under test mocked away, a double for a module of the code's own (Boundary), or a test asserting only interactions or repeating the implementation's call sequence (State): it breaks on a harmless refactor and survives a real behaviour change. A finding names the rule and the behaviour change that would pass. A double whose shape the real collaborator no longer has, or an assertion reading back the stub's own canned value: swapping in the real collaborator fails the test.
 
 ### untested-error-paths
-Catch blocks, error returns, validation rejections and off-by-one limits on a critical flow that no test reaches. The reachability probe tells a path no test reaches from one a test reaches without checking it.
+Catch blocks, error returns, validation rejections and off-by-one limits on a critical flow that no test reaches.
 
 ### flaky-tests
-Async waits, sleeps, the real clock, timezone or locale, randomness, unordered collections, the network; state a test leaves for the next (env vars, globals, fake timers, spies or patches never restored) or parallel workers share (ports, files, database rows); a retry setting masking any of these. A finding needs a reproduced mixed result.
+Async waits, sleeps, the real clock, timezone or locale, randomness, unordered collections, the network; state a test leaves for the next (env vars, globals, fake timers, spies or patches never restored) or parallel workers share (ports, files, database rows); a retry setting masking any of these.
 
 ### dead-tests
 Tests that never run: `skip`, `only`, `todo`, `xfail`, `@Disabled` or `#[ignore]` hiding a regression, a stray `.only` silently running nothing else; a test the runner never collects: outside the discovery pattern, a name the runner ignores, a duplicate name shadowing an earlier test, an `async` test under a synchronous runner, a JUnit 4 `@Test` on the JUnit 5 platform.
@@ -26,7 +26,7 @@ Redundant: two tests failing on exactly the same regressions, or variants of one
 ## Excluded
 - Coverage percentage, and anything argued only from it.
 - Generated, vendored, migration-snapshot and fixture code.
-- A missing test for a trivial getter, setter, DTO or constant.
+- A missing test Earned rules out.
 - Test style, structure, naming, repeated set-up code and readability.
 - Arid production code: logging, metrics and tracing, caching and memoization, timeouts and deadlines, capacity hints, feature-flag plumbing.
 - Gaps in unreachable, dead or non-critical code.
@@ -55,7 +55,7 @@ Dead-test procedure: remove the cited `skip` or `.only` and run the file; a fail
 
 Waste procedure:
 1. Redundant: run the mutants of mutation step 3 with the cited test removed; every mutant it kills is still killed, VERIFIED; one survives, REFUTED.
-2. Trivial: apply a change keeping the observed behaviour (a rename, a reorder); the cited test fails and alone kills no behaviour mutant, VERIFIED; else REFUTED.
+2. Trivial: apply a change keeping the observed behaviour (a rename, a reorder); the cited test fails and alone kills no behaviour mutant, VERIFIED, as is a test that alone kills only mutants of code whose test Earned rules out; else REFUTED.
 3. Misplaced: an integration test asserts the decision; mutate it and run the fast tier alone, never the integration test; the mutant survives, VERIFIED; a unit or component test kills it, REFUTED.
 
 Verdicts:

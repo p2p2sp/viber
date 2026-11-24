@@ -217,9 +217,9 @@ test("the over-mocking angle covers a double for a module of the code's own and 
   assert.ok(body.includes("a test asserting only interactions or repeating the implementation's call sequence (State)"));
   assert.ok(body.includes("A finding names the rule and the behaviour change that would pass."));
 });
-test("the tests lens excludes by the three C9 bullets: a trivial getter, test style and a higher-layer gap unless filed as misplaced", () => {
+test("the tests lens excludes a missing test Earned rules out (an audit never asks for a test the coder may not write), test style and a higher-layer gap unless filed as misplaced", () => {
   const excluded = sectionOf(TESTS_LENS, "## Excluded");
-  assert.ok(excluded.includes("- A missing test for a trivial getter, setter, DTO or constant."));
+  assert.ok(excluded.includes("- A missing test Earned rules out."));
   assert.ok(excluded.includes("- Test style, structure, naming, repeated set-up code and readability."));
   assert.ok(excluded.includes("- A gap already closed by a test at a higher layer, unless filed as misplaced: the mutant is killed there."));
 });
@@ -231,7 +231,7 @@ test("the tests lens verify section carries the oracle sentence naming the waste
 test("the waste procedure runs its misplaced step on the fast tier alone and never the integration test", () => {
   const verify = sectionOf(TESTS_LENS, "## Verify");
   const procedure = verify.split("Waste procedure:\n")[1] ?? "";
-  assert.ok(procedure.startsWith("1. Redundant: run the mutants of mutation step 3 with the cited test removed; every mutant it kills is still killed, VERIFIED; one survives, REFUTED.\n2. Trivial: apply a change keeping the observed behaviour (a rename, a reorder); the cited test fails and alone kills no behaviour mutant, VERIFIED; else REFUTED.\n3. Misplaced: an integration test asserts the decision; mutate it and run the fast tier alone, never the integration test; the mutant survives, VERIFIED; a unit or component test kills it, REFUTED."));
+  assert.ok(procedure.startsWith("1. Redundant: run the mutants of mutation step 3 with the cited test removed; every mutant it kills is still killed, VERIFIED; one survives, REFUTED.\n2. Trivial: apply a change keeping the observed behaviour (a rename, a reorder); the cited test fails and alone kills no behaviour mutant, VERIFIED, as is a test that alone kills only mutants of code whose test Earned rules out; else REFUTED.\n3. Misplaced: an integration test asserts the decision; mutate it and run the fast tier alone, never the integration test; the mutant survives, VERIFIED; a unit or component test kills it, REFUTED."));
   assert.ok(verify.indexOf("Dead-test procedure:") < verify.indexOf("Waste procedure:"));
 });
 

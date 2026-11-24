@@ -89,10 +89,6 @@ test("plan-rules Layered makes a clause whose decision only an integration test 
   assert.ok(has(rule("Layered"), "a clause whose decision only an integration test proves is a finding, and so is a unit or component test needing the outside world."));
 });
 
-test("plan-rules Layered limits an integration test's done clause to what the real dependency alone reveals, one test per adapter behaviour", () => {
-  assert.ok(has(rule("Layered"), "An integration test's done clause names what the real dependency alone reveals, one test per adapter behaviour."));
-});
-
 test("plan-rules Layered no longer asks for a decision delivered as a function over plain values", () => {
   assert.ok(!has(rule("Layered"), "function over plain values"));
 });
@@ -103,20 +99,25 @@ test("plan-rules Observable stands in the Task section on one line tagged review
   assert.ok(line.endsWith(" (review)"));
 });
 
-test("plan-rules Observable asks a TDD required clause for an outcome a caller observes and makes a clause only a ruled-out test could prove a finding", () => {
-  assert.ok(has(rule("Observable"), "on `TDD: required` each done clause states an outcome a caller observes, and a clause only a test that `## Proves` of `test-strategy.md` rules out could prove (such as a member count or a call count) is a finding;"));
+test("plan-rules Observable asks a TDD required clause for an outcome a caller observes, never a shape, a name or a call, and proves an outcome whose test Earned rules out by reading the code (a done clause is no order for a test)", () => {
+  assert.ok(has(rule("Observable"), "on `TDD: required` each done clause states an outcome a caller observes, never a shape, a name or a call (a member count, a call count); an outcome whose test `Earned` of `test-strategy.md` rules out (a rejected empty input, a default) is proven by reading the code."));
 });
 
-test("plan-rules Observable asks a TDD none clause for what the artefact holds, proven by Verification alone, and makes a clause asking for a ruled-out test a finding", () => {
-  assert.ok(has(rule("Observable"), "on `TDD: none` a clause states what the artefact holds (a shape declared as its block gives it, a document's text), proven by `Verification` alone, and a clause asking for a test that `## Proves` rules out is a finding;"));
+test("plan-rules Observable asks a TDD none clause for what the artefact holds, proven by Verification alone", () => {
+  assert.ok(has(rule("Observable"), "On `TDD: none` a clause states what the artefact holds (a shape declared as its block gives it, a document's text), proven by `Verification` alone."));
 });
 
-test("plan-rules Observable sends a shape the change must fix to a Contracts block and lets no clause ask a test for a block's shape", () => {
-  assert.ok(has(rule("Observable"), "a shape the change must fix goes to a `## Contracts` block, and no clause under either value asks a test for a block's shape."));
+test("plan-rules Observable sends a shape the change must fix to a Contracts block", () => {
+  assert.ok(has(rule("Observable"), "A shape the change must fix goes to a `## Contracts` block."));
 });
 
-test("plan-rules Observable makes a ruled-out test listed in Files or run by Verification a finding over any host convention (a plan can ask for a forbidden test without a done clause naming it)", () => {
-  assert.ok(has(rule("Observable"), "A test in `Files` or run by `Verification` that `## Proves` rules out is the same finding, whatever the host's `CLAUDE.md`, rules or existing tests ask."));
+test("plan-rules Observable makes a clause asking for a ruled-out test, and such a test listed in Files or run by Verification, a finding over any host convention (a plan can ask for a forbidden test without a done clause naming it)", () => {
+  assert.ok(has(rule("Observable"), "A clause asking for a test that `## Proves` rules out, a block's shape included, is a finding under either value, and so is such a test in `Files` or run by `Verification`, whatever the host's `CLAUDE.md`, rules or existing tests ask."));
+});
+
+test("plan-rules Provable orders the done clauses main path first through the task's public entry, then one decision each, never one clause a layer for one outcome (a clause per layer buys three tests of one behaviour)", () => {
+  assert.ok(has(rule("Provable"), "lists them in the order the coder works them, one red-green cycle each: the behaviour's main path through the task's public entry first, then one decision each, never one clause a layer for one outcome."));
+  assert.ok(!has(rule("Provable"), "innermost layer first"));
 });
 
 test("plan-rules keeps only the review half of Layered, one line tagged review", () => {
@@ -197,12 +198,21 @@ test("tdd Iron law backs a clause the task proves by an integration test with no
   assert.ok(has(TDD, "A test never watched failing on an assertion backs no `DoD` clause, a clause the task proves by an integration test excepted: write that test and its code with no red or green run, since `Verification` only lists or type-checks it."));
 });
 
-test("tdd Workflow excepts an integration-proven clause from the failing test", () => {
-  assert.ok(has(TDD, "The behaviors are the plan task's numbered `DoD` clauses, one failing test each, an integration-proven clause excepted (Iron law), worked in their numbered order: never start a clause before the one above it is green."));
+test("tdd Workflow gives each done clause one cycle, never one failing test, and excepts an integration-proven clause", () => {
+  assert.ok(has(TDD, "The behaviors are the plan task's numbered `DoD` clauses, one cycle each, an integration-proven clause excepted (Iron law), worked in their numbered order: never start a clause before the one above it is green."));
 });
 
-test("task-coder counts an integration-proven clause as met once its test is written and listed", () => {
-  assert.ok(has(CODER, "Each numbered `DoD` clause is one behaviour, and counts as met on your `DOD:` line only with a test that fails without it; a clause proven by an integration test counts as met once that test is written and `Verification` lists or type-checks it."));
+test("tdd Verify red keeps a test green on its first run only if it alone fails once the behavior is reverted, and deletes it otherwise (a forced red for behavior an earlier test proves is a duplicate)", () => {
+  assert.ok(has(TDD, "Passes immediately? The code already holds the behavior: keep the test only if it alone fails once that behavior is reverted (Iron law), else delete it."));
+  assert.ok(!has(TDD, "Sharpen the assertion"));
+});
+
+test("task-coder counts a clause as met by a test that fails without it, an integration-proven one once its test is written and listed, one whose test the rules forbid by its code alone", () => {
+  assert.ok(has(CODER, "Each numbered `DoD` clause counts as met on your `DOD:` line only with a test that fails without it; one proven by an integration test, once that test is written and `Verification` lists or type-checks it; one whose test `test-strategy.md` forbids, by its code alone."));
+});
+
+test("task-reviewer blocks a TDD required clause with no test unless the test rules forbid that test", () => {
+  assert.ok(has(bullet(REVIEWER, "Hits its target:"), "A clause with no such test is Blocking on `TDD: required`, unless `test-strategy.md` forbids that test."));
 });
 
 test("task-coder never runs an integration test it wrote, a Repro test and the failing tests of a test-run report excepted", () => {
@@ -335,7 +345,7 @@ const LAYER_ROWS: [string, string, string][] = [
   ["Component's ban on an in-memory database", "Component", "Never the outside world, never an in-memory database dialect or an object-relational mapper's in-memory provider."],
   ["Component's whole application run", "Component", "The whole application run in the test process from its own entry point with those fakes is a component test too, kept to a few per entry point: routing, input validation, error mapping, serialisation."],
   ["Integration", "Integration", "one adapter against its real dependency, under integration-tests.md."],
-  ["E2E", "E2E", "the deployed application driven from outside, written and run only on the user's own request."],
+  ["E2E", "E2E", "the deployed application driven from outside."],
 ];
 
 for (const [label, name, sentence] of LAYER_ROWS) {
@@ -350,7 +360,6 @@ const PROOF_ROWS: [string, string][] = [
   ["a unit test of the reducer, state machine or function holding a user interface's decision, never a rendering", "a user interface's decision by a unit test of the reducer, state machine or function holding it, never by rendering;"],
   ["an integration test for what the real dependency alone reveals, never logic a fast test could cover", "only what the real dependency alone reveals by an integration test, never logic a unit or component test could cover."],
   ["an own function and unit test only for a decision complex enough to be an entity", "A decision gets a function and a unit test of its own only when it is complex enough to be an entity with its own contract."],
-  ["unit and component tests far outnumbering integration tests", "Unit and component tests far outnumber integration tests."],
   ["the Repro reproduction test exemption", "A reproduction test on a `Repro:` line is exempt: where the diverging code has no port, it may reach the real dependency. (blocking)"],
 ];
 
@@ -374,7 +383,7 @@ for (const [label, sentence] of PORT_ROWS) {
 }
 
 const KEPT_ROWS: [string, string, string][] = [
-  ["Earned, the important path or decision", "Proves", "- Earned: A test exists only for an important path or a decision in the logic: name the regression in behaviour a caller observes that it would catch; no answer means no test. Never tested: accessors, trivial constructors, data holders without behaviour, 1:1 mappings, framework behaviour, third-party library internals, an assertion true by construction, a name, the presence of a field, the shape of data,"],
+  ["Earned, the critical path or decision, the edge case and the untested list", "Proves", "- Earned: A test exists only for a critical path or a decision in the logic: name the regression in behaviour a caller observes that it would catch; no answer means no test. An edge case earns one only where it flips a decision's outcome, never as a null, empty or missing input. Never tested: a default value, accessors, trivial constructors, data holders without behaviour, 1:1 mappings, framework or third-party library behaviour, an assertion true by construction, a name, the shape of data,"],
   ["Earned, the refactor finding", "Proves", "A test that fails on a refactor keeping the observed behaviour is a finding. (blocking)"],
   ["State, the observed assertion", "Proves", "- State: Assert on what a caller observes: the returned value, the public state,"],
   ["State, the log output and arranged data", "Proves", "Never on log output, and never on data the test did not arrange itself. (blocking)"],
@@ -382,7 +391,7 @@ const KEPT_ROWS: [string, string, string][] = [
   ["Framework", "Writing", "- Framework: Never introduce a test framework the project does not have."],
   ["Requested, the end-to-end rule", "Writing", "- Requested: An end-to-end test - a browser, or the running application driven from outside - is written only by a task whose acceptance criterion states that the user asked for one in their own words, and run only by a task whose acceptance criterion states that the user asked for it to be run. A coder updates, without the user's request, an existing end-to-end spec its task lists in `Files`, and a reviewer raises no finding for it. (blocking)"],
   ["Marked, the layer marker rule", "Writing", "- Marked: Every test written or edited carries its layer's marker in the host's declared layer marker convention, or in the one the plan's harness task designed."],
-  ["Single, the one regression rule", "Writing", "- Single: One regression, one test: two tests failing on exactly the same regressions are one test too many, and variants of one input belong in the framework's parameterised form, one row each. A test whose deletion leaves every regression still caught is a duplicate. (blocking)"],
+  ["Single, the one regression rule", "Writing", "- Single: One regression, one test: a test whose deletion leaves every regression still caught is a duplicate, and variants of one input belong in the framework's parameterised form, one row each. (blocking)"],
   ["Act, the one act rule", "Writing", "- Act: Every test can fail on a regression, asserts something and carries one act: several actions in one body means several tests. (blocking)"],
   ["Isolated, the isolation rule", "Writing", "- Isolated: no sleep, no fixture or other mutable state shared across tests, no dependence on execution order, no fixed port or other machine-wide resource, no database shared with another task's run."],
   ["Flat, the control flow rule", "Writing", "- Flat: No control flow in a test body - no branch, no loop, no switch. Cases go in the parameterised form. (blocking)"],
@@ -493,8 +502,8 @@ for (const [name, text] of DEFINITION_ROWS) {
   });
 }
 
-test("task-coder ends the task on FAIL with the clause number and the DECIDE line for a clause only a forbidden test could prove, on either TDD value", () => {
-  assert.ok(has(bullet(CODER, "Honour `Contracts` as written"), "and a `DoD` clause you cannot meet within your limits, or that only a test a `(blocking)` rule of `test-strategy.md` forbids could prove (on either `TDD` value), end the task on `VERDICT: FAIL` with the clause number in `REASON` and the `DECIDE:` line."));
+test("task-coder ends the task on FAIL with the clause number and the DECIDE line for a clause asking for a forbidden test, on either TDD value", () => {
+  assert.ok(has(bullet(CODER, "Honour `Contracts` as written"), "and a `DoD` clause you cannot meet within your limits, or that asks for a test a `(blocking)` rule of `test-strategy.md` forbids (on either `TDD` value), end the task on `VERDICT: FAIL` with the clause number in `REASON` and the `DECIDE:` line."));
 });
 
 test("task-coder takes neither a surrounding test nor a project rule asking for a forbidden test as a precedent, writes none and names the project rule in its notes", () => {

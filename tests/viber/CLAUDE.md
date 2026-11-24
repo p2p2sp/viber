@@ -27,7 +27,7 @@ One test per viber script, hook script or `.ts` module, named after it (the pair
 - `code-auditor-words.unit.test.ts` holds `code-auditor/SKILL.md`, `references/synthesis.md` and the agents `critic`, `scout`, `hunter` and `mapper` each to a word cap below its count before the scripted pipeline, counted by whitespace split; raised only on purpose.
 - `rule-budget.unit.test.ts` holds the read set of `planner`, `planner-review`, `task-coder`, `task-reviewer` and `hunter` (shipped files, or the `## ` sections read from one) to a byte cap each, read as text. Growing a file or section one of them reads fails it until the cap is raised on purpose.
 - `replay/plan-review/` holds three plans recovered from archived runs (kept as recorded, so one may fail a later `plan-index.sh` check), each one's expected findings and reach (`expected.md`) and the by-hand comparison procedure (`README.md`); no test reads it.
-- `replay/done-clauses.md` is the sample of done clauses (`bad` ones to report under a test rule, `good` ones to pass) for a by-hand replay against the plan reviewer and coder; no test reads it, and it carries no name or text of a customer project.
+- `replay/done-clauses.md` is the sample of done clauses (`bad` ones to report under a test rule, `good` ones to pass, `read` ones to pass with no test) for a by-hand replay against the plan reviewer and coder; no test reads it, and it carries no name or text of a customer project.
 
 ## Change together
 

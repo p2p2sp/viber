@@ -1,8 +1,9 @@
 # Replay sample of done clauses
 
 Each line is one done clause for a replay of the plan reviewer and the coder: a `bad` clause
-must be reported under `Observable` naming the test rule after it, a `good` clause must not.
-Line format: - <bad|good> | <test rule, or none> | <TDD value> | <clause>
+must be reported under `Observable` naming the test rule after it, a `good` clause must not, and
+a `read` clause must not either: the coder writes no test for it and the reviewer judges its code.
+Line format: - <bad|good|read> | <test rule, or none> | <TDD value> | <clause>
 
 - bad | Earned | required | the key test covers `menuIcons` with its eight keys
 - bad | Public | required | every constant of `Scopes` is listed, read by reflection
@@ -19,3 +20,5 @@ Line format: - <bad|good> | <test rule, or none> | <TDD value> | <clause>
 - good | none | required | the list answers its second page with items 21 to 40
 - good | none | required | saving a second user with the same email fails on the unique index
 - good | none | none | the README names the `--dry-run` flag
+- read | Earned | required | a request with an empty name is rejected with `name-required`
+- read | Earned | required | a new order starts in the `draft` state

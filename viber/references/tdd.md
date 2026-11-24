@@ -12,7 +12,7 @@ On `resume`, `reason` or `report` input, the code already in the tree is existin
 One behavior, one test, named after the behavior ("user can checkout with valid cart", never "constructor returns instance"). Through the `Public` rule of `test-strategy.md`.
 
 ### Verify red - watch it fail
-Run it. A run counts as red only when the test fails on an assertion about the missing behavior, never on a typo, import miss or harness error. A compile, import or missing-symbol failure gets a signature-only skeleton with no logic, then a rerun, until the test fails on an assertion. Passes immediately? Sharpen the assertion and restart red. The first run, before any production edit, goes to `<out>/red.log`.
+Run it. A run counts as red only when the test fails on an assertion about the missing behavior, never on a typo, import miss or harness error. A compile, import or missing-symbol failure gets a signature-only skeleton with no logic, then a rerun, until the test fails on an assertion. Passes immediately? The code already holds the behavior: keep the test only if it alone fails once that behavior is reverted (Iron law), else delete it.
 
 ### Green - simplest code that passes
 Only enough to pass this test. No anticipating future tests, no opportunistic refactor of surrounding code.
@@ -21,11 +21,12 @@ Only enough to pass this test. No anticipating future tests, no opportunistic re
 The target test and every test already in that file pass. No new warnings, no stray prints, no flaky failures hidden behind a retry. A red here is fixed in the code, never by weakening, skipping or deleting a test.
 
 ### Refactor - only on green, only for real duplication
-Only code this task wrote. Never refactor while red; the file stays green through it.
+Only code this task wrote; the file stays green through it.
 
 ## Anti-patterns
 
 - Horizontal slicing - all tests first, then all implementation. Work vertical: one test, one implementation, repeat.
+
 ## Workflow
 
-Decide the public interface before coding. The behaviors are the plan task's numbered `DoD` clauses, one failing test each, an integration-proven clause excepted (Iron law), worked in their numbered order: never start a clause before the one above it is green. Where the task leaves a choice open, take it; where it leaves the behavior under test unnameable, stop and report the task failed with that reason.
+Decide the public interface before coding. The behaviors are the plan task's numbered `DoD` clauses, one cycle each, an integration-proven clause excepted (Iron law), worked in their numbered order: never start a clause before the one above it is green. Where the task leaves a choice open, take it; where it leaves the behavior under test unnameable, stop and report the task failed with that reason.
