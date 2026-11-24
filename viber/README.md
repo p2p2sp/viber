@@ -10,11 +10,12 @@ claude plugin marketplace add https://github.com/p2p2sp/viber --scope user
 claude plugin install viber@p2p2 --scope user
 ```
 
+Required: Node.js 22.18 or newer, for every viber skill and hook. Without it the session start hook says so and every skill refuses with one line.
+
 Optional tools. A step that needs one skips with a note when it is missing:
 
 | Tool | Used by |
 | --- | --- |
-| `node` | `/viber:setup`'s permissions merge |
 | Playwright | `/viber:e2e` |
 | the `gh` CLI | the GitHub steps, checked by `/viber:setup` |
 

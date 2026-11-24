@@ -100,9 +100,8 @@ Every step from an idea to an archived build, including the optional ones.
 | Needed for | Tool |
 | --- | --- |
 | GitHub issues and pull requests | the `gh` CLI |
-| the settings merge in `/viber:setup` (optional) | `node` |
-| the contrast check in `/viber:pro-designer` | Node.js 22.6 or newer |
-| `/viber:idea-validator` | Node.js 18 or newer and web access |
+| every viber skill and hook | Node.js 22.18 or newer |
+| `/viber:idea-validator` | web access |
 | `/viber:e2e` | Playwright |
 | `/viber:factory` | Windows with `powershell.exe` |
 

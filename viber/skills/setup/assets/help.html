@@ -1940,14 +1940,15 @@ followed by <code>/plugin install viber@p2p2</code> does the same as the termina
 <code>/plugin marketplace add https://github.com/p2p2sp/viber</code>, a po nim
 <code>/plugin install viber@p2p2</code>.</p>
 
-<h3 class="sub" id="sm-tools"><span lang="en">Optional tools</span><span lang="pl">Narzędzia opcjonalne</span><a class="self" href="#sm-tools">#</a></h3>
+<h3 class="sub" id="sm-tools"><span lang="en">Required and optional tools</span><span lang="pl">Narzędzia wymagane i opcjonalne</span><a class="self" href="#sm-tools">#</a></h3>
 <ul class="musts">
+  <li><span lang="en">Required: Node.js 22.18 or newer, for every viber skill and hook. Without it the session start
+  hook says so and every skill refuses with one line.</span><span lang="pl">Wymagane: Node.js 22.18 lub nowszy, dla
+  każdej umiejętności i każdego hooka viber. Bez niego hook startu sesji o tym informuje, a każda umiejętność
+  odmawia jednym wierszem.</span></li>
   <li><span lang="en">The GitHub CLI (<code>gh</code>) for the GitHub steps. Without it an issue step reports
   the error and pasted text still works.</span><span lang="pl">GitHub CLI (<code>gh</code>) do kroków na
   GitHubie. Bez niego krok z issue zgłasza błąd, a wklejony tekst dalej działa.</span></li>
-  <li><span lang="en"><code>node</code> for the settings merge of <code>/viber:setup</code>. Without it a merge
-  into an existing settings file is skipped and the recommended block is printed.</span><span lang="pl"><code>node</code> do scalania ustawień w <code>/viber:setup</code>. Bez niego
-  scalanie z istniejącym plikiem ustawień zostaje pominięte i wypisany jest zalecany blok.</span></li>
   <li><span lang="en">Playwright for <code>/viber:e2e</code>. Without it <code>/viber:e2e</code> offers to
   install it, or stops.</span><span lang="pl">Playwright do <code>/viber:e2e</code>. Bez niego
   <code>/viber:e2e</code> proponuje jego instalację albo kończy pracę.</span></li>
@@ -2358,9 +2359,8 @@ z nich mówi, jak nim sterować.</p>
     </div>
     <div>
       <dt><span lang="en">Switches</span><span lang="pl">Przełączniki</span></dt>
-      <dd><span lang="en">None. Node.js 22.6 or newer is optional: it powers the WCAG contrast check, which is skipped
-      with a note without it.</span><span lang="pl">Brak. Node.js 22.6 lub nowszy jest opcjonalny: napędza
-      sprawdzenie kontrastu WCAG, które bez niego jest pomijane z adnotacją.</span></dd>
+      <dd><span lang="en">None. Node.js 22.18 or newer powers the WCAG contrast check.</span><span lang="pl">Brak. Node.js 22.18 lub nowszy
+      napędza sprawdzenie kontrastu WCAG.</span></dd>
     </div>
     <div>
       <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
@@ -2396,8 +2396,8 @@ z nich mówi, jak nim sterować.</p>
     </div>
     <div>
       <dt><span lang="en">Switches</span><span lang="pl">Przełączniki</span></dt>
-      <dd><span lang="en">None. It needs web access and Node.js 18 or newer.</span><span lang="pl">Brak. Wymaga
-      dostępu do sieci i Node.js 18 lub nowszego.</span></dd>
+      <dd><span lang="en">None. It needs web access and Node.js 22.18 or newer.</span><span lang="pl">Brak. Wymaga
+      dostępu do sieci i Node.js 22.18 lub nowszego.</span></dd>
     </div>
     <div>
       <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
