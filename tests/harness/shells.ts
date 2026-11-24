@@ -18,7 +18,7 @@
  * Which runs take the full matrix (every shell, every bash major): a critical
  * file (`*.critical.test.ts`) when `CI` is set to `true` or `1` - GitHub
  * Actions sets it on every job - and every file when `P2P2_SHELL_MATRIX=full`,
- * which the full-suite workflow sets. Any other run takes the first shell that
+ * which the legacy workflow (`legacy.yml`) sets. Any other run takes the first shell that
  * resolves and records every other candidate as a `ShellSkip`: a spawned
  * shell is the suite's dominant cost, so the many logic cases pay for one
  * shell and the few critical ones for all of them. `P2P2_SHELL_MATRIX=first`
