@@ -1,6 +1,0 @@
-- T1 (commit 219e3d24) already shipped every exit T2 delivers: viber/scripts/artifact-create.sh needs no change, so red-check against HEAD always reads PASSED-WITHOUT-CHANGE, whatever the tests.
-- Premise of the failed attempt: a red against the tree proves the tests. Checked: red-check runs the tests on HEAD's script, which already passes them; only a revert of the behaviour can show red.
-- Revert route: .temp/viber/T2/red-2.log, all five refusal tests fail on assertions with the lookup check, both pull checks, the file check and the unknown-command check reverted; the script is restored to HEAD (git status clean).
-- .temp/viber/T2/red.log is a harness red (fixture ignored lookup exit), not a behaviour red.
-- Ruled (decision T2): T2 lands as tests only; its red is red-2.log, so a red-check against HEAD's script cannot show red for it.
-- The pull request ERROR line names the normalised reference (fragment/query dropped), not the raw argument.
