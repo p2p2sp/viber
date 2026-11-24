@@ -18,7 +18,7 @@
 
 - A test goes through the public contract alone, as a real caller does: no private member, no reflection, no method added for a test. A double stands only for the outside world, never for another module of the code's own.
 
-- A build writes a test only for a critical path or a decision in the logic, one per regression, and none for a null, empty or missing input, a default value, a name, a data shape or what a user interface renders: a test whose deletion leaves every regression still caught is one test too many, whatever its layer. A done clause states what must hold, never an order for a test.
+- A build writes a test only for a critical path or a decision in the logic, one per regression, and none for a null, empty or missing input, a default value, a name, a data shape, what the compiler, type checker, linter or schema rejects or what a user interface renders: a test whose deletion leaves every regression still caught is one test too many, whatever its layer. A done clause states what must hold, never an order for a test.
 
 - Tests come out of the build one cycle at a time, the main path through the public entry first, then one decision each: a test written before the code it follows proves imagined behaviour.
 

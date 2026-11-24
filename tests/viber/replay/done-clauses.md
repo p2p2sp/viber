@@ -22,3 +22,7 @@ Line format: - <bad|good|read> | <test rule, or none> | <TDD value> | <clause>
 - good | none | none | the README names the `--dry-run` flag
 - read | Earned | required | a request with an empty name is rejected with `name-required`
 - read | Earned | required | a new order starts in the `draft` state
+- read | Earned | required | the upload size limit is 10 MB
+- bad | Earned | required | a test pins the value of the retry limit constant
+- read | Earned | required | an order built without a currency does not compile
+- bad | Earned | required | a test proves the type checker refuses a call passing a string where the handler takes an `UploadRequest`
