@@ -7,6 +7,7 @@
 import { resolveBranching } from "./branching.ts";
 import { resolveExtensions } from "./extensions.ts";
 import { readChildren } from "./lines.ts";
+import { localLine, type Local } from "./local.ts";
 
 const SWITCHES_BEFORE_TITLES = [
   "planning.adr",
@@ -57,9 +58,16 @@ function tier(raw: string | undefined): string | null {
   return TIERS.includes(v) ? v : null;
 }
 
-export function resolveBlock(text: string | null, hasAgent: (name: string) => boolean = () => false): string[] {
+/** local: null when no local file exists. */
+export function resolveBlock(
+  text: string | null,
+  hasAgent: (name: string) => boolean = () => false,
+  local: Local | null = null,
+): string[] {
   const extensions = resolveExtensions(text, hasAgent);
   const children = readChildren(text ?? "");
+  const over = local?.overrides ?? new Map<string, string>();
+  for (const [id, value] of over) children.set(id, value);
   let min = tier(children.get("tiers.min")) ?? "haiku";
   let max = tier(children.get("tiers.max")) ?? "opus";
   if (TIERS.indexOf(min) > TIERS.indexOf(max)) {
@@ -68,6 +76,7 @@ export function resolveBlock(text: string | null, hasAgent: (name: string) => bo
   }
   return [
     "# viber config (resolved)",
+    ...(local === null ? [] : [localLine(local)]),
     ...SWITCHES_BEFORE_TITLES.map((id) => switchLine(id, children.get(id))),
     `github.issue-title: ${title(children.get("github.issue-title"), "{summary}")}`,
     `github.pr-title: ${title(children.get("github.pr-title"), "[{issue-number}] {summary}")}`,

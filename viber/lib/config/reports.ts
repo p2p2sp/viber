@@ -5,6 +5,7 @@
 
 import { directory } from "./block.ts";
 import { readChildren } from "./lines.ts";
+import type { Local } from "./local.ts";
 
 const DEFAULT_TESTS =
   "__tests__/ tests/ test/ *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go *Test.java *Test.kt conftest.py testdata/ __mocks__/ __fixtures__/ fixtures/ jest.config.* vitest.config.*";
@@ -26,7 +27,9 @@ export function resolveRedCheck(text: string | null): string[] {
   ];
 }
 
-export function resolveQuestions(text: string | null): string[] {
+export function resolveQuestions(text: string | null, local: Local | null = null): string[] {
+  const overridden = local?.overrides.get("planning.questions-per-round");
+  if (overridden !== undefined) return [overridden];
   const v = (readChildren(text ?? "").get("planning.questions-per-round") ?? "").replace(/[\s#].*$/s, "");
   return [/^([1-9]|10|all)$/.test(v) ? v : "5"];
 }
