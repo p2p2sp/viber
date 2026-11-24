@@ -30,6 +30,9 @@
  * an argv holding a glob character (`*`, `?`, `[`) runs under `MSYS=noglob`, and
  * one holding a double quote as well takes the environment route too, so both
  * reach the script verbatim.
+ *
+ * Crash retry: on win32 a run whose exit status is an NTSTATUS crash code
+ * (0x80000000 or above, see `isWindowsCrash`) is started once more.
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
@@ -214,7 +217,19 @@ export function runScript(script: string, args: string[] = [], opts: RunOpts = {
     // preamble route above, and reaches here only for a script no shell runs.
     if (process.platform === "win32" && globArg && !quoteArg && env.MSYS === undefined) env.MSYS = "noglob";
   }
-  return spawnCollect(cmd, fullArgs, { cwd: opts.cwd, env, input: opts.input, timeout: opts.timeout ?? 60000 });
+  const spawnOpts = { cwd: opts.cwd, env, input: opts.input, timeout: opts.timeout ?? 60000 };
+  return spawnCollect(cmd, fullArgs, spawnOpts).then((result) =>
+    isWindowsCrash(result.status) ? spawnCollect(cmd, fullArgs, spawnOpts) : result,
+  );
+}
+
+/** Windows only: an exit status of 0x80000000 or above is an NTSTATUS the OS
+ *  set when the process crashed (an MSYS shell under a loaded runner dies with
+ *  0x80000004 before running a line), never a code a script can exit with
+ *  (POSIX exit codes stop at 255). Such a run says nothing about the script,
+ *  so runScript starts it once more. */
+export function isWindowsCrash(status: number | null, platform: string = process.platform): boolean {
+  return platform === "win32" && status !== null && status >= 0x80000000;
 }
 
 /** Spawns without blocking the event loop, so the cases of one file can run

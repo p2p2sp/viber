@@ -15,7 +15,7 @@ Owns the helper modules the suites build on: the concurrent `test()`, the subpro
 ## Contracts
 
 - `test.ts`: cases collect at load and register in one suite named after the file's basename; per-file concurrency is `P2P2_TEST_CONCURRENCY`, else `min(4, os.availableParallelism())`.
-- `runScript(script, args, opts)` always spawns, never imports, and never rejects: it resolves `{ stdout, stderr, status }`, `status` `null` for a spawn failure (its message in `stderr`) or a kill by the timeout (default 60000 ms, SIGTERM).
+- `runScript(script, args, opts)` always spawns, never imports, and never rejects: it resolves `{ stdout, stderr, status }`, `status` `null` for a spawn failure (its message in `stderr`) or a kill by the timeout (default 60000 ms, SIGTERM). On win32 a run ending on an NTSTATUS crash code (`isWindowsCrash`: status 0x80000000 or above) is started once more; a script's own exit code is never retried.
 - The child's environment is only a fixed base list (`PATH`, `HOME`, `USERPROFILE`, the temp vars, the Windows system vars, `LANG`, `LC_ALL`) plus `opts.env`; anything else a script reads must come through `opts.env`. `opts.stubDirs` are prepended to `PATH`.
 - Interpreter order: `opts.shell`; a `.ts`/`.js`-family extension -> `process.execPath`; on win32 the file's `#!` interpreter resolved by name from `PATH` (a bare command name looked up in `opts.stubDirs` first); otherwise the script or command is executed directly.
 - On win32 a run through a shell whose argv holds `*`, `?` or `[` and no `"` gets `MSYS=noglob` (unless `opts.env` sets `MSYS`): the MSYS runtime of a bash.exe otherwise expands such an argument against the working directory before the script runs.

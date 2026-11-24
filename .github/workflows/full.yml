@@ -16,12 +16,13 @@ jobs:
   Tests:
     strategy:
       fail-fast: false
-      # Windows splits the suite into 4 shards (node --test-shard, one job
-      # each): a spawned script costs an order of magnitude more there, so one
-      # job would take several times the Linux one.
+      # Windows splits the suite into 5 shards, one job each: a spawned script
+      # costs an order of magnitude more there, so one job would take several
+      # times the Linux one. .github/scripts/test-shard.ts deals the files out
+      # by their measured Windows time, so the shards finish close together.
       matrix:
         os: [ubuntu-latest, windows-latest]
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5]
         exclude:
           - os: ubuntu-latest
             shard: 2
@@ -29,7 +30,9 @@ jobs:
             shard: 3
           - os: ubuntu-latest
             shard: 4
-    name: ${{ matrix.os == 'windows-latest' && format('Full ({0}, {1}/4)', matrix.os, matrix.shard) || format('Full ({0})', matrix.os) }}
+          - os: ubuntu-latest
+            shard: 5
+    name: ${{ matrix.os == 'windows-latest' && format('Full ({0}, {1}/5)', matrix.os, matrix.shard) || format('Full ({0})', matrix.os) }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -46,10 +49,21 @@ jobs:
       # every POSIX shell and every bash major present
       # (tests/harness/shells.ts). Windows runs fewer files at once than
       # Linux: an overloaded runner turns its slow cases into timeouts.
-      - name: Run tests
+      - name: Run tests (Linux)
+        if: matrix.os == 'ubuntu-latest'
         env:
           CI: "true"
           P2P2_SHELL_MATRIX: full
-          SHARD: ${{ matrix.os == 'windows-latest' && format('{0}/4', matrix.shard) || '1/1' }}
-          FILES: ${{ matrix.os == 'windows-latest' && '8' || '12' }}
-        run: node --test --test-concurrency="$FILES" --test-shard="$SHARD" "tests/**/*.test.ts"
+        run: node --test --test-concurrency=12 "tests/**/*.test.ts"
+      # The shard's file list has no blank in any path, so the unquoted
+      # expansion splits it into one argument per file.
+      - name: Run tests (Windows shard)
+        if: matrix.os == 'windows-latest'
+        env:
+          CI: "true"
+          P2P2_SHELL_MATRIX: full
+          SHARD: ${{ matrix.shard }}
+        run: |
+          files=$(node .github/scripts/test-shard.ts "$SHARD" 5)
+          [ -n "$files" ]
+          node --test --test-concurrency=8 $files

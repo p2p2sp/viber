@@ -18,7 +18,7 @@ import os from "node:os";
 import path from "node:path";
 import { inflateSync } from "node:zlib";
 
-import { runScript } from "./harness/run.ts";
+import { isWindowsCrash, runScript } from "./harness/run.ts";
 import { withTempDir, withGitRepo } from "./harness/tmp.ts";
 import { canDenyRead, denyRead, restoreRead } from "./harness/perms.ts";
 import { withStub } from "./harness/stub.ts";
@@ -270,4 +270,13 @@ test("writePng emits a decodable 8-bit RGBA PNG carrying the pixels it was given
       `pixel ${i} should round-trip all four channels`,
     );
   });
+});
+
+test("isWindowsCrash takes an NTSTATUS crash code on win32 alone, never a script exit code or a kill (a retried script failure would hide a real bug)", () => {
+  assert.equal(isWindowsCrash(0x80000004, "win32"), true);
+  assert.equal(isWindowsCrash(0xc0000005, "win32"), true);
+  assert.equal(isWindowsCrash(1, "win32"), false);
+  assert.equal(isWindowsCrash(255, "win32"), false);
+  assert.equal(isWindowsCrash(null, "win32"), false);
+  assert.equal(isWindowsCrash(0x80000004, "linux"), false);
 });

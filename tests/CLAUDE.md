@@ -16,12 +16,13 @@ Owns every automated check in the repository: the per-plugin suites, the `releas
 - Which suite a change reaches:
   - a viber script, hook, `.ts` or `.mjs` module -> its test under `tests/viber/`;
   - `.github/scripts/release.sh` -> `tests/github/release.test.ts`, a logic file with no critical sibling: the script runs only in the release workflow, on `ubuntu-latest`;
+  - `.github/scripts/test-shard.ts` (the weighted split of the Windows jobs of `full.yml`) -> `tests/github/test-shard.unit.test.ts`, which also fails on a `WEIGHTS` entry naming no tracked test file;
   - `tools/agent-context.ts` (a dev command that ships with no plugin) -> `tests/tools/`: `agent-context.unit.test.ts` runs on the fake reader of `agent-context-fixture.ts`, `agent-context.critical.test.ts` runs the disk adapter `readRuns` on a temp directory;
   - any tracked `*.sh` / `*.ts` outside `tests/` and `docs/`, and every `!` preload in a `SKILL.md` -> `tests/portability.unit.test.ts` (shebang, no CRLF, `100755` exec bit when invoked without an interpreter word, quoted glob arguments in preloads, no bash-only syntax in `#!/bin/sh`, no unguarded GNU-only tools);
   - any tracked file outside `docs/` -> `tests/orphan-tags.unit.test.ts` (a line that is only `</name>` with no `<name` opener in the same file);
   - any test file added, renamed or moved between tiers -> `tests/tiers.unit.test.ts`;
   - anything under `tests/harness/` -> `tests/harness.critical.test.ts`, then every suite, since all of them import it.
-- CI: `.github/workflows/ci.yml` runs every tier on `ubuntu-latest` and the unit and critical tiers on `windows-latest` and `macos-latest`, on every push and pull request. `.github/workflows/full.yml` runs every tier on Linux and Windows with `P2P2_SHELL_MATRIX=full`, nightly, on demand and as the `Full` job `release-version.yml` waits for.
+- CI: `.github/workflows/ci.yml` runs every tier on `ubuntu-latest` and the unit and critical tiers on `windows-latest` and `macos-latest`, on every push and pull request. `.github/workflows/full.yml` runs every tier on Linux and Windows (5 Windows jobs, files dealt out by `.github/scripts/test-shard.ts` by measured time) with `P2P2_SHELL_MATRIX=full`, nightly, on demand and as the `Full` job `release-version.yml` waits for.
 
 ## Contracts
 
