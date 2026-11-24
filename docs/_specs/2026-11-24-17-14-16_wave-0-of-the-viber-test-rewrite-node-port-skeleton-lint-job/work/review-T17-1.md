@@ -1,0 +1,8 @@
+- Blocking [task] tests/tools/lint/invocations.unit.test.ts:33 - test-strategy Act: several tests carry more than one act in one body: line 33 (DoD.1: three `run` calls for `bash`, `sh`, `node`), line 50 (DoD.1: a fragment call, then a part call), line 76 (DoD.2: single-quoted, then double-quoted glob), line 110 (DoD.4: a resolving call, then an unknown key)
+  Split each into one test per act, one assertion target per body: "a script invoked through bash is not reported at mode 100644" and the same for `sh` and `node`; one test for a bare call from a fragment and one for a part; one test for a single-quoted glob and one for a double-quoted glob; one test for a part-file call that resolves and one for a part-file call naming an unknown key.
+- Blocking [task] tests/tools/lint/invocations.unit.test.ts:34 - test-strategy Flat: the `for (const word of ["bash", "sh", "node"])` loop is control flow in a test body
+  Replace the loop with the parameterised form the project's other test files use: a top-level array of rows and one `test()` per row, each registered at load. This also satisfies the Act finding above for this case.
+- Blocking [task] tests/tools/lint/invocations.unit.test.ts:150 - the tests at lines 150 ("a path outside the plugin is not read") and 154 ("the self-check sample is reported") prove no numbered DoD clause of T17 (DoD.1-6); the task asked for no test beyond them. The engine's own self-check run already covers the sample.
+  Delete both tests.
+- Minor tests/tools/lint/invocations.unit.test.ts:67 - "a script no document calls is not reported" and "a tree whose every call resolves ... reports nothing" (line 141) are negative cases only loosely tied to DoD.1 and DoD.4-6
+  Optional: keep one negative case per clause or drop them.
