@@ -23,7 +23,7 @@ const SKILLS = path.resolve(import.meta.dirname, "../../viber/skills");
 const SKILL_WORD_CAPS: [string, number, number][] = [
   ["fixer", 1180, 1191],
   ["e2e", 1189, 1213],
-  ["prototype", 819, 821],
+  ["prototype", 820, 821],
   ["pr-feedback", 664, 667],
   ["pr-feedback-reply", 363, 433],
   ["issue-create", 180, 195],
