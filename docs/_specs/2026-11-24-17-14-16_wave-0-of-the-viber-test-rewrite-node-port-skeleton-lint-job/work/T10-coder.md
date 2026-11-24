@@ -1,0 +1,4 @@
+- cap reports a missing file or section as its own finding ("file not found", `section "<name>" not found`); no test covers it (test-strategy Earned forbids a missing-input case), so it rests on the code alone.
+- A cap section matches its heading line whole (`## <name>`, trailing whitespace ignored), never a heading it is a prefix of.
+- Engine test fakes compare the tree by identity to tell the self-check sample from the real tree: `typeBlindOnRealTree` proves a green run, `typeBlindOnSample` proves a failed self-check gates its rules.
+- Red for the review fixes: `.temp/viber/T10/red-4.log`, taken with the `usable` gate dropped and the end-of-file section cut one line short.
