@@ -1,0 +1,4 @@
+- run.ts (outside Files) passes an agent-file probe (fs.exists of <root>/.claude/agents/<name>.md) to resolveBlock; without it the extension lines could never find a name.
+- The map classifier lives in lines.ts and readChildren skips the map lines, which is how DoD.6 holds.
+- Red came from the revert route (resolveExtensions temporarily returning none): .temp/viber/T5/red.log, 60 failure lines counted.
+- Agent probe uses exists(), so a directory named <name>.md would count as found (the bash used -f).

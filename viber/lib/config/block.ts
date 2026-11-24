@@ -4,6 +4,7 @@
  * .claude/viber.yml (null: no file).
  */
 
+import { resolveExtensions } from "./extensions.ts";
 import { readChildren } from "./lines.ts";
 
 const SWITCHES_BEFORE_TITLES = [
@@ -55,7 +56,8 @@ function tier(raw: string | undefined): string | null {
   return TIERS.includes(v) ? v : null;
 }
 
-export function resolveBlock(text: string | null): string[] {
+export function resolveBlock(text: string | null, hasAgent: (name: string) => boolean = () => false): string[] {
+  const extensions = resolveExtensions(text, hasAgent);
   const children = readChildren(text ?? "");
   let min = tier(children.get("tiers.min")) ?? "haiku";
   let max = tier(children.get("tiers.max")) ?? "opus";
@@ -68,8 +70,8 @@ export function resolveBlock(text: string | null): string[] {
     ...SWITCHES_BEFORE_TITLES.map((id) => switchLine(id, children.get(id))),
     `github.issue-title: ${title(children.get("github.issue-title"), "{summary}")}`,
     `github.pr-title: ${title(children.get("github.pr-title"), "[{issue-number}] {summary}")}`,
-    "build.extensions: none",
-    "build.extensions-missing: none",
+    `build.extensions: ${extensions.steps}`,
+    `build.extensions-missing: ${extensions.missing}`,
     `directories.runs: ${directory(children.get("directories.runs"), "_specs")}`,
     `directories.specifications: ${directory(children.get("directories.specifications"), "specs")}`,
     `tiers.min: ${min}`,
