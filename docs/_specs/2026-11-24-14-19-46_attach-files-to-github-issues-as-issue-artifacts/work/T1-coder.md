@@ -1,0 +1,2 @@
+- The exit-2 argument checks, URL normalisation and lookup-failure paths of artifact-create.sh carry no test: no DoD clause of T1 asks for one (review-T1-1). They stay in the script as C1 states.
+- red.log predates review-T1-1: it lists 11 failures, 7 of them the cases still in the tree.
