@@ -63,16 +63,32 @@ printf '%s' "$input" | grep -qE '"permission_mode"[[:space:]]*:[[:space:]]*"plan
 
 transcript_path="$(json_str transcript_path "$input")"
 if [ -n "$transcript_path" ] && [ -f "$transcript_path" ]; then
-  # Episode window, as in plan-gate.sh: everything after the last turn recorded
-  # in a non-plan permission mode.
-  episode_start=$(
-    grep -nE '"type":"permission-mode"' "$transcript_path" 2>/dev/null \
-      | grep -vE '"type":"api-request-blob"' \
-      | grep -vE '"permissionMode":"plan"' \
-      | tail -n1 \
-      | cut -d: -f1
-  )
-  episode_start="${episode_start:-0}"
+  # Episode window, as in plan-gate.sh: everything after the last non-plan
+  # permission-mode record reached before plan mode was entered or after an
+  # ExitPlanMode that was not refused. Plan mode left by hand closes nothing.
+  episode_start="$(
+    awk '
+      /"type":"api-request-blob"/ { next }
+      /"type":"tool_use",("id":"[^"]*",)?"name":"EnterPlanMode"/ { in_plan = 1; next }
+      /"type":"tool_use",("id":"[^"]*",)?"name":"ExitPlanMode"/ {
+        exit_open = 1; exit_id = ""
+        if (match($0, /"type":"tool_use","id":"[^"]*","name":"ExitPlanMode"/)) {
+          exit_id = substr($0, RSTART, RLENGTH)
+          sub(/^"type":"tool_use","id":"/, "", exit_id)
+          sub(/","name":"ExitPlanMode"$/, "", exit_id)
+        }
+        next
+      }
+      exit_open && /"type":"tool_result"/ && /"is_error":true/ && (exit_id == "" || index($0, "\"tool_use_id\":\"" exit_id "\"")) { exit_open = 0; next }
+      /"type":"permission-mode"/ {
+        if (/"permissionMode":"plan"/) { in_plan = 1; next }
+        if (!in_plan || exit_open) { start = NR; in_plan = 0 }
+        exit_open = 0
+      }
+      END { print start + 0 }
+    ' "$transcript_path" 2>/dev/null
+  )"
+  printf '%s' "$episode_start" | grep -qE '^[0-9]+$' || episode_start=0
 
   # Chain Skill tool_use, as in plan-gate.sh but also intent and fixer: bare or
   # "viber:"-prefixed, inside the episode or directly followed by its own

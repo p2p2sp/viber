@@ -198,6 +198,16 @@ test("a planner Skill before a later non-plan permission mode -> the hint fires 
   });
 });
 
+test("a planner Skill, then plan mode left by hand and entered again -> nothing printed, while an ExitPlanMode in between closes the episode -> the hint fires (a mode toggle approves no plan)", async () => {
+  await withTempDir("p2p2-plan-hints-", async (dir) => {
+    const toggled = writeTranscript(dir, [permissionMode("plan"), skillUse(), permissionMode("acceptEdits"), permissionMode("plan")]);
+    assert.equal(await runPayload({ permission_mode: "plan", transcript_path: toggled }), "");
+    const exit = line({ type: "assistant", message: { content: [{ type: "tool_use", id: "toolu_exit", name: "ExitPlanMode", input: {} }] } });
+    const approved = writeTranscript(dir, [permissionMode("plan"), skillUse(), exit, permissionMode("acceptEdits"), permissionMode("plan")]);
+    assertHint(await runPayload({ permission_mode: "plan", transcript_path: approved }));
+  });
+});
+
 test("a mid-turn non-plan record between the planner Skill and its own EnterPlanMode -> nothing printed (the planner still owns the episode)", async () => {
   await withTempDir("p2p2-plan-hints-", async (dir) => {
     const f = writeTranscript(dir, [permissionMode("acceptEdits"), skillUse(), permissionMode("acceptEdits"), enterPlanMode(), permissionMode("plan")]);

@@ -15,8 +15,10 @@
 #     `planning.outside-plan-review: true` for the session's cwd, whatever files it names.
 # Anything else - no plan write, planning.outside-plan-review off, a plan-mode exit in a session
 # that already built a plan - passes untouched. The episode starts after the
-# last recorded non-plan permission mode, so a plan approved earlier in the
-# session cannot re-arm the gate.
+# last non-plan permission mode recorded before plan mode was entered or after an
+# ExitPlanMode that was not refused, so a plan approved earlier in the session
+# cannot re-arm the gate, while the user switching plan mode off and on by hand
+# closes nothing.
 #
 # When armed, ExitPlanMode is allowed only if the chosen agent was dispatched
 # AFTER the last plan write and returned "VERDICT: PASS", and the plan file has
@@ -98,17 +100,39 @@ transcript_path="$(json_str transcript_path "$input")"
 [ -n "$transcript_path" ] && [ -f "$transcript_path" ] || emit_allow
 project_cwd="$(json_str cwd "$input")"
 
-# Episode window: everything after the last turn recorded in a non-plan permission
-# mode. Keeps a plan that was approved and built earlier in this session - its file
-# since touched by the implementor - from arming the gate on a later, unrelated exit.
-episode_start=$(
-  grep -nE '"type":"permission-mode"' "$transcript_path" 2>/dev/null \
-    | grep -vE '"type":"api-request-blob"' \
-    | grep -vE '"permissionMode":"plan"' \
-    | tail -n1 \
-    | cut -d: -f1
-)
-episode_start="${episode_start:-0}"
+# Episode window: everything after the last non-plan permission-mode record that
+# closed an episode. Such a record closes one when plan mode was not entered before
+# it (the turns ahead of plan mode) or when an ExitPlanMode that was not refused
+# precedes it (the plan was approved). Keeps a plan that was approved and built
+# earlier in this session - its file since touched by the implementor - from arming
+# the gate on a later, unrelated exit. A non-plan record reached from plan mode with
+# no such exit is the user switching the mode by hand: it closes nothing, so the
+# planner keeps its plan and a written plan stays armed. A refused ExitPlanMode is
+# the tool_result carrying its id and "is_error":true; one without an id is
+# refused by the first such result after it.
+episode_start="$(
+  awk '
+    /"type":"api-request-blob"/ { next }
+    /"type":"tool_use",("id":"[^"]*",)?"name":"EnterPlanMode"/ { in_plan = 1; next }
+    /"type":"tool_use",("id":"[^"]*",)?"name":"ExitPlanMode"/ {
+      exit_open = 1; exit_id = ""
+      if (match($0, /"type":"tool_use","id":"[^"]*","name":"ExitPlanMode"/)) {
+        exit_id = substr($0, RSTART, RLENGTH)
+        sub(/^"type":"tool_use","id":"/, "", exit_id)
+        sub(/","name":"ExitPlanMode"$/, "", exit_id)
+      }
+      next
+    }
+    exit_open && /"type":"tool_result"/ && /"is_error":true/ && (exit_id == "" || index($0, "\"tool_use_id\":\"" exit_id "\"")) { exit_open = 0; next }
+    /"type":"permission-mode"/ {
+      if (/"permissionMode":"plan"/) { in_plan = 1; next }
+      if (!in_plan || exit_open) { start = NR; in_plan = 0 }
+      exit_open = 0
+    }
+    END { print start + 0 }
+  ' "$transcript_path" 2>/dev/null
+)"
+printf '%s' "$episode_start" | grep -qE '^[0-9]+$' || episode_start=0
 
 # The plan file itself. Anchored on the "file_path" key of a Write/Edit, so a plan
 # path merely quoted in prose or read back does not arm the gate. Both separators

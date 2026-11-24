@@ -90,6 +90,17 @@ function userPrompt(text: string): string {
   return line({ type: "user", message: { role: "user", content: text } });
 }
 
+/** The model asking to leave plan mode. With an id the key order is the real transcript's. */
+function exitPlanMode(id?: string): string {
+  const use = id ? { type: "tool_use", id, name: "ExitPlanMode", input: {} } : { type: "tool_use", name: "ExitPlanMode", input: {} };
+  return line({ type: "assistant", message: { content: [use] } });
+}
+
+/** The answer to an ExitPlanMode the gate or the user refused, in the real key order. */
+function refusedExit(id: string): string {
+  return line({ type: "user", message: { role: "user", content: [{ type: "tool_result", content: "PreToolUse:ExitPlanMode hook error: Next step: review the plan.", is_error: true, tool_use_id: id }] } });
+}
+
 // --- fail-open matrix -------------------------------------------------
 
 test("a payload with no transcript_path key -> allow", async () => {
@@ -729,6 +740,7 @@ test("a planner from an earlier, approved episode does not own a later plain pla
       planWrite(),
       dispatch(),
       PASS,
+      exitPlanMode(),
       permissionMode("acceptEdits"),
       userPrompt("next thing"),
       enterPlanMode(),
@@ -755,6 +767,38 @@ test("a planner that stopped before EnterPlanMode, then a new user prompt enters
     const { decision, reason } = await runCase(f, cwd);
     assert.equal(decision, "deny");
     assert.match(reason ?? "", /outside-plan-review agent has not run on this version/);
+  });
+});
+
+// --- plan mode left by hand keeps the episode open -------------------------
+
+test("the user leaving plan mode by hand and coming back keeps the planner plan with planner-review: its PASS allows, an outside-plan-review PASS never does (a mode toggle approves no plan)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const plan = realPlan(dir);
+    const back = [permissionMode("acceptEdits"), userPrompt("back in plan mode"), permissionMode("plan"), planWrite(plan)];
+    const heads: Record<string, string[]> = {
+      entered: [permissionMode("acceptEdits"), skillUse(), enterPlanMode("toolu_enter"), permissionMode("plan"), planWrite(plan), ...back],
+      inside: [permissionMode("plan"), skillUse(), planWrite(plan), ...back],
+      refused: [permissionMode("plan"), skillUse(), planWrite(plan), exitPlanMode("toolu_exit"), refusedExit("toolu_exit"), ...back],
+    };
+    for (const [name, head] of Object.entries(heads)) {
+      const plain = writeTranscript(dir, `plain-${name}.jsonl`, [...head, dispatch(undefined, PLAIN), PASS]);
+      const { decision, reason } = await runCase(plain, cwd);
+      assert.equal(decision, "deny", name);
+      assert.match(reason ?? "", /viber:planner-review agent has not run on this version/, name);
+      const own = writeTranscript(dir, `own-${name}.jsonl`, [...head, dispatch(), PASS]);
+      assert.equal((await runCase(own, cwd)).decision, "allow", name);
+    }
+  });
+});
+
+test("a plan written before the user left plan mode by hand still arms the gate on the way back -> deny, while an ExitPlanMode that was not refused closes the episode -> allow", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const toggled = writeTranscript(dir, "toggled.jsonl", [permissionMode("plan"), skillUse(), planWrite(), permissionMode("acceptEdits"), permissionMode("plan")]);
+    assert.equal((await runCase(toggled)).decision, "deny");
+    const approved = writeTranscript(dir, "approved.jsonl", [permissionMode("plan"), skillUse(), planWrite(), exitPlanMode("toolu_exit"), permissionMode("plan"), permissionMode("acceptEdits"), permissionMode("plan")]);
+    assert.equal((await runCase(approved)).decision, "allow");
   });
 });
 
