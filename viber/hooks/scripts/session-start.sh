@@ -10,10 +10,11 @@
 #            and, when present, "cwd" (the session directory).
 #   env    : CLAUDE_PLUGIN_ROOT, the plugin root; unset -> paths relative to
 #            this script.
-#   stdout : { "systemMessage": "viber loaded <version>[ - <schema note>]",
+#   stdout : { "systemMessage": "viber loaded <version>[ - <schema note>][ - Node.js 22.18 or newer is required, found <node -v output | none>]",
 #              "hookSpecificOutput": { "hookEventName": "SessionStart",
-#                                      "additionalContext": "<manifest>" } }
-#            OR (manifest empty or unreadable) only the systemMessage /
+#                                      "additionalContext": "[<node-missing text> blank line ]<manifest>" } }
+#            OR (nothing to inject: manifest empty or unreadable, and no
+#            node-missing text) only the systemMessage /
 #            hookEventName, without additionalContext.
 #   exit 0 : always (fail-open; decisions are conveyed in stdout, not exit code).
 #
@@ -24,6 +25,17 @@
 #   higher -> " - .claude/viber.yml is at schema <n>, newer than this version's <m>: update the viber plugin"
 # Equal numbers, no file, no `cwd` or no readable template -> the plain banner.
 # The manifest is never touched by it.
+#
+# Node note: viber needs Node.js 22.18 or newer (major 22 with minor 18 or
+# higher, or any major above 22) on PATH. `node -v` is read once; no `node`, or
+# an output that is not `v<major>.<minor>...`, counts as no Node. Without a
+# usable Node the banner ends on
+#   " - Node.js 22.18 or newer is required, found <node -v output | none>"
+# and additionalContext opens with `hooks/content/node-missing.md` (the one
+# refusal line, read from the directory the manifest is read from), then a blank
+# line, then the manifest. No readable manifest -> the node-missing text alone;
+# no readable node-missing file -> the note still prints and additionalContext
+# is the manifest alone. With a usable Node nothing of this shows.
 #
 # Wrapping discipline: this script injects the manifest VERBATIM. Any wrapping
 # markers (e.g. <EXTREMELY_IMPORTANT>) live in `hooks/content/manifest.md`
@@ -52,6 +64,13 @@ if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/hooks/content
   manifest_file="${CLAUDE_PLUGIN_ROOT}/hooks/content/manifest.md"
 elif [ -n "$SCRIPT_DIR" ] && [ -f "${SCRIPT_DIR}/../content/manifest.md" ]; then
   manifest_file="${SCRIPT_DIR}/../content/manifest.md"
+fi
+
+node_missing_file=""
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/hooks/content/node-missing.md" ]; then
+  node_missing_file="${CLAUDE_PLUGIN_ROOT}/hooks/content/node-missing.md"
+elif [ -n "$SCRIPT_DIR" ] && [ -f "${SCRIPT_DIR}/../content/node-missing.md" ]; then
+  node_missing_file="${SCRIPT_DIR}/../content/node-missing.md"
 fi
 
 # --- JSON string escaper (single-pass parameter substitution) ------------
@@ -135,6 +154,33 @@ if [ -n "$project_cwd" ] && [ -d "$project_cwd" ] && [ -n "$template_file" ]; th
       banner="${banner} - .claude/viber.yml is at schema ${actual}, this version expects ${expected}: run /viber:setup"
     elif [ "$actual" -gt "$expected" ]; then
       banner="${banner} - .claude/viber.yml is at schema ${actual}, newer than this version's ${expected}: update the viber plugin"
+    fi
+  fi
+fi
+
+# --- Node requirement (user-facing note, plus the refusal text for the model) --
+node_found="none"
+node_ok=0
+if command -v node >/dev/null 2>&1; then
+  node_out="$(node -v 2>/dev/null | head -n1 | tr -d '\r')"
+  if [[ "$node_out" =~ ^v([0-9]+)\.([0-9]+)(\..*)?$ ]]; then
+    node_found="$node_out"
+    node_major=$((10#${BASH_REMATCH[1]}))
+    node_minor=$((10#${BASH_REMATCH[2]}))
+    if [ "$node_major" -gt 22 ] || { [ "$node_major" -eq 22 ] && [ "$node_minor" -ge 18 ]; }; then
+      node_ok=1
+    fi
+  fi
+fi
+if [ "$node_ok" -eq 0 ]; then
+  banner="${banner} - Node.js 22.18 or newer is required, found ${node_found}"
+  node_missing=""
+  [ -n "$node_missing_file" ] && node_missing="$(cat "$node_missing_file" 2>/dev/null)"
+  if [ -n "$node_missing" ]; then
+    if [ -n "$manifest" ]; then
+      manifest="${node_missing}"$'\n\n'"${manifest}"
+    else
+      manifest="$node_missing"
     fi
   fi
 fi
