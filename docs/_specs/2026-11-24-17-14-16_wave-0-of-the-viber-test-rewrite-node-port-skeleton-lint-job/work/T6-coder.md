@@ -1,5 +1,0 @@
-- Red came from the revert route (resolveBranching stubbed to the mode-off line): .temp/viber/T6/red.log; the `name:` legacy row's red (legacy check narrowed to `base`): .temp/viber/T6/red-3.log.
-- Ported the awk of config.sh faithfully: a value is cut at the first blank or #, so a quoted name holding a blank reports its cut text (`'a`), as bash does.
-- run.ts carried an uncommitted T5 change (the agent probe) when this task began; it is kept.
-- The dropped-entry mapping test's red (valid.has -> any entry of that key, valid.size -> entries.length): .temp/viber/T6/red-4.log.
-- Plain mode values (off, allowed, required) are pinned by the whole-report rows and the entry, map and runConfig tests, not by the mode table, which keeps only the rows that flip a decision.

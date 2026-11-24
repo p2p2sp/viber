@@ -1,3 +1,0 @@
-- red-3.log comes from the revert route: readLocal's result dropped in run.ts (11 of 18 fail; the DoD.6 rows and the no-local cases stay green by design).
-- DoD.6 rows assert literal stdout with a local file present; the shared text uses `mode: off` so the local `mode: required` would visibly change the report.
-- A `.claude/viber.local.yml` directory prints `# local: none | ignored: none` (C1 Fs cannot tell a directory from an unreadable file), while config.sh prints no local line: a later port revision with an is-file query closes it.

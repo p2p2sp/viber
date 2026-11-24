@@ -1,2 +1,0 @@
-- A `--test-name-pattern` matching nothing still exits green (the harness's per-file suite counts as one passing test): check any example pattern by running it and counting the cases.
-- The `--test-name-pattern` example in `tests-running.md` is anchored on "tiers.min equal to", which matches exactly one case of `tests/viber/config/block.unit.test.ts`.

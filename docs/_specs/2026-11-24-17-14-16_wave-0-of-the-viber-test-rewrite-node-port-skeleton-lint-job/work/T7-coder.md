@@ -1,1 +1,0 @@
-- The two reports cut values differently on purpose: a red-check list only at a blank then `#` (so `a#b c` stays whole), `--questions` at the first blank or `#` (so `3#x` and `3 x` give `3`). The rows `a#b c`, `3#x` and `3 x` are the only ones that tell the two rules apart; red-2.log shows them failing with the rules swapped.

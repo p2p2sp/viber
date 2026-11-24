@@ -1,6 +1,0 @@
-- coreUtilsPath() now prepends a process-lifetime temp dir holding a `node` script shim (plus node.cmd on win32); shellUtilsPath() is the former value. Any case staging a missing Node must use shellUtilsPath().
-- session-start-fixture.ts (outside Files) switched to shellUtilsPath(): with the shim on coreUtilsPath its no-node cases would have found node.
-- task-step copies of the plugin need config.ts and the whole lib/ dir beside scripts/ (cpSync of viber/lib).
-- DoD.2 red came from the revert route (wrapper without "$@"), red-2.log; red.log is the missing shellUtilsPath export.
-- config.test.ts (the old-grammar logic file) is deleted with its WEIGHTS entry; tests/tiers.unit.test.ts does not exist in the tree, so no sibling check ran.
-- Not done (out of scope): CLAUDE.md nodes still name tests/viber/config.test.ts and the old coreUtilsPath wording.

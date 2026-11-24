@@ -1,3 +1,0 @@
-- DoD.5 is proven by behaviour: one fixture tree run through `rules[0].params`, one literal list of findings. "Reports nothing on the tree" rests on the `node tools/lint/run.ts layering` run alone (a unit test must not spawn git).
-- Red of that test came from the revert route (`.temp/viber/T14/red-4.log`): `node:https` dropped from `unitForbidden`, the test failed, then the entry was put back byte-identical.
-- Review Minor left open: `globToRegExp` in tools/lint/rules/layering.ts copies the one in tools/lint/rules/forbidden.ts. A shared helper would touch a file outside `Files`.

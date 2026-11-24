@@ -1,4 +1,0 @@
-- Blocking [task] tests/viber/config/block.unit.test.ts:95 - test-strategy Earned: the `tierCases` row "an empty value" (`tiers.min` with an empty value -> haiku) is an empty-input edge case that flips no decision: in `tier()` (viber/lib/config/block.ts:52) an empty value takes the same `TIERS.includes` miss as the "an unknown name" row (`gpt`), so deleting it leaves every regression still caught
-  Delete the "an empty value" row from `tierCases`; the "an unknown name" row already proves DoD.4's default for any other value.
-- Minor viber/lib/config/block.ts:2 - the header still says the module resolves "the switch lines" of the block, though it now also resolves the title, directory and tier lines; the test file header (tests/viber/config/block.unit.test.ts:2) also names only the switches and build.baseline-tests
-  Widen both header comments to name the title, directory and tier lines.

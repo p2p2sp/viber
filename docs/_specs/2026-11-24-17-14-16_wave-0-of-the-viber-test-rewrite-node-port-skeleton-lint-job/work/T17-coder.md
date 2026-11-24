@@ -1,3 +1,0 @@
-- The interpreter-word cases (`bash`, `sh`, `node`) use a top-level `for` registering one `test()` per row, the parameterised form the rest of `tests/` uses (no `test.each` in the harness).
-- The split of review round 1 added no behaviour: the new tests are the earlier assertions one per body, so `red-2.log` (revert route of attempt 1) stays their red.
-- The rule's self-check is proven by the engine's own self-check run, not by a unit test here.

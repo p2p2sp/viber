@@ -1,4 +1,0 @@
-- Production code was written before its tests; red comes from the revert route (red.log: node check disabled, 7 failing).
-- Refusal text and manifest are joined by one blank line; node-missing.md ends on a newline, stripped by the substitution.
-- A parse of `node -v` needs `vMAJOR.MINOR` at least; anything else reads as none.
-- Stubbed-node cases run with the real PATH behind the stub; only the absent case pins PATH to coreUtilsPath() and skips if node sits there.

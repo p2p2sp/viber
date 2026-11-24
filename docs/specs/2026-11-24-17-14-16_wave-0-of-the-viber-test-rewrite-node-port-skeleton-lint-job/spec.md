@@ -96,7 +96,7 @@ Then no file, process or network connection is touched, the cases that pass for 
 1. The test step of every tests job (Linux, Windows, macOS) reports a warning annotation and a job summary line when it takes more than 60 seconds, and the job still passes.
 2. One CI workflow holds a lint job and the tests of every layer on the three systems; `full.yml` and the shard script are gone; the release waits only for the `CI` run of its commit.
 3. The port skeleton exists: a core importing no file system or process module, the file system and git ports each with a real adapter and a fake passing the same contract cases, and an entry holding no logic.
-4. `viber/scripts/config.sh` is a wrapper that runs `config.ts` and holds no key grammar; it prints the same stdout with exit 0 for the block and each report, and its callers are unchanged; the config behaviour is proven by unit tests in process and the adapters by one contract test on the shared scene.
+4. `viber/scripts/config.sh` is a wrapper that runs `config.ts` and holds no key grammar; it prints the same stdout with exit 0 for the block and each report, and its callers are unchanged; the config behaviour is proven by unit tests in process and the adapters by one contract test on the shared scene. [D1]
 5. The lint job runs `tsc --noEmit`, actionlint, shellcheck over the two scripts that stay shell after the whole port (`.github/scripts/release.sh` and `viber/hooks/scripts/session-start.sh`), the skill lint over viber's own skills and agents failing on any `FAIL` outside the exceptions list, and the rule runner with the types `cap`, `token-contract`, `forbidden`, `ref-exists` and `layering`, each with a self-check; the caps of the five word-cap files and of `rule-budget`, and the sweeps `portability`, `orphan-tags` and `tiers`, are rules.
 6. Without Node 22.18 or newer the session start hook names the requirement in its banner and injects the text that makes every viber skill refuse with one line; `README.md`, `viber/README.md` and the help page state Node 22.18 or newer as required.
 7. The legacy tests run in a workflow of their own, nightly and on demand, that no push and no release waits for.
@@ -237,3 +237,7 @@ Then no file, process or network connection is touched, the cases that pass for 
 - Answered: which ports wave 0 creates -> the file system and git only, the others with the first script that needs them.
 - Answered: the three FAIL lines the skill lint prints on viber today -> an exceptions list kept as data, the three files and the linter unchanged.
 - Answered: whether config.sh is deleted -> it stays as a thin wrapper running config.ts, so no skill, script or legacy test changes its call.
+
+## Deviations
+
+D1 (AC4): a `.claude/viber.local.yml` that is a directory prints `# local: none | ignored: none` and an agent file name that is a directory counts as found, where the old `config.sh` printed no local line and required a regular file.

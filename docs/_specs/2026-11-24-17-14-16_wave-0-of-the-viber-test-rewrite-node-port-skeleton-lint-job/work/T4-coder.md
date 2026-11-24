@@ -1,4 +1,0 @@
-- An empty quote pair (`""`) for a title gives the default `{summary}`, as the legacy config.sh did: DoD.2's empty-value default wins over DoD.1's "everything between the quotes".
-- The title table states every expected output as a literal, including the three default rows, so the test body holds no branch.
-- DoD.2's empty-value and absent-key defaults have no row of their own (test-strategy Earned): the comment-alone and empty-quote rows take the same `v === ""` branch; the pr-title test sets a value next to a different issue-title, so a hard-coded or misread pr-title line fails.
-- A tier cut row must expect a non-default tier (`sonnet#x`, `opus extra`): an uncut value misses the tier list and falls back to the default, so a row expecting the default passes with the cut removed.

@@ -1,4 +1,0 @@
-- Blocking [task] tests/viber/config/block.unit.test.ts:92 - DoD.4's cut at the first blank or `#` has no test that would fail if it broke: the only cut row, "a value ended by a comment" (`haiku#x` -> haiku), expects the tiers.min default, so with the cut removed from `tier()` (viber/lib/config/block.ts:55, `word()`), `haiku#x` misses `TIERS` and still prints haiku; the red-check log shows this row passing on HEAD, where tiers.min was hard-coded
-  Change the row to a non-default tier, e.g. `sonnet#x` -> sonnet, and add one row for the blank cut, e.g. `opus extra` -> opus, so each half of the cut clause has a row that fails when that cut is removed.
-- Minor docs/_specs/2026-11-24-17-14-16_wave-0-of-the-viber-test-rewrite-node-port-skeleton-lint-job/work/review-T4-2.md:1 - earlier finding dropped: the "an empty value" row is gone from `tierCases` (tests/viber/config/block.unit.test.ts:86-92), so the test-strategy Earned breach no longer stands
-  nothing to change

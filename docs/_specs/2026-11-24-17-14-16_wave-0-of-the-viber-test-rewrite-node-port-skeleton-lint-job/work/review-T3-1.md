@@ -1,4 +1,0 @@
-- Blocking [task] tests/viber/config/run.unit.test.ts:32 - test-strategy `Literal`: the DoD.6 test "an argument other than the report flags gives the block, every line ended by a newline" takes its expected value `block` from `runConfig([], "/w", ports)`, the function under test, so a change that breaks the block for every argument at once still passes as long as the start and end lines hold.
-  Write the expected stdout of the `--unknown` call as a literal (the 20 default lines of C2, each ended by "\n") and assert `runConfig(["--unknown"], "/w", ports)` equals it.
-- Blocking [task] tests/viber/config/run.unit.test.ts:31 - test-strategy `Act`: that same test (run.unit.test.ts:29) calls `runConfig` twice in one body (`[]` on line 31, `["--unknown"]` on line 32).
-  Keep one act, the `["--unknown"]` call, compared with the literal expected stdout from the fix above. Drop the `[]` call and the `startsWith`/`endsWith` checks the literal makes redundant.

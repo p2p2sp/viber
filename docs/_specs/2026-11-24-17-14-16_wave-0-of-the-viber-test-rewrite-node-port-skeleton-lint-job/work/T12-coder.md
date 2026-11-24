@@ -1,3 +1,0 @@
-- The dash characters are built with String.fromCharCode(0x2014 / 0x2013) in both `tools/lint/data/dashes.ts` and `tests/tools/lint/forbidden.unit.test.ts`: the edit tooling decodes a `—` escape into the literal character, so an escape written through it lands as the dash itself.
-- The dash rule only sees the git index: an untracked file holding a dash passes `node tools/lint/run.ts forbidden` until it is added, so check new files with grep before trusting a green run.
-- Not fixed (review Minor): the forbidden rule reads every tracked path under `**`, binary files included; no binary in the tree holds the dash bytes today.
