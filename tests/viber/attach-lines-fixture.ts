@@ -1,7 +1,7 @@
 /*
- * attach-lines-fixture.ts - the helpers attach-lines.test.ts and
- * attach-lines.critical.test.ts share: what both tiers need to seed a case and
- * run viber/scripts/attach-lines.sh. It holds no case of its own.
+ * attach-lines-fixture.ts - the helpers attach-lines.critical.test.ts uses to
+ * seed a case and run viber/scripts/attach-lines.sh. It holds no case of its
+ * own.
  */
 
 import assert from "node:assert/strict";

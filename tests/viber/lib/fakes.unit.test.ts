@@ -1,26 +1,48 @@
 /*
- * fakes.unit.test.ts - the in-memory Fs and Git of tests/harness/fakes.ts pass
- * the port contract cases, and hold the state they are seeded with.
+ * fakes.unit.test.ts - the in-memory Fs, Git and Clock of
+ * tests/harness/fakes.ts pass the port contract cases, and hold the state they
+ * are seeded with.
  */
 
 import assert from "node:assert/strict";
-import { fakeFs, fakeGit, fakeScene } from "../../harness/fakes.ts";
-import { fsContract, gitContract } from "../../harness/ports-contract.ts";
+import { fakeClock, fakeFs, fakeGit, fakeScene } from "../../harness/fakes.ts";
+import { clockContract, fsContract, gitContract } from "../../harness/ports-contract.ts";
 import { test } from "../../harness/test.ts";
 
-fsContract("fake fs", () => {
-  const scene = fakeScene();
-  return { fs: scene.fs, root: scene.root };
-});
+fsContract("fake fs", () => fakeScene());
 
 gitContract("fake git", () => {
   const scene = fakeScene();
   return { git: scene.git, root: scene.root, outside: scene.outside };
 });
 
-test("a path marked unreadable exists yet reads as null", () => {
+clockContract("fake clock", () => fakeClock(new Date(2020, 0, 1)));
+
+test("a path marked unreadable exists as a file yet reads as null, as text and as bytes", () => {
   const fs = fakeFs({ "/r/a.txt": "alpha\n" }, { unreadable: ["/r/secret.txt"] });
-  assert.deepEqual([fs.exists("/r/secret.txt"), fs.readText("/r/secret.txt")], [true, null]);
+  assert.deepEqual([fs.exists("/r/secret.txt"), fs.kind("/r/secret.txt"), fs.readText("/r/secret.txt"), fs.readBytes("/r/secret.txt")], [true, "file", null, null]);
+});
+
+test("the fake file system copies what it is seeded with and what it hands out (a caller changing its bytes changes no file)", () => {
+  const seed = Uint8Array.of(1, 2, 3);
+  const fs = fakeFs({ "/r/raw.bin": seed });
+  seed[0] = 9;
+  const read = fs.readBytes("/r/raw.bin") ?? new Uint8Array(0);
+  read[1] = 9;
+  assert.deepEqual([...(fs.readBytes("/r/raw.bin") ?? [])], [1, 2, 3]);
+});
+
+test("a directory named in dirs exists empty, and a link is listed in its directory and resolves a path below it", () => {
+  const fs = fakeFs({ "/r/real/x.txt": "x\n" }, { dirs: ["/r/empty"], links: { "/r/alias": "/r/real" } });
+  assert.deepEqual([fs.kind("/r/empty"), fs.listDir("/r/empty"), fs.listDir("/r")], ["dir", [], ["alias", "empty", "real"]]);
+  assert.deepEqual([fs.readText("/r/alias/x.txt"), fs.realPath("/r/alias/x.txt"), fs.realPath("/r/alias/nope")], ["x\n", "/r/real/x.txt", null]);
+});
+
+test("the fake clock answers the instant it was given, a fresh Date each call", () => {
+  const at = new Date(2026, 10, 24, 17, 14, 16);
+  const clock = fakeClock(at);
+  clock.now().setFullYear(1999);
+  assert.equal(clock.now().getTime(), at.getTime());
 });
 
 test("the fake file system lists a directory once among the entry names, however many files sit below it", () => {

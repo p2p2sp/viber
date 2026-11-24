@@ -64,7 +64,8 @@
 #            wave; any other further argument is ignored.
 #   cwd    : irrelevant: every path derives from argv and the files it names, cwd
 #            only resolves a relative <ws>.
-#   env    : TMPDIR, read by strip-tag.sh; nothing else.
+#   env    : PATH must resolve `node` for strip-tag.sh, which strips nothing
+#            without it; nothing else.
 #   paths  : the Schema:, Test rules:, Worktree script: and Overlay script: paths are
 #            spelled from the path the script was invoked by, through
 #            scripts/plugin-root.sh: `C:/...` for a `C:\...` or `C:/...` call,

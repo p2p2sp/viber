@@ -1,12 +1,14 @@
 /*
  * attach-lines.critical.test.ts - the critical tier of
- * viber/scripts/attach-lines.sh: files and directories under .temp/ print one
- * absolute forward-slash Attachment line each in argument order.
+ * viber/scripts/attach-lines.sh, the wrapper of the attach-lines.ts entry:
+ * files and directories under .temp/ print one absolute forward-slash
+ * Attachment line each in argument order, the absolute argument in the
+ * spelling of the running system (a backslash drive-letter path on Windows).
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by attach-lines.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * break only one platform shows or a script that no longer starts; the check
+ * itself is proven in process by tests/viber/lib/attach-lines.unit.test.ts.
+ * This file runs on every operating system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:

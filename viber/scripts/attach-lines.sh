@@ -1,92 +1,30 @@
 #!/bin/sh
 #
 # attach-lines.sh - turns the paths a skill received into the `Attachment:` lines
-# of its hand-off: one line per existing file or directory under the repository's
-# `.temp/`, and nothing for any other path.
+# of its hand-off: the wrapper that runs attach-lines.ts beside it.
 #
 # It exists because `intent` and `fixer` decided from prose which of the paths
 # their input names sat under `.temp/`, and spelled each absolute path with
 # forward slashes and a Windows drive by hand; a wrong call dropped an attachment
-# or wrote a path the planner could not land. This script applies the check, so
-# the model only runs it and carries the lines it prints.
+# or wrote a path the planner could not land. The check lives in attach-lines.ts
+# and viber/lib/attach-lines.ts, never here, so every caller keeps this call line
+# while the check is tested in process.
 #
 # Contract:
 #   argv   : one or more paths, each a file or a directory, absolute or relative.
-#            A relative path resolves against the cwd; a backslash counts as a
-#            forward slash. Nothing else is accepted: no option.
-#   cwd    : resolves a relative argument and locates the repository; the root is
-#            the one git reports for it, so any subdirectory works.
-#   env    : none.
-#   writes : nothing.
-#   stdout : one `Attachment: <absolute path>` line per argument naming an
-#            existing file or directory strictly under <repository root>/.temp/,
-#            in argument order, a repeat printed once. The path has forward
-#            slashes and a Windows drive as C:/. An argument that is empty, does
-#            not exist, sits outside <repository root>/.temp/ or is `.temp/`
-#            itself prints nothing, with no error.
-#   stderr : one `error: attach-lines.sh: ...` line when the exit is 2.
-#   exit   : 0 with the lines above, none included; 2 with no argument or outside
-#            a git repository (stdout empty).
+#            Handed to attach-lines.ts as given; how a path is read and every
+#            stdout line are defined in the header of attach-lines.ts. Under Git
+#            Bash the MSYS runtime hands node a `/c/...` argument as `C:/...`.
+#   cwd    : resolves a relative argument and locates the repository; any
+#            subdirectory of the repository works.
+#   env    : PATH must resolve `node` (22.18 or newer, which runs a .ts file).
+#   file   : attach-lines.ts and viber/lib/ beside it.
+#   stdout : what attach-lines.ts prints: one `Attachment: <absolute path>` line
+#            per argument under <repository root>/.temp/, or nothing.
+#   exit   : that of attach-lines.ts: 0 with the lines, none included; 2 with one
+#            `error: attach-lines.sh: ...` line on stderr and an empty stdout with
+#            no argument or outside a git repository. 127 with no `node` on PATH.
 #
 set -u
 
-fail() {
-  echo "error: attach-lines.sh: $1" >&2
-  exit 2
-}
-
-[ $# -ge 1 ] || fail "usage: attach-lines.sh <path> [<path>]..."
-
-root=$(git rev-parse --show-toplevel 2>/dev/null) || root=""
-[ -n "$root" ] || fail "not inside a git repository"
-root=$(printf '%s' "$root" | tr '\\' '/')
-root=${root%/}
-
-# Absolute directory of $1 spelled as git spells the root, C:/ on Windows: bash
-# there prints it with pwd -W, dash has no -W and prints /c/ for pwd -P, which
-# cygpath -m turns into C:/; a symlinked directory resolves like the repository
-# root does.
-abs_dir() {
-  (
-    cd "$1" 2>/dev/null || exit 1
-    pwd -W 2>/dev/null && exit 0
-    d=$(pwd -P) || exit 1
-    cygpath -m "$d" 2>/dev/null || printf '%s\n' "$d"
-  )
-}
-
-seen=""
-for arg in "$@"; do
-  p=$(printf '%s' "$arg" | tr '\\' '/')
-  while [ "${p%/}" != "$p" ] && [ "$p" != "/" ]; do
-    p=${p%/}
-  done
-  [ -n "$p" ] || continue
-  if [ -d "$p" ]; then
-    abs=$(abs_dir "$p") || continue
-  elif [ -e "$p" ]; then
-    case $p in
-      */*) dir=${p%/*}; [ -n "$dir" ] || dir=/ ;;
-      *) dir=. ;;
-    esac
-    dir=$(abs_dir "$dir") || continue
-    abs="${dir%/}/${p##*/}"
-  else
-    continue
-  fi
-  case $abs in
-    "$root"/.temp/?*) ;;
-    *) continue ;;
-  esac
-  case "
-$seen
-" in
-    *"
-$abs
-"*) continue ;;
-  esac
-  seen="$seen
-$abs"
-  printf 'Attachment: %s\n' "$abs"
-done
-exit 0
+exec node "${0%/*}/attach-lines.ts" "$@"

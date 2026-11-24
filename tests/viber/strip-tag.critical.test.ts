@@ -1,13 +1,14 @@
 /*
  * strip-tag.critical.test.ts - the critical tier of
- * viber/skills/code-auditor/scripts/strip-tag.sh: a trailing closing tag is
- * stripped from the listed files and a missing path is skipped without
- * stopping the others.
+ * viber/skills/code-auditor/scripts/strip-tag.sh, the wrapper of the
+ * strip-tag.ts entry: a trailing closing tag is stripped from the listed files
+ * and a missing path is skipped without stopping the others.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by strip-tag.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * break only one platform shows or a script that no longer starts; which last
+ * line counts and which bytes stay are proven in process by
+ * tests/viber/lib/strip-tag.unit.test.ts. This file runs on every operating
+ * system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:

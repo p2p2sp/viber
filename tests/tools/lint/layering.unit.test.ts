@@ -77,7 +77,7 @@ test("a unit test under the swept directories importing a forbidden module is re
 
 const longEntry = "x;\n".repeat(41);
 
-test("the core instance reports the viber core, its entries and its unit tests and spares the adapters and ports", () => {
+test("the core instance reports the viber core, its entries (the two skill entries by name, no other skill script) and its unit tests and spares the adapters and ports", () => {
   const tree = treeOf({
     "viber/lib/config/a.ts":
       'import "node:fs";\nimport "node:child_process";\nimport "node:os";\nimport "node:net";\nimport "node:http";\nimport "node:https";\n',
@@ -85,6 +85,9 @@ test("the core instance reports the viber core, its entries and its unit tests a
     "viber/lib/ports.ts": "",
     "viber/lib/other.ts": "",
     "viber/scripts/x.ts": longEntry,
+    "viber/skills/intent/scripts/summary-path.ts": longEntry,
+    "viber/skills/code-auditor/scripts/strip-tag.ts": longEntry,
+    "viber/skills/pro-designer/scripts/check_contrast.ts": longEntry,
     "tools/lint/run.ts": longEntry,
     "tests/viber/config/a.unit.test.ts": imports("node:child_process", "node:net", "../../harness/run.ts"),
     "tests/viber/lib/b.unit.test.ts": imports("node:http", "../../harness/tmp.ts", "../../harness/stub.ts"),
@@ -101,6 +104,8 @@ test("the core instance reports the viber core, its entries and its unit tests a
     { path: "viber/lib/config/a.ts", line: 6, message: "core module imports node:https" },
     { path: "viber/lib/other.ts", line: 0, message: "core module has no unit test tests/viber/lib/other.unit.test.ts" },
     { path: "viber/scripts/x.ts", line: 0, message: "entry holds 41 lines of code, the cap is 40" },
+    { path: "viber/skills/intent/scripts/summary-path.ts", line: 0, message: "entry holds 41 lines of code, the cap is 40" },
+    { path: "viber/skills/code-auditor/scripts/strip-tag.ts", line: 0, message: "entry holds 41 lines of code, the cap is 40" },
     { path: "tools/lint/run.ts", line: 0, message: "entry holds 41 lines of code, the cap is 40" },
     { path: "tests/viber/config/a.unit.test.ts", line: 1, message: "unit test imports node:child_process" },
     { path: "tests/viber/config/a.unit.test.ts", line: 2, message: "unit test imports node:net" },

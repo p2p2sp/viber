@@ -17,7 +17,7 @@ Owns the engine, the rule types, the rule instances written as data, the tree th
 ## Contracts
 
 - The rule instances own the caps, the sweeps and the invariants over the tree: `cap/*` (word caps of prompts, byte caps of role read sets), `invocations/viber`, `script-portability/shipped`, `orphan-tags/tracked`, `tiers/legacy`, `forbidden/dashes`, `forbidden/retired`, `ref-exists/viber`, `token-contract/node-requirement`, `layering/core`. A cap is raised on purpose only; a `cap` section matches its `## <name>` heading line whole.
-- `layering/core` holds `viber/lib` modules (adapters and `ports.ts` apart) to import no file system, process, network or OS module, the entries (`viber/scripts/*.ts`, `tools/lint/run.ts`) to 40 lines, every `viber/lib/config` module to a unit test of its name in `tests/viber/config` and every other `viber/lib` module to one in `tests/viber/lib`, and the unit directories (`tests/viber/config`, `tests/viber/lib`, `tests/tools/lint`) off every spawning or network module and off the shared scene.
+- `layering/core` holds `viber/lib` modules (adapters and `ports.ts` apart) to import no file system, process, network or OS module, the entries (`viber/scripts/*.ts`, the two skill entries `summary-path.ts` and `strip-tag.ts` named whole, `tools/lint/run.ts`) to 40 lines, every `viber/lib/config` module to a unit test of its name in `tests/viber/config` and every other `viber/lib` module to one in `tests/viber/lib`, and the unit directories (`tests/viber/config`, `tests/viber/lib`, `tests/tools/lint`) off every spawning or network module and off the shared scene.
 - The rules read the git index: a new file is checked only after `git add`.
 
 ## Commands

@@ -1,8 +1,6 @@
 /*
- * summary-path-fixture.ts - the helpers summary-path.test.ts and
- * summary-path.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/intent/scripts/summary-path.sh. It holds no case of its
- * own.
+ * summary-path-fixture.ts - what summary-path.critical.test.ts uses to run
+ * viber/skills/intent/scripts/summary-path.sh. It holds no case of its own.
  */
 
 import path from "node:path";

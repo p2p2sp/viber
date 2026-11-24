@@ -1,12 +1,14 @@
 /*
  * summary-path.critical.test.ts - the critical tier of
- * viber/skills/intent/scripts/summary-path.sh: in a repository the script
- * prints the NEXT: write line with an absolute forward-slash path under
- * .temp/viber/intent/ and a stamped file name.
+ * viber/skills/intent/scripts/summary-path.sh, the wrapper of the
+ * summary-path.ts entry: in a repository the script prints the NEXT: write
+ * line with an absolute forward-slash path under .temp/viber/intent/ and a
+ * stamped file name.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by summary-path.test.ts. This file runs on every
+ * break only one platform shows or a script that no longer starts; the root,
+ * the stamp and the errors are proven in process by
+ * tests/viber/lib/summary-path.unit.test.ts. This file runs on every
  * operating system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run

@@ -1,8 +1,7 @@
 /*
- * strip-tag-fixture.ts - the helpers strip-tag.test.ts and
- * strip-tag.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/code-auditor/scripts/strip-tag.sh. It holds no case of its
- * own.
+ * strip-tag-fixture.ts - the helpers strip-tag.critical.test.ts uses to seed a
+ * case and run viber/skills/code-auditor/scripts/strip-tag.sh. It holds no case
+ * of its own.
  */
 
 import assert from "node:assert/strict";

@@ -13,7 +13,13 @@ export const rules: RuleInstance[] = [
       adapters: ["viber/lib/adapters"],
       exempt: ["viber/lib/ports.ts"],
       outside: ["node:fs", "node:child_process", "node:os", "node:net", "node:http", "node:https"],
-      entries: ["viber/scripts/*.ts", "tools/lint/run.ts"],
+      // A skill entry is named whole: a glob over viber/skills/*/scripts/ would also take a script that is no entry.
+      entries: [
+        "viber/scripts/*.ts",
+        "viber/skills/intent/scripts/summary-path.ts",
+        "viber/skills/code-auditor/scripts/strip-tag.ts",
+        "tools/lint/run.ts",
+      ],
       entryMaxLines: 40,
       tests: [
         { core: "viber/lib/config", tests: "tests/viber/config" },
