@@ -37,7 +37,7 @@ import path from "node:path";
 
 import { runScript, type RunResult } from "../harness/run.ts";
 import { withGitRepo, withTempDir } from "../harness/tmp.ts";
-import { coreUtilsPath } from "../harness/stub.ts";
+import { shellUtilsPath } from "../harness/stub.ts";
 import { slash } from "../harness/paths.ts";
 import {
   SUT,
@@ -49,11 +49,11 @@ import {
   readJson,
 } from "./merge-settings-fixture.ts";
 
-/** The no-node case starves PATH down to the core utilities (the script still
+/** The no-node case starves PATH down to the shell utilities (the script still
  *  needs bash, cat and command -v), so a developer's installed node cannot
  *  answer - and flip - the "not found" branch. */
 async function runWithoutNode(dir: string, template: string, target: string): Promise<RunResult> {
-  return await runScript(SUT, [template, target], { cwd: dir, env: { PATH: coreUtilsPath() } });
+  return await runScript(SUT, [template, target], { cwd: dir, env: { PATH: shellUtilsPath() } });
 }
 
 test("run from a subdirectory of a repository, the default target is the root's .claude/settings.json (never a nested sub/.claude/)", async () => {
@@ -275,7 +275,7 @@ test("--reset with no node on PATH still resets (a plain copy needs none)", asyn
     const target = targetPath(dir);
     writeJson(target, { permissions: { allow: ["HostOnlyTool"] } });
 
-    const result = await runScript(SUT, ["--reset", TEMPLATE_SETTINGS, target], { cwd: dir, env: { PATH: coreUtilsPath() } });
+    const result = await runScript(SUT, ["--reset", TEMPLATE_SETTINGS, target], { cwd: dir, env: { PATH: shellUtilsPath() } });
 
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.match(result.stdout, /^settings\.json: reset from template/);

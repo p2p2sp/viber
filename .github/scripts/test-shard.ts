@@ -31,7 +31,6 @@ export const WEIGHTS: Record<string, number> = {
   "tests/viber/plan-path.test.ts": 183,
   "tests/viber/rules-map.test.ts": 182,
   "tests/viber/commit-task.critical.test.ts": 141,
-  "tests/viber/config.test.ts": 105,
   "tests/viber/review-round.test.ts": 96,
   "tests/viber/frame.test.ts": 96,
   "tests/viber/pr-reply.test.ts": 92,

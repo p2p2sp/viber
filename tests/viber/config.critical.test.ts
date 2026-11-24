@@ -1,13 +1,14 @@
 /*
- * config.critical.test.ts - the critical tier of viber/scripts/config.sh: the
- * block resolves to the fixed defaults with no file, a full grouped file turns
- * its switches on, the repository root is used from a subdirectory, and a
- * local override file wins over the shared values.
+ * config.critical.test.ts - the critical tier of viber/scripts/config.sh, the
+ * wrapper of the config.ts entry: the block resolves to the fixed defaults with
+ * no file, a full grouped file turns its switches on, the repository root is
+ * used from a subdirectory, a local override file wins over the shared values,
+ * a report flag reaches the entry, and a machine with no node prints nothing.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by config.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * break only one platform shows or a script that no longer starts; the config
+ * behaviour itself is proven in process by tests/viber/config/. This file runs
+ * on every operating system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:
@@ -20,8 +21,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
+import { coreUtilsPath, shellUtilsPath } from "../harness/stub.ts";
 import { withGitRepo, withTempDir } from "../harness/tmp.ts";
 import { SUT, OFF, run, writeConfig, group, inGroup, switches, dirs, writeLocal } from "./config-fixture.ts";
+
+const nodeOnShellPath = shellUtilsPath()
+  .split(path.delimiter)
+  .some((dir) => ["node", "node.exe"].some((n) => fs.existsSync(path.join(dir, n))));
 
 test("no config file: the block is every switch off, both title defaults, no extension, then the directory, tier and branching defaults, in the fixed order, and the exit is still 0", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
@@ -136,5 +142,35 @@ test("a local file setting all four keys prints the local value on those four li
       "tiers.max: fable",
       "branching.mode: off",
     ]);
+  });
+});
+
+test("a report flag prints that report in place of the block", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, group({ specifications: "archive" }));
+
+    const result = await run(dir, {}, ["--specifications"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "archive\n");
+  });
+});
+
+test("under the shell utilities path, which holds no node, nothing is printed and the exit is 0 (a machine with no node never breaks a preload)", { skip: nodeOnShellPath ? "a real node sits in the shell utilities directory, so its absence cannot be staged" : false }, async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, inGroup("build", "memory: true"));
+
+    const result = await run(dir, { PATH: shellUtilsPath() });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+  });
+});
+
+test("under the core utilities path the block is printed, which a legacy case pinning PATH to it relies on", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    writeConfig(dir, inGroup("build", "memory: true"));
+
+    const result = await run(dir, { PATH: coreUtilsPath() });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.deepEqual(switches(result.stdout), { ...OFF, "build.memory": "true" });
   });
 });

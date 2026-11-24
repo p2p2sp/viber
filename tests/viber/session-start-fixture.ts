@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
-import { coreUtilsPath, withStub } from "../harness/stub.ts";
+import { shellUtilsPath, withStub } from "../harness/stub.ts";
 
 export const SUT = path.resolve(import.meta.dirname, "../../viber/hooks/scripts/session-start.sh");
 
@@ -32,9 +32,9 @@ export function addNodeMissing(root: string, text: string): string {
   return root;
 }
 
-/** True when a `node` sits in a directory of `coreUtilsPath()`, so its absence
+/** True when a `node` sits in a directory of `shellUtilsPath()`, so its absence
  *  cannot be staged by a PATH of those directories alone. */
-export const nodeOnCorePath = coreUtilsPath()
+export const nodeOnCorePath = shellUtilsPath()
   .split(path.delimiter)
   .some((dir) => ["node", "node.exe"].some((n) => fs.existsSync(path.join(dir, n))));
 
@@ -44,7 +44,7 @@ export const NODE_ABSENT_SKIP = nodeOnCorePath
 
 /** Runs the hook with no `node` on PATH: the directories of grep and bash alone. */
 export function runWithoutNode(script: string, input: string, env: Record<string, string> = {}) {
-  return run(script, input, { ...env, PATH: coreUtilsPath() });
+  return run(script, input, { ...env, PATH: shellUtilsPath() });
 }
 
 /** Runs the hook with a `node` stub that prints `output` for `node -v`. */

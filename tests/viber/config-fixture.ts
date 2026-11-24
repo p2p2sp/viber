@@ -1,7 +1,6 @@
 /*
- * config-fixture.ts - the helpers config.test.ts and config.critical.test.ts
- * share: what both tiers need to seed a case and run viber/scripts/config.sh.
- * It holds no case of its own.
+ * config-fixture.ts - the helpers config.critical.test.ts uses to seed a case
+ * and run viber/scripts/config.sh. It holds no case of its own.
  */
 
 import fs from "node:fs";
@@ -26,8 +25,8 @@ export const OFF = {
   "github.issues": "false",
 };
 
-export function run(dir: string, env: Record<string, string> = {}) {
-  return runScript(SUT, [], { cwd: dir, env, shell: "bash" });
+export function run(dir: string, env: Record<string, string> = {}, args: string[] = []) {
+  return runScript(SUT, args, { cwd: dir, env, shell: "bash" });
 }
 
 export function writeConfig(root: string, body: string): void {

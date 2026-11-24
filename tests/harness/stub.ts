@@ -9,6 +9,7 @@
  */
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import { withTempDir } from "./tmp.ts";
@@ -34,6 +35,32 @@ export function withStub<T>(name: string, body: string, fn: (stubDir: string) =>
   });
 }
 
+let nodeShimDirCache: string | null = null;
+
+/** A directory holding a `node` shim alone, which runs the Node running the
+ *  tests: a symlink would not resolve on win32, so the shim is a script (plus a
+ *  `.cmd` there). It lives for the process and is removed on exit. */
+function nodeShimDir(): string {
+  if (nodeShimDirCache !== null) return nodeShimDirCache;
+  const dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "p2p2-node-shim-")));
+  const target = process.execPath.replaceAll("\\", "/");
+  fs.writeFileSync(path.join(dir, "node"), `#!/bin/sh\nexec "${target}" "$@"\n`, { mode: 0o755 });
+  fs.chmodSync(path.join(dir, "node"), 0o755);
+  if (process.platform === "win32") {
+    fs.writeFileSync(path.join(dir, "node.cmd"), `@echo off\r\n"${process.execPath}" %*\r\n`);
+  }
+  process.on("exit", () => fs.rmSync(dir, { recursive: true, force: true }));
+  nodeShimDirCache = dir;
+  return dir;
+}
+
+/** The shell utilities path with the running Node put back: the `node` shim
+ *  directory ahead of `shellUtilsPath()`. A script that needs `node` runs under
+ *  this one, whatever a developer installed. */
+export function coreUtilsPath(): string {
+  return [nodeShimDir(), shellUtilsPath()].join(path.delimiter);
+}
+
 /** A minimal PATH value: the first directory on the current PATH that
  *  resolves `grep` - `/usr/bin` on a POSIX box, Git-for-Windows' `usr/bin` on
  *  win32 - plus, only when that directory does not also resolve `bash`, the
@@ -53,7 +80,7 @@ export function withStub<T>(name: string, body: string, fn: (stubDir: string) =>
  *  dir, which is no repository, so `git rev-parse --show-toplevel` fails there
  *  whether or not `git` resolves and `root` lands on the cwd through either
  *  branch. */
-export function coreUtilsPath(): string {
+export function shellUtilsPath(): string {
   const exe = (name: string) => (process.platform === "win32" ? [`${name}.exe`, name] : [name]);
   const dirs = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean);
   const resolves = (dir: string, name: string) => exe(name).some((n) => fs.existsSync(path.join(dir, n)));
