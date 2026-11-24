@@ -43,6 +43,7 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
 | `/viber:pro-designer` | Holds an interface Claude builds or reviews to professional design standards. Starts on its own when the look is the goal (a new screen or page, a redesign, a UI review), not for a small functional change. |
 | `/viber:idea-validator` | Checks whether a side-project idea is worth building, with sourced research and a Go / Pivot / No-Go report. |
 | `/viber:issue-create` | Creates a GitHub issue from your issue form templates, after a preview and your yes. |
+| `/viber:attach` | Attaches files or links you name to a GitHub issue as issue artifacts (`gh` 2.103 or later), and reports each link. |
 
 ### Ship it
 
@@ -136,8 +137,9 @@ With `github.issues` on, point `/viber:intent`, `/viber:fixer` or `/viber:protot
 
 - An interview that did not start from an issue can save its confirmed summary as a new one, built
   from your issue templates. `/viber:intent #42` then resumes it.
-- A prototype that started from an issue can post its conclusions there as a comment. You attach
-  the HTML mockup to that comment yourself, since only the browser accepts attachments.
+- A prototype that started from an issue can post its conclusions there as a comment, and the
+  HTML mockup lands on the issue as an artifact (`gh` 2.103 or later). Where the artifact cannot be
+  created, it tells you to attach the mockup in the browser.
 - Either way, a prototype's conclusions carry on to `/viber:intent`, and the accepted mockup
   travels with the plan into the build as an attachment (see below).
 

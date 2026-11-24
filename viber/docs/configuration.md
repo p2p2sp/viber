@@ -74,7 +74,7 @@ older version is ignored.
   consecutive such entries run together in one message, as one step. Empty runs none.
   `/viber:extension` creates an agent and its entry for you.
 - **`github.issues`**: `/viber:intent`, `/viber:fixer` and `/viber:prototype` can start from an
-  issue's number or link. `/viber:prototype` can post its conclusions to the issue it started from.
+  issue's number or link. `/viber:prototype` can post its conclusions to the issue it started from, the mockup attached to the issue as an artifact.
 
 ## Questions per round
 

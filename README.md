@@ -62,6 +62,7 @@ The plan is reviewed before you see it, each task is checked before its commit, 
 | Turn a build's test scenarios into Playwright tests | `/viber:e2e` |
 | Write or tune your own Claude Code skills and agents | `/viber:skill-designer` |
 | Continue tomorrow in a fresh session | `/viber:handoff` |
+| Attach a file or link to a GitHub issue as an issue artifact | `/viber:attach` |
 
 Every command is described in the [full guide](viber/README.md).
 

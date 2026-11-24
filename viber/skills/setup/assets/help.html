@@ -1185,12 +1185,12 @@ Refs: docs/_specs/&lt;run&gt;/plan.md task T3
 <span class="ref">Refs: #42</span></pre>
 <p class="caption"><span lang="en">A task commit from a run tied to issue #42.</span><span lang="pl">Commit
 zadania z przebiegu powiązanego z issue #42.</span></p>
-<p lang="en"><code>/viber:prototype</code> started from an issue can post its conclusions there as a comment.
-Attach the mockup to that comment yourself in the browser: only the browser accepts an HTML
-attachment.</p>
+<p lang="en"><code>/viber:prototype</code> started from an issue can post its conclusions there as a comment, with
+the HTML mockup attached to the issue as an artifact. Where the artifact cannot be created, it tells you to
+attach the mockup in the browser. <a href="#skill-attach"><code>/viber:attach</code></a> attaches any file to an issue.</p>
 <p lang="pl"><code>/viber:prototype</code> uruchomiony z issue może opublikować tam swoje wnioski jako
-komentarz. Makietę dołącz do tego komentarza samodzielnie w przeglądarce: tylko przeglądarka
-przyjmuje załącznik HTML.</p>
+komentarz, a makieta HTML trafia do issue jako artefakt. Gdy artefaktu nie da się utworzyć, dostajesz
+polecenie dołączenia makiety w przeglądarce. <a href="#skill-attach"><code>/viber:attach</code></a> dołącza do issue dowolny plik.</p>
 </details>
 </section>
 
@@ -1244,10 +1244,10 @@ w wyglądzie twojego projektu, a twój kod zostaje nietknięty.</p>
     for the interview.</span><span lang="pl">Dane, logika, API i wszystko inne poza ekranem zostaje odłożone
     jako otwarta kwestia dla wywiadu.</span></li>
     <li><span lang="en">With <a href="#key-github-issues"><code>github.issues</code></a> on, <code>/viber:prototype #42</code>
-    starts from the issue and can post its conclusions there as a comment. Attach the mockup to that comment
-    yourself in the browser.</span><span lang="pl">Przy włączonym <a href="#key-github-issues"><code>github.issues</code></a>
-    <code>/viber:prototype #42</code> zaczyna od issue i może opublikować w nim wnioski jako komentarz.
-    Makietę dołącz do tego komentarza sam w przeglądarce.</span></li>
+    starts from the issue and can post its conclusions there as a comment, with the mockup attached to the issue
+    as an artifact; the browser is the fallback.</span><span lang="pl">Przy włączonym <a href="#key-github-issues"><code>github.issues</code></a>
+    <code>/viber:prototype #42</code> zaczyna od issue i może opublikować w nim wnioski jako komentarz,
+    a makieta trafia do issue jako artefakt; przeglądarka to rozwiązanie awaryjne.</span></li>
   </ul>
 </details>
 </section>
@@ -2316,10 +2316,10 @@ z nich mówi, jak nim sterować.</p>
     <div>
       <dt><span lang="en">Switches</span><span lang="pl">Przełączniki</span></dt>
       <dd><span lang="en"><a href="#key-github-issues"><code>github.issues</code></a> on: it can start from an issue and post
-      its conclusions there as a comment. Attach the mockup to that comment yourself in the browser: only the
-      browser accepts an HTML attachment.</span><span lang="pl"><a href="#key-github-issues"><code>github.issues</code></a>
-      włączony: może zacząć od issue i opublikować tam wnioski jako komentarz. Makietę dołącz do komentarza
-      sam w przeglądarce: tylko przeglądarka przyjmuje załącznik HTML.</span></dd>
+      its conclusions there as a comment, with the mockup attached to the issue as an artifact; where that
+      fails, you attach it in the browser.</span><span lang="pl"><a href="#key-github-issues"><code>github.issues</code></a>
+      włączony: może zacząć od issue i opublikować tam wnioski jako komentarz, a makieta trafia do issue jako
+      artefakt; gdy się nie uda, dołączasz ją w przeglądarce.</span></dd>
     </div>
     <div>
       <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
