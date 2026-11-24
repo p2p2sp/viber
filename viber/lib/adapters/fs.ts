@@ -46,6 +46,14 @@ export const nodeFs: Fs = {
       return [];
     }
   },
+  executable(path) {
+    try {
+      fs.accessSync(path, fs.constants.X_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  },
   makeDir(path) {
     try {
       fs.mkdirSync(path, { recursive: true });

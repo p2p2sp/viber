@@ -21,6 +21,7 @@ interface Scene {
   scratch: string;
   history: string;
   linked: boolean;
+  execBits: boolean;
 }
 
 /** Writes each text below dir and removes each path given as null. */
@@ -53,7 +54,7 @@ function git(cwd: string, args: string[]): void {
   });
 }
 
-/** outside: a directory in no repository. scratch: an empty directory in no repository, for the writing contract cases. history: the repository of HISTORY_STATE, on a detached HEAD. linked: false when this account cannot create the directory links of SCENE_STATE. */
+/** outside: a directory in no repository. scratch: an empty directory in no repository, for the writing contract cases. history: the repository of HISTORY_STATE, on a detached HEAD. linked: false when this account cannot create the directory links of SCENE_STATE. execBits: false when the system runs a file given no exec bit (Windows). */
 export function sharedScene(): Scene {
   if (scene) return scene;
   const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "p2p2-scene-")));
@@ -74,7 +75,17 @@ export function sharedScene(): Scene {
   }
   const tracked = Object.keys(SCENE_STATE.files).filter((rel) => !SCENE_STATE.untracked.includes(rel));
   git(root, ["add", "--", ...tracked]);
-  for (const rel of SCENE_STATE.exec) git(root, ["update-index", "--chmod=+x", "--", rel]);
+  for (const rel of SCENE_STATE.exec) {
+    git(root, ["update-index", "--chmod=+x", "--", rel]);
+    fs.chmodSync(`${root}/${rel}`, 0o755);
+  }
+  // One real attempt, never the platform name: a file given no exec bit is refused where the system keeps such bits.
+  let execBits = false;
+  try {
+    fs.accessSync(`${root}/README.md`, fs.constants.X_OK);
+  } catch {
+    execBits = true;
+  }
   let linked = true;
   for (const [rel, target] of Object.entries(SCENE_STATE.links)) {
     try {
@@ -96,6 +107,6 @@ export function sharedScene(): Scene {
   apply(history, HISTORY_STATE.tree);
   git(history, ["add", "-A", "--", ...HISTORY_STATE.staged]);
   process.once("exit", () => fs.rmSync(base, { recursive: true, force: true, maxRetries: 5 }));
-  scene = { root, outside, scratch, history, linked };
+  scene = { root, outside, scratch, history, linked, execBits };
   return scene;
 }

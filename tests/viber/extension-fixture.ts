@@ -1,7 +1,6 @@
 /*
- * extension-fixture.ts - the helpers extension.test.ts and
- * extension.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/extension/scripts/extension.sh. It holds no case of its
+ * extension-fixture.ts - what extension.critical.test.ts uses to seed a case
+ * and run viber/skills/extension/scripts/extension.sh. It holds no case of its
  * own.
  */
 

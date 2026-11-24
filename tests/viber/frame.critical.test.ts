@@ -1,13 +1,14 @@
 /*
  * frame.critical.test.ts - the critical tier of
- * viber/skills/code-auditor/scripts/frame.sh: a framed run writes its
- * directories and run.md and prints the RUN line, and drive-letter, backslash
- * and /c/ spellings of the script and of the scope directory behave correctly
- * on Windows.
+ * viber/skills/code-auditor/scripts/frame.sh, the wrapper of the frame.ts
+ * entry: a framed run writes its directories and run.md and prints the RUN
+ * line, and drive-letter, backslash and /c/ spellings of the script and of the
+ * scope directory behave correctly on Windows.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by frame.test.ts. This file runs on every
+ * break only one platform shows or a script that no longer starts; the token
+ * rules, the questions, every stop line and the scope forms are proven in
+ * process by tests/viber/lib/frame.unit.test.ts. This file runs on every
  * operating system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
@@ -59,7 +60,7 @@ test("a framed repo run writes the reports and worktrees directories and run.md,
   });
 });
 
-// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
+// Every invoked spelling prints the C:/ form: the MSYS runtime hands node the entry path of a /c/ call as C:/...
 // Neither spelling names a file outside Windows, so the cases skip there.
 const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
 const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
@@ -67,11 +68,11 @@ const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) 
 const SPELLINGS: Array<{ label: string; invoked: string; skillDir: string }> = [
   { label: "a C:\\ path", invoked: SUT, skillDir: SKILL_DIR },
   { label: "a C:/ path", invoked: slash(SUT), skillDir: SKILL_DIR },
-  { label: "a /c/ path", invoked: MSYS(SUT), skillDir: MSYS(SKILL_DIR) },
+  { label: "a /c/ path", invoked: MSYS(SUT), skillDir: SKILL_DIR },
 ];
 
 for (const row of SPELLINGS) {
-  test(`invoked by ${row.label}, a framed run prints its RUN line and writes run.md with the skill paths in that spelling`, { skip: WINDOWS_ONLY }, async () => {
+  test(`invoked by ${row.label}, a framed run prints its RUN line and writes run.md with the skill paths in the C:/ form`, { skip: WINDOWS_ONLY }, async () => {
     await assertPosix(async (shell) => {
       await withGitRepo(async (repo) => {
         const result = await runScript(row.invoked, ["design", "repo"], { shell, cwd: repo.dir, env: repo.env });
@@ -86,7 +87,8 @@ for (const row of SPELLINGS) {
 }
 
 // An absolute area token on Windows names the same directory in three spellings: the root's `C:/` form,
-// a `C:\` form and the `/c/` form, and a drive letter of either case. Each is read as the root's own form.
+// a `C:\` form and the `/c/` form (handed to node as `C:/` by the MSYS runtime), and a drive letter of either case.
+// Each is read as the root's own form.
 const flipDrive = (p: string) => p.replace(/^([A-Za-z]):/, (_, drive: string) => `${drive === drive.toLowerCase() ? drive.toUpperCase() : drive.toLowerCase()}:`);
 
 const WINDOWS_FORM_ROWS: Array<{ label: string; token: (root: string) => string }> = [
@@ -112,16 +114,16 @@ for (const row of WINDOWS_FORM_ROWS) {
   });
 }
 
-test("an existing directory outside the root given in /c/ form keeps the directory stop", { skip: WINDOWS_ONLY }, async () => {
+test("an existing directory outside the root given in /c/ form keeps the directory stop, naming the C:/ form node was handed", { skip: WINDOWS_ONLY }, async () => {
   await assertPosix(async (shell) => {
     await withGitRepo(async (repo) => {
       await withTempDir("p2p2-outside-", async (outside) => {
         await commitFiles(repo, { "src/a.txt": "1\n" });
         const root = await rootOf(repo);
-        const token = MSYS(outside);
+        const handed = slash(outside).replace(/^[a-z]:/, (drive) => drive.toUpperCase());
         assertStdout(
-          await frame(shell, repo, ["bugs", token]),
-          lines(`STOP: code-auditor: area directory not found under ${root}: ${token} ${LENS_LIST}`),
+          await frame(shell, repo, ["bugs", MSYS(outside)]),
+          lines(`STOP: code-auditor: area directory not found under ${root}: ${handed} ${LENS_LIST}`),
         );
         assertWroteNothing(repo);
       });

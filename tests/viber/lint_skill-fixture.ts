@@ -1,8 +1,7 @@
 /*
- * lint_skill-fixture.ts - the helpers lint_skill.test.ts and
- * lint_skill.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/skill-designer/scripts/lint_skill.sh. It holds no case of
- * its own.
+ * lint_skill-fixture.ts - what lint_skill.critical.test.ts uses to seed a case
+ * and run viber/skills/skill-designer/scripts/lint_skill.sh. It holds no case
+ * of its own.
  */
 
 import fs from "node:fs";

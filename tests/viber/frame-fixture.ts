@@ -1,6 +1,5 @@
 /*
- * frame-fixture.ts - the helpers frame.test.ts and frame.critical.test.ts
- * share: what both tiers need to seed a case and run
+ * frame-fixture.ts - what frame.critical.test.ts uses to seed a case and run
  * viber/skills/code-auditor/scripts/frame.sh. It holds no case of its own.
  */
 

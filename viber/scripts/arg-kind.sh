@@ -25,4 +25,4 @@
 #
 set -u
 
-exec node "${0%/*}/arg-kind.ts" "$@"
+exec node "${0%[/\\]*}/arg-kind.ts" "$@"

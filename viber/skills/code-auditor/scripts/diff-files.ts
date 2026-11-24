@@ -9,8 +9,9 @@
  * master), unpushed commits on the default branch, a detached HEAD, an orphan
  * branch, a repository with no commit, deleted files, paths with spaces or
  * non-ASCII characters. One script answers them the same way every run, and the
- * caller trusts its output without re-checking it. frame.sh runs it through the
- * wrapper diff-files.sh, which keeps its call line.
+ * caller trusts its output without re-checking it. The frame core
+ * (viber/lib/frame.ts) calls the same core in process; the wrapper
+ * diff-files.sh runs this entry for a call from a shell.
  *
  * Base rules, in order:
  *   1. An explicit <base> (any commit-ish) wins over every rule below, even on

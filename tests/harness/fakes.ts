@@ -14,6 +14,8 @@ export interface FakeFsOpts {
   dirs?: string[];
   /** Directory links: the link's path to the directory it names. */
   links?: Record<string, string>;
+  /** Files carrying an exec bit; every other file carries none. */
+  exec?: string[];
 }
 
 /**
@@ -26,6 +28,7 @@ export function fakeFs(files: Record<string, string | Uint8Array>, opts: FakeFsO
   const unreadable = opts.unreadable ?? [];
   const links = Object.entries(opts.links ?? {});
   const dirs = new Set(opts.dirs ?? []);
+  const exec = opts.exec ?? [];
   const store = new Map<string, Uint8Array>();
   for (const [p, body] of Object.entries(files)) store.set(p, typeof body === "string" ? new TextEncoder().encode(body) : body.slice());
 
@@ -73,6 +76,10 @@ export function fakeFs(files: Record<string, string | Uint8Array>, opts: FakeFsO
       const prefix = below(resolve(p));
       const entries = [...known(), ...links.map(([from]) => from)].filter((f) => f.startsWith(prefix));
       return [...new Set(entries.map((f) => f.slice(prefix.length).split("/")[0]))].sort();
+    },
+    executable(p) {
+      const key = resolve(p);
+      return kindOf(key) !== null && exec.includes(key);
     },
     makeDir(p) {
       const key = resolve(p);
@@ -187,8 +194,8 @@ export function fakeClock(at: Date): Clock {
   return { now: () => new Date(at.getTime()) };
 }
 
-/** scratch: the one directory a contract case writes into. history: a second repository, holding the answers of HISTORY_STATE on a detached HEAD. linked: the fake always holds the scene's directory link. */
-export function fakeScene(root = "/scene/repo"): { fs: Fs; git: Git; root: string; outside: string; scratch: string; history: string; linked: boolean } {
+/** scratch: the one directory a contract case writes into. history: a second repository, holding the answers of HISTORY_STATE on a detached HEAD. linked: the fake always holds the scene's directory link. execBits: the fake always tells a file carrying an exec bit from one carrying none. */
+export function fakeScene(root = "/scene/repo"): { fs: Fs; git: Git; root: string; outside: string; scratch: string; history: string; linked: boolean; execBits: boolean } {
   const files: Record<string, string> = {};
   for (const [rel, text] of Object.entries(SCENE_STATE.files)) files[`${root}/${rel}`] = text;
   const links: Record<string, string> = {};
@@ -225,5 +232,6 @@ export function fakeScene(root = "/scene/repo"): { fs: Fs; git: Git; root: strin
       texts,
     },
   ]);
-  return { fs: fakeFs(files, { dirs: [scratch, history], links }), git, root, outside: "/scene/outside", scratch, history, linked: true };
+  const exec = SCENE_STATE.exec.map((rel) => `${root}/${rel}`);
+  return { fs: fakeFs(files, { dirs: [scratch, history], links, exec }), git, root, outside: "/scene/outside", scratch, history, linked: true, execBits: true };
 }

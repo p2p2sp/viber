@@ -18,6 +18,8 @@ export interface Fs {
   realPath(path: string): string | null;
   /** The entry names of a directory, sorted; empty when the path is absent or not a directory. */
   listDir(path: string): string[];
+  /** True when this account may run the file as a program: a file carrying an exec bit, and every existing file on a system that keeps no such bit (Windows). False for an absent path. */
+  executable(path: string): boolean;
   /** Creates the directory and every missing parent; true when it exists afterwards, false when it cannot. */
   makeDir(path: string): boolean;
   /** Replaces the file's content by exactly these bytes, creating it in an existing directory; false when it cannot, the file then left as it was. */

@@ -29,6 +29,6 @@
 set -u
 
 command -v node >/dev/null 2>&1 || exit 0
-node "${0%/*}/switch-text.ts" "$@" 2>/dev/null || true
+node "${0%[/\\]*}/switch-text.ts" "$@" 2>/dev/null || true
 
 exit 0

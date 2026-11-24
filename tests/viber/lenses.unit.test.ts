@@ -175,6 +175,19 @@ for (const file of LENS_FILES) {
   });
 }
 
+// frame.ts names a lens file by its lens and reads its Worktree line to decide whether a run needs a commit.
+const FRAMED_LENSES = ["bugs", "security", "web-performance", "runtime-performance", "tests", "design"];
+
+test("the lens files are exactly the six lenses frame.ts names, each a regular file", () => {
+  assert.deepEqual(LENS_FILES, FRAMED_LENSES.map((lens) => `${lens}.md`).sort());
+  assert.deepEqual(LENS_FILES.filter((file) => !fs.statSync(path.join(LENSES, file)).isFile()), []);
+});
+
+test("the design lens alone reads Worktree: none, so it alone frames a repository with no commit", () => {
+  const required = FRAMED_LENSES.filter((lens) => fs.readFileSync(path.join(LENSES, `${lens}.md`), "utf-8").split(/\r?\n/).some((line) => line.startsWith("Worktree: required")));
+  assert.deepEqual(required, FRAMED_LENSES.filter((lens) => lens !== "design"));
+});
+
 const AUDITOR = path.resolve(import.meta.dirname, "../../viber/skills/code-auditor");
 const TESTS_LENS = fs.readFileSync(path.join(LENSES, "tests.md"), "utf-8");
 const TESTS_SIGNALS = fs.readFileSync(path.join(LENSES, "tests.signals.md"), "utf-8");

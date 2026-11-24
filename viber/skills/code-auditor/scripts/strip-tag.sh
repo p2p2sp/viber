@@ -26,6 +26,6 @@
 set -u
 
 command -v node >/dev/null 2>&1 || exit 0
-node "${0%/*}/strip-tag.ts" "$@" >/dev/null 2>&1 || true
+node "${0%[/\\]*}/strip-tag.ts" "$@" >/dev/null 2>&1 || true
 
 exit 0

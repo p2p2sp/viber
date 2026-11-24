@@ -27,4 +27,4 @@
 #
 set -u
 
-exec node "${0%/*}/attach-lines.ts" "$@"
+exec node "${0%[/\\]*}/attach-lines.ts" "$@"

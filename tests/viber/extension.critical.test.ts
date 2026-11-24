@@ -1,13 +1,14 @@
 /*
  * extension.critical.test.ts - the critical tier of
- * viber/skills/extension/scripts/extension.sh: with no argument it prints the
- * extension state, and --add writes the new entry while keeping every other
- * line of viber.yml byte-identical.
+ * viber/skills/extension/scripts/extension.sh, the wrapper of the extension.ts
+ * entry: with no argument it prints the extension state, and --add writes the
+ * new entry while keeping every other line of viber.yml byte-identical.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by extension.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * break only one platform shows or a script that no longer starts; the map
+ * rule, the report lines, the insertion and the refusals are proven in process
+ * by tests/viber/lib/extension.unit.test.ts. This file runs on every operating
+ * system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:

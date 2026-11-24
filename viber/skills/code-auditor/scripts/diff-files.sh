@@ -7,8 +7,9 @@
 # wrong when it improvises them (the default branch, unpushed commits on it, a
 # detached HEAD, an orphan branch, a repository with no commit, deleted files).
 # The base rules and every stdout line live in diff-files.ts and
-# viber/lib/diff-files.ts, never here, so frame.sh keeps this call line while
-# the rules are tested in process.
+# viber/lib/diff-files.ts, never here, so a shell caller keeps this call line
+# while the rules are tested in process. The frame core calls that core in
+# process, never through this wrapper.
 #
 # Contract:
 #   argv   : <repo-root> [<base>]. Handed to diff-files.ts as given; the base

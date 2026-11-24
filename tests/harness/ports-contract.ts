@@ -99,8 +99,8 @@ export const HISTORY_STATE: {
   untracked: ["untracked dir/za\u017c\u00f3\u0142\u0107.txt"],
 };
 
-/** scratch: an existing directory the cases may write into. linked: whether the scene holds its directory link. */
-export function fsContract(label: string, make: () => { fs: Fs; root: string; scratch: string; linked: boolean }): void {
+/** scratch: an existing directory the cases may write into. linked: whether the scene holds its directory link. execBits: whether the system refuses to run a file given no exec bit. */
+export function fsContract(label: string, make: () => { fs: Fs; root: string; scratch: string; linked: boolean; execBits: boolean }): void {
   test(`${label}: a file reads back as its text`, () => {
     const { fs, root } = make();
     assert.equal(fs.readText(`${root}/src/a.txt`), "ay\n");
@@ -156,6 +156,20 @@ export function fsContract(label: string, make: () => { fs: Fs; root: string; sc
     assert.equal(fs.kind(`${root}/link`), "dir");
     assert.equal(fs.readText(`${root}/link/a.txt`), "ay\n");
     assert.deepEqual([fs.realPath(`${root}/link`), fs.realPath(`${root}/link/a.txt`)], [`${root}/src`, `${root}/src/a.txt`]);
+  });
+
+  test(`${label}: executable is true for a file carrying an exec bit and false for an absent path`, () => {
+    const { fs, root } = make();
+    assert.deepEqual([fs.executable(`${root}/bin/run.sh`), fs.executable(`${root}/nope.sh`)], [true, false]);
+  });
+
+  test(`${label}: executable is false for a file carrying no exec bit`, (t) => {
+    const { fs, root, execBits } = make();
+    if (!execBits) {
+      t.skip("this system keeps no exec bit");
+      return;
+    }
+    assert.equal(fs.executable(`${root}/README.md`), false);
   });
 
   test(`${label}: makeDir creates a directory with its missing parents and is true again once it exists`, () => {

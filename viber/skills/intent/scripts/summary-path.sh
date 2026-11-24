@@ -27,4 +27,4 @@
 #
 set -u
 
-exec node "${0%/*}/summary-path.ts" "$@"
+exec node "${0%[/\\]*}/summary-path.ts" "$@"

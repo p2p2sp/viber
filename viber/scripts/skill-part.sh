@@ -30,4 +30,4 @@
 #
 set -u
 
-exec node "${0%/*}/skill-part.ts" "$@"
+exec node "${0%[/\\]*}/skill-part.ts" "$@"
