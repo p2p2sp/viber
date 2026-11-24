@@ -1,13 +1,15 @@
 /*
  * intent-prose.unit.test.ts - holds the shipped text of the `intent` skill to its round-based interview wiring.
- * Proves: the round rule and the Explore dispatch, the closed signal list with the attachment sentence, the absence
+ * Proves: the round rule and the Explore dispatch, the closed signal list with the attachment sentence, the split
+ * proposal pointer of `SKILL.md` and the rules it points at in `references/split.md`, the absence
  * of the fast path and of any spec shape proposal, the `done` part carrying the end-of-interview fragments, the
  * summary file hand-off with its plan mode exception, the cap on the decisions
  * of a round (the `config.sh --questions` preload, its `allowed-tools` entry, `all`, the order, the remaining-count
  * line, the resume reference) and the word cap of the start text.
  * The skill's markdown is the product, so the tests read it as text. The cap is the word count of `SKILL.md` plus
- * `issues-input.false.md` (the fragment the template defaults select) after the scripted steps, counted by whitespace
- * split, and sits below the count the text held before them; raise it only on purpose.
+ * `issues-input.false.md` (the fragment the template defaults select) with the split proposal rules in
+ * `references/split.md`, counted by whitespace split, and sits below the count the text held before the scripted
+ * steps; raise it only on purpose.
  */
 
 import { test } from "../harness/test.ts";
@@ -17,7 +19,7 @@ import path from "node:path";
 
 const INTENT = path.resolve(import.meta.dirname, "../../viber/skills/intent");
 
-const START_TEXT_WORD_CAP = 967;
+const START_TEXT_WORD_CAP = 922;
 const START_TEXT_WORDS_BEFORE_SCRIPTED_STEPS = 968;
 const START_TEXT_WORDS_BEFORE_CAP_RULE = 1027;
 
@@ -111,10 +113,18 @@ test("allowed-tools lists the attach-lines.sh Bash entry the call needs", () => 
   assert.match(HEAD, /allowed-tools:[^\n]*Bash\(\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/attach-lines\.sh:\*\)/);
 });
 
-test("SKILL.md reads the summary file a Split proposal: input names and carries its issue, attachment, work and branch lines over unchanged", () => {
-  assert.match(SKILL, /`Split proposal:`[^\n]*summary file[^\n]*read/);
-  assert.match(SKILL, /`Issue:`, `Attachment:`, `Work:` and `Branch:` lines/);
-  assert.match(SKILL, /unchanged/);
+const FROM_PROPOSAL = read("references/split.md").split(/\r?\n## /).find((part) => part.startsWith("From a split proposal")) ?? "";
+
+test("SKILL.md sends a Split proposal: input to split.md before any other step and holds none of its rules (they are read only on that path, never in every start text)", () => {
+  assert.match(SKILL, /`Split proposal:`[^\n]*references\/split\.md` before any other step/);
+  assert.doesNotMatch(SKILL, /summary file/);
+});
+
+test("split.md takes a Split proposal: input as sized, skips the branch start and issue steps, reads the summary file it names and carries its issue, attachment, work and branch lines over unchanged", () => {
+  assert.match(FROM_PROPOSAL, /already sized: estimate no scope/);
+  assert.match(FROM_PROPOSAL, /Skip the skill's branch start step and every issue step of its `## Done`/);
+  assert.match(FROM_PROPOSAL, /summary file[^\n]*read it/);
+  assert.match(FROM_PROPOSAL, /`Issue:`, `Attachment:`, `Work:` and `Branch:` lines[^\n]*unchanged/);
 });
 
 test("SKILL.md proposes no spec shape section", () => {

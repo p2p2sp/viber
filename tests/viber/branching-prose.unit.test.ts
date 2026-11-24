@@ -4,8 +4,10 @@
  * The four branching-start fragments (intent and fixer, allowed and required) act on an answer of
  * `plan-path.sh --start` by running its `run:` command and settling its `settle:` value, and hold no
  * per-answer follow-up rule: the `--entry <key>` re-run sentence and the `switch` follow-up now live
- * in the option lines (C3). Each fragment keeps its `--checkout` exit 5 handling and its `--settled`
- * re-run. The fragments are read as text, so no script runs.
+ * in the option lines (C3). Each fragment keeps its `--checkout` exit 5 handling. The `--settled`
+ * re-run after an issue save sits in fixer's branching-start fragments and in intent's
+ * branching-handoff fragments, which its `done` part prints at the end of the interview. The
+ * fragments are read as text, so no script runs.
  */
 
 import { test } from "../harness/test.ts";
@@ -29,10 +31,24 @@ const PRESENT: [string, string][] = [
   ["settle its `settle:` value", "the settle: handling"],
   ["`abort` stops here and runs nothing else", "abort stopping"],
   ["A `--checkout` failing with exit 5 -> show its error", "the kept --checkout exit 5 handling"],
+];
+
+/** The fragments holding the `--settled` re-run after an issue save. */
+const RERUN_FRAGMENTS = [
+  "intent/fragments/branching-handoff.allowed.md",
+  "intent/fragments/branching-handoff.required.md",
+  "fixer/fragments/branching-start.allowed.md",
+  "fixer/fragments/branching-start.required.md",
+];
+
+const RERUN_PRESENT: [string, string][] = [
   ["run the same `--start", "the --settled re-run"],
   ["once more with", "the --settled re-run"],
   ["--settled <settlement>", "the --settled re-run flag"],
 ];
+
+/** The intent start fragments, whose re-run text is read only with the `done` part. */
+const INTENT_START = FRAGMENTS.filter((rel) => rel.startsWith("intent/"));
 
 /** Sentences no fragment keeps: the per-answer follow-up rules the option lines carry now. */
 const ABSENT: [RegExp, string][] = [
@@ -99,4 +115,19 @@ for (const rel of FRAGMENTS) {
       assert.ok(!pattern.test(text), `${rel} still holds ${what}`);
     });
   }
+}
+
+for (const rel of RERUN_FRAGMENTS) {
+  const text = fs.readFileSync(path.join(SKILLS, rel), "utf8");
+  for (const [phrase, what] of RERUN_PRESENT) {
+    test(`${rel}: holds ${what} ("${phrase}")`, () => {
+      assert.ok(text.includes(phrase), `${rel} lacks: ${phrase}`);
+    });
+  }
+}
+
+for (const rel of INTENT_START) {
+  test(`${rel}: holds no --settled re-run (it is read at the end of the interview, never from its start)`, () => {
+    assert.ok(!fs.readFileSync(path.join(SKILLS, rel), "utf8").includes("--settled"), `${rel} still holds the --settled re-run`);
+  });
 }
