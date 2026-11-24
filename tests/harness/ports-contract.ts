@@ -135,7 +135,8 @@ export function clockContract(label: string, make: () => Clock): void {
   });
 }
 
-export function gitContract(label: string, make: () => { git: Git; root: string; outside: string }): void {
+/** detached: a repository of its own on a detached HEAD; the repository at root has no commit yet. */
+export function gitContract(label: string, make: () => { git: Git; root: string; outside: string; detached: string }): void {
   test(`${label}: the repository root of the root itself and of a directory below it is the root`, () => {
     const { git, root } = make();
     assert.deepEqual([git.repoRoot(root), git.repoRoot(`${root}/src`)], [root, root]);
@@ -154,5 +155,15 @@ export function gitContract(label: string, make: () => { git: Git; root: string;
       { path: "src/a.txt", mode: "100644" },
       { path: "src/b.txt", mode: "100644" },
     ]);
+  });
+
+  test(`${label}: the branch of a repository with no commit yet is the name HEAD stands on, from the root and from a directory below it`, () => {
+    const { git, root } = make();
+    assert.deepEqual([git.branch(root), git.branch(`${root}/src`)], ["main", "main"]);
+  });
+
+  test(`${label}: the branch of a detached HEAD and of a directory in no repository is null`, () => {
+    const { git, outside, detached } = make();
+    assert.deepEqual([git.branch(detached), git.branch(outside)], [null, null]);
   });
 }

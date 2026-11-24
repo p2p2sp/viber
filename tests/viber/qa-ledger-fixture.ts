@@ -1,7 +1,7 @@
 /*
- * qa-ledger-fixture.ts - the helpers qa-ledger.test.ts and
- * qa-ledger.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/e2e/scripts/qa-ledger.sh. It holds no case of its own.
+ * qa-ledger-fixture.ts - what qa-ledger.critical.test.ts uses to seed a
+ * handoff and run viber/skills/e2e/scripts/qa-ledger.sh. It holds no case of
+ * its own.
  */
 
 import fs from "node:fs";

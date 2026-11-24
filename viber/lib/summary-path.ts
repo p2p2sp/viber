@@ -5,6 +5,7 @@
  */
 
 import type { Clock, Fs, Git } from "./ports.ts";
+import { stampOf } from "./stamp.ts";
 
 export interface SummaryPathResult {
   stdout: string;
@@ -14,13 +15,6 @@ export interface SummaryPathResult {
 
 function fail(reason: string): SummaryPathResult {
   return { stdout: "", stderr: `error: ${reason}\n`, exit: 2 };
-}
-
-/** YYYY-MM-DD-HH-MM-SS from the local-time fields of the instant. */
-function stampOf(at: Date): string {
-  const two = (n: number): string => String(n).padStart(2, "0");
-  const year = String(at.getFullYear()).padStart(4, "0");
-  return [year, two(at.getMonth() + 1), two(at.getDate()), two(at.getHours()), two(at.getMinutes()), two(at.getSeconds())].join("-");
 }
 
 /** The stdout, stderr and exit code of one summary-path call. Never throws. */

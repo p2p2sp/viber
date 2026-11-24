@@ -35,6 +35,8 @@ export interface Git {
   repoRoot(cwd: string): string | null;
   /** Every file in the index of the repository at root, in index order. */
   trackedFiles(root: string): TrackedFile[];
+  /** The short name of the branch HEAD stands on, a branch with no commit yet included; null on a detached HEAD or outside a repository. */
+  branch(cwd: string): string | null;
 }
 
 export interface Clock {

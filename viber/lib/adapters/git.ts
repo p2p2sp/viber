@@ -31,4 +31,8 @@ export const gitCommand: Git = {
     }
     return files;
   },
+  branch(cwd) {
+    const name = run(cwd, ["symbolic-ref", "--quiet", "--short", "HEAD"])?.trim();
+    return name ? name : null;
+  },
 };

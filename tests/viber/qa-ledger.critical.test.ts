@@ -1,13 +1,15 @@
 /*
  * qa-ledger.critical.test.ts - the critical tier of
- * viber/skills/e2e/scripts/qa-ledger.sh: list prints one state line per
- * automatable scenario with counts, and the script invoked by a C:\, C:/ or
- * /c/ path still names the references directory.
+ * viber/skills/e2e/scripts/qa-ledger.sh, the wrapper of the qa-ledger.ts
+ * entry: list prints one state line per automatable scenario with counts, and
+ * the script invoked by a C:\, C:/ or /c/ path still finds its entry and names
+ * the references directory in the C:/ form.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by qa-ledger.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * break only one platform shows or a script that no longer starts; the handoff
+ * grammar, the table and the refusals are proven in process by
+ * tests/viber/lib/qa-ledger.unit.test.ts. This file runs on every operating
+ * system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:
@@ -47,11 +49,12 @@ const MSYS_ROOT = `/${ROOT[0].toLowerCase()}${ROOT.slice(2)}`;
 const SPELLINGS = [
   { name: "a C:\\ path", sut: SUT.replace(/\//g, "\\"), root: ROOT },
   { name: "a C:/ path", sut: SUT.replace(/\\/g, "/"), root: ROOT },
-  { name: "a /c/ path", sut: `${MSYS_ROOT}/skills/e2e/scripts/qa-ledger.sh`, root: MSYS_ROOT },
+  // The MSYS runtime hands node the entry path as C:/..., so every spelling prints that form.
+  { name: "a /c/ path", sut: `${MSYS_ROOT}/skills/e2e/scripts/qa-ledger.sh`, root: ROOT },
 ];
 
 for (const row of SPELLINGS) {
-  test(`invoked by ${row.name}, the refs: line names the references directory under ${row.root} (a backslash spelling never reaches the dispatch block)`, { skip: ON_WINDOWS ? false : "the drive spellings exist only on Windows" }, async () => {
+  test(`invoked by ${row.name}, the refs: line names the references directory under ${row.root} (a backslash or MSYS spelling never reaches the dispatch block)`, { skip: ON_WINDOWS ? false : "the drive spellings exist only on Windows" }, async () => {
     const skips = await forEachShell("bash", async (bash) => {
       await withTempDir("p2p2-qa-ledger-", async (dir) => {
         const handoff = path.join(dir, "qa.e2e.md");

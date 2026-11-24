@@ -1,8 +1,7 @@
 /*
- * handoff-path-fixture.ts - the helpers handoff-path.test.ts and
- * handoff-path.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/handoff/scripts/handoff-path.sh. It holds no case of its
- * own.
+ * handoff-path-fixture.ts - what handoff-path.critical.test.ts uses to run
+ * viber/skills/handoff/scripts/handoff-path.sh and read its four lines. It
+ * holds no case of its own.
  */
 
 import assert from "node:assert/strict";

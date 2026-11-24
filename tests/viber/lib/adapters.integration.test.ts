@@ -14,7 +14,7 @@ fsContract("node fs", () => ({ fs: nodeFs, ...sharedScene() }));
 
 gitContract("git command", () => {
   const scene = sharedScene();
-  return { git: gitCommand, root: scene.root, outside: scene.outside };
+  return { git: gitCommand, root: scene.root, outside: scene.outside, detached: scene.detached };
 });
 
 clockContract("system clock", () => systemClock);

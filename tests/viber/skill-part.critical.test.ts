@@ -1,13 +1,14 @@
 /*
  * skill-part.critical.test.ts - the critical tier of
- * viber/scripts/skill-part.sh: a skill part prints with both root placeholders
- * expanded and a fragment block replaced by the fragment of the configured
- * switch value.
+ * viber/scripts/skill-part.sh, the wrapper of the skill-part.ts entry: a skill
+ * part prints with both root placeholders expanded and a fragment block
+ * replaced by the fragment of the configured switch value.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by skill-part.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * break only one platform shows or a script that no longer starts; the block
+ * rules and the refusals are proven in process by
+ * tests/viber/lib/skill-part.unit.test.ts. This file runs on every operating
+ * system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:

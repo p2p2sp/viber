@@ -1,13 +1,15 @@
 /*
  * handoff-path.critical.test.ts - the critical tier of
- * viber/skills/handoff/scripts/handoff-path.sh: with no argument the script
- * prints a stamped placeholder under .temp/viber/handoff, and an MSYS /c/
- * argument and backslashes become the C:/ and forward slash forms.
+ * viber/skills/handoff/scripts/handoff-path.sh, the wrapper of the
+ * handoff-path.ts entry: with no argument the script prints a stamped
+ * placeholder under .temp/viber/handoff, and an MSYS /c/ argument and
+ * backslashes become the C:/ and forward slash forms.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by handoff-path.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * break only one platform shows or a script that no longer starts; the target
+ * rules, the branch and the stamp are proven in process by
+ * tests/viber/lib/handoff-path.unit.test.ts. This file runs on every operating
+ * system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:
@@ -31,7 +33,7 @@ test("no argument inside a repository is a stamped placeholder under <root>/.tem
   });
 });
 
-test("an MSYS absolute argument (/c/...) becomes the C:/ form through cygpath", { skip: process.platform === "win32" ? false : "the /c/ spelling means a drive only under Git Bash; elsewhere it is an ordinary absolute path" }, async () => {
+test("an MSYS absolute argument (/c/...) becomes the C:/ form on its way to node", { skip: process.platform === "win32" ? false : "the /c/ spelling means a drive only under Git Bash; elsewhere it is an ordinary absolute path" }, async () => {
   await withTempDir("p2p2-viber-", async (outside) => {
     await withGitRepo(async (repo) => {
       const native = slash(outside);

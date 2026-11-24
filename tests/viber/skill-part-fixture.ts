@@ -1,7 +1,6 @@
 /*
- * skill-part-fixture.ts - the helpers skill-part.test.ts and
- * skill-part.critical.test.ts share: what both tiers need to seed a case and
- * run viber/scripts/skill-part.sh. It holds no case of its own.
+ * skill-part-fixture.ts - what skill-part.critical.test.ts uses to seed a
+ * case and run viber/scripts/skill-part.sh. It holds no case of its own.
  */
 
 import fs from "node:fs";

@@ -25,7 +25,7 @@ const KEYS = new Set([
 ]);
 
 /** The skill directory without its last two segments, separator / or \, a trailing separator ignored. */
-function pluginRootOf(skillDir: string): string {
+export function pluginRootOf(skillDir: string): string {
   let root = /[/\\]$/.test(skillDir) ? skillDir.slice(0, -1) : skillDir;
   for (let i = 0; i < 2; i++) {
     const cut = Math.max(root.lastIndexOf("/"), root.lastIndexOf("\\"));

@@ -5,6 +5,7 @@
  * of ../scripts/attach-lines.ts.
  */
 
+import { absolutePath } from "./abs-path.ts";
 import type { Fs, Git } from "./ports.ts";
 
 export interface AttachLinesResult {
@@ -15,24 +16,6 @@ export interface AttachLinesResult {
 
 function fail(reason: string): AttachLinesResult {
   return { stdout: "", stderr: `error: attach-lines.sh: ${reason}\n`, exit: 2 };
-}
-
-/**
- * The forward-slash path made absolute against cwd and spelled one way: no
- * doubled or trailing slash, no `.` segment, a `..` segment taking the segment
- * before it. The root is `/`, a drive as `C:/`, or the `//` of a network path.
- */
-function absolute(path: string, cwd: string): string {
-  const full = /^(\/|[A-Za-z]:\/)/.test(path) ? path : `${cwd}/${path}`;
-  const drive = /^[A-Za-z]:/.test(full) ? full.slice(0, 2) : "";
-  const rest = full.slice(drive.length);
-  const root = drive !== "" ? `${drive}/` : /^\/\/[^/]/.test(rest) ? "//" : "/";
-  const segments: string[] = [];
-  for (const part of rest.split("/")) {
-    if (part === "..") segments.pop();
-    else if (part !== "" && part !== ".") segments.push(part);
-  }
-  return root + segments.join("/");
 }
 
 /** The directory holding the path, the root of a drive or of the file system keeping its slash. */
@@ -52,7 +35,7 @@ export function runAttachLines(argv: string[], cwd: string, ports: { fs: Fs; git
   const seen = new Set<string>();
   for (const arg of argv) {
     if (arg === "") continue;
-    const path = absolute(arg.replaceAll("\\", "/"), here);
+    const path = absolutePath(arg.replaceAll("\\", "/"), here);
     // A directory resolves whole, a file through its directory: a symlinked
     // directory then reads as git reads the repository root.
     let real: string | null = null;

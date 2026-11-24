@@ -4,7 +4,8 @@
  * the outside directory are read-only by contract: a case never writes into
  * them, so sharing them costs no isolation. The scratch directory beside them
  * is the one place a contract case writes, each under a directory of its own
- * name.
+ * name. The repository has no commit, so its HEAD stands on an unborn branch; a
+ * second repository beside it holds one empty commit and a detached HEAD.
  */
 
 import { execFileSync } from "node:child_process";
@@ -17,6 +18,7 @@ interface Scene {
   root: string;
   outside: string;
   scratch: string;
+  detached: string;
   linked: boolean;
 }
 
@@ -38,16 +40,18 @@ function git(cwd: string, args: string[]): void {
   });
 }
 
-/** outside: a directory in no repository. scratch: an empty directory in no repository, for the writing contract cases. linked: false when this account cannot create the directory links of SCENE_STATE. */
+/** outside: a directory in no repository. scratch: an empty directory in no repository, for the writing contract cases. detached: a repository on a detached HEAD. linked: false when this account cannot create the directory links of SCENE_STATE. */
 export function sharedScene(): Scene {
   if (scene) return scene;
   const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "p2p2-scene-")));
   const root = `${base}/repo`.replaceAll("\\", "/");
   const outside = `${base}/outside`.replaceAll("\\", "/");
   const scratch = `${base}/scratch`.replaceAll("\\", "/");
+  const detached = `${base}/detached`.replaceAll("\\", "/");
   fs.mkdirSync(root);
   fs.mkdirSync(outside);
   fs.mkdirSync(scratch);
+  fs.mkdirSync(detached);
   git(root, ["init", "-q", "-b", "main"]);
   git(root, ["config", "core.autocrlf", "false"]);
   git(root, ["config", "core.fileMode", "true"]);
@@ -67,7 +71,10 @@ export function sharedScene(): Scene {
       linked = false;
     }
   }
+  git(detached, ["init", "-q", "-b", "main"]);
+  git(detached, ["-c", "user.name=scene", "-c", "user.email=scene@p2p2.invalid", "commit", "-q", "--allow-empty", "-m", "seed"]);
+  git(detached, ["checkout", "-q", "--detach"]);
   process.once("exit", () => fs.rmSync(base, { recursive: true, force: true, maxRetries: 5 }));
-  scene = { root, outside, scratch, linked };
+  scene = { root, outside, scratch, detached, linked };
   return scene;
 }

@@ -13,7 +13,7 @@ fsContract("fake fs", () => fakeScene());
 
 gitContract("fake git", () => {
   const scene = fakeScene();
-  return { git: scene.git, root: scene.root, outside: scene.outside };
+  return { git: scene.git, root: scene.root, outside: scene.outside, detached: scene.detached };
 });
 
 clockContract("fake clock", () => fakeClock(new Date(2020, 0, 1)));
@@ -53,6 +53,24 @@ test("the fake file system lists a directory once among the entry names, however
 test("the fake git answers the root for a cwd below it and null for a sibling sharing its prefix (a prefix match would claim /rx for /r)", () => {
   const git = fakeGit({ root: "/r", tracked: [] });
   assert.deepEqual([git.repoRoot("/r"), git.repoRoot("/r/sub/deep"), git.repoRoot("/rx"), git.repoRoot("/elsewhere")], ["/r", "/r", null, null]);
+});
+
+test("the fake git answers main for a repository given no branch, the branch it was given, and null for a detached HEAD or outside every repository", () => {
+  const git = fakeGit([
+    { root: "/a", tracked: [] },
+    { root: "/b", tracked: [], branch: "feature/x" },
+    { root: "/c", tracked: [], branch: null },
+  ]);
+  assert.deepEqual([git.branch("/a/src"), git.branch("/b"), git.branch("/c"), git.branch("/d"), fakeGit(null).branch("/a")], ["main", "feature/x", null, null, null]);
+});
+
+test("the fake git holding several repositories answers each root and its own tracked files", () => {
+  const git = fakeGit([
+    { root: "/a", tracked: [{ path: "x.txt", mode: "100644" }] },
+    { root: "/b", tracked: [] },
+  ]);
+  assert.deepEqual([git.repoRoot("/a/src"), git.repoRoot("/b"), git.repoRoot("/ab")], ["/a", "/b", null]);
+  assert.deepEqual([git.trackedFiles("/a"), git.trackedFiles("/b")], [[{ path: "x.txt", mode: "100644" }], []]);
 });
 
 test("the fake git lists the tracked files it was given with their modes in order", () => {

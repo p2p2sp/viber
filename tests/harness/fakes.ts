@@ -92,15 +92,27 @@ export function fakeFs(files: Record<string, string | Uint8Array>, opts: FakeFsO
   };
 }
 
-/** null: no repository anywhere. */
-export function fakeGit(repo: { root: string; tracked: TrackedFile[] } | null): Git {
+export interface FakeRepo {
+  root: string;
+  tracked: TrackedFile[];
+  /** The branch HEAD stands on, `main` when left out; null: a detached HEAD. */
+  branch?: string | null;
+}
+
+/** One repository or several apart from each other; null: no repository anywhere. */
+export function fakeGit(repos: FakeRepo | FakeRepo[] | null): Git {
+  const all = repos === null ? [] : Array.isArray(repos) ? repos : [repos];
+  const holding = (cwd: string): FakeRepo | undefined => all.find((repo) => cwd === repo.root || cwd.startsWith(`${repo.root}/`));
   return {
     repoRoot(cwd) {
-      if (repo === null) return null;
-      return cwd === repo.root || cwd.startsWith(`${repo.root}/`) ? repo.root : null;
+      return holding(cwd)?.root ?? null;
     },
     trackedFiles(root) {
-      return repo !== null && root === repo.root ? repo.tracked.map((t) => ({ ...t })) : [];
+      return all.find((repo) => repo.root === root)?.tracked.map((t) => ({ ...t })) ?? [];
+    },
+    branch(cwd) {
+      const repo = holding(cwd);
+      return repo === undefined || repo.branch === null ? null : (repo.branch ?? "main");
     },
   };
 }
@@ -110,8 +122,8 @@ export function fakeClock(at: Date): Clock {
   return { now: () => new Date(at.getTime()) };
 }
 
-/** scratch: the one directory a contract case writes into. linked: the fake always holds the scene's directory link. */
-export function fakeScene(root = "/scene/repo"): { fs: Fs; git: Git; root: string; outside: string; scratch: string; linked: boolean } {
+/** scratch: the one directory a contract case writes into. detached: a second repository, on a detached HEAD. linked: the fake always holds the scene's directory link. */
+export function fakeScene(root = "/scene/repo"): { fs: Fs; git: Git; root: string; outside: string; scratch: string; detached: string; linked: boolean } {
   const files: Record<string, string> = {};
   for (const [rel, text] of Object.entries(SCENE_STATE.files)) files[`${root}/${rel}`] = text;
   const links: Record<string, string> = {};
@@ -121,5 +133,10 @@ export function fakeScene(root = "/scene/repo"): { fs: Fs; git: Git; root: strin
     .sort()
     .map((rel) => ({ path: rel, mode: SCENE_STATE.exec.includes(rel) ? "100755" : "100644" }));
   const scratch = "/scene/scratch";
-  return { fs: fakeFs(files, { dirs: [scratch], links }), git: fakeGit({ root, tracked }), root, outside: "/scene/outside", scratch, linked: true };
+  const detached = "/scene/detached";
+  const git = fakeGit([
+    { root, tracked },
+    { root: detached, tracked: [], branch: null },
+  ]);
+  return { fs: fakeFs(files, { dirs: [scratch, detached], links }), git, root, outside: "/scene/outside", scratch, detached, linked: true };
 }
