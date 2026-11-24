@@ -11,28 +11,38 @@ defaults:
   run:
     shell: bash
 jobs:
+  Lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      # No package.json: the type checker and the Node types are installed for this job only.
+      - name: Install typescript and the Node types
+        run: npm install --no-save typescript@6.0.3 @types/node@24.10.0
+      - name: tsc --noEmit
+        run: npx tsc --noEmit
+      - name: Install actionlint
+        run: bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+      - name: actionlint
+        run: ./actionlint -color
+      - name: shellcheck
+        run: shellcheck .github/scripts/release.sh viber/hooks/scripts/session-start.sh
+      - name: Skill lint
+        run: bash .github/scripts/lint-skills.sh
+      - name: Rule lint
+        run: node tools/lint/run.ts
   Tests:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      # Linux runs every tier: a spawned script is cheap there. Windows and
-      # macOS run the unit and critical tiers only (tests/CLAUDE.md): a spawned
-      # script costs an order of magnitude more under Git Bash, so the logic
-      # tier would take a Windows job from minutes to a quarter of an hour.
-      # The whole suite runs on Windows in full.yml, nightly and before a
-      # release.
       matrix:
-        include:
-          - os: ubuntu-latest
-            tiers: all
-            files: 12
-          - os: windows-latest
-            tiers: critical
-            files: 6
-          - os: macos-latest
-            tiers: critical
-            files: 6
-    name: Tests (${{ matrix.os }}, ${{ matrix.tiers }})
-    runs-on: ${{ matrix.os }}
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -42,25 +52,21 @@ jobs:
           node-version: 24
       - name: Guard - each test glob must match at least one file
         run: |
-          for pattern in 'tests/**/*.unit.test.ts' 'tests/**/*.critical.test.ts' 'tests/**/*.test.ts'; do
+          for pattern in 'tests/**/*.unit.test.ts' 'tests/**/*.integration.test.ts'; do
             count=$(git ls-files "$pattern" | wc -l)
-            [ "$count" -gt 0 ]
+            if [ "$count" -eq 0 ]; then
+              echo "::error::no tracked file matches $pattern"
+              exit 1
+            fi
           done
-      # --test-concurrency (files at once): the suite spends its time on
-      # spawned scripts, so Linux runs more files at once than the runner has
-      # cores; Windows and macOS stay close to their core count, where an
-      # overloaded runner turns slow cases into timeouts.
-      # CI=true turns on the full shell matrix for the critical files
-      # (tests/harness/shells.ts): every POSIX shell and every bash major
-      # present. A logic file runs under the first shell present.
       - name: Run tests
-        env:
-          CI: "true"
-          TIERS: ${{ matrix.tiers }}
-          FILES: ${{ matrix.files }}
         run: |
-          if [ "$TIERS" = all ]; then
-            node --test --test-concurrency="$FILES" "tests/**/*.test.ts"
-          else
-            node --test --test-concurrency="$FILES" "tests/**/*.unit.test.ts" "tests/**/*.critical.test.ts"
+          start=$(date +%s)
+          status=0
+          node --test "tests/**/*.unit.test.ts" "tests/**/*.integration.test.ts" || status=$?
+          seconds=$(( $(date +%s) - start ))
+          if [ "$seconds" -gt 60 ]; then
+            echo "::warning::The test step took $seconds seconds, over the 60 second budget"
+            echo "Test step on ${{ matrix.os }}: $seconds seconds, over the 60 second budget" >> "$GITHUB_STEP_SUMMARY"
           fi
+          exit "$status"
