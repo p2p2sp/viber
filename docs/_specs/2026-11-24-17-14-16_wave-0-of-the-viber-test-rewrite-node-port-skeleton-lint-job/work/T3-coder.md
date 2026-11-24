@@ -1,0 +1,3 @@
+- The DoD.6 test's red came from the revert route (runConfig returning "" for any argv), logged in .temp/viber/T3/red-3.log; run.ts was restored afterwards.
+- One test in run.unit.test.ts proves DoD.1 and DoD.6 together: with no file, a non-report argument gives the 20-line default block, written out as a literal; block.unit.test.ts holds no default-block case (it would duplicate that one).
+- DoD.4's first-assignment rule is proven only by the block.unit.test.ts row "the first assignment being false"; lines.unit.test.ts holds no case for it (Single).
