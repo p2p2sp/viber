@@ -4,6 +4,7 @@
  * .claude/viber.yml (null: no file).
  */
 
+import { resolveBranching } from "./branching.ts";
 import { resolveExtensions } from "./extensions.ts";
 import { readChildren } from "./lines.ts";
 
@@ -76,6 +77,6 @@ export function resolveBlock(text: string | null, hasAgent: (name: string) => bo
     `directories.specifications: ${directory(children.get("directories.specifications"), "specs")}`,
     `tiers.min: ${min}`,
     `tiers.max: ${max}`,
-    "branching.mode: off",
+    `branching.${resolveBranching(text)[0]}`,
   ];
 }
