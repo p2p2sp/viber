@@ -44,7 +44,7 @@ export const HISTORY_STATE: {
   commits: [
     {
       ".gitignore": "ignored.log\n",
-      "kept.txt": "kept\n",
+      "kept.txt": "kept\nthe second line\n",
       "edited.txt": "one\n",
       "gone.txt": "gone\n",
       "staged.txt": "one\n",
@@ -199,6 +199,22 @@ export function fsContract(label: string, make: () => { fs: Fs; root: string; sc
     assert.deepEqual([fs.writeBytes(`${dir}/absent/f.txt`, Uint8Array.of(0x78)), fs.writeBytes(dir, Uint8Array.of(0x78))], [false, false]);
     assert.deepEqual([fs.exists(`${dir}/absent`), fs.kind(dir), fs.listDir(dir)], [false, "dir", []]);
   });
+
+  test(`${label}: remove deletes a file and is true again for the path then absent, its directory and the file beside it left`, () => {
+    const { fs, scratch } = make();
+    const dir = `${scratch}/remove`;
+    assert.equal(fs.makeDir(dir), true);
+    assert.deepEqual([fs.writeBytes(`${dir}/gone.txt`, Uint8Array.of(0x78)), fs.writeBytes(`${dir}/kept.txt`, Uint8Array.of(0x79))], [true, true]);
+    assert.deepEqual([fs.remove(`${dir}/gone.txt`), fs.exists(`${dir}/gone.txt`), fs.remove(`${dir}/gone.txt`), fs.listDir(dir)], [true, false, true, ["kept.txt"]]);
+  });
+
+  test(`${label}: remove on a directory is false and leaves it with what it holds`, () => {
+    const { fs, scratch } = make();
+    const dir = `${scratch}/remove-dir`;
+    assert.equal(fs.makeDir(`${dir}/empty`), true);
+    assert.equal(fs.writeBytes(`${dir}/f.txt`, Uint8Array.of(0x78)), true);
+    assert.deepEqual([fs.remove(dir), fs.remove(`${dir}/empty`), fs.listDir(dir)], [false, false, ["empty", "f.txt"]]);
+  });
 }
 
 export function clockContract(label: string, make: () => Clock): void {
@@ -314,5 +330,30 @@ export function gitContract(label: string, make: () => { git: Git; root: string;
   test(`${label}: status lists the unstaged, staged, renamed (its old path dropped) and untracked paths with their two letters, an ignored file left out, and nothing outside a repository`, () => {
     const { git, outside, history } = make();
     assert.deepEqual([git.status(history), git.status(outside)], [HISTORY_STATE.status, []]);
+  });
+
+  test(`${label}: grep answers the path, the line number and the whole line of each line holding a term, in path order, the work tree read rather than the last commit`, () => {
+    const { git, history } = make();
+    assert.deepEqual(git.grep(history, ["second", "two"], false), [
+      { path: "edited.txt", line: 1, text: "two" },
+      { path: "kept.txt", line: 2, text: "the second line" },
+      { path: "staged.txt", line: 1, text: "two" },
+    ]);
+  });
+
+  test(`${label}: grep reads an untracked file, its path with a blank and a non-ASCII character as it is, and leaves an ignored file out`, () => {
+    const { git, history } = make();
+    assert.deepEqual(git.grep(history, ["new", "noise"], false), [{ path: "untracked dir/zażółć.txt", line: 1, text: "new" }]);
+  });
+
+  test(`${label}: grep reads a term as a fixed string (a dot is no wildcard) and with word true holds only a whole word`, () => {
+    const { git, history } = make();
+    const names = [{ path: "new name.txt", line: 1, text: "the same text under both names" }];
+    assert.deepEqual([git.grep(history, ["t.o"], false), git.grep(history, ["name"], false), git.grep(history, ["name"], true), git.grep(history, ["names"], true)], [[], names, [], names]);
+  });
+
+  test(`${label}: grep is empty for a term no line holds, with no term and outside a repository`, () => {
+    const { git, outside, history } = make();
+    assert.deepEqual([git.grep(history, ["no such text"], false), git.grep(history, [], false), git.grep(outside, ["kept"], false)], [[], [], []]);
   });
 }

@@ -22,6 +22,8 @@ export const rules: RuleInstance[] = [
         "viber/skills/e2e/scripts/qa-ledger.ts",
         "viber/skills/fixer/scripts/tree-record.ts",
         "viber/skills/code-auditor/scripts/diff-files.ts",
+        "viber/skills/code-auditor/scripts/synthesize.ts",
+        "viber/skills/planner/scripts/reach.ts",
         "tools/lint/run.ts",
       ],
       entryMaxLines: 40,

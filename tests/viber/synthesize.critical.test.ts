@@ -1,13 +1,14 @@
 /*
  * synthesize.critical.test.ts - the critical tier of
- * viber/skills/code-auditor/scripts/synthesize.sh: the summary line and fill
- * block print for a finished audit, and a workspace given with backslash
- * separators or a backslash in its last component still yields the right run
- * id.
+ * viber/skills/code-auditor/scripts/synthesize.sh, the wrapper of the
+ * synthesize.ts entry: the summary line and fill block print for a finished
+ * audit, and a workspace given with backslash separators or a backslash in its
+ * last component still yields the right run id.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by synthesize.test.ts. This file runs on every
+ * break only one platform shows or a script that no longer starts; the
+ * folding, the ranking, the merge step and the refusals are proven in process
+ * by tests/viber/lib/synthesize.unit.test.ts. This file runs on every
  * operating system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run

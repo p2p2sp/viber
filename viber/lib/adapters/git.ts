@@ -4,7 +4,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import type { ChangedFile, Git, StatusEntry, TrackedFile } from "../ports.ts";
+import type { ChangedFile, Git, GrepHit, StatusEntry, TrackedFile } from "../ports.ts";
 
 function run(cwd: string, args: string[]): string | null {
   try {
@@ -87,5 +87,17 @@ export const gitCommand: Git = {
       if (code.includes("R") || code.includes("C")) i += 1;
     }
     return entries;
+  },
+  grep(root, terms, word) {
+    if (terms.length === 0) return [];
+    // -z ends the path and the line number on a NUL, so a colon in a path splits nothing and no path is quoted; the two --no- flags pin the line shape against the developer config.
+    const out = run(root, ["grep", "-n", "-I", "-F", "-z", "--no-color", "--no-column", "--untracked", "--exclude-standard", ...(word ? ["-w"] : []), ...terms.flatMap((term) => ["-e", term])]);
+    if (!out) return [];
+    const hits: GrepHit[] = [];
+    for (const row of out.split("\n")) {
+      const fields = row.split("\0");
+      if (fields.length >= 3) hits.push({ path: fields[0], line: Number(fields[1]), text: fields.slice(2).join("\0") });
+    }
+    return hits;
   },
 };

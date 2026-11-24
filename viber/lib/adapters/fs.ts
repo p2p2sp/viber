@@ -62,4 +62,13 @@ export const nodeFs: Fs = {
       return false;
     }
   },
+  remove(path) {
+    try {
+      // force passes an absent path; without recursive a directory is refused.
+      fs.rmSync(path, { force: true });
+      return true;
+    } catch {
+      return false;
+    }
+  },
 };

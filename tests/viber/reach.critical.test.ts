@@ -1,11 +1,13 @@
 /*
  * reach.critical.test.ts - the critical tier of
- * viber/skills/planner/scripts/reach.sh: a path target lists the files
- * importing or naming it with their lines and prints the candidates path.
+ * viber/skills/planner/scripts/reach.sh, the wrapper of the reach.ts entry: a
+ * path target lists the files importing or naming it with their lines and
+ * prints the candidates path.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by reach.test.ts. This file runs on every
+ * break only one platform shows or a script that no longer starts; the terms
+ * of a target, the caps, the dispatch block and the refusals are proven in
+ * process by tests/viber/lib/reach.unit.test.ts. This file runs on every
  * operating system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run

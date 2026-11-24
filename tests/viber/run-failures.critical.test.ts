@@ -1,13 +1,14 @@
 /*
  * run-failures.critical.test.ts - the critical tier of
- * viber/scripts/run-failures.sh: a Blocking review line becomes a failure
- * entry, the call replaces an existing failures.md whole, and it changes no
- * other file of the run directory.
+ * viber/scripts/run-failures.sh, the wrapper of the run-failures.ts entry: a
+ * Blocking review line becomes a failure entry, the call replaces an existing
+ * failures.md whole, and it changes no other file of the run directory.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by run-failures.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * break only one platform shows or a script that no longer starts; the entry
+ * shapes, the merge of a repeated finding, the counts, the lessons mode and the
+ * refusals are proven in process by tests/viber/lib/run-failures.unit.test.ts.
+ * This file runs on every operating system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:

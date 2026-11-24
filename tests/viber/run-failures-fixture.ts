@@ -1,7 +1,6 @@
 /*
- * run-failures-fixture.ts - the helpers run-failures.test.ts and
- * run-failures.critical.test.ts share: what both tiers need to seed a case and
- * run viber/scripts/run-failures.sh. It holds no case of its own.
+ * run-failures-fixture.ts - what run-failures.critical.test.ts uses to seed a
+ * case and run viber/scripts/run-failures.sh. It holds no case of its own.
  */
 
 import fs from "node:fs";

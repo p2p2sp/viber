@@ -9,6 +9,11 @@
  * files, and a Blocking item carries exactly one, `task` when none of the other three clearly
  * fits. The files read here are shipped prompts, whose text is the behaviour. Nothing is spawned.
  *
+ * It also pins the header of `viber/scripts/run-failures.ts`, the entry that turns those lines
+ * into the failure trail: the header is the I/O contract a caller trusts, so its text is product
+ * here and is read as such. The rules themselves are proven by
+ * tests/viber/lib/run-failures.unit.test.ts.
+ *
  * Run directly by Node's type stripping:
  *   node --test tests/viber/failure-trail-prose.unit.test.ts
  */
@@ -87,4 +92,30 @@ test("task-reviewer gives a Minor finding no cause", () => {
 
 test("final-reviewer gives a Minor finding no cause", () => {
   assert.ok(lines(FINAL_OUTPUT).includes(MINOR_RULE));
+});
+
+const ENTRY = read("scripts/run-failures.ts");
+const ENTRY_HEADER = ENTRY.slice(0, ENTRY.indexOf("\n */"));
+
+/** Whichever of `needles` the header does not carry - the caller asserts the
+ *  empty list, so a failure names the missing line rather than just "false". */
+function missingFrom(header: string, needles: string[]): string[] {
+  return needles.filter((needle) => !header.includes(needle));
+}
+
+test("the entry header opens with the file name and carries the Contract: block a caller trusts", () => {
+  assert.deepEqual(missingFrom(ENTRY_HEADER, ["/*\n * run-failures.ts - ", "Contract:", "argv", "cwd", "env", "reads", "writes", "stdout", "exit"]), []);
+});
+
+test("the entry header's entries paragraph states how a loosely written Blocking line is read", () => {
+  assert.deepEqual(missingFrom(ENTRY_HEADER, ["`- **Blocking**`", "lower-cased", "blanks inside the bracket", "no text"]), []);
+});
+
+test("the entry header's entries paragraph states how a repeated finding is merged", () => {
+  assert.deepEqual(missingFrom(ENTRY_HEADER, ["lowest round", "same task", "never merged"]), []);
+});
+
+test("the entry header's reads and stdout paragraphs state the runs field and the directory it reads", () => {
+  assert.deepEqual(missingFrom(ENTRY_HEADER, ["unknown <n> runs <n>", "config.sh --specifications", "failures.md"]), []);
+  assert.deepEqual(missingFrom(ENTRY_HEADER, ["docs/<specifications>/<run>/failures.md", "- convention | "]), []);
 });

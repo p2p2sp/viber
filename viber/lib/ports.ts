@@ -22,6 +22,8 @@ export interface Fs {
   makeDir(path: string): boolean;
   /** Replaces the file's content by exactly these bytes, creating it in an existing directory; false when it cannot, the file then left as it was. */
   writeBytes(path: string, bytes: Uint8Array): boolean;
+  /** Removes the file at the path, a link itself and never what it names; true when no file is left there, an absent path included, false for a directory or a file that cannot be removed. */
+  remove(path: string): boolean;
 }
 
 /** path: repo-relative, forward slashes. mode: as the index holds it, "100644" or "100755". */
@@ -40,6 +42,13 @@ export interface StatusEntry {
 export interface ChangedFile {
   status: string;
   path: string;
+}
+
+/** path: repo-relative, forward slashes, as it is, never quoted. line: counted from 1. text: the whole line without its line feed. */
+export interface GrepHit {
+  path: string;
+  line: number;
+  text: string;
 }
 
 export interface Git {
@@ -63,6 +72,8 @@ export interface Git {
   untrackedFiles(root: string): string[];
   /** One entry per path `git status` reports at the top level root: staged, unstaged or untracked (an untracked directory file by file), an ignored one left out, in git order. */
   status(root: string): StatusEntry[];
+  /** The lines holding one of the terms as a fixed string, with word true only as a whole word, in the text files of the work tree at the top level root: tracked or untracked, an ignored and a binary file left out, in git order. Empty with no term and outside a repository. */
+  grep(root: string, terms: string[], word: boolean): GrepHit[];
 }
 
 export interface Clock {

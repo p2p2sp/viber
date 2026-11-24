@@ -89,6 +89,12 @@ export function fakeFs(files: Record<string, string | Uint8Array>, opts: FakeFsO
       store.set(key, bytes.slice());
       return true;
     },
+    remove(p) {
+      const key = resolve(p);
+      if (kindOf(key) === "dir") return false;
+      store.delete(key);
+      return true;
+    },
   };
 }
 
@@ -110,6 +116,16 @@ export interface FakeRepo {
   changed?: Record<string, ChangedFile[]>;
   untracked?: string[];
   status?: StatusEntry[];
+  /** The text files grep reads, a repo-relative path to its content, in git order: the one answer the fake derives, a line held when it holds a term. */
+  texts?: Record<string, string>;
+}
+
+/** True when the line holds the term, with word true only where no letter, digit or underscore stands right before or after it. */
+function holds(line: string, term: string, word: boolean): boolean {
+  for (let at = line.indexOf(term); at >= 0; at = line.indexOf(term, at + 1)) {
+    if (!word || !/\w/.test(`${line[at - 1] ?? ""}${line[at + term.length] ?? ""}`)) return true;
+  }
+  return false;
 }
 
 /** One repository or several apart from each other; null: no repository anywhere. */
@@ -143,6 +159,15 @@ export function fakeGit(repos: FakeRepo | FakeRepo[] | null): Git {
     },
     status(root) {
       return at(root)?.status?.map((entry) => ({ ...entry })) ?? [];
+    },
+    grep(root, terms, word) {
+      return Object.entries(at(root)?.texts ?? {}).flatMap(([path, text]) =>
+        text
+          .replace(/\n$/, "")
+          .split("\n")
+          .map((line, index) => ({ path, line: index + 1, text: line }))
+          .filter((hit) => terms.some((term) => holds(hit.text, term, word))),
+      );
     },
     repoRoot(cwd) {
       return holding(cwd)?.root ?? null;
@@ -181,6 +206,10 @@ export function fakeScene(root = "/scene/repo"): { fs: Fs; git: Git; root: strin
   HISTORY_STATE.commits.forEach((commit, index) => {
     for (const [rel, text] of Object.entries(commit)) if (text !== null) (added[rel] ??= []).push(shas[index]);
   });
+  // What grep reads: the last commit under the changed work tree, less every file git neither tracks nor lists as untracked (the ignored one).
+  const tree: Record<string, string | null> = Object.assign({}, ...HISTORY_STATE.commits, HISTORY_STATE.tree);
+  const read = [...HISTORY_STATE.changed.none.map((file) => file.path), ...HISTORY_STATE.untracked].sort();
+  const texts = Object.fromEntries(read.map((rel) => [rel, tree[rel] ?? ""]));
   const git = fakeGit([
     { root, tracked, changed: { "": tracked.map((file) => ({ status: "A", path: file.path })) } },
     {
@@ -193,6 +222,7 @@ export function fakeScene(root = "/scene/repo"): { fs: Fs; git: Git; root: strin
       changed: { HEAD: HISTORY_STATE.changed.head, "HEAD~2": HISTORY_STATE.changed.first, "": HISTORY_STATE.changed.none },
       untracked: HISTORY_STATE.untracked,
       status: HISTORY_STATE.status,
+      texts,
     },
   ]);
   return { fs: fakeFs(files, { dirs: [scratch, history], links }), git, root, outside: "/scene/outside", scratch, history, linked: true };

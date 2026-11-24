@@ -1,8 +1,7 @@
 /*
- * synthesize-fixture.ts - the helpers synthesize.test.ts and
- * synthesize.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/code-auditor/scripts/synthesize.sh. It holds no case of its
- * own.
+ * synthesize-fixture.ts - what synthesize.critical.test.ts uses to seed a
+ * case and run viber/skills/code-auditor/scripts/synthesize.sh. It holds no
+ * case of its own.
  */
 
 import assert from "node:assert/strict";

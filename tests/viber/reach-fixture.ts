@@ -1,6 +1,5 @@
 /*
- * reach-fixture.ts - the helpers reach.test.ts and reach.critical.test.ts
- * share: what both tiers need to seed a case and run
+ * reach-fixture.ts - what reach.critical.test.ts uses to seed a case and run
  * viber/skills/planner/scripts/reach.sh. It holds no case of its own.
  */
 
