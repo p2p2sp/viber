@@ -1,0 +1,1 @@
+DECIDE: rule that T1's committed artifact-create.sh already delivers every T2 exit, so T2 lands as tests only, proven red by the revert-route log .temp/viber/T2/red-2.log (5 failing) | skip red-check for T2 and send the tests in the tree straight to review | skip T2 as already delivered by T1 and drop its uncommitted tests

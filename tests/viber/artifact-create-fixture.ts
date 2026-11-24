@@ -37,7 +37,7 @@ export const GH_STUB = `
 for a in "$@"; do printf '%s\\n' "$a" >> "$ARGV_FILE"; done; printf '===\\n' >> "$ARGV_FILE"
 if [ "$2" = "view" ]; then
   printf '%s\\n' "$LOOKUP_STDOUT"
-  exit 0
+  exit "\${LOOKUP_EXIT:-0}"
 fi
 if [ "$2" = "artifact" ]; then
   echo x >> "$COUNT_FILE"
@@ -70,7 +70,7 @@ export interface Run {
 export async function runStubbed(
   shell: Shell,
   args: string[],
-  opts: { replies?: Reply[]; files?: Record<string, string> } = {},
+  opts: { replies?: Reply[]; files?: Record<string, string>; lookup?: Reply } = {},
 ): Promise<Run> {
   return await withTempDir("p2p2-artifact-create-", (cwd) =>
     withStub("gh", GH_STUB, async (stubDir) => {
@@ -87,7 +87,9 @@ export async function runStubbed(
       const countFile = path.join(cwd, "count.log");
       fs.writeFileSync(argvFile, "");
       fs.writeFileSync(countFile, "");
-      const env = { ARGV_FILE: argvFile, COUNT_FILE: countFile, LOOKUP_STDOUT: ISSUE_URL };
+      const env = { ARGV_FILE: argvFile, COUNT_FILE: countFile, LOOKUP_STDOUT: opts.lookup?.out ?? ISSUE_URL,
+        LOOKUP_EXIT: String(opts.lookup?.exit ?? 0),
+      };
       const result = await runScript(SUT, args, { shell, cwd, env, stubDirs: [stubDir] });
       const calls = fs
         .readFileSync(argvFile, "utf-8")

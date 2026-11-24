@@ -87,6 +87,53 @@ test("a create call printing no result line prints FAILED= with its output as RE
   });
 });
 
+test("a failed issue lookup exits 1 with one ERROR line carrying gh's message, empty stdout and no create call", async () => {
+  await assertPosix(async (shell) => {
+    const { result, calls } = await runStubbed(shell, ["42", "a.md"], {
+      files: { "a.md": "a" },
+      lookup: { out: "GraphQL: Could not resolve to an Issue", exit: 1 },
+    });
+    assert.equal(result.status, 1);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "ERROR artifact-create.sh: issue lookup failed: GraphQL: Could not resolve to an Issue\n");
+    assert.equal(createCalls(calls).length, 0);
+  });
+});
+
+test("a pull request URL exits 2 with the pull request ERROR line and no gh call", async () => {
+  await assertPosix(async (shell) => {
+    const pr = "https://github.com/acme/widgets/pull/8";
+    const { result, calls } = await runStubbed(shell, [pr, "a.md"], { files: { "a.md": "a" } });
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, `ERROR artifact-create.sh: ${pr} is a pull request; artifacts exist on issues only\n`);
+    assert.equal(calls.length, 0);
+  });
+});
+
+test("a number whose lookup returns a pull request URL exits 2 with the pull request ERROR line and no create call", async () => {
+  await assertPosix(async (shell) => {
+    const { result, calls } = await runStubbed(shell, ["8", "a.md"], {
+      files: { "a.md": "a" },
+      lookup: { out: "https://github.com/acme/widgets/pull/8" },
+    });
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "ERROR artifact-create.sh: 8 is a pull request; artifacts exist on issues only\n");
+    assert.equal(createCalls(calls).length, 0);
+  });
+});
+
+test("a file argument that does not exist exits 2 with one ERROR line naming it and no gh call", async () => {
+  await assertPosix(async (shell) => {
+    const { result, calls } = await runStubbed(shell, ["42", "a.md", "gone.md"], { files: { "a.md": "a" } });
+    assert.equal(result.status, 2);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "ERROR artifact-create.sh: file not found: gone.md\n");
+    assert.equal(calls.length, 0);
+  });
+});
+
 test("the unknown-command output on the first create call exits 3 with one ERROR line, empty stdout and no further call", async () => {
   await assertPosix(async (shell) => {
     const { result, calls } = await runStubbed(shell, ["42", "a.md", "b.md"], {
