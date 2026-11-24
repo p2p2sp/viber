@@ -8,9 +8,9 @@
  * call (`</content>`, `</parameter>`) into the value as a last line. A hunter
  * report, a claim sidecar or a findings file carrying it breaks every script that
  * reads the file, and a model re-reading its own file to catch it spends tokens
- * on a check one script does the same way every run. Every other auditor script
- * calls this one first, through the wrapper strip-tag.sh, which keeps its call
- * line.
+ * on a check one script does the same way every run. The keep-units and
+ * hunt-return cores call the same core in process; the wrapper strip-tag.sh runs
+ * this entry.
  *
  * Contract:
  *   argv   : <file>... - the files to clean. A path that is not a regular file

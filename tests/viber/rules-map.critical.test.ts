@@ -1,14 +1,15 @@
 /*
  * rules-map.critical.test.ts - the critical tier of
- * viber/skills/rules/scripts/rules-map.sh: map mode scores a rule against
- * tracked files, reset deletes clean rules and refuses unfit targets without
- * deleting anything, and backslash paths and Windows invocation spellings are
- * handled.
+ * viber/skills/rules/scripts/rules-map.sh, the wrapper of the rules-map.ts
+ * entry: map mode scores a rule against tracked files, reset deletes clean
+ * rules and refuses unfit targets without deleting anything, and backslash
+ * paths and Windows invocation spellings are handled.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by rules-map.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * break only one platform shows or a script that no longer starts; the map
+ * lines, the refusals and the brief and confirm blocks are proven in process
+ * by tests/viber/lib/rules-map.unit.test.ts. This file runs on every operating
+ * system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:
@@ -22,6 +23,7 @@ import path from "node:path";
 
 import { runScript } from "../harness/run.ts";
 import { slash } from "../harness/paths.ts";
+import { shellUtilsPath } from "../harness/stub.ts";
 import { withGitRepo } from "../harness/tmp.ts";
 import {
   SUT,
@@ -132,7 +134,8 @@ test("reset names every unfit target and deletes nothing", async () => {
 
 /** The ways a caller can spell the path it invokes the script by, each with the
  *  plugin root the script must print for it: on Windows the native `C:\...`, the
- *  mixed `C:/...` and the MSYS `/c/...` spellings, elsewhere the one absolute path. */
+ *  mixed `C:/...` and the MSYS `/c/...` spellings, all printed as `C:/...` (the
+ *  MSYS runtime hands node that form), elsewhere the one absolute path. */
 function invocations(): { form: string; script: string; root: string }[] {
   const plugin = path.resolve(import.meta.dirname, "../../viber");
   if (process.platform !== "win32") return [{ form: "absolute", script: SUT, root: plugin }];
@@ -140,7 +143,7 @@ function invocations(): { form: string; script: string; root: string }[] {
   return [
     { form: "C:\\", script: path.win32.normalize(SUT), root: slash(plugin) },
     { form: "C:/", script: slash(SUT), root: slash(plugin) },
-    { form: "/c/", script: msys(SUT), root: msys(plugin) },
+    { form: "/c/", script: msys(SUT), root: slash(plugin) },
   ];
 }
 
@@ -150,34 +153,31 @@ function refsLines(stdout: string): string[] {
 }
 
 for (const { form, script, root } of invocations()) {
-  test(`brief invoked by a ${form} path prints the references path in that spelling`, async () => {
-    await withGitRepo(async (repo) => {
-      await seed(repo, { "src/a.ts": "a\n", ".claude/rules/code.md": rule([ANY_TS]) });
-
-      const result = await runScript(script, ["--brief", "run1", ".claude/rules/code.md"], {
-        cwd: repo.dir,
-        env: repo.env,
-        shell: "bash",
-      });
-
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(refsLines(result.stdout), [`refs: ${root}/references`]);
-    });
-  });
-
-  test(`confirm invoked by a ${form} path prints the writer block's references path in that spelling`, async () => {
+  test(`brief and confirm invoked by a ${form} path print the references path in the absolute forward-slash form`, async () => {
     await withGitRepo(async (repo) => {
       await seed(repo, { "src/a.ts": "a\n", ".claude/rules/code.md": rule([ANY_TS]) });
       findings(repo, "run1", "code-audit.md", "STALE: x -> y\n");
 
-      const result = await runScript(script, ["--confirm", "run1", ".claude/rules/code.md"], {
-        cwd: repo.dir,
-        env: repo.env,
-        shell: "bash",
-      });
+      for (const mode of ["--brief", "--confirm"]) {
+        const result = await runScript(script, [mode, "run1", ".claude/rules/code.md"], { cwd: repo.dir, env: repo.env, shell: "bash" });
 
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(refsLines(result.stdout), [`refs: ${root}/references`]);
+        assert.equal(result.status, 0, `${mode} stderr: ${result.stderr}`);
+        assert.deepEqual(refsLines(result.stdout), [`refs: ${root}/references`], mode);
+      }
     });
   });
 }
+
+test("with no node on PATH the map prints nothing and exits 0 (a preload never aborts the skill load), and a reset exits non-zero and deletes nothing", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo, { "src/a.ts": "a\n", ".claude/rules/one.md": rule(["src/*.ts"]) });
+    const bare = { ...repo.env, PATH: shellUtilsPath() };
+
+    const map = await runScript(SUT, [], { cwd: repo.dir, env: bare, shell: "bash" });
+    assert.deepEqual([map.status, map.stdout], [0, ""]);
+
+    const reset = await runScript(SUT, ["--reset", ".claude/rules/one.md"], { cwd: repo.dir, env: bare, shell: "bash" });
+    assert.notEqual(reset.status, 0);
+    assert.equal(fs.existsSync(path.join(repo.dir, ".claude", "rules", "one.md")), true);
+  });
+});

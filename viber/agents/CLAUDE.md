@@ -48,7 +48,7 @@ This directory owns one markdown file per agent registered in `viber/.claude-plu
 
 - `planner-review`, `planner-task-review` and `outside-plan-review` sit on or within a few words of the cap `tools/lint/data/caps.ts` holds each plan reviewer to: a word added fails the lint until the cap is raised on purpose.
 - The harness rejects a subagent's `Write` of any `.md` whose name starts with `report`, `summary`, `findings` or `analysis`; `hooks/register.tsx` writes such a file in its place for a viber agent inside the project root, yet every file an agent is told to write is named otherwise (`outcome.md`, `review-*.md`, `*-audit.md`).
-- A file an agent writes that something parses (`hunter`'s report and sidecar, `mapper`'s `map.md`, `scout`'s scores, `critic`'s verdict) can end on a leaked `</content>` line: no agent reads its tail back, `strip-tag.sh` deletes it in the script that parses the file (`keep-units.sh`, `hunt-return.sh`), and a new parsed output needs the same call.
+- A file an agent writes that something parses (`hunter`'s report and sidecar, `mapper`'s `map.md`, `scout`'s scores, `critic`'s verdict) can end on a leaked `</content>` line: no agent reads its tail back, the strip-tag core deletes it in the script that parses the file (`keep-units.sh`, `hunt-return.sh`), and a new parsed output needs the same call.
 - `scout`, `mapper` and `hunter` return no `VERDICT:` line (`scores written: <path>`, `map written: <path>`, the paths written): a caller parsing them never looks for one, and for `hunter` reads the files in `reports/`, never its final message. `critic` ends on its `VERDICT:` line alone, yet the script reads the verdict file it wrote to its `Out:` path, never that message.
 
 ## Sections

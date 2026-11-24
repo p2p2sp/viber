@@ -1,12 +1,14 @@
 /*
  * keep-units.critical.test.ts - the critical tier of
- * viber/skills/code-auditor/scripts/keep-units.sh: a directory scope prints
- * one hunter block per unit, and the block keeps the drive-letter spelling of
- * the invoked path on Windows.
+ * viber/skills/code-auditor/scripts/keep-units.sh, the wrapper of the
+ * keep-units.ts entry: a directory scope prints one hunter block per unit, and
+ * the block names its paths in the C:/ form on Windows, whichever spelling
+ * invoked it.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by keep-units.test.ts. This file runs on every
+ * break only one platform shows or a script that no longer starts; the map
+ * gate, the scouts, the kept order and the variant wave are proven in process
+ * by tests/viber/lib/keep-units.unit.test.ts. This file runs on every
  * operating system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
@@ -33,7 +35,7 @@ import {
   run,
 } from "./keep-units-fixture.ts";
 
-// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
+// Every invoked spelling prints the C:/ form: the MSYS runtime hands node the entry path of a /c/ call as C:/...
 // Neither spelling names a file outside Windows, so the cases skip there.
 const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
 const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
@@ -41,11 +43,11 @@ const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) 
 const SPELLINGS: Array<{ label: string; invoked: string; skillDir: string; pluginRoot: string }> = [
   { label: "a C:\\ path", invoked: SUT, skillDir: SKILL_DIR, pluginRoot: PLUGIN_ROOT },
   { label: "a C:/ path", invoked: slash(SUT), skillDir: SKILL_DIR, pluginRoot: PLUGIN_ROOT },
-  { label: "a /c/ path", invoked: MSYS(SUT), skillDir: MSYS(SKILL_DIR), pluginRoot: MSYS(PLUGIN_ROOT) },
+  { label: "a /c/ path", invoked: MSYS(SUT), skillDir: SKILL_DIR, pluginRoot: PLUGIN_ROOT },
 ];
 
 for (const row of SPELLINGS) {
-  test(`invoked by ${row.label}, a hunter block prints its worktree script, overlay script and test rules in that spelling`, { skip: WINDOWS_ONLY }, async () => {
+  test(`invoked by ${row.label}, a hunter block prints its worktree script, overlay script and test rules in the C:/ form`, { skip: WINDOWS_ONLY }, async () => {
     await assertPosix(async (shell) => {
       await withTempDir("keep-units-", async (dir) => {
         const { ws } = frame(dir, { lens: "tests", worktree: true, angles: ["only"] });

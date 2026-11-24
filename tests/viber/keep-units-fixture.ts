@@ -1,8 +1,6 @@
 /*
- * keep-units-fixture.ts - the helpers keep-units.test.ts and
- * keep-units.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/code-auditor/scripts/keep-units.sh. It holds no case of its
- * own.
+ * keep-units-fixture.ts - what keep-units.critical.test.ts uses to seed a case and run
+ * viber/skills/code-auditor/scripts/keep-units.sh. It holds no case of its own.
  */
 
 import assert from "node:assert/strict";

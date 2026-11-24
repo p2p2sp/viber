@@ -24,7 +24,8 @@
  * counts, offers the trail as one target on `extend`, `both` and `state: none`, and reports the
  * `failures.md` files the writer changed. `rules-map.sh` composes the trail auditor brief, the
  * writer gate and the writer's `map:`. The writer removes every non-convention entry of each
- * `trail:` file of its map.
+ * `trail:` file of its map. The header of the `rules-map.ts` entry names every line it prints
+ * and what it reads.
  *
  * Run directly by Node's type stripping:
  *   node --test tests/viber/rules-trail-prose.unit.test.ts
@@ -556,4 +557,44 @@ test("step 5 reports every ENFORCE line verbatim after its AUDIT line, saying no
 
 test("step 6 never dispatches the writer for an ENFORCE line alone", () => {
   assert.ok(CONFIRM.some((line) => line.includes("An `ENFORCE:` line is no counter: it never dispatches the writer alone")));
+});
+
+const RULES_MAP = fs.readFileSync(path.join(VIBER, "skills/rules/scripts/rules-map.ts"), "utf8");
+const MAP_HEADER = RULES_MAP.slice(0, RULES_MAP.indexOf("\n */"));
+
+/** The needles the text does not carry, so a failure names them. */
+function missingFrom(text: string, needles: string[]): string[] {
+  return needles.filter((needle) => !text.includes(needle));
+}
+
+test("the header of rules-map.ts carries its contract and every line the map and the reset print", () => {
+  assert.deepEqual(
+    missingFrom(MAP_HEADER, [
+      "Contract:",
+      "argv",
+      "cwd",
+      "env",
+      "stdout",
+      "exit",
+      "# viber rules map",
+      "id: <yyyy-mm-dd-HH-mm-ss>",
+      "state: none | partial | complete",
+      "rule: <path> <chars> paths",
+      "frozen: <path> <chars>",
+      "dead: <path>",
+      "dirty: <path> modified | untracked",
+      "trail: <repo-relative path of one archived failures.md> convention <n> other <n>",
+      "waiting: convention <n> place <n> plan <n> task <n> test <n> unknown <n>",
+      "total: <chars> ok | OVER-DIR",
+      "removed: <path>",
+      "removed: <n>",
+      "refused: <path>",
+    ]),
+    [],
+  );
+});
+
+test("the reads list of the rules-map.ts header names the archived failures.md files and the config.sh report", () => {
+  const reads = MAP_HEADER.slice(MAP_HEADER.indexOf(" *   reads"), MAP_HEADER.indexOf(" *   writes"));
+  assert.deepEqual(missingFrom(reads, ["failures.md", "scripts/config.sh"]), []);
 });

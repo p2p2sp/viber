@@ -1,8 +1,6 @@
 /*
- * hunt-return-fixture.ts - the helpers hunt-return.test.ts and
- * hunt-return.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/code-auditor/scripts/hunt-return.sh. It holds no case of
- * its own.
+ * hunt-return-fixture.ts - what hunt-return.critical.test.ts uses to seed a case and run
+ * viber/skills/code-auditor/scripts/hunt-return.sh. It holds no case of its own.
  */
 
 import assert from "node:assert/strict";

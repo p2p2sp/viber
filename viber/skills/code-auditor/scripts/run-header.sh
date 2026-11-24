@@ -3,9 +3,8 @@
 # run-header.sh - a sourced library: header_value prints one header line value of
 # the run file of an audit run.
 #
-# It exists because map-signals.sh, keep-units.sh and hunt-return.sh each held their
-# own copy of the same awk parse of the run header, so a fix to one left the other
-# two reading the header differently. One library reads it the same way for all three.
+# It exists for map-signals.sh, the one shell script that reads the run header; the
+# Node cores read it through viber/lib/run-header.ts, and both read it the same way.
 #
 # It is sourced, never run: it sets no shell option and defines one function. It
 # touches no file but the run file and runs no command but awk.

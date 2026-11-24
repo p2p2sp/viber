@@ -6,8 +6,8 @@
 #
 # Why it exists: a writer agent sometimes leaks the closing tag of its own Write
 # call (`</content>`, `</parameter>`) into the value as a last line, which breaks
-# every script that reads the file. Every other auditor script calls this one
-# first. What counts as such a line and how it is cut live in strip-tag.ts and
+# every script that reads the file. The keep-units and hunt-return cores cut it in
+# process, through the same core. What counts as such a line and how it is cut live in strip-tag.ts and
 # viber/lib/strip-tag.ts, never here, so every caller keeps this call line while
 # the cut is tested in process.
 #

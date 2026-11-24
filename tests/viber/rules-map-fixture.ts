@@ -1,7 +1,6 @@
 /*
- * rules-map-fixture.ts - the helpers rules-map.test.ts and
- * rules-map.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/rules/scripts/rules-map.sh. It holds no case of its own.
+ * rules-map-fixture.ts - what rules-map.critical.test.ts uses to seed a case and run
+ * viber/skills/rules/scripts/rules-map.sh. It holds no case of its own.
  */
 
 import fs from "node:fs";
