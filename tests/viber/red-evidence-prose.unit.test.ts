@@ -133,6 +133,11 @@ test("task-reviewer takes a red-check: input carrying the check's verdict", () =
   assert.ok(has(REVIEWER, "A `red-check: <line>` line is the verdict of the run"));
 });
 
+test("task-reviewer on red-check FAIL-AS-EXPECTED reads the control run instead of running Verification again, recheck: commands still run", () => {
+  assert.ok(has(REVIEWER, "On `red-check: FAIL-AS-EXPECTED <log>` with no `repair` line, the control run in that log stands for your `Verification` run"));
+  assert.ok(has(REVIEWER, "run only what the log does not prove. A `recheck:` command always runs."));
+});
+
 test("task-reviewer checks the failing tests are the task's new tests, an unrelated one not counting", () => {
   assert.ok(has(REVIEWER, "check in the log that the failing tests are the task's new tests (an unrelated failing test does not count)"));
 });

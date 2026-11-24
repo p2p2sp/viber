@@ -82,7 +82,7 @@ export const rules: RuleInstance[] = [
     { path: "viber/references/tdd.md" },
     { path: TEST_STRATEGY },
   ], BUDGET),
-  bytes("task-reviewer", 18288, [
+  bytes("task-reviewer", 18535, [
     { path: "viber/agents/task-reviewer.md" },
     { path: TEST_STRATEGY, sections: ["Layers", "Proves", "Writing"] },
   ], `${BUDGET}; the cap carries the room of the red check verdicts a review receives`),
