@@ -1,8 +1,8 @@
 # status
 
-progress: 2/25
-done: T19 T20
+progress: 3/25
+done: T19 T20 T1
 skipped: none
-unreviewed: none
+unreviewed: T1
 deferred: none
 closed: none

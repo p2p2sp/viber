@@ -12,6 +12,8 @@
  * multiplies with `--test-concurrency` (files at once).
  */
 
+import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { suite, test as nodeTest, type TestContext, type TestOptions } from "node:test";
@@ -23,6 +25,31 @@ interface Case {
   options: TestOptions;
   fn: TestFn;
 }
+
+export function layerOf(fileName: string, hasCriticalSibling: boolean): "unit" | "integration" | "legacy" | null {
+  const base = fileName.replaceAll("\\", "/").split("/").pop() ?? "";
+  if (base.endsWith(".unit.test.ts")) return "unit";
+  if (base.endsWith(".integration.test.ts")) return "integration";
+  if (base.endsWith(".critical.test.ts") || base === "release.test.ts") return "legacy";
+  if (base.endsWith(".test.ts") && hasCriticalSibling) return "legacy";
+  return null;
+}
+
+/** Throws for a name layerOf gives null for. */
+export function refuseUnmarked(fileName: string, hasCriticalSibling: boolean): void {
+  if (layerOf(fileName, hasCriticalSibling) !== null) return;
+  throw new Error(`${fileName} carries no layer marker: name it *.unit.test.ts or *.integration.test.ts`);
+}
+
+function guardFile(file: string): void {
+  refuseUnmarked(file, fs.existsSync(file.replace(/\.test\.ts$/, ".critical.test.ts")));
+  if (layerOf(file, false) !== "unit") return;
+  net.Socket.prototype.connect = function connect(): never {
+    throw new Error("unit tests stay off the network: open the connection in an integration test");
+  };
+}
+
+if (process.argv[1]) guardFile(process.argv[1]);
 
 const CONCURRENCY = Math.max(1, Number(process.env.P2P2_TEST_CONCURRENCY) || Math.min(4, os.availableParallelism()));
 

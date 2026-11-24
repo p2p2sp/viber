@@ -1,0 +1,5 @@
+- Premise of the failed red check: it reverts only non-test files, and this task's one such file, viber/lib/ports.ts, holds types alone (erased by type stripping), while every behaviour lives under tests/harness/, which the check counts as test files. So it reports PASSED-WITHOUT-CHANGE by construction; no honest test can fail without ports.ts.
+- Red came from tdd.md's revert route instead: fakes.ts and the layer guard of test.ts reverted by hand, .temp/viber/T1/red-6.log (the current test names) shows 17 of 23 cases failing on an assertion, every DoD case among them, then both files restored byte for byte.
+- fakes.unit.test.ts keeps only cases the contract cases do not already prove (unreadable path, directory listed once, /rx prefix trap, given tracked order), per the Single rule.
+- The guard refuses at load by process.argv[1]: every plain *.test.ts in the tree has a critical sibling except tests/github/release.test.ts, which layerOf names legacy, so no legacy file is refused.
+- The network ban patches net.Socket.prototype.connect for unit files only, so it throws synchronously at the connect call.
