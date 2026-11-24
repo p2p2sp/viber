@@ -20,7 +20,8 @@ Run this once, with the issue and the files as the user gave them (quote each pa
 
 Read stdout block by block, in order:
 - `CREATED=<link>`: report the link, with the `REASON=` line that follows it when there is one.
-- `REFUSED=<file>` or `FAILED=<file>`: name the file with its `REASON=` and tell the user to attach it in the browser on the issue.
+- `REFUSED=<file>`: name the file with the reason "file type not supported" and tell the user to attach it in the browser on the issue.
+- `FAILED=<file>`: name the file with the `REASON=` line that follows it and tell the user to attach it in the browser on the issue.
 
 On exit 3: attach nothing, name `gh` 2.103 as the version that brings `gh issue artifact`, and for every file tell the user to attach it in the browser on the issue.
 
