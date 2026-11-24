@@ -3,8 +3,8 @@
 #
 # Creates a GitHub issue and, when a type was requested, applies it through
 # the REST API in one deterministic step: `gh issue create` -> parse the
-# printed URL -> REST PATCH the type (no `--type` flag exists on `gh issue
-# create`). Ported from the retired supergh `create-issue` skill's
+# printed URL -> REST PATCH the type (`gh api -X PATCH`, which sets the issue
+# type through REST after the issue exists). Ported from the retired supergh `create-issue` skill's
 # `scripts/create.sh` (git history before commit 6e9b1004) so an intent
 # interview or a fixer diagnosis that did not start from an issue can save
 # its conclusion as a new one, built from the project's own issue templates.
