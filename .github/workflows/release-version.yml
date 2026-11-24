@@ -17,18 +17,26 @@ concurrency:
   group: versioning
   cancel-in-progress: false
 jobs:
-  # The whole suite on Linux and Windows (full.yml): a push run leaves the
-  # logic tier out on Windows, so the release waits for it here.
-  Full:
-    uses: ./.github/workflows/full.yml
   Release:
-    needs: Full
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
+      - name: Wait for the CI run of this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          run_id=$(gh run list --workflow CI --commit "$GITHUB_SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -z "$run_id" ]; then
+            echo "No CI run found for commit $GITHUB_SHA: the release needs a CI run of its commit." >&2
+            exit 1
+          fi
+          gh run watch "$run_id" --exit-status
       - name: Bump version + create release
         id: bump
         env:
