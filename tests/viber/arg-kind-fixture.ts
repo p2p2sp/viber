@@ -1,7 +1,6 @@
 /*
- * arg-kind-fixture.ts - the helpers arg-kind.test.ts and
- * arg-kind.critical.test.ts share: what both tiers need to seed a case and run
- * viber/scripts/arg-kind.sh. It holds no case of its own.
+ * arg-kind-fixture.ts - the helpers arg-kind.critical.test.ts uses to seed a
+ * case and run viber/scripts/arg-kind.sh. It holds no case of its own.
  */
 
 import assert from "node:assert/strict";

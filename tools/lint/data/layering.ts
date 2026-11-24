@@ -15,7 +15,10 @@ export const rules: RuleInstance[] = [
       outside: ["node:fs", "node:child_process", "node:os", "node:net", "node:http", "node:https"],
       entries: ["viber/scripts/*.ts", "tools/lint/run.ts"],
       entryMaxLines: 40,
-      tests: [{ core: "viber/lib/config", tests: "tests/viber/config" }],
+      tests: [
+        { core: "viber/lib/config", tests: "tests/viber/config" },
+        { core: "viber/lib", tests: "tests/viber/lib" },
+      ],
       unitTests: ["tests/viber/config", "tests/viber/lib", "tests/tools/lint"],
       unitForbidden: [
         "node:child_process",

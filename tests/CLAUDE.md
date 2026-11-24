@@ -15,7 +15,7 @@ Owns every automated check of the repository: the per-plugin suites, the `releas
 
 - Child nodes: `tests/harness/CLAUDE.md` (shared helpers), `tests/viber/CLAUDE.md` (viber's suite).
 - Which suite a change reaches:
-  - `viber/lib/` or `viber/scripts/config.ts` -> `tests/viber/config/` and `tests/viber/lib/`, in process;
+  - `viber/lib/` or a `viber/scripts/*.ts` entry -> `tests/viber/config/` and `tests/viber/lib/`, in process, and the wrapper of a ported script (`config.sh`, `switch-text.sh`, `arg-kind.sh`) -> its legacy `tests/viber/<name>.critical.test.ts`;
   - any other viber script, hook, `.ts` or `.mjs` module -> its legacy test under `tests/viber/`;
   - `.github/scripts/release.sh` -> `tests/github/release.test.ts`, a legacy logic file with no critical sibling: the script runs only in the release workflow, on `ubuntu-latest`;
   - `tools/agent-context.ts` (a dev command that ships with no plugin) -> `tests/tools/`: `agent-context.unit.test.ts` runs on the fake reader of `agent-context-fixture.ts`, `agent-context.critical.test.ts` runs the disk adapter `readRuns` on a temp directory;

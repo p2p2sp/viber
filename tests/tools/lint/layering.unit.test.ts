@@ -99,7 +99,7 @@ test("the core instance reports the viber core, its entries and its unit tests a
     { path: "viber/lib/config/a.ts", line: 4, message: "core module imports node:net" },
     { path: "viber/lib/config/a.ts", line: 5, message: "core module imports node:http" },
     { path: "viber/lib/config/a.ts", line: 6, message: "core module imports node:https" },
-    { path: "viber/lib/other.ts", line: 0, message: "core module is under no tests mapping" },
+    { path: "viber/lib/other.ts", line: 0, message: "core module has no unit test tests/viber/lib/other.unit.test.ts" },
     { path: "viber/scripts/x.ts", line: 0, message: "entry holds 41 lines of code, the cap is 40" },
     { path: "tools/lint/run.ts", line: 0, message: "entry holds 41 lines of code, the cap is 40" },
     { path: "tests/viber/config/a.unit.test.ts", line: 1, message: "unit test imports node:child_process" },

@@ -1,7 +1,6 @@
 /*
- * switch-text-fixture.ts - the helpers switch-text.test.ts and
- * switch-text.critical.test.ts share: what both tiers need to seed a case and
- * run viber/scripts/switch-text.sh. It holds no case of its own.
+ * switch-text-fixture.ts - the helpers switch-text.critical.test.ts uses to
+ * seed a case and run viber/scripts/switch-text.sh. It holds no case of its own.
  */
 
 import fs from "node:fs";

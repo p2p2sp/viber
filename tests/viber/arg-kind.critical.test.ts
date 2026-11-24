@@ -1,12 +1,13 @@
 /*
- * arg-kind.critical.test.ts - the critical tier of viber/scripts/arg-kind.sh:
- * an issue reference in each of its spellings is answered with the issue
- * directive and the word as given.
+ * arg-kind.critical.test.ts - the critical tier of viber/scripts/arg-kind.sh,
+ * the wrapper of the arg-kind.ts entry: an issue reference in each of its
+ * spellings is answered with the issue directive and the word as given.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by arg-kind.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * break only one platform shows or a script that no longer starts; the
+ * classification itself is proven in process by
+ * tests/viber/lib/arg-kind.unit.test.ts. This file runs on every operating
+ * system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:

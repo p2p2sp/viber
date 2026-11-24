@@ -42,4 +42,5 @@ jobs:
           CONCURRENCY: ${{ matrix.concurrency }}
         run: |
           files=$(cat legacy-files.txt)
+          # shellcheck disable=SC2086
           node --test --test-concurrency="$CONCURRENCY" $files

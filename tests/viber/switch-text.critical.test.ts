@@ -1,13 +1,14 @@
 /*
  * switch-text.critical.test.ts - the critical tier of
- * viber/scripts/switch-text.sh: a true switch prints its fragment byte for
- * byte, and a skill directory written with backslashes still derives the
- * plugin root.
+ * viber/scripts/switch-text.sh, the wrapper of the switch-text.ts entry: a
+ * true switch prints its fragment byte for byte, and a skill directory written
+ * with backslashes still derives the plugin root.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by switch-text.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * break only one platform shows or a script that no longer starts; the
+ * selection itself is proven in process by
+ * tests/viber/lib/switch-text.unit.test.ts. This file runs on every operating
+ * system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:

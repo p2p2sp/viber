@@ -1,6 +1,6 @@
 /*
  * invocations.ts - the instance of the `invocations` rule over viber's skills, parts, fragments
- * and hooks.json. The switch table mirrors the keys viber/scripts/switch-text.sh recognizes.
+ * and hooks.json. The switch table mirrors the keys viber/lib/switch-text.ts recognizes.
  */
 
 import type { RuleInstance } from "../engine.ts";
