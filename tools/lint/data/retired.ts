@@ -13,6 +13,6 @@ export const rules: RuleInstance[] = [
       include: ["**"],
       exclude: ["docs/**", "**/CLAUDE.md", "tools/lint/data/retired.ts"],
     },
-    why: "the workflow that ran every tier and the shard script are gone: the legacy tests run in legacy.yml through node's own --test-shard",
+    why: "the workflow that ran every tier and the shard script are gone: the legacy tests run in legacy.yml, one job per operating system",
   },
 ];

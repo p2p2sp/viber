@@ -14,21 +14,21 @@ Source of the `viber` Claude Code plugin, listed as the `p2p2` marketplace by `.
 
 ## Commands
 
-- Fast (unit tier only): `node --test "tests/**/*.unit.test.ts"`
-- Unit and critical tiers (what a Windows or macOS push run executes): `CI=true node --test --test-concurrency=6 "tests/**/*.unit.test.ts" "tests/**/*.critical.test.ts"`
-- Whole test suite (every tier, as the Linux push run executes it): `CI=true node --test --test-concurrency=12 "tests/**/*.test.ts"`
-- Single test file: `node --test tests/viber/config.test.ts`
+- Fast (unit layer only): `node --test "tests/**/*.unit.test.ts"`
+- Whole suite (unit and integration, what `ci.yml` runs on Linux, Windows and macOS on every push): `node --test "tests/**/*.unit.test.ts" "tests/**/*.integration.test.ts"`
+- Lint rules (a step of the `ci.yml` lint job): `node tools/lint/run.ts`
+- Single test file: `node --test tests/viber/config/block.unit.test.ts`
 
 ## Test layers
 
-- `*.unit.test.ts`: unit tier, spawns nothing; a developer machine runs it on every change.
-- `*.critical.test.ts`: critical tier, the few spawning cases every operating system runs on every push, under the full shell matrix in CI.
-- Every other `*.test.ts` under `tests/`: logic tier, run on Linux on every push and on Windows only by `.github/workflows/full.yml` (nightly, on demand and before a release).
+- `*.unit.test.ts`: runs in process on fakes, spawns nothing.
+- `*.integration.test.ts`: runs one real adapter on the shared scene.
+- Legacy (`*.critical.test.ts`, a plain `*.test.ts` with a critical sibling, `tests/github/release.test.ts`): spawns a shell script and runs only in `.github/workflows/legacy.yml`, on Linux and Windows, nightly and on demand; no push and no release waits for it. Name one file to debug it, never run the whole set locally.
 
 ## Traps
 
-- Nothing builds and nothing lints: editing markdown or JSON is shipping. There is no `package.json`; `node --test` runs the `.ts` tests directly through Node's type stripping.
-- `tsconfig.json` serves the editor's type checker only: no command and no CI step runs `tsc`. Its `"types": ["node"]` resolves from a local, git-ignored `node_modules/@types/node`, so a fresh clone shows TS2688 until that package is installed by hand. `viber/hooks/register.tsx` stays out of `include`: its `claude-code` types exist only in the host.
+- Nothing builds: editing markdown or JSON is shipping. There is no `package.json`; `node --test` runs the `.ts` tests directly through Node's type stripping.
+- `tsc --noEmit` runs only in the `ci.yml` lint job, which installs `typescript` and `@types/node` for itself. Locally `tsconfig.json` serves the editor: its `"types": ["node"]` resolves from a git-ignored `node_modules/@types/node`, so a fresh clone shows TS2688 until that package is installed by hand. `viber/hooks/register.tsx` stays out of `include`: its `claude-code` types exist only in the host.
 - Editing a file here does not change the plugins loaded in the current session: they change only after a release is published and reinstalled.
-- Every plugin script must work on Windows (Git Bash) and macOS: `tests/portability.unit.test.ts` sweeps shebangs, CRLF, exec bits and bash-only syntax in `#!/bin/sh` scripts.
+- Every plugin script must work on Windows (Git Bash) and macOS: the `script-portability/shipped` lint rule sweeps shebangs, CRLF, bash-only syntax in `#!/bin/sh` scripts and GNU-only tool forms.
 - `docs/archive/superdev/` is a retired plugin kept for reference: not listed, not released, not tested.

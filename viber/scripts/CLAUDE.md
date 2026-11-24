@@ -27,7 +27,7 @@ This directory holds the scripts more than one viber skill or agent calls: the c
 
 ## Commands
 
-- `config.sh`: logic by `tests/viber/config/*.unit.test.ts`, wrapper by `tests/viber/config.critical.test.ts`. Every other script's test is the pair `tests/viber/<basename>.critical.test.ts` (every operating system on every push) and `tests/viber/<basename>.test.ts` (logic tier, Linux on a push), sharing `tests/viber/<basename>-fixture.ts`; `task-step.test.ts` runs about 3 minutes. `run-branch.sh` has no file of its own: `tests/viber/plan-path.test.ts` covers it through `--branch`, `--start`, `--checkout` and `--land`.
+- `config.sh`: logic by `tests/viber/config/*.unit.test.ts`, wrapper by `tests/viber/config.critical.test.ts`. Every other script's test is the legacy pair `tests/viber/<basename>.critical.test.ts` and `tests/viber/<basename>.test.ts` (run only by `legacy.yml`, `tests/CLAUDE.md`), sharing `tests/viber/<basename>-fixture.ts`; `task-step.test.ts` runs about 3 minutes. `run-branch.sh` has no file of its own: `tests/viber/plan-path.test.ts` covers it through `--branch`, `--start`, `--checkout` and `--land`.
 
 ## Change together
 

@@ -15,12 +15,14 @@ let scene: { root: string; outside: string } | null = null;
 function git(cwd: string, args: string[]): void {
   execFileSync("git", args, {
     cwd,
-    stdio: "ignore",
+    // stderr is piped so a failing git names its reason in the thrown error.
+    stdio: ["ignore", "ignore", "pipe"],
     env: {
       ...process.env,
       HOME: cwd,
       USERPROFILE: cwd,
-      GIT_CONFIG_GLOBAL: path.join(os.devNull),
+      // A path of no file: git on Windows dies on the null device (`\\.\nul`).
+      GIT_CONFIG_GLOBAL: path.join(path.dirname(cwd), ".gitconfig-global"),
       GIT_CONFIG_NOSYSTEM: "1",
     },
   });

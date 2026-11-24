@@ -12,7 +12,7 @@ const TESTS =
   "__tests__/ tests/ test/ *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go *Test.java *Test.kt conftest.py testdata/ __mocks__/ __fixtures__/ fixtures/ jest.config.* vitest.config.*";
 
 function report(flag: string, yml: string | null): string {
-  const files = yml === null ? {} : { "/w/.claude/viber.yml": yml };
+  const files: Record<string, string> = yml === null ? {} : { "/w/.claude/viber.yml": yml };
   return runConfig([flag], "/w", { fs: fakeFs(files), git: fakeGit(null) });
 }
 

@@ -14,19 +14,13 @@ jobs:
   Tests:
     strategy:
       fail-fast: false
-      # A spawned script costs an order of magnitude more on Windows, so its leg
-      # splits into 4 jobs by node's own --test-shard.
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        shard: [1, 2, 3, 4]
-        exclude:
+        include:
           - os: ubuntu-latest
-            shard: 2
-          - os: ubuntu-latest
-            shard: 3
-          - os: ubuntu-latest
-            shard: 4
-    name: ${{ matrix.os == 'windows-latest' && format('Legacy ({0}, {1}/4)', matrix.os, matrix.shard) || format('Legacy ({0})', matrix.os) }}
+            concurrency: 12
+          - os: windows-latest
+            concurrency: 8
+    name: Legacy (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -41,20 +35,11 @@ jobs:
           [ -s legacy-files.txt ]
       # No path of the list holds a blank, so the unquoted expansion splits it
       # into one argument per file.
-      - name: Run tests (Linux)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Run tests
         env:
           CI: "true"
           P2P2_SHELL_MATRIX: full
+          CONCURRENCY: ${{ matrix.concurrency }}
         run: |
           files=$(cat legacy-files.txt)
-          node --test --test-concurrency=12 $files
-      - name: Run tests (Windows shard)
-        if: matrix.os == 'windows-latest'
-        env:
-          CI: "true"
-          P2P2_SHELL_MATRIX: full
-          SHARD: ${{ matrix.shard }}
-        run: |
-          files=$(cat legacy-files.txt)
-          node --test --test-concurrency=8 --test-shard="$SHARD/4" $files
+          node --test --test-concurrency="$CONCURRENCY" $files
