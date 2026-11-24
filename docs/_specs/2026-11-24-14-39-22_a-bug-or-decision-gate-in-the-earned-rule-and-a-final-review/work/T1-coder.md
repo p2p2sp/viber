@@ -1,3 +1,0 @@
-- Red run: the two new/changed Earned tests failed (2 failing) before the rule edit; log in .temp/viber/T1/red.log (git-ignored).
-- The prefix row of KEPT_ROWS now ends at "the shape of data," so the C1 bullet is pinned up to there; the tail rows stay as they were.
-- One negative test pins DoD.4 (the dropped list items); no size test added, the existing caps hold.
