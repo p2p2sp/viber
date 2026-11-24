@@ -44,5 +44,5 @@ The eleven markdown files viber skills and agents read by path while they work: 
 ## Traps
 
 - `plan-rules.md` and `plan-rules-script.md` carry some rule names twice (`Title`, `Exclusive`, `Provable`, `Layered`, `Reproduced`...): one half `(script)`, the other `(review)`. Editing one never removes the other.
-- `test-strategy.md` is capped at 6950 bytes (its `Layers` + `Proves` + `Ports` at 4200) in `test-pyramid-prose.unit.test.ts` and the `tests` lens at 9000, each with about a hundred bytes of room: a rule added to one needs another cut; `plan-rules.md` is capped there at 20900.
+- `test-strategy.md` is capped at 6950 bytes (its `Layers` + `Proves` + `Ports` at 4200) in `test-pyramid-prose.unit.test.ts` and the `tests` lens at 9000, with 65 bytes of room in the file, 2 in `Layers` + `Proves` + `Ports` and about 140 in the lens: a rule added to one needs another cut; `plan-rules.md` is capped there at 20900.
 - Every reader loads a file whole on each dispatch, `plan-rules.md` (the largest) on every planner round and single review, `plan-rules-script.md` on every planner round: a sentence added here is paid on every run.
