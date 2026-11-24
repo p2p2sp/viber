@@ -96,7 +96,7 @@ test("implementor repeats a call cut off by its timeout with --red-timeout", () 
 
 test("implementor counts the red-check field of each directive by result for the final summary", () => {
   assert.ok(has(SKILL, "the `red-check:` field of each directive"));
-  assert.ok(has(SKILL, "`FAIL-AS-EXPECTED` sealed, `PASSED-WITHOUT-CHANGE` rejected, `UNRUNNABLE` by task id"));
+  assert.ok(has(SKILL, "`FAIL-AS-EXPECTED` sealed, `PASSED-WITHOUT-CHANGE` rejected, `UNRUNNABLE` and `NO-PRODUCTION-CHANGE` by task id"));
 });
 
 test("task-coder returns RED: <n> failing pointing at its red.log on a TDD: required PASS", () => {
@@ -140,6 +140,15 @@ test("task-reviewer checks the failing tests are the task's new tests, an unrela
 test("task-reviewer on red-check UNRUNNABLE holds a test that would pass on HEAD as Blocking", () => {
   assert.ok(has(REVIEWER, "on `red-check: UNRUNNABLE`"));
   assert.ok(has(REVIEWER, "a test that would pass on HEAD being Blocking"));
+});
+
+test("task-reviewer on red-check NO-PRODUCTION-CHANGE or PASSED-WITHOUT-CHANGE holds a new test not failing in the red: log as Blocking, and behaviour HEAD already holds as no finding (a pre-delivered task must not loop between a coder that cannot change the tree and a gate that cannot pass)", () => {
+  assert.ok(has(REVIEWER, "on `red-check: NO-PRODUCTION-CHANGE` (HEAD already holds the behaviour, which is no finding) or `PASSED-WITHOUT-CHANGE`"));
+  assert.ok(has(REVIEWER, "a new test not failing in the `red:` log, the coder's run with the behaviour reverted, being Blocking"));
+});
+
+test("task-coder writes a contract block of its own file only as far as its DoD asks (a coder delivering the whole block takes the production change of the later task listing that file)", () => {
+  assert.ok(has(CODER, "is yours to write only as far as your `DoD` asks, the rest being the work of the other task listing that file"));
 });
 
 test("the close prints the red-check tally right after the 7 lines in both forms", () => {

@@ -4,7 +4,8 @@
  * A read set is a list of entries: a shipped file, or a shipped file with the `## ` sections read
  * from it. The five read sets (planner, planner-review, task-coder, task-reviewer, hunter) each
  * stay within their own byte cap, raised only on purpose: the planner-review cap carries the room
- * of the two plan rules a restructuring task and a mechanical change add to `plan-rules.md`. A section
+ * of the two plan rules a restructuring task and a mechanical change add to `plan-rules.md`, the
+ * task-reviewer cap that of the red check verdicts a review receives. A section
  * runs from its `## ` line to the next `## ` line or the end of the file, as `section()` of
  * `tests/harness/markdown.ts` cuts it. The files read here are shipped prompts, whose text is the
  * behaviour. Nothing is spawned. The measuring functions are proven on synthetic input.
@@ -73,7 +74,7 @@ const READ_SETS: ReadSet[] = [
   },
   {
     role: "task-reviewer",
-    cap: 18039,
+    cap: 18135,
     entries: [
       { file: "viber/agents/task-reviewer.md" },
       { file: TEST_STRATEGY, sections: ["Layers", "Proves", "Writing"] },

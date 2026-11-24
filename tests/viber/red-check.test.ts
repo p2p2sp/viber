@@ -8,7 +8,8 @@
  * `FAIL-AS-EXPECTED <log>` (then `NEXT: review`) when the red run fails and the
  * control run passes, `PASSED-WITHOUT-CHANGE <files>` (then `NEXT: coder-failure
  * | reason: tests pass without the change: <files>`) when the red run already
- * passes, `UNRUNNABLE <reason>` (then `NEXT: review`) when there is no test
+ * passes, `NO-PRODUCTION-CHANGE <files>` (then `NEXT: review`) when it passes
+ * and the task changes no production file, `UNRUNNABLE <reason>` (then `NEXT: review`) when there is no test
  * file, the control run fails too, or the worktree cannot be built. Bad
  * arguments or plan exit 2.
  *
@@ -69,6 +70,17 @@ test("a test that passes on HEAD without the production change yields PASSED-WIT
     const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
     assert.equal(r.status, 0, r.stderr);
     assert.equal(r.stdout, "red-check: PASSED-WITHOUT-CHANGE tests/check.sh\nNEXT: coder-failure | reason: tests pass without the change: tests/check.sh\n");
+  });
+});
+
+test("a test that passes on HEAD while the task changes no production file yields NO-PRODUCTION-CHANGE and goes to review (an earlier commit delivered the behaviour, so a coder attempt would only rerun the same run)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "tests/check.sh", '. ./src/lib.sh\n[ "$(answer)" = 0 ]\n');
+    const r = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, "red-check: NO-PRODUCTION-CHANGE tests/check.sh\nNEXT: review\n");
+    assert.equal((await worktrees(repo)).length, 1);
   });
 });
 

@@ -57,8 +57,11 @@ older version is ignored.
   `TDD: required` task must show its tests failing before its first production edit, and the
   reviewer checks that the failing tests are the task's new ones. With it on, the build then runs
   the task's tests in a git worktree of `HEAD` in the system temp directory, holding the task's
-  test files but not its production change: tests that pass there send the task back to its coder,
-  and a check that cannot run is reported to the task's reviewer. A `TDD: required` task is always
+  test files but not its production change: tests that pass there send the task back to its coder
+  once, and a second time go to its reviewer with that result. When they pass and the task changes
+  no production file, an earlier task already delivered the behaviour: the task goes straight to its
+  reviewer, who checks the coder's failing run with the behaviour reverted. A check that cannot run
+  is reported to the task's reviewer. A `TDD: required` task is always
   reviewed, whatever this switch reads. Two settings tune it:
   - `build.red-check-tests`: what counts as a test file. Default: `__tests__/ tests/ test/
     *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go

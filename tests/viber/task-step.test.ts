@@ -767,6 +767,47 @@ test("tests that pass without the change are a coder failure whose reason is the
   });
 });
 
+test("tests that pass without the change a second time in the session answer the review with the check's line (a coder told once gains nothing from the same reason again)", async () => {
+  await withGitRepo(async (repo) => {
+    await seedChecked(repo, CHECK_ON, '. ./src/lib.sh\n[ -n "$(answer)" ]\n');
+    await arrange(repo, [START_T1, T1_PASS_LOGGED]);
+
+    const result = await step(repo, T1_PASS_LOGGED);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        "NEXT: review | round: 1 | model: opus | red-check: PASSED-WITHOUT-CHANGE",
+        ...reviewerLines("T1"),
+        `report: ${PLAN_DIR}/work/review-T1-1.md`,
+        `red: ${T1_RED_LOG}`,
+        "red-check: PASSED-WITHOUT-CHANGE tests/check.sh",
+      ),
+    );
+  });
+});
+
+test("tests that pass on HEAD with no production change of the task answer the review on the first PASS, never a coder attempt (an earlier task delivered the behaviour, so every retry would meet the same run)", async () => {
+  await withGitRepo(async (repo) => {
+    await seedChecked(repo, CHECK_ON, '. ./src/lib.sh\n[ "$(answer)" = 0 ]\n');
+    write(repo.dir, "src/lib.sh", "answer() { echo 0; }\n");
+    await arrange(repo, [START_T1]);
+
+    const result = await step(repo, T1_PASS_LOGGED);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        "NEXT: review | round: 1 | model: opus | red-check: NO-PRODUCTION-CHANGE",
+        ...reviewerLines("T1"),
+        `report: ${PLAN_DIR}/work/review-T1-1.md`,
+        `red: ${T1_RED_LOG}`,
+        "red-check: NO-PRODUCTION-CHANGE tests/check.sh",
+      ),
+    );
+  });
+});
+
 for (const [label, body, line] of [
   ["exits non-zero", "echo 'red-check: FAIL-AS-EXPECTED x'\necho 'NEXT: review'\nexit 3", "UNRUNNABLE exit 3"],
   ["prints no NEXT: line", "echo 'red-check: FAIL-AS-EXPECTED x'", "UNRUNNABLE no NEXT: line"],
@@ -910,6 +951,33 @@ test("tests that pass without the change under --decide answer the arbiter with 
     assert.equal(
       result.stdout,
       arbiterLines("NEXT: arbiter", ["reason: tests pass without the change: tests/check.sh"]),
+    );
+  });
+});
+
+test("the PASS of a coder resumed after such a ruling answers the review when the tests still pass without the change (a ruling must not be met by the failure it settled)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo, CHECK_ON);
+    seedOptions(repo);
+    const { sut, root } = stubbedCheck(
+      repo,
+      "echo 'red-check: PASSED-WITHOUT-CHANGE x'\necho 'NEXT: coder-failure | reason: tests pass without the change: tests/check.sh'",
+    );
+    await arrange(repo, [START_T1]);
+    const ruled = await step(repo, [...T1_PASS_LOGGED, "--decide"], sut);
+    assert.equal(ruled.status, 0, `stderr: ${ruled.stderr}`);
+
+    const result = await step(repo, T1_PASS_LOGGED, sut);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(
+      result.stdout,
+      lines(
+        "NEXT: review | round: 1 | model: opus | red-check: PASSED-WITHOUT-CHANGE",
+        ...reviewerLines("T1", root),
+        `report: ${PLAN_DIR}/work/review-T1-1.md`,
+        `red: ${T1_RED_LOG}`,
+        "red-check: PASSED-WITHOUT-CHANGE x",
+      ),
     );
   });
 });

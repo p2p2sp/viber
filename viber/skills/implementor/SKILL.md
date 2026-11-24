@@ -134,7 +134,7 @@ Directives:
 - `ASK:` line: one `AskUserQuestion` naming the task and offering those answers, the chosen one's event reported next; `retry` reruns the last `RUN:` line and reports its exit, `abort` goes to step 7.
 - `STOP:` line: report its sentence and stop.
 
-Count for the final summary: the `red-check:` field of each directive (`FAIL-AS-EXPECTED` sealed, `PASSED-WITHOUT-CHANGE` rejected, `UNRUNNABLE` by task id), the highest `attempt:` field of each task and the `round:` field of each review block.
+Count for the final summary: the `red-check:` field of each directive (`FAIL-AS-EXPECTED` sealed, `PASSED-WITHOUT-CHANGE` rejected, `UNRUNNABLE` and `NO-PRODUCTION-CHANGE` by task id), the highest `attempt:` field of each task and the `round:` field of each review block.
 
 Arbiter dispatch: `viber:arbiter` (Agent tool) carrying a `NEXT: arbiter` block's body lines verbatim, or, for a case of the close, `case:`, `options:` (the closed list, its first the fallback), `report:` and `reason:` lines as that case names, the last two omitted when empty, and `ruling: <dir>/work/ruling-<subject>.md`, `<subject>` being the case name (`baseline`, `tests`, `final-review`, `commit`). Its `RULED` return is reported, then carried out, without a question:
 

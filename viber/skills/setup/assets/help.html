@@ -3653,11 +3653,11 @@ wartość.</p>
     <dd><span lang="en">After the coder of a <code>TDD: required</code> task passes, and before review or commit, the build
     runs the task's tests in a git worktree of <code>HEAD</code> in the system temp directory, holding the task's test
     files but not its production change, then removes the worktree. Tests that fail there, and pass once the production change is copied in, seal the task; tests that pass
-    send it back to its coder; a check that cannot run is reported to the task's reviewer.</span><span lang="pl">Gdy wykonawca zadania
+    send it back to its coder once and go to its reviewer a second time; tests that pass while the task changes no production file, because an earlier task already delivered the behaviour, go straight to its reviewer, who checks the coder's failing run with the behaviour reverted; a check that cannot run is reported to the task's reviewer.</span><span lang="pl">Gdy wykonawca zadania
     z <code>TDD: required</code> skończy z wynikiem pozytywnym, a przed recenzją i commitem, build uruchamia testy
     zadania w worktree gita z <code>HEAD</code> w systemowym katalogu tymczasowym, z plikami testów zadania, ale bez
     jego zmiany produkcyjnej, po czym usuwa worktree. Testy, które tam nie przejdą, a przejdą po dodaniu zmiany produkcyjnej, pieczętują zadanie; testy, które
-    przejdą, odsyłają je do wykonawcy; wynik sprawdzenia, którego nie da się uruchomić, trafia do recenzenta
+    przejdą, odsyłają je raz do wykonawcy, a za drugim razem trafiają do recenzenta; testy, które przejdą, gdy zadanie nie zmienia żadnego pliku produkcyjnego, bo wcześniejsze zadanie już dostarczyło to zachowanie, trafiają od razu do recenzenta, który sprawdza nieudany przebieg wykonawcy z cofniętym zachowaniem; wynik sprawdzenia, którego nie da się uruchomić, trafia do recenzenta
     zadania.</span></dd>
   </div>
   <div id="key-build-red-check-tests">

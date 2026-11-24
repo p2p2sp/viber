@@ -94,7 +94,14 @@
 #                red run non-zero, control run zero
 #              red-check: PASSED-WITHOUT-CHANGE <test file> <test file> ...
 #              NEXT: coder-failure | reason: tests pass without the change: <test file> <test file> ...
-#                red run zero; every changed test path of the task
+#                red run zero with a production file among the task's
+#                changes; every changed test path of the task
+#              red-check: NO-PRODUCTION-CHANGE <test file> <test file> ...
+#              NEXT: review
+#                red run zero and no production file among the task's
+#                changes: HEAD already holds the behaviour (an earlier commit
+#                delivered it), so no coder attempt can turn this run red and
+#                the reviewer judges the tests on the coder's own red log
 #              red-check: UNRUNNABLE <reason>
 #              NEXT: review
 #                no test files among the task's changes, a link that failed
@@ -567,6 +574,13 @@ red=0
 run_verify red || red=$?
 
 if [[ "$red" -eq 0 ]]; then
+  # With no production file to place, a retry would rerun this very run: the
+  # verdict goes to the reviewer, never back to the coder.
+  if [[ ${#prod_files[@]} -eq 0 ]]; then
+    echo "red-check: NO-PRODUCTION-CHANGE ${test_files[*]}"
+    echo "NEXT: review"
+    exit 0
+  fi
   echo "red-check: PASSED-WITHOUT-CHANGE ${test_files[*]}"
   echo "NEXT: coder-failure | reason: tests pass without the change: ${test_files[*]}"
   exit 0

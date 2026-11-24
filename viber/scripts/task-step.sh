@@ -141,10 +141,15 @@
 # The red check: a coder PASS of a TDD: required task that is no coder failure,
 # with build.red-check reading true, runs red-check.sh (beside this script) on the
 # plan and the task, and always goes to review. Its "NEXT: review" answer carries
-# its red-check: line to the reviewer block; its "NEXT: coder-failure" answer is a
-# coder failure whose ready reason line is the check's reason and whose directive
-# line carries "red-check: PASSED-WITHOUT-CHANGE"; a non-zero exit, an answer with
-# no usable NEXT: line or a call under --red-timeout reads as the line
+# its red-check: line (FAIL-AS-EXPECTED, NO-PRODUCTION-CHANGE, UNRUNNABLE) to the
+# reviewer block; its "NEXT: coder-failure" answer is, the first time for the task
+# in the session, a coder failure whose ready reason line is the check's reason
+# and whose directive line carries "red-check: PASSED-WITHOUT-CHANGE", and every
+# later time goes to review with its red-check: line: a coder told once what the
+# check saw gains nothing from the same line again, so the reviewer judges the
+# tests on the coder's red log and the task's decisions, and a ruling made after
+# the first one is never answered by the same failure. A non-zero exit, an answer
+# with no usable NEXT: line or a call under --red-timeout reads as the line
 # "UNRUNNABLE exit <n>", "UNRUNNABLE no NEXT: line" or "UNRUNNABLE timeout".
 #
 # The state is .temp/viber/<id>/state under the repository root: key=value lines,
@@ -446,6 +451,7 @@ rpt=""
 lastrev=""
 unrev=0
 rc=""
+rcrej=0
 mode=0
 lf_reason=""
 lf_add=""
@@ -475,6 +481,7 @@ load_state() {
       lastrev=*) lastrev="${line#*=}" ;;
       unrev=*) unrev="${line#*=}" ;;
       rc=*) rc="${line#*=}" ;;
+      rcrej=*) rcrej="${line#*=}" ;;
       mode=*) mode="${line#*=}" ;;
       lf_reason=*) lf_reason="${line#*=}" ;;
       lf_add=*) lf_add="${line#*=}" ;;
@@ -494,7 +501,7 @@ save_state() {
   mkdir -p "$state_dir"
   printf '%s\n' "started=$started" "attempt=$attempt" "model=$model" "review=$review" "round=$round" \
     "with=$with" "defer=$defer" "anywith=$anywith" "redlog=$redlog" "resume=$resume" "reason=$reason" \
-    "rpt=$rpt" "lastrev=$lastrev" "unrev=$unrev" "rc=$rc" "mode=$mode" "lf_reason=$lf_reason" \
+    "rpt=$rpt" "lastrev=$lastrev" "unrev=$unrev" "rc=$rc" "rcrej=$rcrej" "mode=$mode" "lf_reason=$lf_reason" \
     "lf_add=$lf_add" "lf_rpt=$lf_rpt" "lf_review=$lf_review" > "$tmp"
   mv -f "$tmp" "$state_file"
 }
@@ -580,6 +587,7 @@ review_block() {
 
 # Runs the red check of the task and sets rc to its line without the prefix,
 # and rc_reason to the reason of a "NEXT: coder-failure" answer (else empty).
+# rcrej counts whether the task already had such an answer in the session.
 run_red_check() {
   local out="" code=0 line rline="" nline=""
   rc_reason=""
@@ -602,7 +610,7 @@ run_red_check() {
   case "$nline" in
     "review") [[ -z "$rline" ]] || { rc="$rline"; return 0; } ;;
     "coder-failure | reason: "?*)
-      rc="PASSED-WITHOUT-CHANGE"
+      rc="${rline:-PASSED-WITHOUT-CHANGE}"
       rc_reason="${nline#coder-failure | reason: }"
       return 0
       ;;
@@ -863,6 +871,7 @@ case "$event" in
       lastrev=""
       unrev=0
       rc=""
+      rcrej=0
       mode=0
       lf_reason=""
       lf_add=""
@@ -921,7 +930,8 @@ case "$event" in
         else
           next_attempt "$why" "$add" ""
         fi
-      elif [[ -n "$rc_reason" ]]; then
+      elif [[ -n "$rc_reason" && $rcrej -eq 0 ]]; then
+        rcrej=1
         if [[ $f_decide -eq 1 && $attempt -lt 5 ]] && route_arbiter "$rc_reason" ""; then
           :
         else
