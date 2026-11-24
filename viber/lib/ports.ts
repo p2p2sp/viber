@@ -30,6 +30,18 @@ export interface TrackedFile {
   mode: string;
 }
 
+/** code: the two letters `git status --porcelain` gives the path, "??" for an untracked file. path: repo-relative, forward slashes, as it is, never quoted; the new path of a rename. */
+export interface StatusEntry {
+  code: string;
+  path: string;
+}
+
+/** status: the letter `git diff --name-status` gives the path (A, M, D, T, R, C, U). path: repo-relative, forward slashes, as it is, never quoted; the new path of a rename or copy. */
+export interface ChangedFile {
+  status: string;
+  path: string;
+}
+
 export interface Git {
   /** The top level of the work tree holding cwd, forward slashes; null outside a repository. */
   repoRoot(cwd: string): string | null;
@@ -37,6 +49,20 @@ export interface Git {
   trackedFiles(root: string): TrackedFile[];
   /** The short name of the branch HEAD stands on, a branch with no commit yet included; null on a detached HEAD or outside a repository. */
   branch(cwd: string): string | null;
+  /** The full sha of the commit a ref names (a sha, a branch, a tag, HEAD, a `~` form); null when it names no commit, a branch with no commit yet included. */
+  commit(root: string, ref: string): string | null;
+  /** The full name of the ref a symbolic ref points at (`refs/heads/main` for HEAD, a branch with no commit yet included); null for a detached HEAD and for a name that is no symbolic ref. */
+  symbolicRef(root: string, name: string): string | null;
+  /** The full sha of the best common ancestor of two commits; null when they share none or one names no commit. */
+  mergeBase(root: string, a: string, b: string): string | null;
+  /** The full sha of the oldest commit in the history of HEAD that added the file at path, read as a literal path (never a glob), repo-relative or absolute; null when none did. */
+  firstAdded(root: string, path: string): string | null;
+  /** The files that differ between the commit base names and the work tree at the top level root, staged or not, in git order; base null: every tracked file present in the work tree, as added. Empty when base names no commit. */
+  changedFiles(root: string, base: string | null): ChangedFile[];
+  /** The files below the top level root that git neither tracks nor ignores, an untracked directory file by file, in git order. */
+  untrackedFiles(root: string): string[];
+  /** One entry per path `git status` reports at the top level root: staged, unstaged or untracked (an untracked directory file by file), an ignored one left out, in git order. */
+  status(root: string): StatusEntry[];
 }
 
 export interface Clock {

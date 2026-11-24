@@ -1,11 +1,13 @@
 /*
  * run-changes.critical.test.ts - the critical tier of
- * viber/scripts/run-changes.sh: a run directory prints the commit that added
- * its plan and the tracked and untracked paths changed since.
+ * viber/scripts/run-changes.sh, the wrapper of the run-changes.ts entry: a run
+ * directory prints the commit that added its plan and the tracked and
+ * untracked paths changed since.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by run-changes.test.ts. This file runs on every
+ * break only one platform shows or a script that no longer starts; the base
+ * rules, the spellings of the run directory and the refusals are proven in
+ * process by tests/viber/lib/run-changes.unit.test.ts. This file runs on every
  * operating system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run

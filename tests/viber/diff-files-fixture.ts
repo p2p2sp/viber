@@ -1,8 +1,7 @@
 /*
- * diff-files-fixture.ts - the helpers diff-files.test.ts and
- * diff-files.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/code-auditor/scripts/diff-files.sh. It holds no case of its
- * own.
+ * diff-files-fixture.ts - what diff-files.critical.test.ts uses to seed a
+ * case and run viber/skills/code-auditor/scripts/diff-files.sh. It holds no
+ * case of its own.
  */
 
 import assert from "node:assert/strict";

@@ -2,7 +2,7 @@
  * impact-mapper-prose.unit.test.ts - pins the prose that makes the reach step map a change that
  * adds files, and impact-mapper find implementers, constructors and collections.
  *
- * `planner/SKILL.md` skips the reach map only when the change adds, modifies, moves or deletes
+ * `plan-writer.md` lists no reach target only when the change adds, modifies, moves or deletes
  * nothing and writes each added file as a `| new` target; `impact-mapper.md` answers a `| new`
  * target with the existing files enumerating the set the file joins (kind `collection`) and a type
  * symbol with its implementers (kind `implementation`) and constructing places (kind `call`);
@@ -29,6 +29,7 @@ function read(relative: string): string {
 }
 
 const PLANNER = read("skills/planner/SKILL.md");
+const WRITER = read("agents/plan-writer.md");
 const MAPPER = read("agents/impact-mapper.md");
 const README = read("README.md");
 const HELP = read("skills/setup/assets/help.html");
@@ -38,12 +39,12 @@ function has(haystack: string, text: string): boolean {
   return new RegExp(escaped.join("\\s+")).test(haystack);
 }
 
-test("the planner skips the reach map only when the change adds, modifies, moves or deletes no file or symbol", () => {
-  assert.ok(has(PLANNER, "Skip it only when the change adds, modifies, moves or deletes no file or symbol."));
+test("the plan writer skips the reach targets only when the change adds, modifies, moves or deletes no file or symbol", () => {
+  assert.ok(has(WRITER, "Skip them only when the change adds, modifies, moves or deletes no file or symbol."));
 });
 
-test("the planner writes each file the change adds as a `| new` target", () => {
-  assert.ok(has(PLANNER, "or `<path> | new` for each file the change adds"));
+test("the plan writer lists each file the change adds as a `| new` target", () => {
+  assert.ok(has(WRITER, "or `<path> | new` for each file the change adds"));
 });
 
 test("impact-mapper reports, for a `| new` target, the files enumerating the set it joins and the tests asserting a count or a list over them as collection", () => {

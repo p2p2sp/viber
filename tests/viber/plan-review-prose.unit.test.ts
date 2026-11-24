@@ -1,6 +1,6 @@
 /*
  * plan-review-prose.unit.test.ts - pins where the scripted plan rules live: every rule `plan-index.sh`
- * rejects, tagged `(script)`, sits in `references/plan-rules-script.md`, which `planner` reads
+ * rejects, tagged `(script)`, sits in `references/plan-rules-script.md`, which `plan-writer` reads
  * beside `plan-rules.md` and no planner reviewer reads. `plan-rules.md` keeps the `(review)` rules in
  * its four sections and says where the scripted ones went. The planner reviewers also carry no
  * check `plan-index.sh` decides (attachment names, template slots outside fences, whole-path
@@ -29,6 +29,7 @@ function read(relative: string): string {
 const PLAN_RULES = read("references/plan-rules.md");
 const SCRIPT_RULES = read("references/plan-rules-script.md");
 const PLANNER = read("skills/planner/SKILL.md");
+const WRITER = read("agents/plan-writer.md");
 const REVIEWERS = ["planner-review", "planner-spec-review", "planner-graph-review", "planner-task-review"];
 
 function allowedToolsLine(text: string): string {
@@ -48,15 +49,15 @@ function namesScriptRules(text: string): boolean {
 }
 
 function plannerReadsBoth(text: string): boolean {
-  const step = section(text, "1. Map the files first");
-  return step.includes("references/plan-rules.md") && step.includes("references/plan-rules-script.md");
+  const step = section(text, "Map");
+  return step.includes("/plan-rules.md") && step.includes("/plan-rules-script.md");
 }
 
 function ruleName(line: string): string {
   return line.slice(2, line.indexOf(":"));
 }
 
-const SAMPLE_PLANNER = "## 1. Map the files first\n\nRead `${CLAUDE_PLUGIN_ROOT}/references/plan-rules.md` and `${CLAUDE_PLUGIN_ROOT}/references/plan-rules-script.md` first.\n";
+const SAMPLE_PLANNER = "## Map\n\nRead `<refs>/plan-rules.md` and `<refs>/plan-rules-script.md` first.\n";
 
 test("a line ending in (script) is found and a (review) line is not", () => {
   assert.deepEqual(scriptLines("- A: x. (script)\n- B: y. (review)\n"), ["- A: x. (script)"]);
@@ -80,7 +81,7 @@ const PLANNER_SAMPLES: [string, string, boolean][] = [
 ];
 
 for (const [label, sample, passes] of PLANNER_SAMPLES) {
-  test(`a planner step that ${label} is ${passes ? "passed" : "caught"}`, () => {
+  test(`a writer step that ${label} is${passes ? "passed" : "caught"}`, () => {
     assert.equal(plannerReadsBoth(sample), passes);
   });
 }
@@ -166,12 +167,12 @@ test("the Ordered rule of plan-rules.md asks a Depends-on for each route, symbol
   assert.ok(rule.includes("a file named by its whole repo-relative path is left to `Read after`, and a file named any other way (a bare file name, a file read without its path) stays yours."));
 });
 
-test("planner step 1 reads plan-rules.md together with plan-rules-script.md", () => {
-  assert.ok(plannerReadsBoth(PLANNER));
+test("plan-writer reads plan-rules.md together with plan-rules-script.md before it maps", () => {
+  assert.ok(plannerReadsBoth(WRITER));
 });
 
-test("planner step 1 holds the plan to every rule in both rule files", () => {
-  assert.ok(section(PLANNER, "1. Map the files first").includes("hold the plan to every rule in both"));
+test("plan-writer holds the plan to every rule in both rule files", () => {
+  assert.ok(section(WRITER, "Map").includes("hold the plan to every rule in both"));
 });
 
 for (const name of REVIEWERS) {
@@ -413,3 +414,39 @@ test("planner-graph-review keeps its check that a proposed fix never adds a CLAU
   const check = bulletOf(read("agents/planner-graph-review.md"), "Fix");
   assert.ok(check.includes("with `memory: true`, a fix you propose never adds any `CLAUDE.md` file to a task's `Files`"));
 });
+
+test("planner reads no code and composes no plan text (the code a plan reaches stays out of the session's context)", () => {
+  assert.ok(PLANNER.includes("You read no code and compose no plan text"));
+});
+
+test("plan-writer holds the read tools alone, so the plan leaves it as text and the planner's own write stays in the transcript the plan gate reads", () => {
+  assert.ok(lines(WRITER).includes("tools: Read, Grep, Glob"));
+});
+
+for (const label of ["`write:`", "`fix:`", "`split:`"]) {
+  test(`the planner sends the message label ${label} and plan-writer answers it`, () => {
+    assert.deepEqual([PLANNER.includes(label), section(WRITER, "Input").includes(label)], [true, true]);
+  });
+}
+
+for (const verdict of ["VERDICT: MAPPED", "VERDICT: WRITTEN", "VERDICT: FIXED", "VERDICT: DECIDE", "VERDICT: DENIED"]) {
+  test(`plan-writer names the reply ${verdict} and the planner acts on it`, () => {
+    assert.deepEqual([WRITER.includes(verdict), PLANNER.includes(verdict)], [true, true]);
+  });
+}
+
+for (const marker of ["@@ EDIT", "@@ WITH", "@@ END"]) {
+  test(`the planner and plan-writer share the edit block marker ${marker}`, () => {
+    assert.deepEqual([section(WRITER, "Fix").includes(marker), section(PLANNER, "2. Write the plan").includes(marker)], [true, true]);
+  });
+}
+
+test("planner step 3 sends a reviewer its own previous Blocking findings alone (every member's findings in every prompt cost a full copy per reviewer)", () => {
+  assert.ok(section(PLANNER, "3. Review gate").includes("that member's own previous Blocking findings verbatim"));
+});
+
+for (const name of ["planner-spec-review", "planner-graph-review", "planner-task-review"]) {
+  test(`${name} expects its own previous Blocking findings on a re-review`, () => {
+    assert.ok(section(read(`agents/${name}.md`), "Input").includes("your previous Blocking findings plus one line per fix applied since"));
+  });
+}

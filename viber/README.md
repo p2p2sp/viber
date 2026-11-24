@@ -185,8 +185,9 @@ The planner checks the size too. When its plan grows past 30 tasks, it stops and
 interview whether to split the change into parts or keep one plan of that many tasks; a split
 resumes the interview from the planner's own proposal. The planner also asks, one decision per question,
 every decision its exploration of the code finds that the interview left open and that belongs to you,
-such as a behaviour, a scope or a product choice. Implementation choices stay with it. Before it writes
-tasks, its `impact-mapper` agent finds every reference to what the change modifies, moves or deletes,
+such as a behaviour, a scope or a product choice. Implementation choices stay with it. Its `plan-writer`
+agent reads your code and writes the plan text, so the code it reads stays out of your session's
+context. Before it writes tasks, its `impact-mapper` agent finds every reference to what the change modifies, moves or deletes,
 and every file that lists, counts or links a file it adds; the plan adds nothing the interview left
 unsettled. A review finding showing the plan changes a behaviour your code has today, unasked, gets
 fixed even when it is only Minor.

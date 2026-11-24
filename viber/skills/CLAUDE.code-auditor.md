@@ -9,7 +9,7 @@ What binds `code-auditor/SKILL.md`, its `scripts/`, its `references/` (lens file
 
 ## Relationships
 
-- `SKILL.md` runs `frame.sh`, `map-signals.sh`, `keep-units.sh`, `hunt-return.sh` and `synthesize.sh` (then `keep-units.sh --wave` and `synthesize.sh` again) and acts only on their directives: it composes no brief and opens no lens file, report or verdict file. `keep-units.sh` and `hunt-return.sh` call `strip-tag.sh` on every file an agent wrote that they parse; it is the wrapper of `strip-tag.ts` beside it (core in `viber/lib/strip-tag.ts`), exits 0 always and strips nothing without `node`.
+- `SKILL.md` runs `frame.sh`, `map-signals.sh`, `keep-units.sh`, `hunt-return.sh` and `synthesize.sh` (then `keep-units.sh --wave` and `synthesize.sh` again) and acts only on their directives: it composes no brief and opens no lens file, report or verdict file. `keep-units.sh` and `hunt-return.sh` call `strip-tag.sh` on every file an agent wrote that they parse; it is the wrapper of `strip-tag.ts` beside it (core in `viber/lib/strip-tag.ts`), exits 0 always and strips nothing without `node`. `frame.sh` runs `diff-files.sh` on the diff scope, the wrapper of `diff-files.ts` beside it (core in `viber/lib/diff-files.ts`), which prints nothing without `node`.
 
 ## Contracts
 

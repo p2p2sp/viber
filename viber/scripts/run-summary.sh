@@ -87,7 +87,7 @@
 #            The planning rows are the same line for each transcript, wherever and
 #            whenever written (no date cut), whose `agentType` ends in `:planner-review`,
 #            `:planner-spec-review`, `:planner-graph-review`, `:planner-task-review`,
-#            `:impact-mapper` or `:adr-screener` and whose first line names the `planned:`
+#            `:impact-mapper`, `:adr-screener` or `:plan-writer` and whose first line names the `planned:`
 #            path of plan.md (the spellings the rounds line accepts): a transcript the
 #            build rows counted is not counted again, one with no readable usage adds no
 #            row, and no `planned:` line or no projects directory means no planning row.
@@ -357,7 +357,7 @@ plan_rows() {
     [[ "$meta_text" =~ $role_re && -n "${BASH_REMATCH[1]}" ]] || continue
     role="${BASH_REMATCH[1]}"
     case "$role" in
-      *:planner-review | *:planner-spec-review | *:planner-graph-review | *:planner-task-review | *:impact-mapper | *:adr-screener) ;;
+      *:planner-review | *:planner-spec-review | *:planner-graph-review | *:planner-task-review | *:impact-mapper | *:adr-screener | *:plan-writer) ;;
       *) continue ;;
     esac
     first=""

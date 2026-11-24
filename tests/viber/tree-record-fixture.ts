@@ -1,7 +1,7 @@
 /*
- * tree-record-fixture.ts - the helpers tree-record.test.ts and
- * tree-record.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/fixer/scripts/tree-record.sh. It holds no case of its own.
+ * tree-record-fixture.ts - what tree-record.critical.test.ts uses to seed a
+ * case and run viber/skills/fixer/scripts/tree-record.sh. It holds no case of
+ * its own.
  */
 
 import fs from "node:fs";

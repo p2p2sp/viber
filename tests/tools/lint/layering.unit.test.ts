@@ -77,7 +77,7 @@ test("a unit test under the swept directories importing a forbidden module is re
 
 const longEntry = "x;\n".repeat(41);
 
-test("the core instance reports the viber core, its entries (the four skill entries by name, no other skill script) and its unit tests and spares the adapters and ports", () => {
+test("the core instance reports the viber core, its entries (the six skill entries by name, no other skill script) and its unit tests and spares the adapters and ports", () => {
   const tree = treeOf({
     "viber/lib/config/a.ts":
       'import "node:fs";\nimport "node:child_process";\nimport "node:os";\nimport "node:net";\nimport "node:http";\nimport "node:https";\n',
@@ -89,6 +89,8 @@ test("the core instance reports the viber core, its entries (the four skill entr
     "viber/skills/code-auditor/scripts/strip-tag.ts": longEntry,
     "viber/skills/handoff/scripts/handoff-path.ts": longEntry,
     "viber/skills/e2e/scripts/qa-ledger.ts": longEntry,
+    "viber/skills/fixer/scripts/tree-record.ts": longEntry,
+    "viber/skills/code-auditor/scripts/diff-files.ts": longEntry,
     "viber/skills/pro-designer/scripts/check_contrast.ts": longEntry,
     "tools/lint/run.ts": longEntry,
     "tests/viber/config/a.unit.test.ts": imports("node:child_process", "node:net", "../../harness/run.ts"),
@@ -110,6 +112,8 @@ test("the core instance reports the viber core, its entries (the four skill entr
     { path: "viber/skills/code-auditor/scripts/strip-tag.ts", line: 0, message: "entry holds 41 lines of code, the cap is 40" },
     { path: "viber/skills/handoff/scripts/handoff-path.ts", line: 0, message: "entry holds 41 lines of code, the cap is 40" },
     { path: "viber/skills/e2e/scripts/qa-ledger.ts", line: 0, message: "entry holds 41 lines of code, the cap is 40" },
+    { path: "viber/skills/fixer/scripts/tree-record.ts", line: 0, message: "entry holds 41 lines of code, the cap is 40" },
+    { path: "viber/skills/code-auditor/scripts/diff-files.ts", line: 0, message: "entry holds 41 lines of code, the cap is 40" },
     { path: "tools/lint/run.ts", line: 0, message: "entry holds 41 lines of code, the cap is 40" },
     { path: "tests/viber/config/a.unit.test.ts", line: 1, message: "unit test imports node:child_process" },
     { path: "tests/viber/config/a.unit.test.ts", line: 2, message: "unit test imports node:net" },

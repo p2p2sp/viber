@@ -37,7 +37,8 @@ export const rules: RuleInstance[] = [
   words("rules-skill", "skills/rules/SKILL.md", 1700, MEMORY),
   words("rules-auditor", "agents/rules-auditor.md", 1460, MEMORY),
 
-  words("planner-skill", "skills/planner/SKILL.md", 1775, PLANNER),
+  words("planner-skill", "skills/planner/SKILL.md", 1490, `${PLANNER}; the code reading and the plan text live in plan-writer (1775 before)`),
+  words("plan-writer", "agents/plan-writer.md", 1520, "the plan writer reads its whole file on every plan, and its words count against the user's usage limits; raised only on purpose"),
   words("planner-review", "agents/planner-review.md", 1033, `${REVIEWER} (1056 before)`),
   words("planner-spec-review", "agents/planner-spec-review.md", 790, `${REVIEWER} (797 before)`),
   words("planner-graph-review", "agents/planner-graph-review.md", 616, `${REVIEWER} (618 before)`),
@@ -63,8 +64,8 @@ export const rules: RuleInstance[] = [
   words("hunter", "agents/hunter.md", 854, `${AUDITOR} (877 before)`),
   words("mapper", "agents/mapper.md", 760, `${AUDITOR} (882 before)`),
 
-  bytes("planner", 47140, [
-    { path: "viber/skills/planner/SKILL.md" },
+  bytes("planner", 44200, [
+    { path: "viber/agents/plan-writer.md" },
     { path: "viber/references/plan-rules.md" },
     { path: "viber/references/plan-rules-script.md" },
     { path: "viber/skills/planner/templates/spec-full.md" },

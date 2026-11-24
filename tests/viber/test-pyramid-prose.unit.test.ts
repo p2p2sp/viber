@@ -36,7 +36,7 @@ const CODER = read("agents/task-coder.md");
 const REVIEWER = read("agents/task-reviewer.md");
 const TEST_RUNNER = read("agents/test-runner.md");
 const FIXER = read("skills/fixer/SKILL.md");
-const PLANNER = read("skills/planner/SKILL.md");
+const WRITER = read("agents/plan-writer.md");
 const PLAN_REVIEW = read("agents/planner-review.md");
 const TASK_REVIEW = read("agents/planner-task-review.md");
 
@@ -476,8 +476,8 @@ test("test-strategy keeps no bullet of the old component rule outside Layers", (
   assert.ok(!has(STRATEGY, "A component test drives the whole application through its own entry point inside the test process"));
 });
 
-test("planner step 1 reads Layers, Proves and Ports of test-strategy by range before a task is written", () => {
-  assert.ok(has(section(PLANNER, "1. Map the files first"), "Before a task is written, read `## Layers`, `## Proves` and `## Ports` of `${CLAUDE_PLUGIN_ROOT}/references/test-strategy.md` by range: `Grep` the file for its `## ` lines, then `Read` each of the three sections."));
+test("plan-writer reads Layers, Proves and Ports of test-strategy by range before a task is written", () => {
+  assert.ok(has(section(WRITER, "Write"), "Before a task is written, read `## Layers`, `## Proves` and `## Ports` of `<refs>/test-strategy.md` by range: `Grep` the file for its `## ` lines, then `Read` each of the three sections."));
 });
 
 const REVIEWER_ROWS: [string, string][] = [
@@ -496,7 +496,7 @@ for (const [name, text] of REVIEWER_ROWS) {
 }
 
 const DEFINITION_ROWS: [string, string][] = [
-  ["planner", PLANNER],
+  ["plan-writer", WRITER],
   ["planner-review", PLAN_REVIEW],
   ["planner-task-review", TASK_REVIEW],
 ];
@@ -531,7 +531,7 @@ test("task-coder reads the test rules before its first edit reaching an external
 });
 
 const ADAPTER_READ_ROWS: [string, string, string][] = [
-  ["planner", PLANNER, "A plan carrying an integration test or creating or changing an adapter also reads"],
+  ["plan-writer", WRITER, "A plan carrying an integration test or creating or changing an adapter also reads"],
   ["planner-review", PLAN_REVIEW, "when the plan carries an integration test or creates or changes an adapter, read `<refs>/integration-tests.md`"],
   ["planner-task-review", TASK_REVIEW, "when the plan carries an integration test or creates or changes an adapter, read `<refs>/integration-tests.md`"],
 ];

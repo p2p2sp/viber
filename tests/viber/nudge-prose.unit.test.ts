@@ -68,10 +68,10 @@ for (const rel of ["skills/memory/SKILL.md", "skills/rules/SKILL.md"]) {
   });
 }
 
-test("planner/SKILL.md lacks SendMessage in allowed-tools", () => {
+test("planner/SKILL.md keeps SendMessage in allowed-tools (it continues its plan writer)", () => {
   const line = allowedTools(read("skills/planner/SKILL.md"));
   assert.ok(line.startsWith("allowed-tools:"));
-  assert.ok(!line.includes("SendMessage"));
+  assert.ok(line.includes("SendMessage"));
 });
 
 test("planner/SKILL.md keeps its sentence forbidding a SendMessage to a reviewer", () => {

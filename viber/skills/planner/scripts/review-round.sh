@@ -42,8 +42,8 @@
 #   add: answered  planner-review, planner-spec-review: append one
 #                  "Answered: <decision> -> <option>" per user answer, none when
 #                  none
-#   add: previous  round 2 on: append a "previous findings:" line, then every
-#                  member's previous findings verbatim and one
+#   add: previous  round 2 on: append a "previous findings:" line, then that
+#                  member's own previous Blocking findings verbatim and one
 #                  "fix: <where> - <change>" per fix applied
 #
 # Events:

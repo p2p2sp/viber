@@ -5,7 +5,7 @@
  * `plan-rules.md` names the exception in its End-to-end rule (the spec joins the task's
  * `Files`, proven by a type-check or listing step plus a grep of the new selector on both
  * sides, never run, no criterion) and in its Layers, TDD, Provable and Owned rules.
- * `test-strategy.md`'s end-to-end rule lets a coder update such a listed spec, `planner/SKILL.md`
+ * `test-strategy.md`'s end-to-end rule lets a coder update such a listed spec, `plan-writer.md`
  * names the exception, and `planner-review` and `planner-task-review` carry the same Grounded
  * sentence searching the end-to-end specs for the selectors of every component a task changes.
  * The files read here are shipped prompts, whose text is the behaviour. Nothing is spawned. Each
@@ -29,7 +29,7 @@ function read(relative: string): string {
 
 const PLAN_RULES = read("references/plan-rules.md");
 const STRATEGY = read("references/test-strategy.md");
-const PLANNER = read("skills/planner/SKILL.md");
+const WRITER = read("agents/plan-writer.md");
 const PLAN_REVIEW = read("agents/planner-review.md");
 const TASK_REVIEW = read("agents/planner-task-review.md");
 
@@ -80,8 +80,8 @@ test("test-strategy lets a coder update a listed existing end-to-end spec withou
   assert.ok(has(STRATEGY, "A coder updates, without the user's request, an existing end-to-end spec its task lists in `Files`, and a reviewer raises no finding for it."));
 });
 
-test("planner SKILL names the existing-spec exception in its end-to-end sentence", () => {
-  assert.ok(has(PLANNER, "an existing end-to-end spec whose selector a task changes is no new test: it joins that task's `Files` per the same rule"));
+test("plan-writer names the existing-spec exception in its end-to-end sentence", () => {
+  assert.ok(has(WRITER, "an existing end-to-end spec whose selector a task changes is no new test: it joins that task's `Files` per the same rule"));
 });
 
 test("planner-review carries the Grounded sentence searching the end-to-end specs for the selectors of every changed component", () => {

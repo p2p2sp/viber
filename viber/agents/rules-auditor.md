@@ -34,7 +34,7 @@ A rule file whose basename starts with `_` is frozen: never open it as `target`,
 Read the rule. `matches` already carries the tracked-file count the map measured for this rule: never re-run `Glob` to decide whether the scope is dead. `Grep`/`Glob` for the tracked files `scope`'s globs match, and classify every checkable line of the rule:
 
 - `OK` when the matched files still bear it out.
-- `STALE` when the matched files do something else now, or the line is a true convention carrying a clause of history, its `->` naming the line without it.
+- `STALE` when the matched files do something else now, or the line is a true convention carrying a clause of history, its `->` naming the line without it, or it is the `paths:` line and the files bearing the rule out fill only part of what its globs match, its `->` naming the globs of that part.
 - `UNVERIFIABLE` when the matched files neither follow nor break the line, a claim about intent, a decision with no trace in the code.
 - `DROP` when the line is true but fails the gate: name the criterion or the `Never a rule` entry it fails. A line failing as a fact about one place also names the `CLAUDE.md` path of the directory it belongs to, whether that node exists yet or not.
 

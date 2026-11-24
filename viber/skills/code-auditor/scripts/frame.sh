@@ -20,7 +20,9 @@
 #            is ignored. No token is valid.
 #   cwd    : the session's directory. <root> is `git rev-parse --show-toplevel`
 #            there, else the cwd. Nothing else depends on the cwd.
-#   env    : none read beyond what git itself reads.
+#   env    : none read beyond what git itself reads. On the diff scope PATH must
+#            resolve `node` for diff-files.sh, which prints nothing without it,
+#            read here as nothing changed.
 #   paths  : <skill dir> (printed, and written as `Lens file:`) is spelled from the
 #            path the script was invoked by, through scripts/plugin-root.sh: `C:/...`
 #            for a `C:\...` or `C:/...` call, `/c/...` for a `/c/...` call.

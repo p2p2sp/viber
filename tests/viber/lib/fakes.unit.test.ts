@@ -13,7 +13,7 @@ fsContract("fake fs", () => fakeScene());
 
 gitContract("fake git", () => {
   const scene = fakeScene();
-  return { git: scene.git, root: scene.root, outside: scene.outside, detached: scene.detached };
+  return { git: scene.git, root: scene.root, outside: scene.outside, history: scene.history };
 });
 
 clockContract("fake clock", () => fakeClock(new Date(2020, 0, 1)));
@@ -71,6 +71,27 @@ test("the fake git holding several repositories answers each root and its own tr
   ]);
   assert.deepEqual([git.repoRoot("/a/src"), git.repoRoot("/b"), git.repoRoot("/ab")], ["/a", "/b", null]);
   assert.deepEqual([git.trackedFiles("/a"), git.trackedFiles("/b")], [[{ path: "x.txt", mode: "100644" }], []]);
+});
+
+test("the fake git answers each table by the text it is asked with: a ref and its sha, a symbolic ref, a merge base, the first of the commits adding a path, the files changed against a base and against none", () => {
+  const git = fakeGit({
+    root: "/r",
+    tracked: [],
+    branch: "feature",
+    commits: { HEAD: "h".repeat(40), main: "m".repeat(40) },
+    symbolic: { "refs/remotes/origin/HEAD": "refs/remotes/origin/main" },
+    mergeBases: { "HEAD main": "m".repeat(40) },
+    added: { "a.txt": ["1".repeat(40), "2".repeat(40)] },
+    changed: { main: [{ status: "M", path: "a.txt" }], "": [{ status: "A", path: "b.txt" }] },
+    untracked: ["new.txt"],
+    status: [{ code: "??", path: "new.txt" }],
+  });
+  assert.deepEqual([git.commit("/r", "main"), git.commit("/r", "m".repeat(40)), git.commit("/r", "other"), git.commit("/x", "main")], ["m".repeat(40), "m".repeat(40), null, null]);
+  assert.deepEqual([git.symbolicRef("/r", "HEAD"), git.symbolicRef("/r", "refs/remotes/origin/HEAD"), git.symbolicRef("/r", "refs/heads/main")], ["refs/heads/feature", "refs/remotes/origin/main", null]);
+  assert.deepEqual([git.mergeBase("/r", "HEAD", "main"), git.mergeBase("/r", "main", "HEAD")], ["m".repeat(40), null]);
+  assert.deepEqual([git.firstAdded("/r", "a.txt"), git.firstAdded("/r", "/r/a.txt"), git.firstAdded("/r", "b.txt")], ["1".repeat(40), "1".repeat(40), null]);
+  assert.deepEqual([git.changedFiles("/r", "main"), git.changedFiles("/r", null), git.changedFiles("/r", "HEAD")], [[{ status: "M", path: "a.txt" }], [{ status: "A", path: "b.txt" }], []]);
+  assert.deepEqual([git.untrackedFiles("/r"), git.status("/r"), git.untrackedFiles("/x"), git.status("/x")], [["new.txt"], [{ code: "??", path: "new.txt" }], [], []]);
 });
 
 test("the fake git lists the tracked files it was given with their modes in order", () => {

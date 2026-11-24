@@ -13,7 +13,7 @@ Only a call the harness refuses makes a tool unavailable: end your run then on `
 
 ## Input
 
-The prompt carries the plan path, `refs` (the reference directory), `memory:` (the `build.memory` value the `Provable` grep exclusion reads, `false` when the line is missing), on a re-review the previous findings plus the fixes applied since, and optionally the line:
+The prompt carries the plan path, `refs` (the reference directory), `memory:` (the `build.memory` value the `Provable` grep exclusion reads, `false` when the line is missing), on a re-review your previous Blocking findings plus the fixes applied since, and optionally the line:
 
 input:
 <the confirmed viber:intent summary or viber:fixer diagnosis the plan answers, verbatim, up to the next labelled line or the end of the prompt, then optional `Answered: <decision> -> <chosen option>` lines>

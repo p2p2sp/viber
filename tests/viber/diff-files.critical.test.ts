@@ -1,12 +1,14 @@
 /*
  * diff-files.critical.test.ts - the critical tier of
- * viber/skills/code-auditor/scripts/diff-files.sh: a feature branch prints its
- * merge base and each committed, staged, unstaged and untracked path once.
+ * viber/skills/code-auditor/scripts/diff-files.sh, the wrapper of the
+ * diff-files.ts entry: a feature branch prints its merge base and each
+ * committed, staged, unstaged and untracked path once.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by diff-files.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * break only one platform shows or a script that no longer starts; the base
+ * rules, the path list and the refusals are proven in process by
+ * tests/viber/lib/diff-files.unit.test.ts. This file runs on every operating
+ * system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:

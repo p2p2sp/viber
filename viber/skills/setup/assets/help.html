@@ -2515,7 +2515,9 @@ z nich mówi, jak nim sterować.</p>
   <p lang="en">Reads the interview's summary file, or takes a <a href="#skill-fixer"><code>fixer</code></a> diagnosis,
   chooses the shape of the specification itself and turns the input into a plan,
   inside Claude Code's plan mode: acceptance criteria, a file map, then tasks with their dependencies,
-  contracts, verification and definition of done. The <a href="#agent-planner-review"><code>planner-review</code></a>
+  contracts, verification and definition of done. Its <a href="#agent-plan-writer"><code>plan-writer</code></a>
+  agent reads your code and writes the plan text, so the code it reads stays out of your session's context.
+  The <a href="#agent-planner-review"><code>planner-review</code></a>
   agent reviews the plan against your code, and plan mode can be left only after it passes; a plan past 12 tasks
   goes to the <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
   <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
@@ -2530,7 +2532,9 @@ z nich mówi, jak nim sterować.</p>
   <p lang="pl">Czyta plik z podsumowaniem wywiadu albo przyjmuje diagnozę z <a href="#skill-fixer"><code>fixer</code></a>,
   sam wybiera kształt specyfikacji i zamienia dane wejściowe w plan,
   w trybie planowania Claude Code: kryteria akceptacji, mapę plików, a potem zadania z zależnościami,
-  kontraktami, weryfikacją i definicją ukończenia. Agent <a href="#agent-planner-review"><code>planner-review</code></a>
+  kontraktami, weryfikacją i definicją ukończenia. Agent <a href="#agent-plan-writer"><code>plan-writer</code></a>
+  czyta twój kod i pisze treść planu, więc przeczytany kod nie zajmuje kontekstu twojej sesji.
+  Agent <a href="#agent-planner-review"><code>planner-review</code></a>
   sprawdza plan na twoim kodzie, a wyjść z trybu planowania można dopiero po jego akceptacji; plan powyżej
   12 zadań trafia jednocześnie do recenzentów <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
   <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> i
@@ -3348,6 +3352,11 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
   planner, with no file limit, when <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> is
   on.</span><span lang="pl">recenzuje plan napisany poza planistą, bez limitu plików, gdy
   <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> jest włączony.</span></li>
+  <li id="agent-plan-writer"><code>plan-writer</code> <span lang="en">reads the code a change reaches and
+  returns the plan as text: the file map and task estimate first, then the plan, then the edits its checks
+  and reviews ask for.</span><span lang="pl">czyta kod, którego dotyczy zmiana, i zwraca plan jako tekst:
+  najpierw mapę plików i szacunek liczby zadań, potem plan, a potem poprawki, o które proszą kontrole
+  i recenzje.</span></li>
   <li id="agent-adr-screener"><code>adr-screener</code> <span lang="en">screens the decisions of a plan against a
   strict admission test and names the architecture decision records worth writing.</span><span lang="pl">sprawdza decyzje planu względem ścisłego testu przyjęcia i wskazuje rekordy
   decyzji architektonicznych warte zapisania.</span></li>

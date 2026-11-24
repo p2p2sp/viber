@@ -1,13 +1,16 @@
 /*
  * tree-record.critical.test.ts - the critical tier of
- * viber/skills/fixer/scripts/tree-record.sh: save records the changed files of
- * the tree, check stops on a second changed file, and the reproduction test is
- * recognised under the C:/, /c/ and other-case drive spellings on Windows.
+ * viber/skills/fixer/scripts/tree-record.sh, the wrapper of the tree-record.ts
+ * entry: save records the changed files of the tree, check stops on a second
+ * changed file, and the reproduction test is recognised under the C:/, /c/ and
+ * other-case drive spellings on Windows (the MSYS runtime hands the entry the
+ * /c/ form as C:/).
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by tree-record.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * break only one platform shows or a script that no longer starts; the modes,
+ * the path forms and the refusals are proven in process by
+ * tests/viber/lib/tree-record.unit.test.ts. This file runs on every operating
+ * system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:

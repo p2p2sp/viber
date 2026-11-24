@@ -13,7 +13,7 @@ Only a call the harness refuses makes a tool unavailable: end your run then on `
 
 ## Input
 
-The prompt carries the plan path, `refs` (the reference directory), `memory:` (the `build.memory` value the `Provable` grep exclusion and the check of a fix you propose read, `false` when the line is missing) and, on a re-review, every reviewer's previous findings plus one line per fix applied since.
+The prompt carries the plan path, `refs` (the reference directory), `memory:` (the `build.memory` value the `Provable` grep exclusion and the check of a fix you propose read, `false` when the line is missing) and, on a re-review, your previous Blocking findings plus one line per fix applied since.
 
 Read the plan from its `## Tasks` heading to the end, the `## Contracts` appendix included; read nothing above `## Tasks`. Read `<refs>/plan-rules.md` only in the section `## Graph`: `Grep` it for the `## ` line numbers, then `Read` that section by range. Then explore the codebase broadly before judging, scoped to the graph: the consumers, harnesses and existing files the checks below need, the files the tasks touch and their callers.
 

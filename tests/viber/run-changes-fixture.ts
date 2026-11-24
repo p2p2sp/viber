@@ -1,7 +1,6 @@
 /*
- * run-changes-fixture.ts - the helpers run-changes.test.ts and
- * run-changes.critical.test.ts share: what both tiers need to seed a case and
- * run viber/scripts/run-changes.sh. It holds no case of its own.
+ * run-changes-fixture.ts - what run-changes.critical.test.ts uses to seed a
+ * case and run viber/scripts/run-changes.sh. It holds no case of its own.
  */
 
 import fs from "node:fs";

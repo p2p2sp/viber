@@ -1,13 +1,14 @@
 /*
  * ports-contract.ts - the contract cases of the Fs, Git and Clock ports,
  * written against the ports alone. The fake passes them as a unit file, each
- * real adapter as an integration file, over the one arranged state SCENE_STATE.
+ * real adapter as an integration file, over the arranged states SCENE_STATE
+ * and HISTORY_STATE.
  * A case that writes does it under a directory of its own name below the
  * scratch directory, never in the repository.
  */
 
 import assert from "node:assert/strict";
-import type { Clock, Fs, Git } from "../../viber/lib/ports.ts";
+import type { ChangedFile, Clock, Fs, Git, StatusEntry } from "../../viber/lib/ports.ts";
 import { test } from "./test.ts";
 
 /** The arranged state the fakes are seeded with and the shared scene writes: repo-relative paths. links: a directory link to the directory it names. */
@@ -22,6 +23,80 @@ export const SCENE_STATE: { files: Record<string, string>; exec: string[]; untra
   exec: ["bin/run.sh"],
   untracked: ["scratch.txt"],
   links: { link: "src" },
+};
+
+/**
+ * The second repository of the scene. commits: oldest first, a path to its text
+ * and null removing the file; the last one is checked out detached. tree: the
+ * work tree changed after it, null removing the file. staged: the paths then
+ * added to the index. The rest is what git answers over that state: status,
+ * the files changed against HEAD (head), against the first commit (first) and
+ * against no base (none), and the untracked files.
+ */
+export const HISTORY_STATE: {
+  commits: Array<Record<string, string | null>>;
+  tree: Record<string, string | null>;
+  staged: string[];
+  status: StatusEntry[];
+  changed: { head: ChangedFile[]; first: ChangedFile[]; none: ChangedFile[] };
+  untracked: string[];
+} = {
+  commits: [
+    {
+      ".gitignore": "ignored.log\n",
+      "kept.txt": "kept\n",
+      "edited.txt": "one\n",
+      "gone.txt": "gone\n",
+      "staged.txt": "one\n",
+      "old name.txt": "the same text under both names\n",
+      "docs/run/plan.md": "plan\n",
+    },
+    { "docs/run/plan.md": null },
+    { "docs/run/plan.md": "plan again\n", "late.txt": "late\n" },
+  ],
+  tree: {
+    "edited.txt": "two\n",
+    "gone.txt": null,
+    "staged.txt": "two\n",
+    "old name.txt": null,
+    "new name.txt": "the same text under both names\n",
+    "untracked dir/za\u017c\u00f3\u0142\u0107.txt": "new\n",
+    "ignored.log": "noise\n",
+  },
+  staged: ["staged.txt", "old name.txt", "new name.txt"],
+  status: [
+    { code: " M", path: "edited.txt" },
+    { code: " D", path: "gone.txt" },
+    { code: "R ", path: "new name.txt" },
+    { code: "M ", path: "staged.txt" },
+    { code: "??", path: "untracked dir/za\u017c\u00f3\u0142\u0107.txt" },
+  ],
+  changed: {
+    head: [
+      { status: "M", path: "edited.txt" },
+      { status: "D", path: "gone.txt" },
+      { status: "R", path: "new name.txt" },
+      { status: "M", path: "staged.txt" },
+    ],
+    first: [
+      { status: "M", path: "docs/run/plan.md" },
+      { status: "M", path: "edited.txt" },
+      { status: "D", path: "gone.txt" },
+      { status: "A", path: "late.txt" },
+      { status: "R", path: "new name.txt" },
+      { status: "M", path: "staged.txt" },
+    ],
+    none: [
+      { status: "A", path: ".gitignore" },
+      { status: "A", path: "docs/run/plan.md" },
+      { status: "A", path: "edited.txt" },
+      { status: "A", path: "kept.txt" },
+      { status: "A", path: "late.txt" },
+      { status: "A", path: "new name.txt" },
+      { status: "A", path: "staged.txt" },
+    ],
+  },
+  untracked: ["untracked dir/za\u017c\u00f3\u0142\u0107.txt"],
 };
 
 /** scratch: an existing directory the cases may write into. linked: whether the scene holds its directory link. */
@@ -135,8 +210,8 @@ export function clockContract(label: string, make: () => Clock): void {
   });
 }
 
-/** detached: a repository of its own on a detached HEAD; the repository at root has no commit yet. */
-export function gitContract(label: string, make: () => { git: Git; root: string; outside: string; detached: string }): void {
+/** history: the repository of HISTORY_STATE, on a detached HEAD; the repository at root has no commit yet. */
+export function gitContract(label: string, make: () => { git: Git; root: string; outside: string; history: string }): void {
   test(`${label}: the repository root of the root itself and of a directory below it is the root`, () => {
     const { git, root } = make();
     assert.deepEqual([git.repoRoot(root), git.repoRoot(`${root}/src`)], [root, root]);
@@ -163,7 +238,81 @@ export function gitContract(label: string, make: () => { git: Git; root: string;
   });
 
   test(`${label}: the branch of a detached HEAD and of a directory in no repository is null`, () => {
-    const { git, outside, detached } = make();
-    assert.deepEqual([git.branch(detached), git.branch(outside)], [null, null]);
+    const { git, outside, history } = make();
+    assert.deepEqual([git.branch(history), git.branch(outside)], [null, null]);
+  });
+
+  test(`${label}: commit gives HEAD and each commit behind it a full sha of its own, and a sha names itself`, () => {
+    const { git, history } = make();
+    const shas = [git.commit(history, "HEAD"), git.commit(history, "HEAD~1"), git.commit(history, "HEAD~2")];
+    for (const sha of shas) assert.match(sha ?? "", /^([0-9a-f]{40}|[0-9a-f]{64})$/);
+    assert.equal(new Set(shas).size, 3);
+    assert.equal(git.commit(history, shas[1] ?? ""), shas[1]);
+  });
+
+  test(`${label}: commit is null for a ref naming no commit, behind the first commit, on a branch with no commit yet and outside a repository`, () => {
+    const { git, root, outside, history } = make();
+    assert.deepEqual([git.commit(history, "no-such-ref"), git.commit(history, "HEAD~3"), git.commit(root, "HEAD"), git.commit(outside, "HEAD")], [null, null, null, null]);
+  });
+
+  test(`${label}: symbolicRef of HEAD is the full branch ref, a branch with no commit yet included, and null on a detached HEAD, for a ref that does not exist and outside a repository`, () => {
+    const { git, root, outside, history } = make();
+    assert.deepEqual(
+      [git.symbolicRef(root, "HEAD"), git.symbolicRef(history, "HEAD"), git.symbolicRef(root, "refs/remotes/origin/HEAD"), git.symbolicRef(outside, "HEAD")],
+      ["refs/heads/main", null, null, null],
+    );
+  });
+
+  test(`${label}: mergeBase of HEAD and a commit behind it is that commit, and null when a side names no commit`, () => {
+    const { git, root, history } = make();
+    const first = git.commit(history, "HEAD~2");
+    assert.notEqual(first, null);
+    assert.deepEqual([git.mergeBase(history, "HEAD", "HEAD~2"), git.mergeBase(history, "HEAD", "no-such-ref"), git.mergeBase(root, "HEAD", "HEAD")], [first, null, null]);
+  });
+
+  test(`${label}: firstAdded is the oldest commit adding the path, for a file a later commit added again too, and takes an absolute path`, () => {
+    const { git, history } = make();
+    const [first, last] = [git.commit(history, "HEAD~2"), git.commit(history, "HEAD")];
+    assert.notEqual(first, null);
+    assert.deepEqual([git.firstAdded(history, "docs/run/plan.md"), git.firstAdded(history, "late.txt"), git.firstAdded(history, `${history}/late.txt`)], [first, last, last]);
+  });
+
+  test(`${label}: firstAdded is null for a path no commit added, for a glob that would match one (the path is literal) and in a repository with no commit`, () => {
+    const { git, root, history } = make();
+    assert.deepEqual([git.firstAdded(history, "never.txt"), git.firstAdded(history, "docs/run/*.md"), git.firstAdded(root, "README.md")], [null, null, null]);
+  });
+
+  test(`${label}: changedFiles against HEAD lists a modified, a deleted, a renamed (as its new path alone) and a staged file with their letters, a path with a blank as it is`, () => {
+    const { git, history } = make();
+    assert.deepEqual(git.changedFiles(history, "HEAD"), HISTORY_STATE.changed.head);
+  });
+
+  test(`${label}: changedFiles against an older commit adds what the commits since changed`, () => {
+    const { git, history } = make();
+    assert.deepEqual(git.changedFiles(history, "HEAD~2"), HISTORY_STATE.changed.first);
+  });
+
+  test(`${label}: changedFiles against no base lists every tracked file present in the work tree as added, a tracked file deleted from disk left out, also in a repository with no commit`, () => {
+    const { git, root, history } = make();
+    assert.deepEqual(git.changedFiles(history, null), HISTORY_STATE.changed.none);
+    assert.deepEqual(
+      git.changedFiles(root, null).map((file) => `${file.status} ${file.path}`),
+      ["A README.md", "A bin/run.sh", "A src/a.txt", "A src/b.txt"],
+    );
+  });
+
+  test(`${label}: changedFiles is empty for a base naming no commit, for HEAD in a repository with no commit and outside a repository`, () => {
+    const { git, root, outside, history } = make();
+    assert.deepEqual([git.changedFiles(history, "no-such-ref"), git.changedFiles(root, "HEAD"), git.changedFiles(outside, "HEAD")], [[], [], []]);
+  });
+
+  test(`${label}: untrackedFiles lists an untracked directory file by file, a blank and a non-ASCII character as they are, an ignored file left out, and nothing outside a repository`, () => {
+    const { git, outside, history } = make();
+    assert.deepEqual([git.untrackedFiles(history), git.untrackedFiles(outside)], [HISTORY_STATE.untracked, []]);
+  });
+
+  test(`${label}: status lists the unstaged, staged, renamed (its old path dropped) and untracked paths with their two letters, an ignored file left out, and nothing outside a repository`, () => {
+    const { git, outside, history } = make();
+    assert.deepEqual([git.status(history), git.status(outside)], [HISTORY_STATE.status, []]);
   });
 }

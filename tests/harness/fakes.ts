@@ -1,11 +1,11 @@
 /*
  * fakes.ts - in-memory Fs, Git and Clock holding their own state, seeded from
- * SCENE_STATE through fakeScene. Each passes the contract cases of
- * ports-contract.ts.
+ * SCENE_STATE and HISTORY_STATE through fakeScene. Each passes the contract
+ * cases of ports-contract.ts.
  */
 
-import type { Clock, Fs, Git, TrackedFile } from "../../viber/lib/ports.ts";
-import { SCENE_STATE } from "./ports-contract.ts";
+import type { ChangedFile, Clock, Fs, Git, StatusEntry, TrackedFile } from "../../viber/lib/ports.ts";
+import { HISTORY_STATE, SCENE_STATE } from "./ports-contract.ts";
 
 export interface FakeFsOpts {
   /** Files that exist yet cannot be read. */
@@ -92,18 +92,58 @@ export function fakeFs(files: Record<string, string | Uint8Array>, opts: FakeFsO
   };
 }
 
+/** What git answers in one repository: each table is looked up by the text it is asked with, nothing is derived from another. */
 export interface FakeRepo {
   root: string;
   tracked: TrackedFile[];
   /** The branch HEAD stands on, `main` when left out; null: a detached HEAD. */
   branch?: string | null;
+  /** The commit each ref names: a ref (`HEAD`, `refs/heads/main`, `v1`, `HEAD~1`) to its full sha. A sha held here names itself. */
+  commits?: Record<string, string>;
+  /** The symbolic refs beside HEAD: a name to the full ref it points at. HEAD follows `branch`. */
+  symbolic?: Record<string, string>;
+  /** The merge bases, each under the key `<a> <b>` as asked. */
+  mergeBases?: Record<string, string>;
+  /** The commits that added a path, oldest first, by repo-relative path. */
+  added?: Record<string, string[]>;
+  /** The files differing from a base, by the base as asked; the key `""` holds the answer for no base. */
+  changed?: Record<string, ChangedFile[]>;
+  untracked?: string[];
+  status?: StatusEntry[];
 }
 
 /** One repository or several apart from each other; null: no repository anywhere. */
 export function fakeGit(repos: FakeRepo | FakeRepo[] | null): Git {
   const all = repos === null ? [] : Array.isArray(repos) ? repos : [repos];
   const holding = (cwd: string): FakeRepo | undefined => all.find((repo) => cwd === repo.root || cwd.startsWith(`${repo.root}/`));
+  const at = (root: string): FakeRepo | undefined => all.find((repo) => repo.root === root);
   return {
+    commit(root, ref) {
+      const commits = at(root)?.commits ?? {};
+      return commits[ref] ?? (Object.values(commits).includes(ref) ? ref : null);
+    },
+    symbolicRef(root, name) {
+      const repo = at(root);
+      if (repo === undefined) return null;
+      if (name === "HEAD") return repo.branch === null ? null : `refs/heads/${repo.branch ?? "main"}`;
+      return repo.symbolic?.[name] ?? null;
+    },
+    mergeBase(root, a, b) {
+      return at(root)?.mergeBases?.[`${a} ${b}`] ?? null;
+    },
+    firstAdded(root, path) {
+      const rel = path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
+      return at(root)?.added?.[rel]?.[0] ?? null;
+    },
+    changedFiles(root, base) {
+      return at(root)?.changed?.[base ?? ""]?.map((file) => ({ ...file })) ?? [];
+    },
+    untrackedFiles(root) {
+      return [...(at(root)?.untracked ?? [])];
+    },
+    status(root) {
+      return at(root)?.status?.map((entry) => ({ ...entry })) ?? [];
+    },
     repoRoot(cwd) {
       return holding(cwd)?.root ?? null;
     },
@@ -122,8 +162,8 @@ export function fakeClock(at: Date): Clock {
   return { now: () => new Date(at.getTime()) };
 }
 
-/** scratch: the one directory a contract case writes into. detached: a second repository, on a detached HEAD. linked: the fake always holds the scene's directory link. */
-export function fakeScene(root = "/scene/repo"): { fs: Fs; git: Git; root: string; outside: string; scratch: string; detached: string; linked: boolean } {
+/** scratch: the one directory a contract case writes into. history: a second repository, holding the answers of HISTORY_STATE on a detached HEAD. linked: the fake always holds the scene's directory link. */
+export function fakeScene(root = "/scene/repo"): { fs: Fs; git: Git; root: string; outside: string; scratch: string; history: string; linked: boolean } {
   const files: Record<string, string> = {};
   for (const [rel, text] of Object.entries(SCENE_STATE.files)) files[`${root}/${rel}`] = text;
   const links: Record<string, string> = {};
@@ -133,10 +173,27 @@ export function fakeScene(root = "/scene/repo"): { fs: Fs; git: Git; root: strin
     .sort()
     .map((rel) => ({ path: rel, mode: SCENE_STATE.exec.includes(rel) ? "100755" : "100644" }));
   const scratch = "/scene/scratch";
-  const detached = "/scene/detached";
+  const history = "/scene/history";
+  // One made-up sha per commit of HISTORY_STATE, oldest first.
+  const shas = HISTORY_STATE.commits.map((_, index) => String(index + 1).repeat(40));
+  const last = shas.length - 1;
+  const added: Record<string, string[]> = {};
+  HISTORY_STATE.commits.forEach((commit, index) => {
+    for (const [rel, text] of Object.entries(commit)) if (text !== null) (added[rel] ??= []).push(shas[index]);
+  });
   const git = fakeGit([
-    { root, tracked },
-    { root: detached, tracked: [], branch: null },
+    { root, tracked, changed: { "": tracked.map((file) => ({ status: "A", path: file.path })) } },
+    {
+      root: history,
+      tracked: [],
+      branch: null,
+      commits: Object.fromEntries(shas.map((sha, index) => [index === last ? "HEAD" : `HEAD~${last - index}`, sha])),
+      mergeBases: { "HEAD HEAD~2": shas[last - 2] },
+      added,
+      changed: { HEAD: HISTORY_STATE.changed.head, "HEAD~2": HISTORY_STATE.changed.first, "": HISTORY_STATE.changed.none },
+      untracked: HISTORY_STATE.untracked,
+      status: HISTORY_STATE.status,
+    },
   ]);
-  return { fs: fakeFs(files, { dirs: [scratch, detached], links }), git, root, outside: "/scene/outside", scratch, detached, linked: true };
+  return { fs: fakeFs(files, { dirs: [scratch, history], links }), git, root, outside: "/scene/outside", scratch, history, linked: true };
 }

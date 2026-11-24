@@ -13,7 +13,7 @@ Only a call the harness refuses makes a tool unavailable: end your run then on `
 
 ## Input
 
-The prompt carries the plan path, `refs` (the reference directory), `memory:` (the `build.memory` value the `Provable` grep exclusion reads, `false` when the line is missing), `tasks: T<a>-T<b>` (the range of consecutive tasks you review) and, on a re-review, every reviewer's previous findings plus one line per fix applied since.
+The prompt carries the plan path, `refs` (the reference directory), `memory:` (the `build.memory` value the `Provable` grep exclusion reads, `false` when the line is missing), `tasks: T<a>-T<b>` (the range of consecutive tasks you review) and, on a re-review, your previous Blocking findings plus one line per fix applied since.
 
 Read everything above `## Tasks`, the task blocks of your range, and the whole `## Contracts` appendix. Read `<refs>/plan-rules.md` only in the section `## Task`: `Grep` it for the `## ` line numbers, then `Read` that section by range. Then search the codebase, scoped to your tasks: grep callers only of the symbols whose signature or observable behaviour the plan changes (a moved or deleted file changing all of its symbols), and the documents and `.claude/rules/` files naming a path the plan modifies, moves or deletes; the one search past it is the end-to-end spec search of `Grounded`. Read a file only to confirm a hit or to check a task's change against the code it modifies. A reference the search reaches is checked against the `### File map` and `### Out of scope` alone: one in neither is a finding.
 

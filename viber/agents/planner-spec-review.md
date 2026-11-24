@@ -13,7 +13,7 @@ Only a call the harness refuses makes a tool unavailable: end your run then on `
 
 ## Input
 
-The prompt carries the plan path, `refs` (the reference directory), on a re-review every reviewer's previous findings plus one line per fix applied since, and the line:
+The prompt carries the plan path, `refs` (the reference directory), on a re-review your previous Blocking findings plus one line per fix applied since, and the line:
 
 input:
 <the confirmed viber:intent summary or viber:fixer diagnosis the plan answers, verbatim, up to the next labelled line or the end of the prompt, then optional `Answered: <decision> -> <chosen option>` lines>

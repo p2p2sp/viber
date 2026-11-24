@@ -28,20 +28,31 @@ One `AskUserQuestion` call, one question per line of the result, each offering a
 
 ## 3. Apply what was accepted
 
-With nothing accepted, go back to the skill. Otherwise, in this order:
+With nothing accepted, go back to the skill. Otherwise run `date +%Y%m%d%H%M%S` and `date +%Y-%m-%d`, send the writer the lines below, apply its reply as the skill's step 2 does, then run `plan-index.sh` again; it must exit 0.
+
+```
+fix:
+records:
+<each accepted line, verbatim>
+rules: <absolute path of this file>
+stamp: <the first date output>
+today: <the second date output>
+```
+
+## Record tasks
+
+In this order:
 
 1. When item 2 or 3 adds a task, add one acceptance criterion for the records and point the `Covers` of every such task at it.
 2. One task per accepted `ADR:` line, appended after the plan's last task, never renumbering one:
-   - `Files: docs/adr/<yyyyMMddHHmmss>-<slug>.md`, the stamp from `date +%Y%m%d%H%M%S` so the path is exact - it is a commit file map, not a pattern.
+   - `Files: docs/adr/<yyyyMMddHHmmss>-<slug>.md`, the stamp of the `stamp:` line so the path is exact - it is a commit file map, not a pattern.
    - `TDD: none`, `Uses: none`, `Depends-on: none`, and nothing ever depends on it.
-   - `Delivers` carries the whole record in the shape below, `Status: accepted` dated from `date +%Y-%m-%d`, because the task file is all its writer gets. From the code it names only `### File map` paths and `## Contracts` names.
+   - `Delivers` carries the whole record in the shape below, `Status: accepted` dated from the `today:` line, because the task file is all its writer gets. From the code it names only `### File map` paths and `## Contracts` names.
    - `Verification: test -f <path> && grep -q '^Status: accepted' <path> -> exit 0`, that path written out in full both times.
    - `DoD`: the record exists there and carries every part of the shape.
 3. One task per accepted `DEPRECATE:` or `APPEND:` line, editing that existing record and never deleting it: `DEPRECATE:` rewrites its `Status:` line to `deprecated (<yyyy-mm-dd>)`, or to `superseded by <docs/adr/ path> (<yyyy-mm-dd>)` when the accepted `ADR:` line its sentence names replaces it; `APPEND:` appends the fragment.
    - A `DEPRECATE:` superseded that way merges into that `ADR:` line's task, both paths in its `Files`.
    - Any other one follows item 2 with the existing record's path as its `Files`, its `Verification` grepping that record for its new `Status:` line or a phrase of the fragment.
-
-Then run `plan-index.sh` again; it must exit 0.
 
 ## Record shape
 
