@@ -45,7 +45,7 @@ function title(raw: string | undefined, fallback: string): string {
   return v === "" ? fallback : v;
 }
 
-function directory(raw: string | undefined, fallback: string): string {
+export function directory(raw: string | undefined, fallback: string): string {
   const v = (raw ?? "").replace(/[\s#].*$/s, "");
   return /^[A-Za-z0-9._-]+$/.test(v) && v !== "." && v !== ".." ? v : fallback;
 }

@@ -6,6 +6,7 @@
 import type { Fs, Git } from "../ports.ts";
 import { resolveBlock } from "./block.ts";
 import { resolveBranching } from "./branching.ts";
+import { resolveQuestions, resolveRedCheck, resolveSpecifications } from "./reports.ts";
 
 /** The whole stdout of one config call, every line ended by "\n". Never throws. */
 export function runConfig(argv: string[], cwd: string, ports: { fs: Fs; git: Git }): string {
@@ -18,6 +19,15 @@ export function runConfig(argv: string[], cwd: string, ports: { fs: Fs; git: Git
   } catch {
     text = null;
   }
-  const lines = argv[0] === "--branching" ? resolveBranching(text) : resolveBlock(text, hasAgent);
+  const lines =
+    argv[0] === "--branching"
+      ? resolveBranching(text)
+      : argv[0] === "--red-check"
+        ? resolveRedCheck(text)
+        : argv[0] === "--questions"
+          ? resolveQuestions(text)
+          : argv[0] === "--specifications"
+            ? resolveSpecifications(text)
+            : resolveBlock(text, hasAgent);
   return lines.map((line) => `${line}\n`).join("");
 }
