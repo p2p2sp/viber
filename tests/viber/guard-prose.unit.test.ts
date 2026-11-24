@@ -5,9 +5,11 @@
  * `viber guard:` marker. The agents holding `Bash` (and the extension template)
  * say in their tools paragraph that such a refusal is a correction, the three
  * auditor agents say it in their hard rules, and the guarded rules of
- * `task-coder`, `task-reviewer` and `final-reviewer` stay one line each, their
- * rationale living in the header of `shell-guard.sh`. The files read here are
- * shipped prompts, whose text is the behaviour. Nothing is spawned.
+ * `task-coder`, `task-reviewer` and `final-reviewer` (the cd rule among them)
+ * stay one line each, their rationale living in the header of `shell-guard.sh`.
+ * A `DENIED` output carries the refusal text on a `REFUSAL:` line, which the
+ * asking skills quote. The files read here are shipped prompts, whose text is
+ * the behaviour. Nothing is spawned.
  *
  * Run directly by Node's type stripping:
  *   node --test tests/viber/guard-prose.unit.test.ts
@@ -28,6 +30,7 @@ const AUDITOR_RULE =
   "- A refusal whose reason opens with `viber guard:` is a correction: change the command as the reason says, then go on.";
 const CODER_LINES = [
   "- One command per `Bash` call, never chained with `;`, `&&` or `||`.",
+  "- Never `cd` to a path holding a glob or a variable: pass each path in full, as your prompt gives it.",
   "- Files change through `Edit` and `Write` alone, never through `Bash`.",
   "- `Bash` never runs inline or scratch interpreter code - change a file with `Edit` or `Write`, a large rewrite as one `Write` of the whole file, and run tests and project scripts by their own command.",
   "- Remove a file or directory with `git rm -r -q -- <path>`, never `rm`.",
@@ -43,6 +46,7 @@ const CODER_PHRASES = [
 ];
 const REVIEWER_CLAUSE =
   "your git is read-only (`status`, `diff`, `log`, `show`), never `stash`, `checkout`, `restore` or `clean`";
+const CD_RULE = "Never `cd` to a path holding a glob or a variable: pass each path in full, as your prompt gives it.";
 
 const TOOLS_PARAGRAPH_FILES = [
   "agents/task-coder.md",
@@ -122,6 +126,16 @@ for (const rel of REVIEWERS) {
   });
 }
 
+for (const rel of REVIEWERS) {
+  test(`${rel} carries the cd rule shell-guard.sh enforces as R6`, () => {
+    assert.ok(read(rel).includes(CD_RULE));
+  });
+}
+
+test("shell-guard.sh holds the rationale of the cd rule (it stays out of the agents)", () => {
+  assert.ok(read("hooks/scripts/shell-guard.sh").includes("a cd whose target it cannot resolve"));
+});
+
 for (const rel of ["agents/task-coder.md", ...REVIEWERS]) {
   test(`${rel} does not hold the stash stack rationale (it lives in the shell-guard.sh header)`, () => {
     assert.ok(!read(rel).includes("stash stack"));
@@ -145,6 +159,41 @@ test("plan-rules.md Provable rule no longer states the interpreter and backtick 
   const rule = lines(read("references/plan-rules.md")).find((line) => line.startsWith("- Provable:")) ?? "";
   assert.ok(!rule.includes("inline interpreter code") && !rule.includes("wrapped in backticks"));
 });
+
+const REASON_LINE = "REASON: <refused tool name>:";
+const REFUSAL_LINE = "REFUSAL: <the refusal text, on one line>";
+const DENIED_FILES = [
+  ...fs.readdirSync(path.join(VIBER, "agents")).map((name: string) => `agents/${name}`),
+  "skills/extension/templates/extension.md",
+].filter((rel) => !path.basename(rel).startsWith("CLAUDE") && read(rel).includes(REASON_LINE));
+const ASKING_SKILLS = [
+  "skills/implementor/SKILL.md",
+  "skills/planner/SKILL.md",
+  "skills/planner/references/adr-tasks.md",
+  "skills/memory/SKILL.md",
+  "skills/rules/SKILL.md",
+  "skills/e2e/SKILL.md",
+  "skills/prototype/SKILL.md",
+  "skills/talk/SKILL.md",
+];
+
+test("the DENIED output is worded in more than twenty agent files (the sweep below reads them all)", () => {
+  assert.ok(DENIED_FILES.length > 20);
+});
+
+for (const rel of DENIED_FILES) {
+  test(`${rel} returns the refusal text beside the refused call (a REASON alone hides why the harness refused)`, () => {
+    assert.ok(read(rel).includes(REFUSAL_LINE));
+  });
+}
+
+for (const rel of ASKING_SKILLS) {
+  test(`${rel} puts the REFUSAL line into its question and offers a plain retry`, () => {
+    const text = read(rel);
+    assert.ok(text.includes("`REFUSAL:`"));
+    assert.ok(!text.includes("permission added") && !text.includes("add the permission"));
+  });
+}
 
 test("shell-guard.sh holds the stash stack rationale", () => {
   assert.ok(read("hooks/scripts/shell-guard.sh").includes("stash stack"));

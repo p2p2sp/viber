@@ -44,4 +44,4 @@ input:
 
 A fragment belonging to an `ADR:` line of the same result is folded into that line, never an `APPEND:`.
 
-A tool call the harness refuses replaces every line above with two: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`.
+A tool call the harness refuses replaces every line above with three: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`.

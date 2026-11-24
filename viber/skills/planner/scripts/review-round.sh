@@ -24,7 +24,7 @@
 #   NEXT: redispatch | members: <k>[,<k>]
 #   NEXT: fix | members: <k>[,<k>][ | no-verdict: <k>[,<k>]]
 #   NEXT: exit-plan
-#   ASK: permission added -> retry-denied | stop -> stop
+#   ASK: retry -> retry-denied | stop -> stop
 #   STOP: the plan stays unreviewed - no hand-off
 #
 # Block of a member, in dispatch: line order, members numbered from 1:
@@ -78,7 +78,7 @@
 #                    same round: a member at its first none of the round (a
 #                    second none of a member counts as FAIL, "no verdict")
 #              once every member holds a verdict, the first that applies:
-#                ASK: permission added -> retry-denied | stop -> stop   any DENIED
+#                ASK: retry -> retry-denied | stop -> stop   any DENIED
 #                NEXT: fix | members: <k>[,<k>][ | no-verdict: <k>[,<k>]]   any FAIL
 #                NEXT: exit-plan                                        every member PASS
 #   retry-denied   NEXT: redispatch | members: <the DENIED ones>, then their blocks
@@ -558,7 +558,7 @@ do_returned() {
     done
     if [ "$denied" -eq 1 ]; then
       answer="ask"
-      add_line "ASK: permission added -> retry-denied | stop -> stop"
+      add_line "ASK: retry -> retry-denied | stop -> stop"
     elif [ -n "$failed" ]; then
       answer="fix"
       add_line "NEXT: fix | members: $failed${silent:+ | no-verdict: $silent}"
@@ -575,7 +575,7 @@ do_retry_denied() {
   [ "$#" -eq 0 ] || fail "retry-denied: unexpected argument: $1"
 
   open_round
-  [ "$st_answer" = "ask" ] || fail "retry-denied: only after ASK: permission added"
+  [ "$st_answer" = "ask" ] || fail "retry-denied: only after ASK: retry"
   adopt_state
 
   local redo="" k=1 i

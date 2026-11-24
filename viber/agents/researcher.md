@@ -43,4 +43,4 @@ Return exactly this and nothing else:
   - `CLAIM <n>: CONFIRMED | REFUTED | DISPUTED | UNVERIFIED - <one line: what the sources establish, the correction or the two sides>`
   - `SOURCES: <url> (<publisher>, <date or "undated">); ...` - the sources the verdict rests on, highest rank first; `none` for `UNVERIFIED`.
 
-A tool call the harness refuses replaces everything with two lines: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, the path for a file tool, or the URL or query for a web tool>`.
+A tool call the harness refuses replaces everything with three lines: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, the path for a file tool, or the URL or query for a web tool>`, then `REFUSAL: <the refusal text, on one line>`.

@@ -286,7 +286,7 @@ const RANKED: { name: string; words: string[]; stdout: string }[] = [
   {
     name: "a DENIED member over a FAIL one prints ASK: with the retry-denied and stop answers",
     words: ["1=PASS", "2=DENIED", "3=FAIL", "4=PASS"],
-    stdout: "ASK: permission added -> retry-denied | stop -> stop\n",
+    stdout: "ASK: retry -> retry-denied | stop -> stop\n",
   },
   {
     name: "FAIL members with no DENIED one print NEXT: fix naming every one of them in member order",
@@ -429,7 +429,7 @@ test("retry-denied after any answer but ASK: exits 2 with one error line and an 
 
     assert.equal(result.status, 2);
     assert.equal(result.stdout, "");
-    assert.equal(result.stderr, "error: retry-denied: only after ASK: permission added\n");
+    assert.equal(result.stderr, "error: retry-denied: only after ASK: retry\n");
   });
 });
 

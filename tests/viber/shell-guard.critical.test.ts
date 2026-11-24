@@ -3,7 +3,8 @@
  * viber/hooks/scripts/shell-guard.sh: a task coder is refused a chain, a git
  * state change, rm, a file write and an inline interpreter with the right rule
  * winning and JSON-escaped reasons, while its ordinary commands and a
- * lookalike agent type are let through.
+ * lookalike agent type are let through; every viber agent is refused a cd to
+ * a glob, variable or command substitution target and let through a literal one.
  *
  * A case lives here when its failure means lost user work, an open gate, a
  * break only one platform shows or a script that no longer starts; the rest
@@ -17,7 +18,7 @@
 
 import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
-import { deny, R1_TEXT, R1, r1With, R4, runCommand, CODER, r4With } from "./shell-guard-fixture.ts";
+import { deny, R1_TEXT, R1, r1With, R4, R6, runCommand, CODER, r4With } from "./shell-guard-fixture.ts";
 
 const R2 = deny("git is read-only here (status, diff, log, show) - compare with git show HEAD:<path> or git diff instead.");
 const R5 = deny("Bash never runs inline or scratch interpreter code - change a file with Edit or Write, and run tests and project scripts by their own command.");
@@ -216,3 +217,34 @@ for (const command of allowed) {
 test("a bare viber:task-coder prefix match (viber:task-coder-extra) is not a guarded agent", async () => {
   assert.equal(await runCommand("git stash", "viber:task-coder-extra"), "");
 });
+
+const REVIEWER = "viber:task-reviewer";
+
+// The first row is the call a harness deny rule refused whole: the permission check
+// could not tell where the relative `tasks` lay after the glob cd.
+const cdUnresolved = [
+  "cd /repo/docs/_specs/2026-11-24-19-29-03*; ls . tasks work; cat tasks/T10.md | head -30",
+  "cd docs/_specs/2026-11-24*/tasks && grep -n x T1.md",
+  "cd $RUN",
+  'cd "$RUN/tasks"',
+  "cd $(git rev-parse --show-toplevel)",
+  "cd `pwd`/docs",
+  "cd docs/$(date +%Y)",
+  "cd -P docs/run?",
+  "cd -- docs/[rs]un",
+  "pushd docs/run*",
+  "ls; cd docs/run*",
+];
+
+// The rule holds every viber agent, so the last rows name the coder and three
+// agents no other rule guards.
+const cdRefused: Array<[string, string]> = [
+  ...cdUnresolved.map((command): [string, string] => [command, REVIEWER]),
+  ...[CODER, "viber:test-runner", "viber:closeout", "viber:critic"].map((agent): [string, string] => ["cd docs/run*", agent]),
+];
+
+for (const [command, agent] of cdRefused) {
+  test(`from ${agent}, ${JSON.stringify(command)} is refused as R6 (a cd the harness cannot resolve ends the run on DENIED)`, async () => {
+    assert.equal(await runCommand(command, agent), R6);
+  });
+}

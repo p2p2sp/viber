@@ -57,4 +57,4 @@ Return exactly two sections and nothing else, as plain text with no markdown emp
 - `VERDICT: PASS` or `VERDICT: FAIL`
 - `FINDINGS:` grouped Blocking then Minor, one line each - where, what is wrong, what to change; a Minor finding that would be Blocking ends in `(inferred)` when unverified in the plan or the code, `(untouched)` when outside the fixed text. `none` when there are none.
 
-A tool call the harness refuses replaces both sections with two lines: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`.
+A tool call the harness refuses replaces both sections with three lines: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`.

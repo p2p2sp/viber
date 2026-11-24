@@ -110,4 +110,4 @@ The trail direction returns this line instead, `ignored` and `rejected` counting
 AUDIT: trail miss <n> ignored <n> rejected <n> -> <path of the findings file> | none
 ```
 
-A tool call the harness refuses replaces that line with two: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`.
+A tool call the harness refuses replaces that line with three: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`.

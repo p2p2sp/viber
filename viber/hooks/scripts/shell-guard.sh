@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 #
-# shell-guard.sh - viber / PreToolUse hook on Bash: refuses the coder's and the reviewers' forbidden shell and git commands.
+# shell-guard.sh - viber / PreToolUse hook on Bash: refuses the coder's and the reviewers' forbidden shell and git commands, and any viber agent's cd to a path the harness cannot resolve.
 #
 # Inside viber:task-coder, refuses a Bash command that chains parts (R1), runs
 # git stash, checkout, restore or clean (R2), runs rm (R3), writes a file
 # through Bash (R4) or runs inline or scratch interpreter code (R5). Inside
 # viber:task-reviewer and viber:final-reviewer, refuses
-# R2 only. Every refusal tells the model the fix, so it carries on instead of
-# halting the build.
+# R2 only. Inside every viber: agent, refuses a cd or pushd whose target holds a
+# glob, a variable or a command substitution (R6). Every refusal tells the model
+# the fix, so it carries on instead of halting the build.
 #
 # Why each rule exists:
 #   R1 chain - one refused part refuses a whole chained call: a permission
@@ -41,6 +42,12 @@
 #      their own command (python -m pytest, node --test, node scripts/x.js).
 #      Interpreter code fed through bash -c, sh -c or standard input is not
 #      refused.
+#   R6 cd    - the harness permission check must know the directory a command
+#      runs in. After a cd whose target it cannot resolve (a glob, a variable, a
+#      command substitution) it cannot rule out that a relative path of the same
+#      call lies under a deny rule of the user, so it refuses the whole call,
+#      a plain ls or cat included, and the agent's run ends on DENIED. The guard
+#      answers first, with the fix: a literal path.
 #
 # Rule scope: an unquoted newline is deliberately not refused. R1 names the three
 # operators ; && || only, because a newline inside one Bash call is how a
@@ -51,13 +58,13 @@
 #   cwd    : irrelevant; no path is read or written.
 #   env    : none read; LC_ALL=C is set so the command is scanned by byte, in linear
 #            time (a UTF-8 locale makes each character lookup scan from the start).
-#   reads  : nothing but stdin. A call whose input does not name one of the three
-#            guarded viber: agents returns before any external command runs (bash
-#            builtins only).
+#   reads  : nothing but stdin. A call whose input names no viber: agent returns
+#            before any external command runs (bash builtins only).
 #   stdin  : PreToolUse JSON. Read: the top-level "agent_type" (present only
 #            inside a subagent) and "tool_input.command" (JSON-unescaped as
 #            kill-guard.sh does). Empty, malformed or truncated input, no
-#            agent_type, any other agent_type, or no command -> nothing printed.
+#            agent_type, an agent_type not starting viber:, or no command ->
+#            nothing printed.
 #   quoting: operators and words count only outside quotes: '...' is literal,
 #            "..." honours backslash escapes, a backslash outside quotes escapes
 #            the next character, and a # opening a word starts a comment.
@@ -106,7 +113,12 @@
 #               argument (python -m -W -X -Q, node -r, ruby -I -r -C -x, perl -I -M
 #               -m -x), so -I, -r, -M and the like never read as code; python -m
 #               and bash -c or -s end the scan. perl -pi stays R4.
-#            Rules are tried in the order R1, R2, R3, R4, R5.
+#            R6 (every viber: agent): cd or pushd in command position whose
+#               target, the first word after its options (--, or - and letters),
+#               holds an unquoted *, ? or [ or a $ outside single quotes, or is or
+#               ends on a command substitution ($( or a backtick). A backslash
+#               escapes the next character. cd alone, cd -, cd ~/x and cd .. pass.
+#            Rules are tried in the order R1, R2, R3, R4, R5, R6.
 #   exit 0 : always (fail-open: a broken guard must never block a command).
 #            JSON is read with bash regexes; jq is not assumed. patsub_replacement is
 #            switched off so a backslash in a replacement string stays literal.
@@ -121,10 +133,11 @@ IFS= read -r -d '' input || true
 type_re='"agent_type"[[:space:]]*:[[:space:]]*"(viber:[^"\\]*)"'
 [[ "$input" =~ $type_re ]] || exit 0
 agent="${BASH_REMATCH[1]}"
+# coder takes R1-R5, tree (the agents sharing the working tree) R2; R6 is for all.
 case "$agent" in
-  viber:task-coder) coder=1 ;;
-  viber:task-reviewer | viber:final-reviewer) coder=0 ;;
-  *) exit 0 ;;
+  viber:task-coder) coder=1 tree=1 ;;
+  viber:task-reviewer | viber:final-reviewer) coder=0 tree=1 ;;
+  *) coder=0 tree=0 ;;
 esac
 
 command_re='"command"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)"'
@@ -456,11 +469,34 @@ scan_interp() {
   done
 }
 
+# scan_target <raw word>: sets r6 when the word, quotes still in place, holds an
+# unquoted *, ? or [ or a $ outside single quotes. st is the quote state: 0 none,
+# 1 single, 2 double.
+scan_target() {
+  local s="$1" p=0 st=0 ch
+  while ((p < ${#s})); do
+    ch="${s:p:1}"
+    case "$st$ch" in
+      "0'") st=1 ;;
+      "1'") st=0 ;;
+      '0"') st=2 ;;
+      '2"') st=0 ;;
+      '0\' | '2\') p=$((p + 1)) ;;
+      '0*' | '0?' | '0[' | '0$' | '2$')
+        r6=1
+        return
+        ;;
+    esac
+    p=$((p + 1))
+  done
+}
+
 r1=0
 r2=0
 r3=0
 r4=0
 r5=0
+r6=0
 nr=0
 rt=-1
 r4o=0
@@ -537,6 +573,32 @@ while ((j < n)); do
           done
           ;;
         rm) r3=1 ;;
+        cd | pushd)
+          # The target is the first token after the options: a word, or a command
+          # substitution, which also counts when it ends the word (twe is where
+          # the tokenizer left the word).
+          q=$j
+          while ((q < n)); do
+            case "${tk[q]}" in
+              W)
+                case "${tv[q]}" in
+                  -- | -[A-Za-z@]*) ;;
+                  *)
+                    scan_target "${cmd:tws[q]:twe[q]-tws[q]}"
+                    case "${cmd:twe[q]:1}" in '$' | '`') r6=1 ;; esac
+                    break
+                    ;;
+                esac
+                ;;
+              X)
+                case "${tv[q]}" in '$(' | '`') r6=1 ;; esac
+                break
+                ;;
+              *) break ;;
+            esac
+            q=$((q + 1))
+          done
+          ;;
         xargs)
           while ((x < na)); do
             o="${args[x]}"
@@ -671,7 +733,7 @@ reason=''
 if ((coder && r1)); then
   reason='one command per Bash call - run each part of the chain as its own Bash call.'
   chain_suffix
-elif ((r2)); then
+elif ((tree && r2)); then
   reason='git is read-only here (status, diff, log, show) - compare with git show HEAD:<path> or git diff instead.'
 elif ((coder && r3)); then
   reason='remove a file or directory with git rm -r -q -- <path>, never rm.'
@@ -681,6 +743,8 @@ elif ((coder && r4)); then
   redirect_suffix
 elif ((coder && r5)); then
   reason='Bash never runs inline or scratch interpreter code - change a file with Edit or Write, and run tests and project scripts by their own command.'
+elif ((r6)); then
+  reason='cd only to a literal path, never one holding a glob, a variable or a command substitution - or stay where you are and pass each path in full, exactly as your prompt gives it.'
 fi
 
 if [[ -n "$reason" ]]; then

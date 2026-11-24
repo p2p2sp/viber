@@ -57,4 +57,4 @@ What each case's options mean:
 - `WHY: <one line>`
 - `COST: <one line: what breaks or has to be redone if the ruling is wrong>`
 
-A tool call the harness refuses replaces every line with two: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`.
+A tool call the harness refuses replaces every line with three: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`.

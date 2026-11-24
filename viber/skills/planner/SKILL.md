@@ -21,7 +21,7 @@ You read no code and compose no plan text: `viber:plan-writer` reads the code an
 - Dispatch the writer once through `Agent`; every later message goes to that same writer through `SendMessage`.
 - A refused `SendMessage`, or a writer that no longer answers: one new `Agent` dispatch carrying the lines of step 1, then the message.
 - A reply with no `VERDICT:` line is handled as `VERDICT: DENIED` with `REASON: no verdict returned`.
-- `VERDICT: DENIED`: one `AskUserQuestion` naming the refused call from its `REASON:` line: permission added and the same message again, or stop with no plan.
+- `VERDICT: DENIED`: one `AskUserQuestion` quoting its `REASON:` and `REFUSAL:` lines: the same message again, or stop with no plan.
 - `VERDICT: DECIDE`: ask each `DECIDE: <decision> | <option> | <option> | <option>` line through its own `AskUserQuestion` with those 3 options, the first as your recommendation, one at a time; keep each answer as an `Answered: <decision> -> <option>` line and send the same message again with those lines added.
 
 Every bundled-script run below is one literal Bash line, every argument double-quoted: no interpreter word, variable, `cd` or `;`, `&&`, `||` chain.
@@ -60,7 +60,7 @@ Then, only on a plan that goes on, map the reach of the change:
 - Run `"${CLAUDE_SKILL_DIR}/scripts/reach.sh" --plan "<absolute path of the plan file>" "<target>" "<target>"` as one literal line, one double-quoted argument per target, the text of each `TARGET:` line as returned. Its one write under `.temp/viber/planner/` is expected in plan mode.
 - Then dispatch `viber:impact-mapper` with the lines below the `NEXT: dispatch` line as printed.
 - `VERDICT: NONE` adds nothing.
-- `VERDICT: DENIED` or no `VERDICT:` line: one `AskUserQuestion` naming the refused call from its `REASON:` line (`no verdict returned` without one): permission added and retry, or go on without the map.
+- `VERDICT: DENIED` or no `VERDICT:` line: one `AskUserQuestion` quoting its `REASON:` and `REFUSAL:` lines (`no verdict returned` without them): retry, or go on without the map.
 
 Ask each `DECIDE:` line of the reply as above while the map runs.
 
@@ -106,7 +106,7 @@ Report the replies with `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-pa
 - `NEXT: redispatch`: dispatch the blocks under it, then report those replies the same way.
 - `NEXT: fix`: show all findings. Send the writer `fix:`, then `findings:` and every member's findings verbatim, apply its reply as in step 2, re-run `plan-index.sh` after every fix as in step 2, then `start` again. After a `VERDICT: DECIDE` reply to it, a finding needing a decision only the user can make, run `start --answered` instead.
 - `NEXT: exit-plan`: go to step 4 without writing the plan again; its Minor findings stay unapplied, except one showing a change of a behaviour today's code has that neither the input nor an `Answered:` line asks for: report it first with `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" override <k>` and act on the `NEXT: fix` it prints.
-- `ASK:`: one `AskUserQuestion` naming the refused call from the `REASON:` line of the `DENIED` reply: permission added runs its `retry-denied` event, stop its `stop` event; act on what they print.
+- `ASK:`: one `AskUserQuestion` quoting the `REASON:` and `REFUSAL:` lines of the `DENIED` reply: retry runs its `retry-denied` event, stop its `stop` event; act on what they print.
 - `STOP:`: the plan stays unreviewed, no hand-off.
 
 ```!

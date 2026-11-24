@@ -66,8 +66,8 @@ It archives the run's lasting work, drops the build's scaffolding, and commits t
 
 ## Output
 
-Four lines on `VERDICT: ARCHIVED`, three on any other verdict, nothing else:
+Four lines on `VERDICT: ARCHIVED` and `VERDICT: DENIED`, three on `VERDICT: BLOCKED`, nothing else:
 
 - `VERDICT: ARCHIVED`, then `DRIFT: <n>` or `DRIFT: none`, then `PATH: <the path the script printed>`, then `LEFT: <n>` or `LEFT: none`, the `left:` value of the leftovers call
 - or `VERDICT: BLOCKED`, then `DRIFT: <n>` or `DRIFT: none`, then `REASON: <one line, the script's own error>`
-- or `VERDICT: DENIED`, then `DRIFT: <n>` or `DRIFT: none`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`
+- or `VERDICT: DENIED`, then `DRIFT: <n>` or `DRIFT: none`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`

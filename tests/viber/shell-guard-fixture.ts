@@ -19,6 +19,9 @@ export const R1_TEXT = "one command per Bash call - run each part of the chain a
 export const R1 = deny(R1_TEXT);
 export const r1With = (suffix: string): string => deny(`${R1_TEXT} ${suffix}`);
 export const R4 = deny("Bash never writes a file - change it with Edit or Write, and redirect scratch output only under .temp/.");
+export const R6 = deny(
+  "cd only to a literal path, never one holding a glob, a variable or a command substitution - or stay where you are and pass each path in full, exactly as your prompt gives it.",
+);
 
 // hooks.json invokes the script as `bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/shell-guard.sh"`,
 // so the harness runs it through bash the same way.

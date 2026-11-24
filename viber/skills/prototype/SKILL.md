@@ -56,7 +56,7 @@ Branch on its `VERDICT:` line:
     - One variant -> `Ready` or `Change it` (the change typed in its free-text field).
     - Three variants -> `Keep A`, `Keep B`, `Keep C` and `Ready`.
 - `FAIL` -> show its `REASON:`, ask in prose for what is missing, end the turn. The answer re-dispatches the same round.
-- `DENIED` -> name the refused tool and call from its `REASON:`, ask through one `AskUserQuestion`: add the permission and retry, or stop. Retry -> the same dispatch again.
+- `DENIED` -> quote its `REASON:` and `REFUSAL:` lines, ask through one `AskUserQuestion`: retry, or stop. Retry -> the same dispatch again.
 
 ## 5. Revision loop
 

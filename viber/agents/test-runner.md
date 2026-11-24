@@ -83,6 +83,7 @@ Never paste the log - the whole point is that it stays here.
 - The harness refuses one of your tool calls: write nothing to the report path and return:
   - line 1: `VERDICT: DENIED`
   - line 2: `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`
+  - line 3: `REFUSAL: <the refusal text, on one line>`
 - The build failed, a test failed, or a build or test command did not start (missing dependency, unknown command): write to the report path (the build command and its first error line for a build failure; otherwise one line per failure - test name, file, and the assertion or error), then return:
   - line 1: `VERDICT: FAIL`
   - line 2: `REPORT: <report path>`

@@ -118,4 +118,4 @@ With a decision still owed to the user, reply with its `DECIDE:` lines and `VERD
 
 Each reply is the one its section names and nothing else.
 
-A tool call the harness refuses replaces it with two lines: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`.
+A tool call the harness refuses replaces it with three lines: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`.

@@ -73,4 +73,4 @@ AUDIT: <target> stale <n> gone <n> unverifiable <n> shape <n> miss <n> -> <path 
 
 `shape <n>` counts every `SHAPE:` line of the findings file.
 
-A tool call the harness refuses replaces that line with two: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`.
+A tool call the harness refuses replaces that line with three: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`.

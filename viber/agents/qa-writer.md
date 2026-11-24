@@ -37,4 +37,4 @@ Two lines, nothing else:
 
 - `VERDICT: WRITTEN` plus `FILES: <every repo-relative path you wrote, comma-separated>`
 - or `VERDICT: NONE` plus `REASON: <one line>`
-- or `VERDICT: DENIED` plus `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`
+- or `VERDICT: DENIED` plus `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`

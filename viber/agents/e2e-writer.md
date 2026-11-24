@@ -69,4 +69,4 @@ Your only output channel - no diff, no logs, no test output. A message with no t
 - line 1: `VERDICT: PASS`, `VERDICT: BLOCKED`, `VERDICT: FAIL` or `VERDICT: DENIED`
 - on PASS, line 2: `FILE: <repo-relative path of the generated spec>`, the same path the status line carries
 - on BLOCKED or FAIL, line 2: `REASON: <one line>`, on BLOCKED the same text the status line carries
-- on DENIED, line 2: `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`; no status line is written, so the ID stays pending
+- on DENIED, line 2: `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, line 3: `REFUSAL: <the refusal text, on one line>`; no status line is written, so the ID stays pending

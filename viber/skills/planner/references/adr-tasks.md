@@ -15,7 +15,7 @@ input:
 
 The `input:` body is the one the review dispatch carries: the summary file path alone on its line, or the summary or diagnosis verbatim.
 - A reply with no `VERDICT:` line is handled as `VERDICT: DENIED` with `REASON: no verdict returned`.
-- `VERDICT: DENIED` - one `AskUserQuestion` naming the refused call from its `REASON:` line: permission added and retry, or continue with no record task.
+- `VERDICT: DENIED` - one `AskUserQuestion` quoting its `REASON:` and `REFUSAL:` lines: retry, or continue with no record task.
 - `VERDICT: NONE` - ask nothing, add nothing and go back to the skill.
 - `VERDICT: FOUND` - ask.
 

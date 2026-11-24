@@ -59,4 +59,4 @@ Your only output channel - no HTML, no summary. A message with no tool call ends
 - line 1: `VERDICT: PASS`, `VERDICT: FAIL` or `VERDICT: DENIED`
 - on PASS: `FILE: <absolute path>`, then `BASIS: design-system`, `BASIS: code` or `BASIS: brief`, then one `VARIANT: <A|B|C> - <title> - <one-line trade-off>` line per variant the file holds after this round
 - on FAIL: `REASON: <one line>`
-- on DENIED: `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`
+- on DENIED: `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`

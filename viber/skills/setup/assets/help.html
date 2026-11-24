@@ -1846,11 +1846,15 @@ linie co w <code>rulings.md</code>.</p>
 </details>
 <details id="ts-denied">
   <summary><span lang="en">A question says an agent's tool call was refused. What now?</span><span lang="pl">Pytanie mówi, że agentowi odmówiono wywołania narzędzia. Co teraz?</span></summary>
-  <p lang="en">Your permissions blocked a call the agent needed, and the question names it. Allow that call,
-  then answer <q>permission added and retry</q>. <code>/viber:setup</code> puts viber's recommended permissions
+  <p lang="en">Claude Code refused a call the agent needed. The question names the call and quotes the
+  refusal, which says why: a missing permission, or a command shape the permission check could not
+  judge. For a missing permission allow that call first, then answer <q>retry</q>.
+  <code>/viber:setup</code> puts viber's recommended permissions
   into <code>.claude/settings.json</code>, and running it again after a plugin update adds the new ones.</p>
-  <p lang="pl">Twoje uprawnienia zablokowały wywołanie, którego agent potrzebował, a pytanie je podaje. Zezwól
-  na nie i odpowiedz <q>permission added and retry</q>. <code>/viber:setup</code> wpisuje zalecane uprawnienia
+  <p lang="pl">Claude Code odmówił wywołania, którego agent potrzebował. Pytanie podaje to wywołanie i
+  cytuje odmowę, a ta mówi dlaczego: brak uprawnienia albo kształt polecenia, którego kontrola uprawnień
+  nie umiała ocenić. Przy braku uprawnienia najpierw zezwól na to wywołanie, potem odpowiedz
+  <q>retry</q>. <code>/viber:setup</code> wpisuje zalecane uprawnienia
   viber do <code>.claude/settings.json</code>, a uruchomiony ponownie po aktualizacji wtyczki dopisuje
   nowe.</p>
 </details>

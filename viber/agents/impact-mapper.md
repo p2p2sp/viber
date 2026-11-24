@@ -66,4 +66,4 @@ Read a hit only as far as needed to confirm it refers to the target and to note 
 - Never a `REF:` line for a target's own file.
 - `<target as written>` repeats the target line of the dispatch byte for byte.
 
-A tool call the harness refuses replaces every line above with two: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`.
+A tool call the harness refuses replaces every line above with three: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`.

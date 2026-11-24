@@ -95,7 +95,7 @@ Report the `AUDIT:` line for each target verbatim, the printed ones included, an
 
 An `Agent` call here or in step 6 that returns none of its output lines (no `AUDIT:` line from an auditor, no `VERDICT:` line from the writer) is that step's `VERDICT: DENIED` with `REASON: no verdict returned`.
 
-A call returning `VERDICT: DENIED` instead -> one `AskUserQuestion` naming the target and the refused call from its `REASON:` line: permission added and retry, drop that target, or stop.
+A call returning `VERDICT: DENIED` instead -> one `AskUserQuestion` naming the target and quoting its `REASON:` and `REFUSAL:` lines: retry, drop that target, or stop.
 
 ## 6. Confirm, then the writer
 
@@ -106,7 +106,7 @@ An `ENFORCE:` line is no counter: it never dispatches the writer alone.
 - A `STOP:` line -> report it and stop, dispatching no writer.
 - Otherwise report each `confirm:` line, then one `AskUserQuestion` for the `ASK:` line, fold them in or stop. Only on `fold in`, one `Agent` call, `subagent_type: viber:rules-writer`, no `model:` line, the `NEXT: rules-writer` body lines verbatim as its prompt, nothing added. On `stop`, stop.
 
-`VERDICT: DENIED` -> one `AskUserQuestion` naming the refused call from its `REASON:` line: permission added and retry, or stop.
+`VERDICT: DENIED` -> one `AskUserQuestion` quoting its `REASON:` and `REFUSAL:` lines: retry, or stop.
 
 ## 7. Report
 

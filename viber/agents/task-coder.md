@@ -48,6 +48,7 @@ A report path means the work already exists and is wrong: fix every Blocking fin
 - `Bash` never runs inline or scratch interpreter code - change a file with `Edit` or `Write`, a large rewrite as one `Write` of the whole file, and run tests and project scripts by their own command.
 - Remove a file or directory with `git rm -r -q -- <path>`, never `rm`.
 - One command per `Bash` call, never chained with `;`, `&&` or `||`.
+- Never `cd` to a path holding a glob or a variable: pass each path in full, as your prompt gives it.
 - Git is read-only (`status`, `diff`, `log`, `show`), never `stash`, `checkout`, `restore` or `clean`; your only index writes are `git rm` and `git update-index --chmod=+x`.
 - Match the surrounding code: naming, idiom, error handling. A comment holds only a why the code cannot show (a constraint, a workaround, an invariant), never what it does or what changed. A `CLAUDE.md`, README or help page you touch states only what holds now, never what changed or used to hold.
 
@@ -70,7 +71,7 @@ Before you return, stop every process you started in the background: `kill` each
 Your only output channel - no diff, no logs, no prose. A message with no tool call ends your run, so end it only on these lines, never on a progress report or an announced next step:
 
 - line 1: `VERDICT: PASS`, `VERDICT: FAIL` or `VERDICT: DENIED`
-- on FAIL, line 2: `REASON: <one line>`; on DENIED, line 2: `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`
+- on FAIL, line 2: `REASON: <one line>`; on DENIED, line 2: `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, line 3: `REFUSAL: <the refusal text, on one line>`
 - on FAIL only: `WAIT: <repo-relative path>, <repo-relative path>` - the files outside `Files` you need that carry uncommitted changes you did not make.
 - on FAIL only: `DECIDE: <option> | <option> [| <option>]` - each option one short clause that would unblock the task, the recommended one first; every option is work a later coder attempt does or a ruling the build records, never a step by hand or by the orchestrator. Finish every `DoD` clause the dispute does not touch before you return `DECIDE:`.
 - on PASS or FAIL without a task file or on a repair pass: `FILES: <every repo-relative path you changed, comma-separated>`, omitted only when you changed nothing - nothing outside that list gets committed, so an omitted path is lost work. Never list a path git ignores (`git check-ignore -q -- <path>` exits 0), such as anything under `.temp/`: it is never committed.

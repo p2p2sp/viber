@@ -41,7 +41,7 @@ Every question below offers some of these four answers, each doing exactly this 
 - `accept`: the user overrides the gate. On a task: the `accept` event, the task named unreviewed in the final summary. On the test run: go to step 6, the failing or refused run named in the final summary. On the arbiter: take the first option of its dispatch, recorded through the `ruled` call of step 4 with `--refused`, then carried out. On any other agent: go on as if it returned nothing, its refused call named in the final summary.
 - `abort`: stop every dispatch, go to step 7.
 
-A `VERDICT: DENIED` question names the refused call from its `REASON:` line and its `retry` option reads `permission added and retry`.
+A `VERDICT: DENIED` question quotes its `REASON:` and `REFUSAL:` lines.
 
 ## 1. Land the plan
 

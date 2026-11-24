@@ -255,11 +255,10 @@ test("closeout ARCHIVED output lists four lines and its intro counts four", () =
   assert.equal(LINE_COUNTS[(counts?.[1] ?? "").toLowerCase()], 4);
 });
 
-test("closeout BLOCKED and DENIED outputs list three lines and the intro counts three for any other verdict", () => {
-  const counts = OUTPUT_INTRO.match(/(four|three) on any other verdict/i);
-  assert.equal(LINE_COUNTS[(counts?.[1] ?? "").toLowerCase()], 3);
+test("closeout BLOCKED output lists three lines and DENIED four (its REFUSAL line), as the intro counts them", () => {
+  assert.ok(OUTPUT_INTRO.startsWith("Four lines on `VERDICT: ARCHIVED` and `VERDICT: DENIED`, three on `VERDICT: BLOCKED`"));
   assert.equal(listedLines(BLOCKED_OUTPUT), 3);
-  assert.equal(listedLines(DENIED_OUTPUT), 3);
+  assert.equal(listedLines(DENIED_OUTPUT), 4);
 });
 
 const CLOSE = fs.readFileSync(path.join(AGENTS, "../skills/implementor/parts/close.md"), "utf8");

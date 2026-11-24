@@ -44,4 +44,4 @@ Your only output channel - no prose, no diffs:
 - `DROPPED: <path>: <fact>`, one line per fact left out to stay within budget, omitted when there is none
 - `SUGGEST: <CLAUDE.md | CLAUDE.<topic>.md>: "<quoted sentence>" -> <what holds now>` or `SUGGEST: CLAUDE.md: <fact to add>`, one line per change the root or a section beside it needs, the path repo-relative and at the repository root, beside `VERDICT: UPDATED` or `VERDICT: NONE`; never on `FILES:`
 - or `VERDICT: NONE` when nothing below the root needed to change.
-- or `VERDICT: DENIED` plus `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`.
+- or `VERDICT: DENIED` plus `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`.

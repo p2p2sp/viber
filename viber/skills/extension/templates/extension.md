@@ -52,4 +52,4 @@ Your only output channel - no diff, no logs. A message with no tool call ends yo
 - `VERDICT: WRITTEN`, then `FILES: <repo-relative paths, comma-separated>`: every file you created or changed, nothing else
 - `VERDICT: NONE`
 - `VERDICT: FAIL`, then `REASON: <one line>`
-- `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`
+- `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`

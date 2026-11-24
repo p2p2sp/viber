@@ -64,4 +64,4 @@ Your only output channel - no prose, no diffs:
 - `OVER: <path> <bytes>`, one line per file left above a cap, omitted when there is none
 - `MOVE: <CLAUDE.md path> <the removed line, quoted>`, one line per removed `DROP` that carried `-> move`, omitted when there is none
 - or `VERDICT: NONE` when no rule needed correcting or removing.
-- or `VERDICT: DENIED` plus `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`.
+- or `VERDICT: DENIED` plus `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`.

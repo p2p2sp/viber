@@ -9,7 +9,9 @@
  * redirect or tee onto a relative path outside .temp/), and inline interpreter
  * code or a .temp/ script run through an interpreter (python -c, node -e,
  * ruby -e, perl -e, bash .temp/x.sh); for viber:task-reviewer
- * and viber:final-reviewer, only the four git subcommands. Every other command,
+ * and viber:final-reviewer, only the four git subcommands; for every viber
+ * agent, a cd or pushd to a glob, variable or command substitution target.
+ * Every other command,
  * every other caller and unreadable input print nothing, every deny reason opens
  * with the "viber guard: " marker, and every case exits 0. The last cases pin
  * its registration and description in hooks/hooks.json and the rationale in the
@@ -27,7 +29,7 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { SUT, deny, R1_TEXT, R1, r1With, R4, run, runCommand, CODER, r4With } from "./shell-guard-fixture.ts";
+import { SUT, deny, R1_TEXT, R1, r1With, R4, R6, run, runCommand, CODER, r4With } from "./shell-guard-fixture.ts";
 
 const HOOKS_JSON = path.resolve(import.meta.dirname, "../../viber/hooks/hooks.json");
 const R3 = deny("remove a file or directory with git rm -r -q -- <path>, never rm.");
@@ -208,6 +210,37 @@ for (const command of everyGuardedCommand) {
   });
 }
 
+const cdResolved = [
+  "cd /repo/docs/_specs/2026-11-24-19-29-03_slug; ls . tasks work",
+  "cd",
+  "cd -",
+  "cd ..",
+  "cd ~/x",
+  "cd 'docs/run*'",
+  'cd "docs/run*"',
+  "cd docs/run\\*",
+  "cd '$RUN'",
+  "cd docs && ls *.md",
+  "ls docs/run*",
+  "echo cd docs/run*",
+];
+
+for (const command of cdResolved) {
+  test(`from viber:task-reviewer, ${JSON.stringify(command)} prints nothing (a literal cd target, or no cd at all, is no R6 case)`, async () => {
+    assert.equal(await runCommand(command, "viber:task-reviewer"), "");
+  });
+}
+
+for (const agent of ["Explore", undefined]) {
+  test(`from ${agent ?? "the main session"}, a cd to a glob path prints nothing (R6 is for viber agents)`, async () => {
+    assert.equal(await runCommand("cd docs/run*", agent), "");
+  });
+}
+
+test("from viber:test-runner, a cd to a glob path is refused as R6 (the one rule holding an agent outside the coder and the reviewers)", async () => {
+  assert.equal(await runCommand("cd docs/run*", "viber:test-runner"), R6);
+});
+
 test("a command quoting agent_type text does not make a main-session call a coder one (only the top-level key counts)", async () => {
   assert.equal(await runCommand('echo "agent_type":"viber:task-coder"', undefined), "");
 });
@@ -235,6 +268,7 @@ const markerRows: Array<[string, string]> = [
   ["R3", "rm x"],
   ["R4", "tee a.txt"],
   ["R5", "node -e x"],
+  ["R6", "cd docs/run*"],
 ];
 
 for (const [rule, command] of markerRows) {
@@ -251,6 +285,7 @@ const headerPhrases = [
   "an unquoted newline is deliberately not refused",
   "a file edit by another route",
   "R5 interpreter",
+  "a cd whose target it cannot resolve",
 ];
 
 for (const phrase of headerPhrases) {
@@ -285,8 +320,8 @@ test("DoD.4: the hooks.json description names the R5 refusal (inline interpreter
   assert.match(description, /\.temp\/ script/);
 });
 
-test("DoD.4: the script header contract lists the R5 refusal and the rule order up to R5", () => {
+test("DoD.4: the script header contract lists the R5 refusal and the rule order up to R6", () => {
   const header = fs.readFileSync(SUT, "utf8").split("\nset -u")[0];
   assert.ok(header.includes("R5 (coder):"));
-  assert.ok(header.includes("Rules are tried in the order R1, R2, R3, R4, R5."));
+  assert.ok(header.includes("Rules are tried in the order R1, R2, R3, R4, R5, R6."));
 });

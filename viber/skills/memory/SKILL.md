@@ -87,7 +87,7 @@ Report the `AUDIT:` line for each target verbatim. Read none of those files - th
 
 An `Agent` call here or in step 7 or 8 that returns none of its output lines (no `AUDIT:` line from an auditor, no `VERDICT:` line from a writer) is that step's `VERDICT: DENIED` with `REASON: no verdict returned`.
 
-A call returning `VERDICT: DENIED` instead -> one `AskUserQuestion` naming the target and the refused call from its `REASON:` line: permission added and retry, drop that target from the target list, or stop.
+A call returning `VERDICT: DENIED` instead -> one `AskUserQuestion` naming the target and quoting its `REASON:` and `REFUSAL:` lines: retry, drop that target from the target list, or stop.
 
 ## 6. Confirm
 
@@ -109,7 +109,7 @@ refs: ${CLAUDE_PLUGIN_ROOT}/references
 
 `findings` is the path its audit returned on a fix target and `none` on a create target.
 
-A dispatch returning `VERDICT: DENIED` -> before the next wave, one `AskUserQuestion` naming the node and the refused call from its `REASON:` line: permission added and retry, skip that node, or stop.
+A dispatch returning `VERDICT: DENIED` -> before the next wave, one `AskUserQuestion` naming the node and quoting its `REASON:` and `REFUSAL:` lines: retry, skip that node, or stop.
 
 ## 8. Reconcile the lists of nodes
 
