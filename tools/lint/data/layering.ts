@@ -35,6 +35,7 @@ export const rules: RuleInstance[] = [
         "viber/skills/commit/scripts/commit.ts",
         "viber/skills/commit/scripts/commit-context.ts",
         "viber/skills/code-auditor/scripts/worktree.ts",
+        "viber/hooks/scripts/file-guard.ts",
         "tools/lint/run.ts",
       ],
       entryMaxLines: 40,

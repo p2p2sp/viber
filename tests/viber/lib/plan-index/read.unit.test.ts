@@ -1,8 +1,8 @@
 /*
  * read.unit.test.ts - what one line of a plan shows on its own: the markers that
  * open a task, the fields and phases the index prints, the headings a fence turns
- * into text, and the defects of a slot, a scenario heading, a file map path and a
- * malformed heading, each in line order.
+ * into text, and the defects of a slot, a scenario heading, a file map path, a
+ * malformed heading and a line of the Open items section, each in line order.
  */
 
 import assert from "node:assert/strict";
@@ -145,4 +145,19 @@ for (const [label, plan, line] of HEADINGS) {
 const SLOT_LINE = "FIX: line 6: template slot <n> left unfilled - replace it (Filled)";
 test("a slot and no task block at all print the slot first, then the missing blocks, and exit 3", () => {
   assert.deepEqual(answerOf(indexOf(planBody([], 1).replace("The session is durable.", "<n>"), [], SLOTS)), refused(3, SLOT_LINE, `FIX: no <!-- TASK --> blocks in ${PLAN_REL}`));
+});
+
+const withOpen = (plan: string, ...items: string[]): string => plan.replace("## Tasks\n", ["## Open items", "", ...items, "", "## Tasks", ""].join("\n"));
+const lineOf = (plan: string, line: string): number => plan.split("\n").indexOf(line) + 1;
+
+test("a line of the Open items section of another shape is refused by its line number, on a landed plan too: a kind that is none, a missing field, an empty text, prose", () => {
+  const bad = ["- minor | T1 | a kind that is none", "- note | T1", "- note | T1 | ", "Prose between the items."];
+  const plan = withOpen(PLAN, "- note | T1 | a sound one", ...bad, "- critical | plan | sound too");
+  const lines = bad.map((line) => `FIX: open items: line ${lineOf(plan, line)} is not "- critical|note | <task id>|plan | <text>" (Open items)`);
+  assert.deepEqual(answerOf(indexOf(plan)), refused(4, ...lines));
+  assert.deepEqual(answerOf(indexOf(plan, [], { status: ["done: none"] })), refused(4, ...lines));
+});
+
+test("a template slot quoted in an open item is no slot left in the plan (a script wrote the line from a review, and no fix can reach it)", () => {
+  assert.equal(indexOf(withOpen(planBody([{ id: "T1" }], 1), "- note | T1 | the heading still reads S<n>"), [], SLOTS).exit, 0);
 });

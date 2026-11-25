@@ -25,13 +25,14 @@
  * key names is never opened. Every token report follows the `elapsed:` line; the token
  * tests read the lines after it.
  *
- * Every report ends on a `rounds:` line: the plan review transcripts (planner-review
- * and planner-graph-review) naming the path of the `planned:` line of the run's
+ * A run whose status.md holds a `refused:` key ends on one `refused:` line per path
+ * a task commit refused, after the rounds line: the lines run-notes.sh lists, so a
+ * close with no closeout still shows them. Every other report ends on a `rounds:` line: the plan review transcripts (plan-judge, one
+ * per review round) naming the path of the `planned:` line of the run's
  * plan.md, counted whenever they were written, or the reason that count is unavailable.
  *
  * After the build rows come the planning rows: one `tokens:` line per role and model
- * of the planner-review, planner-spec-review, planner-graph-review, planner-task-review,
- * adr-screener, plan-surveyor, plan-architect, plan-detailer and plan-fixer transcripts
+ * of the plan-judge, adr-screener, plan-surveyor, plan-architect and plan-author transcripts
  * naming the same `planned:` path, whenever written, each transcript counted once.
  *
  * The run key opens with a date long past, so every fixture written now is newer
@@ -449,12 +450,12 @@ test("a transcript of another review agent type, of a non-review agent or naming
   await withTempDir("p2p2-viber-", async (tmp) => {
     const fx = seed(tmp);
     writePlan(fx, PLANNED);
-    review(fx, "r1", "viber:planner-review", PLANNED);
-    review(fx, "r2", "viber:planner-spec-review", PLANNED);
-    review(fx, "r3", "viber:planner-task-review", PLANNED);
+    review(fx, "r1", "viber:plan-judge", PLANNED);
+    review(fx, "r2", "viber:outside-plan-review", PLANNED);
+    review(fx, "r3", "viber:plan-author", PLANNED);
     review(fx, "r4", "viber:task-coder", PLANNED);
-    review(fx, "r5", "viber:planner-review", "C:/plans/other.md");
-    review(fx, "r6", "viber:planner-review", "C:/plans/p.md.bak");
+    review(fx, "r5", "viber:plan-judge", "C:/plans/other.md");
+    review(fx, "r6", "viber:plan-judge", "C:/plans/p.md.bak");
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
     assert.ok(stdoutLines(result.stdout).includes("rounds: plan review 1"), result.stdout);
@@ -465,7 +466,7 @@ test("a plan.md with no planned line makes the rounds line unavailable", async (
   await withTempDir("p2p2-viber-", async (tmp) => {
     const fx = seed(tmp);
     writePlan(fx, null);
-    review(fx, "r1", "viber:planner-review", PLANNED);
+    review(fx, "r1", "viber:plan-judge", PLANNED);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
     assert.equal(stdoutLines(result.stdout).at(-1), "rounds: plan review unavailable - no planned line in plan.md");
@@ -476,7 +477,7 @@ test("a planned line with no review transcript naming the path makes the rounds 
   await withTempDir("p2p2-viber-", async (tmp) => {
     const fx = seed(tmp);
     writePlan(fx, PLANNED);
-    review(fx, "r1", "viber:planner-review", "C:/plans/other.md");
+    review(fx, "r1", "viber:plan-judge", "C:/plans/other.md");
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
     assert.equal(
@@ -503,14 +504,14 @@ test("with no transcript naming the run the unavailable token line is followed b
   await withTempDir("p2p2-viber-", async (tmp) => {
     const fx = seed(tmp);
     writePlan(fx, PLANNED);
-    review(fx, "r1", "viber:planner-review", PLANNED, [
+    review(fx, "r1", "viber:plan-judge", PLANNED, [
       assistant("m1", SONNET, { in: 1, out: 2, cacheRead: 3, cacheWrite: 4 }),
     ]);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(reportLines(result.stdout), [
       "tokens: unavailable - no agent transcript names this run",
-      "tokens: viber:planner-review claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
+      "tokens: viber:plan-judge claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
       "rounds: plan review 1",
     ]);
   });
@@ -520,24 +521,15 @@ test("with no transcript naming the run the unavailable token line is followed b
 
 const OLD = new Date("2019-06-01T00:00:00Z");
 
-test("a transcript of each of the nine planning roles naming the planned path adds a row for its role with the summed usage, one older than the run day and one retried dispatch included", async () => {
+test("a transcript of each of the five planning roles naming the planned path adds a row for its role with the summed usage, one older than the run day and one retried dispatch included", async () => {
   await withTempDir("p2p2-viber-", async (tmp) => {
     const fx = seed(tmp);
     writePlan(fx, PLANNED);
-    review(fx, "p1", "viber:planner-review", PLANNED, [
+    review(fx, "p1", "viber:plan-judge", PLANNED, [
       assistant("m1", SONNET, { in: 1, out: 2, cacheRead: 3, cacheWrite: 4 }),
     ]);
-    review(fx, "p2", "viber:planner-review", PLANNED, [
+    review(fx, "p2", "viber:plan-judge", PLANNED, [
       assistant("m2", SONNET, { in: 10, out: 20, cacheRead: 30, cacheWrite: 40 }),
-    ]);
-    review(fx, "p3", "viber:planner-spec-review", PLANNED, [
-      assistant("m3", SONNET, { in: 5, out: 6, cacheRead: 7, cacheWrite: 8 }),
-    ]);
-    review(fx, "p4", "viber:planner-graph-review", PLANNED, [
-      assistant("m4", SONNET, { in: 9, out: 10, cacheRead: 11, cacheWrite: 12 }),
-    ]);
-    review(fx, "p5", "viber:planner-task-review", PLANNED, [
-      assistant("m5", SONNET, { in: 13, out: 14, cacheRead: 15, cacheWrite: 16 }),
     ]);
     review(fx, "p6", "viber:plan-surveyor", PLANNED, [
       assistant("m6", SONNET, { in: 17, out: 18, cacheRead: 19, cacheWrite: 20 }),
@@ -548,10 +540,10 @@ test("a transcript of each of the nine planning roles naming the planned path ad
     review(fx, "p8", "viber:plan-architect", PLANNED, [
       assistant("m9", SONNET, { in: 25, out: 26, cacheRead: 27, cacheWrite: 28 }),
     ]);
-    review(fx, "p9", "viber:plan-detailer", PLANNED, [
+    review(fx, "p9", "viber:plan-author", PLANNED, [
       assistant("m10", SONNET, { in: 29, out: 30, cacheRead: 31, cacheWrite: 32 }),
     ]);
-    review(fx, "p10", "viber:plan-fixer", PLANNED, [
+    review(fx, "p10", "viber:plan-author", PLANNED, [
       assistant("m11", SONNET, { in: 33, out: 34, cacheRead: 35, cacheWrite: 36 }),
     ]);
     fs.utimesSync(path.join(fx.config, "projects", "proj", "plan", "subagents", "agent-p7.jsonl"), OLD, OLD);
@@ -565,13 +557,9 @@ test("a transcript of each of the nine planning roles naming the planned path ad
       "tokens: viber:task-coder claude-sonnet-4 in 100 out 200 cache-read 300 cache-write 400",
       "tokens: viber:adr-screener claude-sonnet-4 in 21 out 22 cache-read 23 cache-write 24",
       "tokens: viber:plan-architect claude-sonnet-4 in 25 out 26 cache-read 27 cache-write 28",
-      "tokens: viber:plan-detailer claude-sonnet-4 in 29 out 30 cache-read 31 cache-write 32",
-      "tokens: viber:plan-fixer claude-sonnet-4 in 33 out 34 cache-read 35 cache-write 36",
+      "tokens: viber:plan-author claude-sonnet-4 in 62 out 64 cache-read 66 cache-write 68",
+      "tokens: viber:plan-judge claude-sonnet-4 in 11 out 22 cache-read 33 cache-write 44",
       "tokens: viber:plan-surveyor claude-sonnet-4 in 17 out 18 cache-read 19 cache-write 20",
-      "tokens: viber:planner-graph-review claude-sonnet-4 in 9 out 10 cache-read 11 cache-write 12",
-      "tokens: viber:planner-review claude-sonnet-4 in 11 out 22 cache-read 33 cache-write 44",
-      "tokens: viber:planner-spec-review claude-sonnet-4 in 5 out 6 cache-read 7 cache-write 8",
-      "tokens: viber:planner-task-review claude-sonnet-4 in 13 out 14 cache-read 15 cache-write 16",
       NOT_COUNTED,
     ]);
   });
@@ -581,7 +569,7 @@ test("a planning transcript naming both the run directory and the planned path c
   await withTempDir("p2p2-viber-", async (tmp) => {
     const fx = seed(tmp);
     writePlan(fx, PLANNED);
-    transcript(fx, "plan", "p1", "viber:planner-review", [
+    transcript(fx, "plan", "p1", "viber:plan-judge", [
       JSON.stringify({
         type: "user",
         message: { role: "user", content: `Review the plan at ${PLANNED} for ${fx.runPrompt}/ now` },
@@ -591,7 +579,7 @@ test("a planning transcript naming both the run directory and the planned path c
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(tokenLines(result.stdout), [
-      "tokens: viber:planner-review claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
+      "tokens: viber:plan-judge claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
       NOT_COUNTED,
     ]);
   });
@@ -605,7 +593,7 @@ test("a planning transcript naming another path adds no row", async () => {
       prompt(fx.runPrompt),
       assistant("m1", SONNET, { in: 1, out: 2, cacheRead: 3, cacheWrite: 4 }),
     ]);
-    review(fx, "p1", "viber:planner-review", "C:/plans/other.md", [
+    review(fx, "p1", "viber:plan-judge", "C:/plans/other.md", [
       assistant("m2", SONNET, { in: 100, out: 200, cacheRead: 300, cacheWrite: 400 }),
     ]);
     const result = await report(tmp, fx);
@@ -625,7 +613,7 @@ test("a planning transcript with no readable usage adds no row", async () => {
       prompt(fx.runPrompt),
       assistant("m1", SONNET, { in: 1, out: 2, cacheRead: 3, cacheWrite: 4 }),
     ]);
-    review(fx, "p1", "viber:planner-review", PLANNED, [assistantWithoutUsage("m2", SONNET)]);
+    review(fx, "p1", "viber:plan-judge", PLANNED, [assistantWithoutUsage("m2", SONNET)]);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(tokenLines(result.stdout), [
@@ -643,7 +631,7 @@ test("a run whose plan.md has no planned line adds no planning row", async () =>
       prompt(fx.runPrompt),
       assistant("m1", SONNET, { in: 1, out: 2, cacheRead: 3, cacheWrite: 4 }),
     ]);
-    review(fx, "p1", "viber:planner-review", PLANNED, [
+    review(fx, "p1", "viber:plan-judge", PLANNED, [
       assistant("m2", SONNET, { in: 100, out: 200, cacheRead: 300, cacheWrite: 400 }),
     ]);
     const result = await report(tmp, fx);
@@ -663,7 +651,7 @@ test("the planning rows come after the build rows, sorted by role then model, th
       prompt(fx.runPrompt),
       assistant("m1", SONNET, { in: 1, out: 2, cacheRead: 3, cacheWrite: 4 }),
     ]);
-    review(fx, "p1", "viber:planner-review", PLANNED, [
+    review(fx, "p1", "viber:plan-judge", PLANNED, [
       assistant("m2", SONNET, { in: 5, out: 6, cacheRead: 7, cacheWrite: 8 }),
       assistant("m3", OPUS, { in: 9, out: 10, cacheRead: 11, cacheWrite: 12 }),
     ]);
@@ -675,8 +663,8 @@ test("the planning rows come after the build rows, sorted by role then model, th
     assert.deepEqual(reportLines(result.stdout), [
       "tokens: viber:task-coder claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4",
       "tokens: viber:adr-screener claude-sonnet-4 in 13 out 14 cache-read 15 cache-write 16",
-      "tokens: viber:planner-review claude-opus-4 in 9 out 10 cache-read 11 cache-write 12",
-      "tokens: viber:planner-review claude-sonnet-4 in 5 out 6 cache-read 7 cache-write 8",
+      "tokens: viber:plan-judge claude-opus-4 in 9 out 10 cache-read 11 cache-write 12",
+      "tokens: viber:plan-judge claude-sonnet-4 in 5 out 6 cache-read 7 cache-write 8",
       NOT_COUNTED,
       "rounds: plan review 1",
     ]);
@@ -688,12 +676,66 @@ test("with a counted transcript holding no readable usage the unavailable token 
     const fx = seed(tmp);
     writePlan(fx, PLANNED);
     transcript(fx, "s1", "a1", "viber:task-coder", [prompt(fx.runPrompt), assistantWithoutUsage("m1", SONNET)]);
-    review(fx, "r1", "viber:planner-review", PLANNED);
+    review(fx, "r1", "viber:plan-judge", PLANNED);
     const result = await report(tmp, fx);
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(reportLines(result.stdout), [
       "tokens: unavailable - a transcript holds no readable usage",
       "rounds: plan review 1",
     ]);
+  });
+});
+
+// --- the paths task commits refused follow the rounds line ---
+
+/** A landed plan of two tasks, T1 on src/a.ts and T2 on src/b.ts, with a `planned:` line. */
+function writeTaskPlan(fx: { runDir: string }): void {
+  const task = (id: string, file: string): string[] => ["<!-- TASK -->", `### ${id} - task ${id}`, `- Files: ${file}`, "<!-- /TASK -->", ""];
+  fs.writeFileSync(path.join(fx.runDir, "plan.md"), ["---", "source: docs/_specs/x/plan.md", `planned: ${PLANNED}`, "---", "# Plan", "", "## Tasks", "", ...task("T1", "src/a.ts"), ...task("T2", "src/b.ts")].join("\n") + "\n");
+}
+
+const STATUS = ["# status", "", "progress: 1/2", "done: T1", "skipped: none", "unreviewed: none", "deferred: none", "closed: none"];
+
+test("a run whose status.md holds a refused: key ends its report on one refused: line per path, after the rounds line, the path whole and its claimant named, whether or not the token report is available (a refused path reaches the final summary of a build whose closeout never runs)", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    writeTaskPlan(fx);
+    fs.writeFileSync(path.join(fx.runDir, "status.md"), [...STATUS, "refused: T1:src/b.ts T1:lib/my%20shared.ts"].join("\n") + "\n");
+    fs.mkdirSync(path.join(fx.runDir, "work"));
+    fs.writeFileSync(path.join(fx.runDir, "work", "T2-extra.md"), "lib/my shared.ts\n");
+    const refused = ["refused: T1 | src/b.ts | claimed by task T2", "refused: T1 | lib/my shared.ts | claimed by task T2"];
+
+    const none = await report(tmp, fx);
+    assert.equal(none.status, 0, none.stderr);
+    assert.deepEqual(reportLines(none.stdout), ["tokens: unavailable - no agent transcript names this run", "rounds: plan review unavailable - no review transcript names the plan", ...refused]);
+
+    transcript(fx, "s1", "a1", "viber:task-coder", [prompt(fx.runPrompt), assistant("m1", SONNET, { in: 1, out: 2, cacheRead: 3, cacheWrite: 4 })]);
+    const counted = await report(tmp, fx);
+    assert.equal(counted.status, 0, counted.stderr);
+    assert.deepEqual(reportLines(counted.stdout), ["tokens: viber:task-coder claude-sonnet-4 in 1 out 2 cache-read 3 cache-write 4", NOT_COUNTED, "rounds: plan review unavailable - no review transcript names the plan", ...refused]);
+
+    // The same run named by a path relative to the cwd, as the implementor names it.
+    const relative = await run(path.join(tmp, "repo"), [MARK, `docs/_specs/${KEY}`], { CLAUDE_CONFIG_DIR: slash(fx.config) });
+    assert.deepEqual(reportLines(relative.stdout).slice(-2), refused, relative.stderr);
+  });
+});
+
+test("a run with no refused: key, or with one reading none, prints no refused: line, and one whose paths cannot be listed says so in one line (the report never hides that a commit refused a path)", async () => {
+  await withTempDir("p2p2-viber-", async (tmp) => {
+    const fx = seed(tmp);
+    writeTaskPlan(fx);
+    const tail = ["tokens: unavailable - no agent transcript names this run", "rounds: plan review unavailable - no review transcript names the plan"];
+    for (const keys of [STATUS, [...STATUS, "refused: none"]]) {
+      fs.writeFileSync(path.join(fx.runDir, "status.md"), keys.join("\n") + "\n");
+      const result = await report(tmp, fx);
+      assert.equal(result.status, 0, result.stderr);
+      assert.deepEqual(reportLines(result.stdout), tail, keys[keys.length - 1]);
+    }
+    // No plan.md: run-notes.sh cannot name a claimant, the key is still there.
+    fs.writeFileSync(path.join(fx.runDir, "status.md"), [...STATUS, "refused: T1:src/b.ts"].join("\n") + "\n");
+    fs.rmSync(path.join(fx.runDir, "plan.md"));
+    const lost = await report(tmp, fx);
+    assert.equal(lost.status, 0, lost.stderr);
+    assert.deepEqual(reportLines(lost.stdout), ["tokens: unavailable - no agent transcript names this run", "rounds: plan review unavailable - no planned line in plan.md", "refused: unavailable - run-notes.sh could not list the paths the refused: key of status.md holds"]);
   });
 });

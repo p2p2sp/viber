@@ -3,14 +3,15 @@
 # plan-hints.sh - viber / UserPromptSubmit hook: the review hint for a plan written outside the planner.
 #
 # Injects one rule into the model's context on every prompt sent in plan
-# mode: a fresh outside-plan-review after every plan write, its PASS before
-# ExitPlanMode. The rule's text lives in hooks/content/plan-hints.md, injected
+# mode: an outside-plan-review once the plan is written, at most one more after
+# a FAIL, what is left recorded in the plan, then ExitPlanMode with no question
+# to the user. The rule's text lives in hooks/content/plan-hints.md, injected
 # verbatim, so a wording change never touches this script. A plan the viber
-# chain drives has its own reviewers, so a planner, intent or fixer Skill
+# chain drives has its own reviewer, so a planner, intent or fixer Skill
 # tool_use in the current plan-mode episode (or one whose own EnterPlanMode
 # opened it), or a typed /viber:intent or /viber:fixer command in it, silences
 # the hint. intent and fixer only hand off to the planner,
-# so plan-gate.sh does not count them: its planner-review choice needs the
+# so plan-gate.sh does not count them: its plan-judge choice needs the
 # planner itself.
 #
 # Why a hook: the rule only matters while an outside plan is written, so carrying

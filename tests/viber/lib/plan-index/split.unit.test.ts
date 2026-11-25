@@ -1,8 +1,10 @@
 /*
  * split.unit.test.ts - the decomposition of --split: the specification and the
  * phases cut out of the plan, the one file per task that is a coder's whole input,
- * the state file, the attachments, and the one commit of what it owns. What git
- * itself does is held by the contract cases of the GitWrite port.
+ * the state file, the attachments, the notes of the Open items section placed in
+ * the file of their own task, the reach files listed below the Out of scope
+ * lines kept out of every task file, and the one commit of what it owns. What
+ * git itself does is held by the contract cases of the GitWrite port.
  */
 
 import assert from "node:assert/strict";
@@ -139,6 +141,13 @@ test("a contract whose fenced shape holds headings reaches its task whole, closi
   assert.ok(taskOf(planBody(TWO_TASKS, 2, shape)).includes(`\n## Contracts\n\n${shape.join("\n")}\n\n## Out of scope\n`));
 });
 
+test("the reach files plan-build.sh lists under the References kept heading of Out of scope stay in spec.md and reach no task file: each task carries the boundary an author wrote, never one placement line per file", () => {
+  const kept = "#### References kept\n\n- docs/guide.md - the guide keeps its wording\n- docs/api.md - the route stays documented\n";
+  const at = split(PLAN.replace("- OAuth.\n", `- OAuth.\n\n${kept}`));
+  assert.deepEqual([at.exit, at.read("tasks/T1.md"), at.read("tasks/T2.md")], [0, T1_FILE, T2_FILE]);
+  assert.equal(at.read("spec.md"), HEAD.replace("- OAuth.\n", `- OAuth.\n\n${kept}`));
+});
+
 test("a fenced block inside Current behaviour hides no regression boundary behind its ## line", () => {
   const plan = planBody(TWO_TASKS, 2, CONTRACT, "full").replace("Every page is public.\n", "Every page is public.\n\n````md\n```\n## Quoted heading\n````\n");
   assert.equal(under(taskOf(plan), "Must not change"), "## Must not change\n- The public catalogue stays reachable without an account.\n\n");
@@ -239,3 +248,31 @@ for (const fails of ["stage", "commit"] as const) {
     assert.deepEqual([at.exit, at.commits.length, at.read("tasks/T1.md")], [0, 0, T1_FILE]);
   });
 }
+
+/** The plan with these lines as its Open items section, the last one above the Tasks heading. */
+const withOpen = (plan: string, ...items: string[]): string => plan.replace("## Tasks\n", ["## Open items", "", ...items, "", "## Tasks", ""].join("\n"));
+const THREE_TASKS = planBody([...TWO_TASKS, { id: "T3", title: "Lock the account", covers: "AC2", uses: "none", deps: "T2", files: "src/lock.ts" }]);
+const notesOf = (text: string | null): string[] => (under(text ?? "", "Notes") ?? "").split("\n").filter((line) => line.startsWith("- "));
+
+test("a plan with notes for T1 and T3 and a plan note yields a Notes section in exactly T1 and T3, at most 3 each and numbered in section order, and none of the plan note or of an open critical problem", () => {
+  const at = split(withOpen(THREE_TASKS, "- critical | T2 | the DoD contradicts AC2", "- note | T1 | name the retry cap", "- note | T3 | the lock has no test of its expiry", "- note | T1 | the handler logs the password", "- note | plan | the summary names no rollback", "- note | T1 | fixed after the last review: T1 - the cookie is named"));
+  assert.equal(at.exit, 0);
+  assert.deepEqual(notesOf(at.read("tasks/T1.md")), ["- N1: name the retry cap", "- N2: the handler logs the password", "- N3: fixed after the last review: T1 - the cookie is named"]);
+  assert.deepEqual(notesOf(at.read("tasks/T3.md")), ["- N1: the lock has no test of its expiry"]);
+  assert.ok((at.read("tasks/T1.md") ?? "").endsWith("\n## Notes\n\n- N1: name the retry cap\n- N2: the handler logs the password\n- N3: fixed after the last review: T1 - the cookie is named\n"));
+  assert.doesNotMatch(at.read("tasks/T2.md") ?? "", /## Notes|contradicts/);
+  for (const id of ["T1", "T2", "T3"]) assert.doesNotMatch(at.read(`tasks/${id}.md`) ?? "", /rollback|Open items/);
+});
+
+test("a plan with no Open items section yields the task files it yielded before, and so does one whose open items name the plan alone (a plan with no notes builds as it did)", () => {
+  const plain = split(PLAN);
+  assert.deepEqual([plain.read("tasks/T1.md"), plain.read("tasks/T2.md")], [T1_FILE, T2_FILE]);
+  const open = split(withOpen(PLAN, "- critical | plan | AC2 - no task proves the rejection", "- note | plan | for the user alone"));
+  assert.deepEqual([open.read("tasks/T1.md"), open.read("tasks/T2.md")], [T1_FILE, T2_FILE]);
+});
+
+test("spec.md holds no Open items section: its lines stay in the plan, and what follows the section is kept", () => {
+  assert.equal(specOf(withOpen(PLAN, "- note | T1 | name the retry cap", "- critical | plan | still open")), HEAD);
+  const before = withOpen(PLAN, "- note | T1 | name the retry cap").replace("## Tasks\n", "## Later\n\nkept\n\n## Tasks\n");
+  assert.equal(specOf(before), `${HEAD}\n## Later\n\nkept\n`);
+});

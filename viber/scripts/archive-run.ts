@@ -81,12 +81,11 @@
 // without this script having to know what it is.
 //
 // The scratch is an enumerated list too, never all of .temp/viber/: each task
-// directory the plan names, `lessons`, `test-runner/`, `final-fix/`,
-// `repair-*/` and `extension-*/` of the build, and `intent/summary-*.md`,
-// the planner's work files (`planner/review-round`, `planner/plan-build`,
-// `planner/reach-*.md`, `slice-*.md`, `findings-*.md`, `review-*.md`, `tasks-*.md`,
-// `outline.md`, `decisions.md`, `fixes.md`, `gaps.md`, `survey.md`,
-// `architect.md`, `fix.md`) and `fixer/tree-record` of its planning. Left behind, they pile up run after run, and a stale task state or
+// directory the plan names, `lessons`, `waits`, `guard/`, `test-runner/`,
+// `final-fix/`, `repair-*/` and `extension-*/` of the build, and `intent/summary-*.md`,
+// the planner's work files (every `planner/*.md` file and the state file
+// `planner/plan-build`) and `fixer/tree-record` of its planning. Left behind,
+// they pile up run after run, and a stale task state or
 // lessons file is read by the next build of the same task id. Every other skill
 // keeps its files (prototype mockups, code-auditor findings, pr-feedback,
 // handoff, e2e). A build running at the same time in the same repository shares

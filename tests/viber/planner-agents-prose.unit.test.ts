@@ -1,22 +1,21 @@
 /*
  * planner-agents-prose.unit.test.ts - pins the contracts the planner's agents share with each other
- * and with the two scripts that print their dispatch blocks, `plan-build.sh` and `review-round.sh`.
+ * and with the script that prints their dispatch blocks, `plan-build.sh`.
  *
- * - The carrier rule: the four planning agents (`plan-surveyor`, `plan-architect`, `plan-detailer`,
- *   `plan-fixer`) and the four plan reviewers hold no `Bash`, name `plan:` first and `out:` among
- *   their input lines, write their result to the file plan mode names as theirs or to the `out:`
- *   path, and reply `OUT: <path>` above the `VERDICT:` line. The planner passes that path on and both
- *   script headers name the `out:` line.
- * - The `PENDING` skeleton: the architect writes `- Verification: PENDING` and `- DoD: PENDING`, the
- *   detailer fills those two lines alone, the header of `plan-build.ts` tells a skeleton by them, and
- *   the two reviewers the skeleton stage sends, like the fixer, treat one as no finding.
- * - The finding markers `(inferred)`, `(untouched)` and `(behaviour)`: one sentence in the `## Output`
- *   of the four reviewers, which `review-round.sh` reads back and the fixer acts on.
- * - The block of a review member: the lines the header of `review-round.sh` gives each reviewer are
- *   the lines its `## Input` names. The blocks of the planning agents are held to what the core
- *   prints by planner-blocks.unit.test.ts.
- * - Every `viber:<name>` the planner skill, its ADR reference and the two scripts name is a skill or
- *   an agent `plugin.json` lists, with an existing file.
+ * - The carrier rule: the three planning agents (`plan-surveyor`, `plan-architect`, `plan-author`)
+ *   and the plan judge hold no `Bash`, name `plan:` first and `out:` among their input lines, write
+ *   their result to the file plan mode names as theirs or to the `out:` path, and reply
+ *   `OUT: <path>` above the `VERDICT:` line. The planner passes that path on and the script header
+ *   names the `out:` line.
+ * - The judge: its `tools:` is exactly `Read, Write` (no `Grep`, `Glob` or `Bash`: it searches no
+ *   code), it holds one rule for what is critical, and its file holds `VERDICT:`, `CRITICAL:` and
+ *   `NOTE:` lines, the lines an owner reads as its findings.
+ * - The files the writers hand to the script: the outline of the surveyor, who searches and reads
+ *   no code file; the frame file of the architect, who reads no file body; the author file with
+ *   its facts, every task line written and no dependency; and the fix file both owners write.
+ * - The review gate of the planner skill: after review round two no branch of it asks the user.
+ * - Every `viber:<name>` the planner skill, its ADR reference and the script name is a skill or an
+ *   agent `plugin.json` lists, with an existing file.
  *
  * The files read here are shipped prompts and script headers, whose text is the behaviour. Nothing
  * is spawned. Each phrase is matched with any run of whitespace between its words, so rewrapping a
@@ -38,18 +37,16 @@ function read(relative: string): string {
   return fs.readFileSync(path.join(VIBER, relative), "utf8");
 }
 
-const WRITERS = ["plan-surveyor", "plan-architect", "plan-detailer", "plan-fixer"];
-const REVIEWERS = ["planner-review", "planner-spec-review", "planner-graph-review", "planner-task-review"];
+const WRITERS = ["plan-surveyor", "plan-architect", "plan-author"];
+const REVIEWERS = ["plan-judge"];
 const AGENTS: Record<string, string> = Object.fromEntries([...WRITERS, ...REVIEWERS].map((name) => [name, read(`agents/${name}.md`)]));
 
 const PLANNER = read("skills/planner/SKILL.md");
 const ADR_TASKS = read("skills/planner/references/adr-tasks.md");
 const PLUGIN_JSON = read(".claude-plugin/plugin.json");
 const PLAN_BUILD_CORE = read("lib/plan-build.ts");
-const REVIEW_ROUND = read("skills/planner/scripts/review-round.sh");
-// The header of each script without its comment prefix, so a phrase wrapped over two lines still matches.
+// The header of the script without its comment prefix, so a phrase wrapped over two lines still matches.
 const PLAN_BUILD = read("skills/planner/scripts/plan-build.ts").replace(/\r?\n \*/g, "\n");
-const REVIEW_ROUND_HEADER = REVIEW_ROUND.slice(0, REVIEW_ROUND.indexOf("\nset -u")).replace(/^#/gm, "");
 
 function has(haystack: string, text: string): boolean {
   const escaped = text.trim().split(/\s+/).map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
@@ -65,31 +62,6 @@ function inputLabels(text: string): string[] {
   const bullets = lines(section(text, "Input")).filter((line) => line.startsWith("- "));
   const labels = bullets.flatMap((line) => [...line.matchAll(/`([a-z]+):(?:`| T<)/g)].map((match) => match[1]));
   return [...new Set(labels)].sort();
-}
-
-/**
- * The lines of a member block as the header of review-round.sh lists them, each with the reviewers it
- * goes to: the ones its note names, every reviewer when it names none, and for "every other member"
- * the ones the line before it left out.
- */
-function memberBlock(header: string): [string, string[]][] {
-  const all = lines(header);
-  const start = all.findIndex((line) => line.startsWith(" Block of a member"));
-  const end = all.findIndex((line, index) => index > start && line.startsWith(" <dir> is"));
-  const rows: [string, string[]][] = [];
-  for (const line of all.slice(start + 1, end)) {
-    const match = /^ {3}([a-z]+): (.*)$/.exec(line);
-    if (match === null) continue;
-    const named = REVIEWERS.filter((name) => new RegExp(`(?<![a-z-])${name}(?![a-z-])`).test(match[2]));
-    const before = rows.length > 0 ? rows[rows.length - 1][1] : REVIEWERS;
-    const others = REVIEWERS.filter((name) => !before.includes(name));
-    rows.push([match[1], match[2].includes("every other member") ? others : named.length > 0 ? named : REVIEWERS]);
-  }
-  return rows;
-}
-
-function blockLabels(block: [string, string[]][], reviewer: string): string[] {
-  return block.filter(([, members]) => members.includes(reviewer)).map(([label]) => label).sort();
 }
 
 /** Every `viber:<name>` of a text, the `/viber:<name>` command form left out. */
@@ -114,30 +86,10 @@ test("the labels of an Input are the backticked `label:` words of its bullets, a
   assert.deepEqual(inputLabels(sample), ["fixes", "plan", "sum", "tasks"]);
 });
 
-test("a member block line goes to the reviewers its note names, to all four when it names none, and to the rest for every other member", () => {
-  const sample = [
-    " Block of a member, in order:",
-    "   NEXT: review | member: <k>",
-    "   plan: <plan>",
-    "   memory: <value>   planner-review, planner-graph-review, planner-task-review",
-    "   brief: <file>     planner-task-review, when written",
-    "                     a continuation naming planner-spec-review",
-    "   reach: <file>     every other member",
-    " <dir> is the state directory.",
-    "   late: <x>",
-  ].join("\n");
-  assert.deepEqual(memberBlock(sample), [
-    ["plan", REVIEWERS],
-    ["memory", ["planner-review", "planner-graph-review", "planner-task-review"]],
-    ["brief", ["planner-task-review"]],
-    ["reach", ["planner-review", "planner-spec-review", "planner-graph-review"]],
-  ]);
-});
-
 test("a viber:<name> that is neither a listed skill nor a listed agent with a file is reported, a /viber: command is no name", () => {
-  const plugin = JSON.stringify({ skills: ["./skills/intent/"], agents: ["./agents/plan-fixer.md", "./agents/gone.md"] });
-  const names = viberNames("Run `/viber:help`, invoke `viber:intent`, dispatch viber:plan-fixer, viber:gone and viber:nobody.");
-  assert.deepEqual(names, ["gone", "intent", "nobody", "plan-fixer"]);
+  const plugin = JSON.stringify({ skills: ["./skills/intent/"], agents: ["./agents/plan-author.md", "./agents/gone.md"] });
+  const names = viberNames("Run `/viber:help`, invoke `viber:intent`, dispatch viber:plan-author, viber:gone and viber:nobody.");
+  assert.deepEqual(names, ["gone", "intent", "nobody", "plan-author"]);
   assert.deepEqual(unlisted(names, plugin, (entry) => entry !== "agents/gone.md"), ["gone", "nobody"]);
 });
 
@@ -146,8 +98,9 @@ test("a viber:<name> that is neither a listed skill nor a listed agent with a fi
 // ---------------------------------------------------------------------------
 
 const TOOLS: [string[], string][] = [
-  [WRITERS, "tools: Read, Grep, Glob, Write, Edit"],
-  [REVIEWERS, "tools: Read, Grep, Glob, Write"],
+  [["plan-surveyor"], "tools: Read, Grep, Glob, Write"],
+  [["plan-architect", "plan-author"], "tools: Read, Grep, Glob, Write, Edit"],
+  [REVIEWERS, "tools: Read, Write"],
 ];
 
 for (const [names, tools] of TOOLS) {
@@ -157,6 +110,13 @@ for (const [names, tools] of TOOLS) {
     });
   }
 }
+
+test("plan-judge tools: is exactly Read, Write, holding no Grep, Glob or Bash (the judge searches no code: it reads the plan and the confirmed summary)", () => {
+  const front = AGENTS["plan-judge"].slice(0, AGENTS["plan-judge"].indexOf("\n---", 3));
+  const tools = lines(front).filter((line) => line.startsWith("tools:"));
+  assert.deepEqual(tools, ["tools: Read, Write"]);
+  assert.doesNotMatch(tools[0], /Grep|Glob|Bash/);
+});
 
 const WRITES_TO = "to the plan file the plan-mode notice names as yours; with no such notice, to the `out:` path. Write no other file.";
 const REPLIES_OUT = "Reply with `OUT: <the path written>` on its own line, then";
@@ -187,9 +147,8 @@ for (const name of [...WRITERS, ...REVIEWERS]) {
 
 const REPLY_VERDICT: [string, string][] = [
   ["plan-surveyor", "`VERDICT: MAPPED`, and nothing else."],
-  ["plan-architect", "`VERDICT: WRITTEN`, and nothing else."],
-  ["plan-detailer", "`VERDICT: WRITTEN`, and nothing else."],
-  ["plan-fixer", "`VERDICT: FIXED`, and nothing else."],
+  ["plan-architect", "`VERDICT: WRITTEN` (`VERDICT: FIXED` on `mode: fix`), and nothing else."],
+  ["plan-author", "`VERDICT: WRITTEN` (`VERDICT: FIXED` on `mode: fix`), and nothing else."],
   ...REVIEWERS.map((name): [string, string] => [name, "the `VERDICT:` line, as plain text and nothing else."]),
 ];
 
@@ -200,27 +159,21 @@ for (const [name, ending] of REPLY_VERDICT) {
 }
 
 for (const name of REVIEWERS) {
-  test(`${name} writes no file and replies VERDICT: PASS alone when it has no finding at all`, () => {
-    assert.ok(has(section(AGENTS[name], "Output"), "With no finding at all, write no file and reply `VERDICT: PASS` alone."));
+  test(`${name} writes no file and replies VERDICT: PASS alone when it has nothing to report`, () => {
+    assert.ok(has(section(AGENTS[name], "Output"), "With nothing to report, write no file and reply `VERDICT: PASS` alone."));
   });
 }
 
-for (const name of ["plan-architect", "plan-fixer"]) {
-  test(`${name} writes no file when it owes the user a decision and replies its DECIDE: lines, then VERDICT: DECIDE`, () => {
+for (const name of ["plan-architect", "plan-author"]) {
+  test(`${name} writes no file when it owes the user a decision before the plan is written and replies its DECIDE: lines, then VERDICT: DECIDE`, () => {
     const output = section(AGENTS[name], "Output");
     assert.ok(has(output, "write no file and reply with one `DECIDE: <decision> | <recommended option> | <option> | <option>` line per"));
     assert.ok(has(output, "then `VERDICT: DECIDE`."));
   });
 }
 
-test("the header of plan-build.ts opens every block on plan: and refs: and names out: as the file the agent writes when plan mode names it none", () => {
-  assert.ok(has(PLAN_BUILD, 'Every block opens on "plan: <plan>" and "refs: <plugin root>/references"; "out:" is the file the agent writes when plan mode names it none of its own.'));
-});
-
-test("the header of review-round.sh opens a member block on plan: and names out: as where the member writes its findings when plan mode names it no file", () => {
-  const block = memberBlock(REVIEW_ROUND_HEADER);
-  assert.equal(block[0][0], "plan");
-  assert.ok(has(REVIEW_ROUND_HEADER, "out: <dir>/review-<k>.md where the member writes its findings when plan mode names it no file of its own"));
+test("the header of plan-build.ts opens every block on plan:, a writing block then on refs:, and names out: as the file the agent writes when plan mode names it none", () => {
+  assert.ok(has(PLAN_BUILD, 'Every block opens on "plan: <plan>", a writing block then on "refs: <plugin root>/references"; "out:" is the file the agent writes when plan mode names it none of its own.'));
 });
 
 test("the planner passes the OUT: path of a writing agent to the next script and treats a writing verdict with no OUT: line as no verdict", () => {
@@ -230,163 +183,207 @@ test("the planner passes the OUT: path of a writing agent to the next script and
   assert.ok(has(rules, "A reply with no `VERDICT:` line, or with one of those verdicts and no `OUT:` line, is handled as `VERDICT: DENIED` with `REASON: no verdict returned`."));
 });
 
-test("the planner reports a reviewer's OUT: path with --out and a FAIL with no OUT: line as none, the two forms the usage of review-round.sh takes", () => {
+test("the planner reports the judge's OUT: path with --out and a FAIL with no OUT: line as none, the forms judged of plan-build.ts takes", () => {
   const gate = section(PLANNER, "4. Review gate");
-  assert.ok(has(gate, "or `none` without one or for a `FAIL` with no `OUT:` line, one `--out \"<k>=<OUT path>\"` per reply carrying an `OUT:` line."));
-  assert.ok(has(REVIEW_ROUND_HEADER, "review-round.sh <plan> returned <k>=<PASS|FAIL|DENIED|none> [<k>=<word>]... [--out <k>=<file>]..."));
-  assert.ok(has(REVIEW_ROUND_HEADER, "a FAIL without a readable one counts as none, since there is nothing to fix from."));
+  assert.ok(has(gate, "or `none` without one or for a `FAIL` with no `OUT:` line; a reply with no `OUT:` line drops `--out` and its value."));
+  assert.ok(has(PLAN_BUILD, "judged <plan> <PASS|FAIL|DENIED|none> [--out <file>]"));
+  assert.ok(has(PLAN_BUILD, "none, the first time in the round"));
+});
+
+test("a FAIL whose file plan-build.sh cannot use is reported again as none: the directive the script prints, the step 4 bullet that acts on it and the one judged call the plan gate takes as the answer to a FAIL", () => {
+  assert.ok(has(PLAN_BUILD, 'FAIL with no readable file or with a file holding no CRITICAL: line: "NEXT: judged | none" and no round counted. The NOTE: lines of a readable file go into "## Open items" first (the none report names no file)'));
+  assert.ok(has(section(PLANNER, "4. Review gate"), "- `NEXT: judged | none`: report that reply again as `none`, with no `--out`."));
+  const gate = read("hooks/scripts/plan-gate.sh");
+  assert.ok(gate.includes('judged${plan_arg}${next_word}none${word_end}'));
+  assert.ok(has(gate.replace(/\n# ?/g, "\n"), "A `judged` call with PASS or FAIL answers nothing."));
 });
 
 // ---------------------------------------------------------------------------
-// The PENDING skeleton
+// The files the writers hand to the script
 // ---------------------------------------------------------------------------
 
-test("the architect writes a skeleton with every task block complete except Verification and DoD, both written as PENDING, and leaves no other line to their author", () => {
-  assert.ok(
-    has(
-      section(AGENTS["plan-architect"], "Write"),
-      "`mode: skeleton`: every task block is complete, its `Files` down to each test file the task writes or changes, except two lines written as `- Verification: PENDING` and `- DoD: PENDING`. Their author fills those two and may change no other line, so every other line has to stand without them.",
-    ),
-  );
+const SURVEYOR = AGENTS["plan-surveyor"];
+const ARCHITECT = AGENTS["plan-architect"];
+const AUTHOR = AGENTS["plan-author"];
+
+test("no planning prompt, the planner skill or the script header names a PENDING line: an author writes every line of its tasks", () => {
+  for (const text of [...Object.values(AGENTS), PLANNER, PLAN_BUILD, PLAN_BUILD_CORE]) assert.ok(!text.includes("PENDING"));
 });
 
-test("the architect writes every line of every task in whole mode", () => {
-  assert.ok(has(section(AGENTS["plan-architect"], "Write"), "`mode: whole`: every line of every task is written."));
+test("the surveyor maps by search alone: it reads only the input and the outline: file and opens no code file", () => {
+  assert.ok(has(section(SURVEYOR, "Map"), "Search, never read: `Read` only the input and the `outline:` file."));
+  assert.ok(has(section(SURVEYOR, "Map"), "and open no code file"));
+  assert.doesNotMatch(SURVEYOR, /by range|plan-rules|`Size`/);
 });
 
-test("the detailer writes the Verification and DoD lines of its tasks and no other line of the plan", () => {
-  const text = AGENTS["plan-detailer"];
-  assert.ok(has(text, "its `Verification` and `DoD` lines, and no other line of the plan."));
-  assert.ok(has(section(text, "Write"), "Every task of the range gets both lines, each on one line, neither reading `PENDING`."));
-  assert.ok(has(section(text, "Write"), "Change nothing else. A file, dependency or contract block a task lacks is one line `GAP: <task id> | <what is missing and why>`, never a line you rewrite"));
+test("the surveyor writes one AREA: line per area with its task estimate and no TASKS: line: plan-build.sh outline sums the estimates", () => {
+  assert.ok(section(SURVEYOR, "Output").includes("\nAREA: <name> | <estimated task count, the number alone> | <what it delivers>\n"));
+  assert.ok(!SURVEYOR.includes("TASKS:"));
+  assert.ok(has(PLAN_BUILD, "TASKS: <n> the sum of the estimates of its AREA: lines"));
 });
 
-test("the detailer writes each task as a ### heading with its two lines, the shape the merge of plan-build.ts reads", () => {
-  const write = section(AGENTS["plan-detailer"], "Write");
-  assert.ok(has(write, "### <task id>\n- Verification: <command> -> <result that counts as proof>\n- DoD: <observable done condition>; <the next one>"));
-  assert.ok(has(PLAN_BUILD, 'Puts the "- Verification:" and "- DoD:" lines each task file gives under a "### <id>" heading into that task of the plan, no other line of it touched'));
+test("the architect writes the frame and no task, reading no file body: a declaration by range only for a contract block it writes", () => {
+  assert.ok(has(ARCHITECT, "The tasks are written by the author of each slice, never by you."));
+  assert.ok(has(section(ARCHITECT, "Read"), "No file body: the authors read the code. Read a declaration by range only for a contract block you write"));
+  assert.ok(has(section(ARCHITECT, "Write"), "Below it write the line `## Tasks` alone, then `## Contracts`."));
+  assert.ok(!ARCHITECT.includes("skeleton"));
 });
 
-test("the header of plan-build.ts tells a skeleton by a task holding PENDING as its Verification or DoD and names the tasks still holding it after a merge", () => {
-  assert.ok(has(PLAN_BUILD, '"mode: skeleton" when a task holds PENDING as its Verification or DoD (else "mode: whole")'));
-  assert.ok(has(PLAN_BUILD, '"pending: <id>, ..." for tasks still holding PENDING'));
+test("the frame file of the architect and the header of plan-build.ts agree on its two markers and on the SLICE: line", () => {
+  const write = section(ARCHITECT, "Write");
+  assert.ok(write.includes("\n<!-- SLICES -->\nSLICE: <k> | covers: AC1, AC3 | uses: C1 | <what the slice delivers>\n<!-- DECISIONS -->\n"));
+  assert.ok(has(PLAN_BUILD, '"<!-- SLICES -->" and "<!-- DECISIONS -->" lines'));
+  assert.ok(has(PLAN_BUILD, '"SLICE: <k> | covers: AC1, AC3 | uses: C1 | <what the slice delivers>" lines'));
+  assert.ok(has(write, "every criterion on at least one line"));
 });
 
-test("the header of plan-build.ts writes the GAP: lines of the task files to the gaps file the fixer reads as gaps:", () => {
-  assert.ok(has(PLAN_BUILD, 'writes the "GAP: " lines of the files to <dir>/gaps.md'));
-  assert.ok(has(section(AGENTS["plan-fixer"], "Input"), "`gaps:` (optional) is a file of `GAP: <task id> | <what is missing and why>` lines."));
+test("an author writes every line of every task, Depends-on as none on each: the script computes the order", () => {
+  const write = section(AUTHOR, "Write");
+  assert.ok(has(write, "Every line of every task is written, `Verification` and `DoD` each on one line. `- Depends-on: none` on every task: a script computes the order from `Files` and `Uses`."));
+  assert.ok(has(PLAN_BUILD, 'No author writes a dependency: every "- Depends-on:" line is "none" or the ids of the earlier tasks a task waits for, ascending.'));
+  assert.ok(has(read("skills/planner/templates/tasks.md"), '"Depends-on:" is written "none" on every task: a script computes it from "Files" and "Uses".'));
 });
 
-const PENDING_IS_NO_FINDING = "task's `Verification` or `DoD` reading `PENDING` is written later and is no finding";
+test("an author takes every command and identifier from a file it read and writes a FACT: line for it, the notes its fix dispatch gets back", () => {
+  assert.ok(has(section(AUTHOR, "Write"), "Take every command, test path and identifier from a file you read, and write one `FACT:` line for it"));
+  assert.ok(section(AUTHOR, "Write").includes("\n<!-- NOTES -->\nFACT: <path>:<line> | <short quote> | <what the plan takes from it>\nGAP: <what the frame lacks or states wrong, and why>\nOUTSIDE: <path> | <the behaviour that reference keeps>\n"));
+  assert.ok(has(section(AUTHOR, "Input"), "`notes:` (`fix`, optional) is the `FACT:` lines of your author file: what you read in the code."));
+  assert.ok(has(PLAN_BUILD, "the FACT: lines of each slice to <dir>/notes-<k>.md"));
+});
 
-for (const name of ["planner-spec-review", "planner-graph-review"]) {
-  test(`${name}, sent in the skeleton stage, treats a Verification or DoD reading PENDING as no finding`, () => {
-    assert.ok(has(section(AGENTS[name], "Input"), PENDING_IS_NO_FINDING));
+test("an author fixing its text reads its notes and findings and opens no code file a FACT: line covers", () => {
+  assert.ok(has(section(AUTHOR, "Fix"), "Open no code file a `FACT:` line covers: the fact is what you read there."));
+});
+
+test("an author of a slice names its own contract blocks L<n>, which the script numbers, and reports what the frame lacks as a GAP: line", () => {
+  const write = section(AUTHOR, "Write");
+  assert.ok(has(write, "one `### L<n> - <name>` block per shape your slice alone introduces or consumes, its `File:` line first, named `L<n>` in your `Uses`."));
+  assert.ok(has(write, "What the frame lacks or states wrong (a criterion, a shared block, a file another slice holds) is one `GAP:` line"));
+  assert.ok(has(PLAN_BUILD, "gives each L<n> block the next free C<k>"));
+});
+
+const FIX_FILE = "\n@@ EDIT\n<lines of the plan file as they stand, enough of them to occur exactly once>\n@@ WITH\n<the lines replacing them>\n@@ END\nfix: <where> - <change>\nunfixed: <where> - <why you cannot fix it>\nGAP: ";
+
+for (const [name, text, gap] of [
+  ["plan-author", AUTHOR, "GAP: frame | <what the frame owner must change>"],
+  ["plan-architect", ARCHITECT, "GAP: <task id> | <what its author must change>"],
+] as [string, string, string][]) {
+  test(`${name} writes its fix as edit blocks with one fix: or unfixed: line each, and sends what another owner must change as ${gap.slice(0, gap.indexOf(" |"))}`, () => {
+    const fix = section(text, "Fix");
+    assert.ok(fix.includes(FIX_FILE));
+    assert.ok(fix.includes(`\n${gap}\n`));
+    assert.ok(has(fix, "The blocks apply in order, all or none"));
+    assert.ok(has(fix, "is an `unfixed:` line, never a `DECIDE:` reply."));
+    assert.ok(has(fix, "A file of `unfixed:` or `GAP:` lines alone holds no block."));
+    assert.doesNotMatch(text, /Blocking|Minor|\(behaviour\)/);
+  });
+
+  test(`${name} adds a task under an id no task of the plan holds, with Depends-on none: the script numbers and orders the tasks`, () => {
+    assert.ok(has(section(text, "Fix"), "an id no task of the plan holds (`NEW1`)"));
+    assert.ok(has(section(text, "Fix"), "a script numbers and orders the tasks"));
+  });
+
+  test(`${name} reads a records: block by the Record tasks and Record shape sections of its rules: file, the sections adr-tasks.md holds`, () => {
+    assert.ok(has(section(text, "Fix"), "A `records:` block holds accepted decision records, with `rules:`, `stamp:` and `today:` lines: read `## Record tasks` and `## Record shape` of the `rules:` file and add the tasks they define"));
+    assert.deepEqual(["## Record tasks", "## Record shape"].filter((heading) => !lines(ADR_TASKS).includes(heading)), []);
   });
 }
 
-for (const name of ["planner-review", "planner-task-review"]) {
-  test(`${name}, which waits for the tasks to be written, names no PENDING line`, () => {
-    assert.ok(!AGENTS[name].includes("PENDING"));
-  });
-}
-
-test("the header of review-round.sh sends only the spec and graph reviewers in the skeleton stage, the two that pass over PENDING", () => {
-  assert.ok(has(REVIEW_ROUND_HEADER, "so only planner-spec-review and planner-graph-review are sent; the task reviewers and planner-review wait."));
-});
-
-test("the fixer leaves a Verification or DoD reading PENDING as it stands", () => {
-  assert.ok(has(section(AGENTS["plan-fixer"], "Fix"), "A `Verification` or `DoD` reading `PENDING` is no defect: leave that line as it stands."));
-});
-
-test("the planner runs its Tasks step only on mode: skeleton and merges again on a pending: line", () => {
-  const step = section(PLANNER, "3. Tasks");
-  assert.ok(has(step, "Only on `mode: skeleton`; `mode: whole` goes to step 4."));
-  assert.ok(has(step, "A `pending:` line: a block has no pair yet, run `merge` with its pair."));
-});
-
-// ---------------------------------------------------------------------------
-// The three finding markers
-// ---------------------------------------------------------------------------
-
-const MARKERS = "a Minor finding that would be Blocking ends in `(inferred)` when unverified in the plan or the code, `(untouched)` when outside the fixed text, and one where the plan changes a behaviour today's code has that no acceptance criterion asks for ends in `(behaviour)`.";
-
-for (const name of REVIEWERS) {
-  test(`${name} ends a Minor finding in (inferred), (untouched) or (behaviour) by the one sentence of its Output`, () => {
-    assert.ok(has(section(AGENTS[name], "Output"), MARKERS));
-  });
-}
-
-for (const heading of ["Calibration", "Output"]) {
-  test(`the four plan reviewers carry the same ${heading} section, word for word`, () => {
-    const sections = REVIEWERS.map((name) => section(AGENTS[name], heading));
-    assert.deepEqual(sections, REVIEWERS.map(() => sections[0]));
-  });
-}
-
-test("review-round.sh lists to the user the Minor findings ending in (inferred), (untouched) or (behaviour), in its header and in the pattern it reads them by", () => {
-  assert.ok(has(REVIEW_ROUND_HEADER, "MINOR: viber:<name>: <a Minor finding ending in (inferred), (untouched) or (behaviour)>"));
-  assert.ok(REVIEW_ROUND.includes("'\\((inferred|untouched|behaviour)\\)[[:space:]]*$'"));
-});
-
-test("review-round.sh counts a PASS whose findings file holds a Minor line ending in (behaviour) as a FAIL, in its header and in the pattern it reads it by", () => {
-  assert.ok(has(REVIEW_ROUND_HEADER, "A member sent this round that holds a PASS while its findings file holds a Minor line ending in (behaviour) counts as FAIL too, once per member and plan"));
-  assert.ok(REVIEW_ROUND.includes("'\\(behaviour\\)[[:space:]]*$'"));
-});
-
-test("the fixer fixes every Minor finding ending in (behaviour) across its whole class, and any other Minor one only where a Blocking fix rewrites its text", () => {
-  assert.ok(
-    has(
-      section(AGENTS["plan-fixer"], "Fix"),
-      "A findings file: fix every Blocking finding, and every Minor one ending in `(behaviour)`, a change of a behaviour today's code has that neither the input nor an `Answered:` line asks for, across its whole class in the plan; any other Minor one only where a Blocking fix rewrites its text.",
-    ),
-  );
-});
-
-test("the reviewers group their findings under the lines Blocking and Minor, one line opening on `- ` each, the shape the fixer reads as a findings file", () => {
-  assert.ok(has(section(AGENTS["planner-review"], "Output"), "`FINDINGS:` grouped Blocking then Minor, each group under its own line `Blocking` or `Minor`, one line opening on `- ` per finding"));
-  assert.ok(has(section(AGENTS["plan-fixer"], "Input"), "`findings:` (any number) is one reviewer's file: `FINDINGS:` grouped Blocking then Minor."));
-});
-
-test("the planner shows the user the MINOR: lines of NEXT: exit-plan as one list before it leaves plan mode", () => {
-  assert.ok(has(section(PLANNER, "5. Hand off"), "Call `ExitPlanMode` only on a `NEXT: exit-plan`, after showing the user its `MINOR:` lines as one list."));
+test("the header of plan-build.ts sends a GAP: line of the frame owner to the author of the task it names and one of a slice author to the architect once", () => {
+  assert.ok(has(PLAN_BUILD, "A GAP: line of the frame owner naming a task goes to the author of that task"));
+  assert.ok(has(PLAN_BUILD, 'one of a slice author naming "frame" goes to the architect once per plan'));
 });
 
 // ---------------------------------------------------------------------------
-// The block of a review member against each reviewer's Input
+// The judge
 // ---------------------------------------------------------------------------
 
-const MEMBER_BLOCK = memberBlock(REVIEW_ROUND_HEADER);
+const JUDGE = AGENTS["plan-judge"];
 
-test("the member block of review-round.sh lists its lines in dispatch order", () => {
-  assert.deepEqual(MEMBER_BLOCK.map(([label]) => label), ["plan", "refs", "memory", "input", "tasks", "sum", "brief", "reach", "candidates", "previous", "fixes", "out"]);
+test("the Input of plan-judge names exactly the lines of the judge block the header of plan-build.ts lists", () => {
+  assert.deepEqual(inputLabels(JUDGE), ["changed", "input", "out", "plan", "round"]);
+  assert.ok(has(PLAN_BUILD, "plan-judge plan, round, input, changed, out"));
 });
 
-for (const name of REVIEWERS) {
-  test(`the Input of ${name} names exactly the lines review-round.sh puts in its block`, () => {
-    assert.deepEqual(inputLabels(AGENTS[name]), blockLabels(MEMBER_BLOCK, name));
-  });
-}
-
-for (const name of REVIEWERS) {
-  test(`${name} names sum: as carried for the plan gate and never read`, () => {
-    assert.ok(has(section(AGENTS[name], "Input"), "`sum:` (carried for the plan gate, never read)"));
-  });
-}
-
-const ANSWERED_READERS = ["planner-review", "planner-spec-review"];
-
-test("review-round.sh adds the input and the Answered: lines to the blocks of planner-review and planner-spec-review alone", () => {
-  assert.ok(has(REVIEW_ROUND_HEADER, 'add: input planner-review, planner-spec-review, without --input: append "input:" and the confirmed summary or fixer diagnosis verbatim'));
-  assert.ok(has(REVIEW_ROUND_HEADER, 'add: answered planner-review, planner-spec-review: append one "Answered: <decision> -> <option>" per user answer'));
+test("plan-judge reads the plan and the input alone: it searches no code and reads no rule file", () => {
+  assert.ok(has(section(JUDGE, "Judge"), "Read the plan and the input, and nothing else: you search no code and read no rule file."));
+  assert.doesNotMatch(JUDGE, /refs|plan-rules|test-strategy/);
 });
 
-for (const name of REVIEWERS) {
-  const reads = ANSWERED_READERS.includes(name);
-  test(`${name} ${reads ? "reads" : "names no"} Answered: line${reads ? "s below its input" : ""}`, () => {
-    assert.equal(AGENTS[name].includes("`Answered:"), reads);
+test("plan-judge holds one rule for what is critical and makes everything else a note or nothing, by its negative list", () => {
+  const judge = section(JUDGE, "Judge");
+  assert.ok(has(judge, "A problem is critical only when the plan contradicts the input or an `Answered:` line, or when a coder cannot resolve it without changing a `DoD` clause, a `## Contracts` block or a file outside its task's `Files`."));
+  assert.ok(has(judge, "Everything else is a note or nothing: wording, style, test strategy and anything a coder can settle inside its own `Files`."));
+  assert.doesNotMatch(JUDGE, /Blocking|Minor/);
+});
+
+test("plan-judge reads in round 2 only the text its changed: file names and what refers to it", () => {
+  assert.ok(has(section(JUDGE, "Judge"), "Round 2 with a `changed:` file: judge only the text that file names and what in the plan refers to it."));
+});
+
+test("the judge file holds VERDICT:, CRITICAL: and NOTE: lines and nothing else, FAIL exactly on a CRITICAL: line, at most 3 notes per task", () => {
+  const output = section(JUDGE, "Output");
+  assert.ok(output.includes("\nVERDICT: PASS | FAIL\nCRITICAL: <where> | <what is wrong> | <what to change>\nNOTE: <T<n>|plan> | <one line>\n"));
+  assert.ok(has(output, "`FAIL` exactly when the file holds a `CRITICAL:` line."));
+  assert.ok(has(section(JUDGE, "Judge"), "at most 3 per task"));
+});
+
+for (const name of ["plan-architect", "plan-author"]) {
+  test(`${name} reads the critical lines of the judge as its findings, by the CRITICAL: line the judge writes`, () => {
+    assert.ok(has(section(AGENTS[name], "Input"), "`CRITICAL: <where> | <what is wrong> | <what to change>` lines of the review"));
   });
 }
+
+test("the second review of a plan written outside the planner is sent the CRITICAL lines of the first and what was changed for each: the Input of outside-plan-review, the plan-mode hint and the refusal of plan-gate.sh name the same dispatch", () => {
+  assert.ok(has(section(read("agents/outside-plan-review.md"), "Input"), "The prompt carries the plan path, one sentence stating the user's goal, and on the second and last review the `CRITICAL:` lines of the first plus what was changed for each."));
+  assert.ok(has(read("hooks/content/plan-hints.md"), "On FAIL fix its CRITICAL lines and dispatch it once more, adding those lines and what you changed for each to the plan path and the goal: that second review is the last."));
+  assert.ok(read("hooks/scripts/plan-gate.sh").includes(`dispatch_with="the plan path and one sentence stating the user's goal, and on a second review the CRITICAL lines of the first plus what you changed for each"`));
+});
+
+test("plan-judge reads the Answered: lines as part of its input", () => {
+  assert.ok(JUDGE.includes("`Answered:"));
+});
+
+// ---------------------------------------------------------------------------
+// The review gate of the planner skill
+// ---------------------------------------------------------------------------
+
+test("step 4 of the planner skill names no AskUserQuestion and its rule for round 2 runs open: after round two no branch of it asks the user", () => {
+  const gate = section(PLANNER, "4. Review gate");
+  assert.ok(!gate.includes("AskUserQuestion"));
+  assert.ok(has(gate, "Round 2, and every fix step after a `NEXT: exit-plan`: ask the user nothing. A refused fix file (the first exit 4), a `VERDICT: DENIED` or a `DECIDE:` reply runs `open`."));
+  assert.ok(has(gate, '"${CLAUDE_SKILL_DIR}/scripts/plan-build.sh" open "<plan-path>"'));
+  assert.doesNotMatch(gate, /\bask the user\b(?! nothing)/i);
+});
+
+test("a change the user asks for after a refused ExitPlanMode asks nothing either: step 5 names no question, its fix falls under the round 2 rule of step 4, and open of plan-build.sh has a path once the review is over", () => {
+  const hand = section(PLANNER, "5. Hand off");
+  assert.ok(!hand.includes("AskUserQuestion"));
+  assert.ok(has(hand, "is a fix of your own whose `add: lines` is `change:` then what to change; after it call `ExitPlanMode` again, with no review round and no question."));
+  assert.ok(has(PLAN_BUILD, 'Once the review is over it gives up the fix of a change made after it: the plan gets "- critical | plan | a change asked for after the review was not applied" and "NEXT: exit-plan" with the OPEN: lines follows.'));
+});
+
+for (const name of ["allowed", "required"]) {
+  test(`the ${name} branching-fix fragment runs the branch command again after the fix of round 1 alone: after round two it asks nothing, a new branch question included`, () => {
+    const text = read(`skills/planner/fragments/branching-fix.${name}.md`);
+    assert.ok(text.startsWith("After the fix of `NEXT: fix | round: 1` is applied, run the branch step's last `plan-path.sh --branch` command again"));
+    assert.ok(has(text, "After a fix of round 2 or of step 5 never run it: the recorded keys stand, and nothing is asked."));
+  });
+}
+
+test("every exit code of plan-build.sh has a branch in the Rules of the planner skill: 4 for what an agent wrote, 2 for a call to correct, 5 and an exit 2 that names no call to stop on", () => {
+  const rules = section(PLANNER, "Rules");
+  assert.ok(has(rules, "A `plan-build.sh` exit 4 refused a file and wrote nothing"));
+  assert.ok(has(rules, "A `plan-build.sh` exit 2: make the call its `error:` line names, once. Otherwise, and on an exit 5: show the `error:` line and stop, no hand-off."));
+  assert.deepEqual([...new Set([...read("lib/plan-build.ts").matchAll(/fail\((\d)/g)].map((match) => match[1]))].sort(), ["2", "4", "5"]);
+  assert.ok(has(PLAN_BUILD, "4 when what an agent wrote cannot be used, a file of its that cannot be read included"));
+});
+
+test("the Rules of the planner skill send the two questions a review fix would ask to step 4, which runs open in their place", () => {
+  const rules = section(PLANNER, "Rules");
+  assert.ok(has(rules, "Step 4 names the replies that ask nothing."));
+  assert.ok(has(rules, "step 4 names the fixes that run `open` instead."));
+});
 
 // ---------------------------------------------------------------------------
 // Every name the planner dispatches is registered
@@ -397,7 +394,6 @@ const DISPATCH_SOURCES: [string, string][] = [
   ["planner/references/adr-tasks.md", ADR_TASKS],
   ["planner/scripts/plan-build.ts", PLAN_BUILD],
   ["lib/plan-build.ts", PLAN_BUILD_CORE],
-  ["planner/scripts/review-round.sh", REVIEW_ROUND],
 ];
 
 for (const [name, text] of DISPATCH_SOURCES) {
@@ -408,20 +404,14 @@ for (const [name, text] of DISPATCH_SOURCES) {
   });
 }
 
-for (const name of WRITERS) {
+for (const name of [...WRITERS, ...REVIEWERS]) {
   test(`plan-build prints a block for viber:${name}, in its core and in the header of its entry`, () => {
     assert.deepEqual([PLAN_BUILD_CORE.includes(`agent: viber:${name}`), PLAN_BUILD.includes(`viber:${name}`)], [true, true]);
   });
 }
 
-for (const name of REVIEWERS) {
-  test(`review-round.sh names viber:${name} as a member it prints a block for`, () => {
-    assert.ok(REVIEW_ROUND.includes(`viber:${name}`));
-  });
-}
-
-test("the planner names viber:plan-fixer as the block of a fix and no other planning agent or reviewer by its dispatch name (the scripts name them on the agent: field)", () => {
+test("the planner names no planning agent and no judge by its dispatch name (the scripts name them on the agent: field)", () => {
   const planning = viberNames(PLANNER).filter((name) => [...WRITERS, ...REVIEWERS].includes(name));
-  assert.deepEqual(planning, ["plan-fixer"]);
+  assert.deepEqual(planning, []);
   assert.ok(has(section(PLANNER, "Rules"), "one `Agent` call per block a script printed, the agent named on its `agent:` field."));
 });

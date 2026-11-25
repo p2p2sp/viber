@@ -37,9 +37,7 @@ const REVIEWER = read("agents/task-reviewer.md");
 const TEST_RUNNER = read("agents/test-runner.md");
 const FIXER = read("skills/fixer/SKILL.md");
 const ARCHITECT = read("agents/plan-architect.md");
-const DETAILER = read("agents/plan-detailer.md");
-const PLAN_REVIEW = read("agents/planner-review.md");
-const TASK_REVIEW = read("agents/planner-task-review.md");
+const AUTHOR = read("agents/plan-author.md");
 
 function phrase(text: string): RegExp {
   const escaped = text.trim().split(/\s+/).map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
@@ -165,13 +163,6 @@ test("plan-rules Layered closes with an integration test written in its adapter'
   const text = rule("Layered");
   assert.ok(has(text, "An integration test is written in the task that creates or changes its adapter and never run there, a `Repro:` test excepted: that task's `Verification` runs the test tool's own listing or type-check step plus a grep of one identifier on both sides, the test and the adapter declaring it, and the build's final test run runs the test once. (review)"));
   assert.ok(!text.includes("The adapter task stays"));
-  assert.ok(!text.includes("Exclusive"));
-});
-
-test("plan-rules Sequenced moves clauses out of three Task rules and names no Exclusive leaf task of an adapter", () => {
-  const text = rule("Sequenced");
-  assert.ok(text.startsWith("- Sequenced: the plan-wide clauses moved out of three `## Task` rules, each kept in its own wording:"));
-  assert.ok(!text.includes("from Layered"));
   assert.ok(!text.includes("Exclusive"));
 });
 
@@ -477,34 +468,18 @@ test("test-strategy keeps no bullet of the old component rule outside Layers", (
   assert.ok(!has(STRATEGY, "A component test drives the whole application through its own entry point inside the test process"));
 });
 
-test("plan-architect reads Layers, Proves and Ports of test-strategy by range before a task is written", () => {
-  assert.ok(has(section(ARCHITECT, "Read"), "Before a task is written, read `## Layers`, `## Proves` and `## Ports` of `<refs>/test-strategy.md` by range: `Grep` the file for its `## ` lines, then `Read` each of the three sections."));
+test("plan-author reads Layers, Proves and Ports of test-strategy alone, by range (it writes the proof of every task)", () => {
+  assert.ok(has(section(AUTHOR, "Read"), "`Grep` each for its `## ` lines, then `Read` that section by range."));
+  assert.ok(has(section(AUTHOR, "Read"), "`<refs>/test-strategy.md` in `## Layers`, `## Proves` and `## Ports` only, the same way."));
 });
 
-test("plan-detailer reads Layers, Proves and Ports of test-strategy alone, by range (it writes the proof of every task of a skeleton)", () => {
-  assert.ok(has(section(DETAILER, "Read"), "`<refs>/test-strategy.md` in `## Layers`, `## Proves` and `## Ports` only, the same way."));
+test("plan-architect reads no test rule: it writes the frame and no task", () => {
+  assert.ok(!has(ARCHITECT, "test-strategy.md"));
 });
-
-const REVIEWER_ROWS: [string, string][] = [
-  ["planner-review", PLAN_REVIEW],
-  ["planner-task-review", TASK_REVIEW],
-];
-
-for (const [name, text] of REVIEWER_ROWS) {
-  test(`${name} reads Layers, Proves and Ports of test-strategy by range`, () => {
-    assert.ok(has(text, "Read `<refs>/test-strategy.md` in the sections `## Layers`, `## Proves` and `## Ports` only: `Grep` it for the `## ` line numbers, then `Read` those sections by range."));
-  });
-
-  test(`${name} gates Layered, Observable and Owned against those sections and reports a breach under the rule's name`, () => {
-    assert.ok(has(text, "Gate `Layered`, `Observable` and `Owned` against the three sections of `test-strategy.md` you read, a breach reported under the rule's name."));
-  });
-}
 
 const DEFINITION_ROWS: [string, string][] = [
   ["plan-architect", ARCHITECT],
-  ["plan-detailer", DETAILER],
-  ["planner-review", PLAN_REVIEW],
-  ["planner-task-review", TASK_REVIEW],
+  ["plan-author", AUTHOR],
 ];
 
 for (const [name, text] of DEFINITION_ROWS) {
@@ -537,10 +512,7 @@ test("task-coder reads the test rules before its first edit reaching an external
 });
 
 const ADAPTER_READ_ROWS: [string, string, string][] = [
-  ["plan-architect", section(ARCHITECT, "Read"), "A plan carrying an integration test or creating or changing an adapter also reads `<refs>/integration-tests.md`"],
-  ["plan-detailer", section(DETAILER, "Read"), "A range with a task writing an integration test or creating or changing an adapter also reads `<refs>/integration-tests.md`"],
-  ["planner-review", PLAN_REVIEW, "when the plan carries an integration test or creates or changes an adapter, read `<refs>/integration-tests.md`"],
-  ["planner-task-review", TASK_REVIEW, "when the plan carries an integration test or creates or changes an adapter, read `<refs>/integration-tests.md`"],
+  ["plan-author", section(AUTHOR, "Read"), "A task writing an integration test or creating or changing an adapter also reads `<refs>/integration-tests.md`"],
 ];
 
 for (const [name, text, sentence] of ADAPTER_READ_ROWS) {

@@ -1,12 +1,13 @@
 /*
  * split.ts - the decomposition of --split: cuts a plan into its specification,
- * its phases and one file per task, and writes and commits them beside it.
+ * its phases and one file per task, each task file ending on the notes the Open
+ * items section holds for it, and writes and commits them beside it.
  */
 
 import { byteOrder } from "../byte-order.ts";
 import { baseOf } from "../map-answer.ts";
 import type { Fs, Git, GitWrite } from "../ports.ts";
-import { CLOSE_TASK, headingOf, OPEN_TASK, PHASES, SECTION, SUBSECTION, TASKS } from "./read.ts";
+import { CLOSE_TASK, headingOf, OPEN_ITEMS, OPEN_TASK, openItemOf, PHASES, SECTION, SUBSECTION, TASKS } from "./read.ts";
 import { clausesOf, closesFence, criteriaOf, entriesOf, fenceReader, linesOf, opensFence, trim, valueOf, type Fence } from "./text.ts";
 
 export interface Decomposed {
@@ -54,7 +55,8 @@ function collapsed(): { add(line: string): void; lines: string[] } {
 /**
  * Everything above the task list, less the frontmatter and every HTML comment,
  * which belong to the run; the `issue:` key alone outlives it. The phases section
- * holds what this plan does not build, so it goes to a text of its own. A fenced
+ * holds what this plan does not build, so it goes to a text of its own, and the
+ * open items section stays in the plan: its notes reach the task files. A fenced
  * block is content and stays line for line, a comment in it included.
  */
 function headOf(lines: string[]): { spec: string; phases: string | null } {
@@ -73,6 +75,7 @@ function headOf(lines: string[]): { spec: string; phases: string | null } {
   const spec = collapsed();
   const phases = collapsed();
   let inPhases = false;
+  let inOpen = false;
   let comment = false;
   let fence: Fence | null = null;
   for (const line of lines.slice(from)) {
@@ -88,7 +91,11 @@ function headOf(lines: string[]): { spec: string; phases: string | null } {
       continue;
     }
     const opens = SECTION.test(line);
-    if (opens) inPhases = PHASES.test(line);
+    if (opens) {
+      inPhases = PHASES.test(line);
+      inOpen = OPEN_ITEMS.test(line);
+    }
+    if (inOpen) continue;
     fence = opensFence(text);
     (inPhases ? phases : spec).add(opens && inPhases ? "## Phases" : line);
   }
@@ -133,14 +140,26 @@ function criteriaTexts(lines: Line[]): Map<number, string> {
   return criteria;
 }
 
+/** The text of each note of the Open items section, by the task it names, in section order. */
+function notesOf(lines: Line[]): Map<string, string[]> {
+  const notes = new Map<string, string[]>();
+  let inside = false;
+  for (const { text, fenced } of lines) {
+    if (!fenced && SECTION.test(text)) inside = OPEN_ITEMS.test(text);
+    const item = inside && !fenced ? openItemOf(text) : null;
+    if (item !== null && item.kind === "note" && item.where !== "plan") notes.set(item.where, [...(notes.get(item.where) ?? []), item.text]);
+  }
+  return notes;
+}
+
 /** The DoD line as one numbered line per clause: a coder answers for each and a reviewer gates each. One holding no clause stays as it is. */
 function clauseLines(line: string): string[] {
   const clauses = clausesOf(line.replace(/^[^:]*:/, ""));
   return clauses.length === 0 ? [line] : clauses.map((clause, k) => `- DoD.${k + 1}: ${clause}`);
 }
 
-/** The whole job of one coder, which is handed nothing else: its block, the goal, the criteria it covers, the contracts it uses and the boundaries it may not cross. */
-function taskText(body: string[], covers: string[], uses: string[], shared: { goal: string; mustNot: string; out: string; criteria: Map<number, string>; contracts: Map<string, string> }): string {
+/** The whole job of one coder, which is handed nothing else: its block, the goal, the criteria it covers, the contracts it uses, the boundaries it may not cross and, last, the notes the plan review left for it. A task with no note gets no Notes heading. */
+function taskText(body: string[], covers: string[], uses: string[], notes: string[], shared: { goal: string; mustNot: string; out: string; criteria: Map<number, string>; contracts: Map<string, string> }): string {
   const named = uses.flatMap((id) => shared.contracts.get(id) ?? []);
   const under = (heading: string, text: string): string => (text === "" ? "" : `\n## ${heading}\n${text}`);
   return [
@@ -150,6 +169,7 @@ function taskText(body: string[], covers: string[], uses: string[], shared: { go
     named.length === 0 ? "" : `\n## Contracts\n${named.map((block) => `\n${block.replace(/\n[ \t\n\v\f\r]*\n$/, "\n")}`).join("")}`,
     under("Must not change", shared.mustNot),
     under("Out of scope", shared.out),
+    notes.length === 0 ? "" : `\n## Notes\n\n${rows(notes.map((note, k) => `- N${k + 1}: ${note}`))}`,
   ].join("");
 }
 
@@ -166,13 +186,14 @@ export function decompose(text: string): Decomposed {
     criteria: criteriaTexts(lines.slice(0, cut)),
     contracts: contractsOf(lines),
   };
+  const notes = notesOf(lines.slice(0, cut));
   const tasks: Decomposed["tasks"] = [];
   let open: { id: string; body: string[]; covers: string[]; uses: string[] } | null = null;
   for (const { text: line, fenced: inFence } of lines.slice(cut)) {
     if (OPEN_TASK.test(line)) open = { id: "", body: [], covers: [], uses: [] };
     else if (open === null) continue;
     else if (CLOSE_TASK.test(line)) {
-      if (open.id !== "") tasks.push({ id: open.id, text: taskText(open.body, open.covers, open.uses, shared) });
+      if (open.id !== "") tasks.push({ id: open.id, text: taskText(open.body, open.covers, open.uses, notes.get(open.id) ?? [], shared) });
       open = null;
     } else if (/^-[ \t\v\f\r]*DoD:/.test(line)) open.body.push(...clauseLines(line));
     else {

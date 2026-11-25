@@ -12,7 +12,7 @@ Dispatch `viber:test-runner` with report path `<dir>/work/tests-<round>.md`, rou
 
 Repair dispatch: `viber:task-coder` (model `sonnet` clamped into the tiers range) with `spec: <dir>/spec.md`, the last `REPORT` path as `report:`, `notes: <dir>/work/repair-<round>-coder.md`, `out: .temp/viber/repair-<round>/` and `refs: ${CLAUDE_PLUGIN_ROOT}/references`, plus the `run-lessons:` list of a `"${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh" --lessons "<dir>"` call made right before this dispatch, the line omitted when it reads `lessons: none`.
 
-Repair commit: one `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --repair "<plan>" "<round>" "<file>" ["<file>"...]` call per round, naming every path on the coder's `FILES:` line. It commits each path with the task that owns it, or in a repair commit of its own.
+Repair commit: one `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --repair "<plan>" "<round>" "<file>" ["<file>"...]` call per round, naming every path on the coder's `FILES:` line. Each path lands with its owning task, else in a repair commit.
 
 Returns:
 
@@ -52,7 +52,7 @@ Commit what the memory and rules dispatches above return, one call: memory and r
 
 ## 7. Archive and close
 
-First, in every close, one call `"${CLAUDE_PLUGIN_ROOT}/scripts/run-summary.sh" "<started>" "<dir>"`, no config key turning it on or off: its `elapsed:` line is the clock, the lines after it the token report.
+First, in every close, one call `"${CLAUDE_PLUGIN_ROOT}/scripts/run-summary.sh" "<started>" "<dir>"`, no config key turning it on or off: its `elapsed:` line is the clock, the lines after it the token report and the paths task commits refused.
 
 For the close part below, when the config block's `build.cleanup:` line reads `true`, the index's `closed:` line does not already name it and the build did not end on `abort`, first make one call, no config key of its own turning it on or off, `"${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh" "<dir>"`: its `failures:` line gives the `convention` and `runs` counts, and its non-zero exit gives the `error:` line of its stderr. Then compose the final summary in its archived form, then:
 

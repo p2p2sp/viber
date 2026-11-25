@@ -234,9 +234,9 @@ for (const row of DIRS) {
   });
 }
 
-test("the scratch of the build and its planning goes with the run, every other file under .temp/ stays, a task id reaching outside .temp/viber/ included", () => {
-  const gone = ["T1/state", "lessons", "test-runner/T1.cmd", "final-fix/x.log", "repair-1/x.log", "extension-docs/x.md", "intent/summary-2026.md", "planner/reach-2026.md", "planner/reach-paths.md", "planner/slice-T1-T8.md", "planner/findings-3.md", "planner/review-3.md", "planner/tasks-T1-T8.md", "planner/outline.md", "planner/decisions.md", "planner/fixes.md", "planner/gaps.md", "planner/survey.md", "planner/architect.md", "planner/fix.md", "planner/review-round", "planner/plan-build", "fixer/tree-record"];
-  const kept = ["T9/state", "code-auditor/r1/findings.md", "intent/notes.md", "intent/summary.txt", "planner/notes.md", "prototype/mockup.html", "repairs/x"];
+test("the scratch of the build and its planning goes with the run, the waits file and the guard directory, every .md file of the planner directory and its state file among it, every other file under .temp/ stays, a task id reaching outside .temp/viber/ included", () => {
+  const gone = ["T1/state", "lessons", "waits", "guard/a1b2c3d4e5f6a7b8c", "test-runner/T1.cmd", "final-fix/x.log", "repair-1/x.log", "extension-docs/x.md", "intent/summary-2026.md", "planner/reach-2026.md", "planner/reach-paths.md", "planner/slice-T1-T8.md", "planner/judge-2.md", "planner/changed.md", "planner/tasks-T1-T8.md", "planner/outline.md", "planner/decisions.md", "planner/gaps.md", "planner/survey.md", "planner/architect.md", "planner/fix.md", "planner/author-1.md", "planner/plan-build", "fixer/tree-record"];
+  const kept = ["T9/state", "code-auditor/r1/findings.md", "guards/x", "intent/notes.md", "intent/summary.txt", "planner/notes.txt", "planner/sub/kept.md", "prototype/mockup.html", "repairs/x", "waits.log"];
   const at = scene({
     head: { [`${RUN}/plan.md`]: plan("T1", ".."), [`${RUN}/status.md`]: "done: T1 ..\n" },
     tree: { ...Object.fromEntries([...gone, ...kept].map((path) => [`.temp/viber/${path}`, "x\n"])), ".temp/logs/l": "x\n" },

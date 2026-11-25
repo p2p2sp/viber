@@ -55,12 +55,14 @@ function clearScratch(top: string, ids: Iterable<string>, fs: Fs): void {
   const gone = [
     ...tasks,
     "lessons",
+    "waits",
+    "guard",
     "test-runner",
     "final-fix",
     ...matching("", /^(repair|extension)-/),
     ...matching("/intent", /^summary-.*\.md$/s),
-    ...matching("/planner", /^(reach-.*|slice-.*|findings-.*|review-.*|tasks-.*|outline|decisions|fixes|gaps|survey|architect|fix)\.md$/s),
-    "planner/review-round",
+    // Every work file of the planner is an .md file beside its one state file.
+    ...matching("/planner", /\.md$/s),
     "planner/plan-build",
     "fixer/tree-record",
   ];

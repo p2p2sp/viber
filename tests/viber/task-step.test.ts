@@ -1,8 +1,13 @@
 /*
  * task-step.test.ts - proves viber/scripts/task-step.sh's answers to the
- * `start`, `coder`, `reviewer`, `retry`, `accept`, `commit`, `ruled`,
- * `resume-failed`, `repair` and `skip` events: the one directive block the
- * implementor sends next after a coder, a reviewer, a commit or an arbiter returns.
+ * `ready`, `start`, `coder`, `reviewer`, `retry`, `accept`, `commit`, `ruled`,
+ * `resume-failed`, `repair`, `skip` and `lost` events: the tasks to start next, and the
+ * one directive block the implementor sends next after a coder, a reviewer, a
+ * commit or an arbiter returns. The scheduling cases run the real
+ * task-ready.sh beside the script: which task is ready and what a collision
+ * becomes is proven in process by tests/viber/lib/task-ready.unit.test.ts, and
+ * here only what task-step.sh makes of its lines (the blocks, the flight marks
+ * and the --decide call of a second collision).
  *
  * The script is the implementor's task loop moved out of prose: it counts
  * attempts, climbs the tiers, decides review against commit and holds a task at
@@ -702,7 +707,7 @@ async function seedChecked(repo: GitRepo, config: string, testBody: string): Pro
 function stubbedCheck(repo: GitRepo, body: string): { sut: string; root: string } {
   const scripts = path.join(repo.dir, "plugin", "scripts");
   fs.mkdirSync(scripts, { recursive: true });
-  for (const name of ["task-step.sh", "plan-index.sh", "plan-index.ts", "config.sh", "config.ts", "run-failures.sh", "run-failures.ts", "plugin-root.sh"]) {
+  for (const name of ["task-step.sh", "plan-index.sh", "plan-index.ts", "config.sh", "config.ts", "run-failures.sh", "run-failures.ts", "task-ready.sh", "task-ready.ts", "plugin-root.sh"]) {
     fs.copyFileSync(path.join(path.dirname(SUT), name), path.join(scripts, name));
   }
   fs.cpSync(path.join(path.dirname(SUT), "..", "lib"), path.join(repo.dir, "plugin", "lib"), { recursive: true });
@@ -1495,6 +1500,411 @@ for (const [id, expected] of [
     });
   });
 }
+
+// --- scheduling ---------------------------------------------------------------
+
+const READY: Call = ["-", "100", "ready"];
+const T4_WAITS: Call = ["T4", "100", "coder", "FAIL", "--wait", "src/T1.ts"];
+const T4_RETRIED: Call = ["T4", "100", "retry", "coder", "--waited"];
+
+/** status.md with its done list and, after it, the decision lines given. */
+function seedStatus(repo: GitRepo, done: string, decisions: string[] = []): void {
+  write(repo.dir, `${PLAN_DIR}/status.md`, lines("# status", "", "progress: 0/4", `done: ${done}`, ...decisions));
+}
+
+test("ready lists the tasks whose dependencies are done, in plan order, and never lists one again once it offered it", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+
+    const first = await step(repo, READY);
+    assert.equal(first.status, 0, `stderr: ${first.stderr}`);
+    assert.equal(first.stdout, lines("NEXT: ready | start: T1,T4"));
+
+    const second = await step(repo, READY);
+    assert.equal(second.status, 0, `stderr: ${second.stderr}`);
+    assert.equal(second.stdout, lines("NEXT: ready | none"));
+  });
+});
+
+test("ready under another mark lists the offered tasks again (the offer of an earlier session is no flight)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [READY]);
+
+    const result = await step(repo, ["-", "200", "ready"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: ready | start: T1,T4"));
+  });
+});
+
+test("start of a task ready offered answers attempt 1 at the tiers of its flags (an offer is no attempt to keep)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [READY]);
+
+    const result = await step(repo, START_T1);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: coder | attempt: 1 | model: sonnet | review: opus", ...coderLines("T1")));
+  });
+});
+
+test("a coder event of a task ready offered and nobody started exits 2 (an offer is no step state)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [READY]);
+
+    const result = await step(repo, T1_FAIL);
+    assert.equal(result.status, 2, `stdout: ${result.stdout}`);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^error: no step state for T1/);
+  });
+});
+
+test("ready lists the dependents of a committed task once status.md holds it as done, and no task in flight", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [READY, START_T1, START_T4_WAIVED]);
+    seedStatus(repo, "T1");
+
+    const result = await step(repo, READY);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: ready | start: T2"));
+  });
+});
+
+test("a coder FAIL --wait on a path an open task claims answers one wait block and ends no attempt", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T1, START_T4_WAIVED]);
+
+    const waited = await step(repo, T4_WAITS);
+    assert.equal(waited.status, 0, `stderr: ${waited.stderr}`);
+    assert.equal(waited.stdout, lines("NEXT: wait | on: T1"));
+
+    const held = await step(repo, READY);
+    assert.equal(held.stdout, lines("NEXT: ready | none"), `stderr: ${held.stderr}`);
+
+    const again = await step(repo, T4_RETRIED);
+    assert.equal(again.status, 0, `stderr: ${again.stderr}`);
+    assert.equal(again.stdout, lines("NEXT: coder | attempt: 1 | model: sonnet | review: waived", ...coderLines("T4", ["reason: waited on src/T1.ts"])));
+  });
+});
+
+test("ready lists a waiting task under retry: once its claimant is done, beside the tasks that commit opened", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T1, START_T4_WAIVED, T4_WAITS]);
+    seedStatus(repo, "T1");
+
+    const result = await step(repo, READY);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: ready | start: T2 | retry: T4"));
+
+    const next = await step(repo, READY);
+    assert.equal(next.stdout, lines("NEXT: ready | none"), `stderr: ${next.stderr}`);
+  });
+});
+
+test("the second coder FAIL --wait of one pair answers the --decide call recording the pair as sequenced, then the sequenced wait block (the second collision is a decision line, never a question)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T1, START_T4_WAIVED, T4_WAITS, T4_RETRIED]);
+
+    const result = await step(repo, T4_WAITS);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines(`RUN: ${COMMIT_TASK} --decide "${PLAN_REL}" "T4" "sequenced after T1: both need src/T1.ts"`, "NEXT: wait | on: T1 | sequenced"));
+    assert.equal(fs.readFileSync(path.join(repo.dir, ".temp/viber/waits"), "utf8"), lines("started: 100", "wait: T4 | T1 | src/T1.ts", "wait: T4 | T1 | src/T1.ts", "sequence: T4 | T1 | src/T1.ts"));
+  });
+});
+
+test("with the sequenced decision line in status.md ready lists the second task of the pair only once the first is done", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    const decision = "decision: T4: sequenced after T1: both need src/T1.ts";
+    seedStatus(repo, "none", [decision]);
+
+    const open = await step(repo, READY);
+    assert.equal(open.status, 0, `stderr: ${open.stderr}`);
+    assert.equal(open.stdout, lines("NEXT: ready | start: T1"));
+
+    seedStatus(repo, "T1", [decision]);
+    const settled = await step(repo, READY);
+    assert.equal(settled.stdout, lines("NEXT: ready | start: T2,T4"), `stderr: ${settled.stderr}`);
+  });
+});
+
+const T4_WAITS_FREE: Call = ["T4", "100", "coder", "FAIL", "--wait", "src/free.ts"];
+
+test("a coder FAIL --wait naming only a path no open task claims, with no other task in flight, is a plain coder failure: the next attempt with add: reason (nobody is left to wait out)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T4_WAIVED]);
+
+    const result = await step(repo, T4_WAITS_FREE);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: coder | attempt: 2 | model: opus | review: waived | add: reason", ...coderLines("T4")));
+  });
+});
+
+test("a coder FAIL --wait on a dirty path no task claims, while another task is in flight, answers one wait block naming that task and ends no attempt; the task goes out again once that task left flight (a coder mid-edit lists an extra file only at its return)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T1, START_T4_WAIVED]);
+
+    const waited = await step(repo, T4_WAITS_FREE);
+    assert.equal(waited.status, 0, `stderr: ${waited.stderr}`);
+    assert.equal(waited.stdout, lines("NEXT: wait | on: T1"));
+    assert.equal(fs.readFileSync(path.join(repo.dir, ".temp/viber/waits"), "utf8"), lines("started: 100", "free: T4 | T1 | src/free.ts"));
+
+    const held = await step(repo, READY);
+    assert.equal(held.stdout, lines("NEXT: ready | none"), `stderr: ${held.stderr}`);
+
+    seedStatus(repo, "T1");
+    const listed = await step(repo, READY);
+    assert.equal(listed.stdout, lines("NEXT: ready | start: T2 | retry: T4"), `stderr: ${listed.stderr}`);
+
+    const again = await step(repo, T4_RETRIED);
+    assert.equal(again.status, 0, `stderr: ${again.stderr}`);
+    assert.equal(again.stdout, lines("NEXT: coder | attempt: 1 | model: sonnet | review: waived", ...coderLines("T4", ["reason: waited on src/free.ts"])));
+  });
+});
+
+test("the second coder FAIL --wait of a task on the same unclaimed path is a plain coder failure, whoever is in flight then (it waited once: the path is the task's own problem)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T1, START_T4_WAIVED, T4_WAITS_FREE, T4_RETRIED]);
+
+    const result = await step(repo, T4_WAITS_FREE);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.ok(result.stdout.startsWith("NEXT: coder | attempt: 2 | model: opus | review: waived | add: reason\n"), `stdout: ${result.stdout}`);
+  });
+});
+
+test("a coder FAIL --wait on a path of a task that has not started answers the --decide call and the sequenced wait block at the first collision, and ready then starts that task and holds the waiting one (no coder is sent to meet the same refusal)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T4_WAIVED]);
+
+    const result = await step(repo, T4_WAITS);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines(`RUN: ${COMMIT_TASK} --decide "${PLAN_REL}" "T4" "sequenced after T1: both need src/T1.ts"`, "NEXT: wait | on: T1 | sequenced"));
+
+    const next = await step(repo, READY);
+    assert.equal(next.stdout, lines("NEXT: ready | start: T1"), `stderr: ${next.stderr}`);
+  });
+});
+
+test("a coder FAIL --wait on a path only a skipped task lists is answered as a path no task claims: waited out while another task is in flight (a skipped task never finishes, so it holds no claim)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    write(repo.dir, `${PLAN_DIR}/status.md`, lines("# status", "", "progress: 0/4", "done: none", "skipped: T2 T3"));
+    await arrange(repo, [START_T1, START_T4_WAIVED]);
+
+    const result = await step(repo, ["T4", "100", "coder", "FAIL", "--wait", "src/T2.ts"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: wait | on: T1"));
+  });
+});
+
+test("a wait ends no attempt, so the failure after a waited retry answers attempt 2", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T1, START_T4_WAIVED, T4_WAITS, T4_RETRIED]);
+
+    const result = await step(repo, ["T4", "100", "coder", "FAIL"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.ok(result.stdout.startsWith("NEXT: coder | attempt: 2 | model: opus |"), `stdout: ${result.stdout}`);
+  });
+});
+
+test("a skipped chain stays off the ready list before its --skip calls ran", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [["T1", "100", "skip"]]);
+
+    const result = await step(repo, READY);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: ready | start: T4"));
+  });
+});
+
+test("a held task and a committed one are out of flight: ready lists neither and counts neither", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [...FOUR_FAILURES_OF_T4, ["T4", "100", "coder", "FAIL"], ...T1_REVIEWED, ["T1", "100", "commit", "0"]]);
+    seedStatus(repo, "T1");
+
+    const result = await step(repo, READY);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: ready | start: T2"));
+  });
+});
+
+test("a task whose commit returned 0 is never listed again, even while status.md does not hold it as done (no second dispatch of committed work)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [...T1_REVIEWED, ["T1", "100", "commit", "0"]]);
+
+    const result = await step(repo, READY);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: ready | start: T4"));
+  });
+});
+
+// --- a dispatch that ended with no return ---------------------------------------
+
+const T4_LOST: Call = ["T4", "100", "lost"];
+const stateOf = (repo: GitRepo, id: string): string => fs.readFileSync(path.join(repo.dir, `.temp/viber/${id}/state`), "utf8");
+
+test("lost of a task in flight answers the ready block listing it under retry: once, and retry coder --waited then prints the same attempt's coder block with reason: no return; the other task in flight is left as it is (a dead coder must not stall the build until the next session)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [READY, START_T1, START_T4_WAIVED]);
+    const other = stateOf(repo, "T1");
+
+    const lost = await step(repo, T4_LOST);
+    assert.equal(lost.status, 0, `stderr: ${lost.stderr}`);
+    assert.equal(lost.stdout, lines("NEXT: ready | retry: T4"));
+
+    const next = await step(repo, READY);
+    assert.equal(next.stdout, lines("NEXT: ready | none"), `stderr: ${next.stderr}`);
+
+    const again = await step(repo, T4_RETRIED);
+    assert.equal(again.status, 0, `stderr: ${again.stderr}`);
+    assert.equal(again.stdout, lines("NEXT: coder | attempt: 1 | model: sonnet | review: waived", ...coderLines("T4", ["reason: no return"])));
+    assert.equal(stateOf(repo, "T1"), other);
+    assert.match(other, /^step=run$/m);
+  });
+});
+
+test("a second lost before the listed retry was reported changes nothing and lists the task no second time (one loss is one dispatch, however often it is reported)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [READY, START_T1, START_T4_WAIVED, T4_LOST]);
+
+    const twice = await step(repo, T4_LOST);
+    assert.equal(twice.status, 0, `stderr: ${twice.stderr}`);
+    assert.equal(twice.stdout, lines("NEXT: ready | none"));
+
+    const again = await step(repo, T4_RETRIED);
+    assert.equal(again.stdout, lines("NEXT: coder | attempt: 1 | model: sonnet | review: waived", ...coderLines("T4", ["reason: no return"])), `stderr: ${again.stderr}`);
+  });
+});
+
+test("a second lost in a row, after the task went out again, ends the attempt: the next attempt's coder block with the ready reason line and no add field, the task still in flight (a dispatch that keeps dying is no free loop)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [READY, START_T1, START_T4_WAIVED, T4_LOST, T4_RETRIED]);
+
+    const result = await step(repo, T4_LOST);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: coder | attempt: 2 | model: opus | review: waived", ...coderLines("T4", ["reason: no return"])));
+
+    const next = await step(repo, READY);
+    assert.equal(next.stdout, lines("NEXT: ready | none"), `stderr: ${next.stderr}`);
+  });
+});
+
+test("a lost with no ready call before it lists the tasks ready then beside the retry, and a coder return between two lost reports starts the count again", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T4_WAIVED]);
+
+    const first = await step(repo, T4_LOST);
+    assert.equal(first.status, 0, `stderr: ${first.stderr}`);
+    assert.equal(first.stdout, lines("NEXT: ready | start: T1 | retry: T4"));
+
+    await arrange(repo, [T4_RETRIED, ["T4", "100", "coder", "FAIL"]]);
+    const result = await step(repo, T4_LOST);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: ready | retry: T4"));
+
+    const again = await step(repo, T4_RETRIED);
+    assert.ok(again.stdout.startsWith("NEXT: coder | attempt: 2 | model: opus | review: waived\n"), `stdout: ${again.stdout}`);
+  });
+});
+
+test("lost of a task whose reviewer is out prints the same round's reviewer block again, never the coder block: the coder's work stands, the task stays in flight and the review round is not counted twice (a dead reviewer must not cost a second coder dispatch)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    const passed: Call = ["T1", "100", "coder", "PASS", "--dod", "3/3", "--red", "2", "--red-log", ".temp/viber/T1/red.log"];
+    const review = lines("NEXT: review | round: 1 | model: opus", ...reviewerLines("T1"), `report: ${PLAN_DIR}/work/review-T1-1.md`, "red: .temp/viber/T1/red.log");
+    await arrange(repo, [READY, START_T1, passed]);
+
+    const lost = await step(repo, ["T1", "100", "lost"]);
+    assert.equal(lost.status, 0, `stderr: ${lost.stderr}`);
+    assert.equal(lost.stdout, review);
+    assert.match(stateOf(repo, "T1"), /^step=run$/m);
+    // The task is still in flight: ready lists it under neither field.
+    assert.doesNotMatch((await step(repo, READY)).stdout, /T1/);
+
+    // The reviewer sent again and returning is judged as any reviewer return, and starts the count again.
+    const failed = await step(repo, ["T1", "100", "reviewer", "FAIL", "--report", `${PLAN_DIR}/work/review-T1-1.md`]);
+    assert.ok(failed.stdout.startsWith("NEXT: coder | attempt: 2 |"), `stdout: ${failed.stdout}`);
+    // The coder of the next attempt lost: the coder path, as before.
+    assert.equal((await step(repo, ["T1", "100", "lost"])).stdout, lines("NEXT: ready | retry: T1"));
+  });
+});
+
+test("a reviewer lost twice in a row ends the attempt as a second loss of a coder does: the next attempt's coder block with reason: no return (a review that keeps dying is no free loop)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [READY, START_T1, ["T1", "100", "coder", "PASS", "--dod", "3/3", "--red", "2"], ["T1", "100", "lost"]]);
+
+    const result = await step(repo, ["T1", "100", "lost"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.ok(result.stdout.startsWith("NEXT: coder | attempt: 2 |"), `stdout: ${result.stdout}`);
+    assert.match(result.stdout, /^reason: no return$/m);
+  });
+});
+
+test("the fifth attempt lost twice in a row holds the task, as its failure does", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [...FOUR_FAILURES_OF_T4, T4_LOST, T4_RETRIED]);
+
+    const result = await step(repo, T4_LOST);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: hold | dependents: none"));
+  });
+});
+
+test("lost of a task ready offered and nobody started withdraws the offer: the answer lists it under start: again, the other offer kept", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [READY]);
+
+    const result = await step(repo, ["T1", "100", "lost"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, lines("NEXT: ready | start: T1"));
+
+    const started = await step(repo, START_T1);
+    assert.equal(started.stdout, lines("NEXT: coder | attempt: 1 | model: sonnet | review: opus", ...coderLines("T1")), `stderr: ${started.stderr}`);
+  });
+});
+
+test("lost of a task that is not in flight (waiting, held or committed) changes nothing and never lists it (no dispatch for a task the script holds no dispatch of)", async () => {
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [START_T1, START_T4_WAIVED, T4_WAITS]);
+    const waiting = await step(repo, T4_LOST);
+    assert.equal(waiting.status, 0, `stderr: ${waiting.stderr}`);
+    assert.equal(waiting.stdout, lines("NEXT: ready | none"));
+    assert.match(stateOf(repo, "T4"), /^step=waiting$/m);
+  });
+  await withGitRepo(async (repo) => {
+    seedPlan(repo);
+    await arrange(repo, [...FOUR_FAILURES_OF_T4, ["T4", "100", "coder", "FAIL"], ...T1_REVIEWED, ["T1", "100", "commit", "0"]]);
+    seedStatus(repo, "T1");
+    for (const id of ["T4", "T1"]) {
+      const result = await step(repo, [id, "100", "lost"]);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.doesNotMatch(result.stdout, new RegExp(`\\b${id}\\b`), id);
+    }
+    assert.match(stateOf(repo, "T4"), /^step=held$/m);
+    assert.match(stateOf(repo, "T1"), /^step=done$/m);
+  });
+});
 
 // --- refusals ---------------------------------------------------------------
 

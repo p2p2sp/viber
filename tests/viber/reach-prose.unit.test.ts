@@ -6,11 +6,15 @@
  * modifies, moves or deletes nothing, each added file as a `| new` target, and proposes a split by
  * the task and file counts alone. The planner's outline step runs `plan-build.sh outline` on the
  * surveyor's file: the script searches the `TARGET:` lines, writes the reach files and prints the
- * thresholds and the architect block, so the planner names no target and no reach file itself.
- * `plan-architect.md` reads the reach file, opens the candidates file only for a hit its path does
- * not explain, searches itself only where the search was cut short, and lands every file the reach
- * names in the plan. The four plan reviewers take their callers from the same file, the task
- * reviewer from `## Reach` of its brief.
+ * thresholds and the block of the next writer, so the planner names no target and no reach file
+ * itself. `plan-author.md` reads the reach sections, opens the candidates file only for a hit its
+ * path does not explain, searches for no target the search cut short (the candidates file holds
+ * lines of every file), and lands every file the reach names in a task or on an `OUTSIDE:` line.
+ * A `| new` target forces no file into the plan: it has no section on the paths page, the lines
+ * naming its directory go to the candidates file alone, and the lines the script lists under
+ * Out of scope stand below a heading that keeps them out of the task files.
+ * `plan-architect.md` takes the file map of a frame from the reach file. A slice brief carries
+ * the `## Reach` sections of its files, which the author of the slice reads.
  *
  * No case binds a classification of the candidates, a kind of reference or a `REF:` line: no agent
  * classifies the hits and no file carries such a line. The user guides are bound by no case here.
@@ -38,11 +42,8 @@ function read(relative: string): string {
 const PLANNER = read("skills/planner/SKILL.md");
 const SURVEYOR = read("agents/plan-surveyor.md");
 const ARCHITECT = read("agents/plan-architect.md");
-const DETAILER = read("agents/plan-detailer.md");
-const PLAN_REVIEW = read("agents/planner-review.md");
-const SPEC_REVIEW = read("agents/planner-spec-review.md");
-const GRAPH_REVIEW = read("agents/planner-graph-review.md");
-const TASK_REVIEW = read("agents/planner-task-review.md");
+const AUTHOR = read("agents/plan-author.md");
+const REACH_CORE = read("lib/reach.ts");
 // The header of the entry without its comment prefixes, so a phrase wrapped over two lines still matches.
 const PLAN_BUILD = read("skills/planner/scripts/plan-build.ts").replace(/\r?\n \*/g, "\n");
 
@@ -84,11 +85,11 @@ test("the surveyor names plan: as the plan path carried for the token report and
 test("the surveyor owes the user a behaviour, scope or product choice as a DECIDE: line and never asks an implementation choice", () => {
   const map = section(SURVEYOR, "Map");
   assert.ok(has(map, "A behaviour, scope or product choice the input leaves open is owed to the user: one `DECIDE:` line with 3 options, your recommendation first."));
-  assert.ok(has(map, "An implementation choice (a file, a name, a library, a structure, an algorithm) is never asked: it stays with you."));
+  assert.ok(has(map, "An implementation choice (a file, a name, a library, a structure, an algorithm) is never asked: it stays with the authors of the plan."));
 });
 
 test("the surveyor cuts the change into phases only once it is certain to pass 30 tasks or 60 files, the limits plan-build.sh outline prints a threshold: line past", () => {
-  assert.ok(has(section(SURVEYOR, "Map"), "Once the change is certain to pass 30 tasks or 60 files, stop reading and cut it into phases from the map, a `viber:fixer` input putting the fix in phase 1."));
+  assert.ok(has(section(SURVEYOR, "Map"), "Once the change is certain to pass 30 tasks or 60 files, stop searching and cut it into phases from the map, a `viber:fixer` input putting the fix in phase 1."));
   assert.ok(has(section(SURVEYOR, "Output"), "`PHASE:` lines only past 30 tasks or 60 files"));
   assert.ok(has(PLAN_BUILD, "threshold: <n> tasks, past 30"));
   assert.ok(has(PLAN_BUILD, "threshold: <m> files, past 60"));
@@ -111,7 +112,7 @@ test("the planner runs plan-build.sh outline with the plan path and the surveyor
 });
 
 test("the planner says the plan-mode notice replaces no step and what its scripts write there", () => {
-  assert.ok(has(PLANNER, "The plan-mode notice (its read-only limit, its own workflow) replaces no step here: `plan-build.sh` and `review-round.sh` write only the plan file and work files under `.temp/viber/planner/`, expected in plan mode."));
+  assert.ok(has(PLANNER, "The plan-mode notice (its read-only limit, its own workflow) replaces no step here: `plan-build.sh` writes only the plan file and work files under `.temp/viber/planner/`, expected in plan mode."));
 });
 
 test("a script call the harness refuses is a question to the user, never a plan the planner writes itself", () => {
@@ -124,9 +125,9 @@ test("step 1 always writes the plan file as its three-line stub (a stub left by 
   assert.ok(has(step, "From here on the plan changes only through `plan-build.sh` and the branch step."));
 });
 
-test("the planner dispatches the architect block the outline call printed, the block that carries the reach file", () => {
-  assert.ok(has(section(PLANNER, "2. Write the plan"), "Dispatch the architect block `outline` printed."));
-  assert.ok(has(PLAN_BUILD, 'then the block of viber:plan-architect, "mode: whole" at 8 tasks or fewer, else "mode: skeleton".'));
+test("the planner dispatches the block the outline call printed, the block that carries the reach file: the architect's for a change cut into slices, else its one author's", () => {
+  assert.ok(has(section(PLANNER, "2. Write the plan"), "Dispatch the block `outline` printed: the architect's for a change cut into slices, else the block of its one author."));
+  assert.ok(has(PLAN_BUILD, 'then, for one slice, the block of viber:plan-author with "mode: whole" (that author writes the whole plan), and for two or more the block of viber:plan-architect, who writes the frame.'));
 });
 
 for (const line of ["TARGET:", "reach:", "candidates:", "REF:", "targets:"]) {
@@ -160,59 +161,61 @@ test("the architect and the header of plan-build.ts agree on the candidates file
   assert.ok(has(PLAN_BUILD, '"<path>:<line>: <text>"'));
 });
 
-test("the architect opens the candidates file only for a hit its path does not explain and searches itself only for a truncated target and a new target's glob or count not naming its directory", () => {
-  assert.ok(
-    has(
-      section(ARCHITECT, "Read"),
-      "The reach file answers Reach: open the candidates file for the lines of a hit only when its path alone does not tell what it refers to, and search yourself only for a target whose section ends on `truncated:` and, for a `| new` target, a glob or count that does not name its directory.",
-    ),
-  );
-  assert.ok(has(PLAN_BUILD, '"truncated:" line past that cap'));
+test("the author of a whole plan and the architect take the same reach: and candidates: lines", () => {
+  assert.ok(has(section(AUTHOR, "Input"), "`reach:` (`whole`, optional) holds a `## <target>` section per reach target, one `<path> | <hit count>` line per file referring to it."));
+  assert.ok(has(section(AUTHOR, "Input"), "`candidates:` (optional) holds the hit lines behind Reach, `<path>:<line>: <text>`."));
 });
 
-test("the architect drops a name shared with an unrelated symbol", () => {
-  assert.ok(has(section(ARCHITECT, "Read"), "A name shared with an unrelated symbol is no reference."));
+test("the author opens the candidates file only for a hit its path does not explain and searches itself only for a new target's glob or count not naming its directory", () => {
+  const step = section(AUTHOR, "Read");
+  assert.ok(has(step, "Reach answers the Reach rule: open the candidates file for the lines of a hit only when its path alone does not tell what it refers to."));
+  assert.ok(has(step, "A `| new` target has candidates lines alone, naming its directory: search yourself only for a glob or count not naming it."));
 });
 
-test("the architect lands every file the reach file names in a task's Files or under Out of scope naming the behaviour it keeps", () => {
-  assert.ok(has(section(ARCHITECT, "Read"), "Every file the reach file names lands in a task's `Files`, through the file map, or under `### Out of scope` naming the behaviour that reference keeps."));
+test("a `| new` target forces no file into the plan: the header of plan-build.ts keeps it off the paths page the plan places file by file, and the reach core writes it to the candidates page alone", () => {
+  assert.ok(has(PLAN_BUILD, 'That page holds the files referring to a path or symbol the change modifies, moves or deletes: a "<path> | new" target has nothing referring to it, so the lines naming its directory go to the candidates file alone and place nothing.'));
+  assert.ok(has(PLAN_BUILD, 'which holds no section for a "<path> | new" target and is not written when no target has one'));
+  assert.ok(REACH_CORE.includes("if (!added) paths.push(`## ${target}`);"));
 });
 
-test("the architect reads the codebase for everything the Reach and Owned rules force into the file map", () => {
-  assert.ok(has(section(ARCHITECT, "Read"), "Read the codebase for everything `plan-rules.md`'s Reach and Owned rules force into the file map."));
+test("the lines plan-build.sh lists under Out of scope stand below the References kept heading, which keeps them out of every task file", () => {
+  assert.ok(has(PLAN_BUILD, 'below the heading "#### References kept" it writes there'));
+  assert.ok(has(PLAN_BUILD, 'a task file takes "### Out of scope" up to the first heading below it, so they stay in the specification and reach no task file.'));
+  assert.ok(read("lib/plan-build.ts").includes('const KEPT = "#### References kept";'));
+});
+
+test("a target cut short points at the candidates file, never at a search of its own: the author, the header of plan-build.ts and the reach core", () => {
+  assert.ok(has(section(AUTHOR, "Read"), "A section ending on `truncated:` still lists every file, and the candidates file holds 2 lines of each."));
+  assert.ok(has(PLAN_BUILD, '"truncated: <kept> of <total> lines kept, 2 per file at most" in the candidates file and on "truncated: <total> lines, <kept> kept in <candidates file>" in reach-paths.md'));
+  for (const text of [AUTHOR, ARCHITECT, PLAN_BUILD, REACH_CORE]) assert.equal(has(text, "search this target yourself"), false);
+});
+
+test("the header of plan-build.ts names the noise rule: a derived term of a whole-file target naming more than 25 files is dropped and named on common:, the path and a symbol never", () => {
+  assert.ok(has(PLAN_BUILD, 'whose hits span more than 25 files is searched no more and named on "common: <term> (<n> files)"; the path itself and a symbol are never dropped.'));
+  assert.ok(REACH_CORE.includes("const COMMON = 25;"));
+});
+
+test("the author and the architect drop a name shared with an unrelated symbol", () => {
+  assert.ok(has(section(AUTHOR, "Read"), "A name shared with an unrelated symbol is no reference."));
+  assert.ok(has(section(ARCHITECT, "Read"), "a name shared with an unrelated symbol is no reference."));
+});
+
+test("the author lands every file Reach names in a task's Files or on an OUTSIDE: line naming the behaviour it keeps, which plan-build.sh lists under Out of scope", () => {
+  assert.ok(has(section(AUTHOR, "Write"), "Every file Reach names lands in a task's `Files`, or on an `OUTSIDE:` line naming the behaviour that reference keeps."));
+  assert.ok(has(PLAN_BUILD, 'lists each OUTSIDE: line under "### Out of scope" as "- <path> - <text>"'));
+});
+
+test("the author of a whole plan reads the code the Reach and Owned rules force into the file map, and the architect takes the file map of a frame from the reach file", () => {
+  assert.ok(has(section(AUTHOR, "Read"), "On `whole`, also the code `plan-rules.md`'s Reach and Owned rules force into the file map."));
+  assert.ok(has(section(ARCHITECT, "Read"), "The reach file answers `plan-rules.md`'s Reach rule for the file map"));
+  assert.ok(has(section(ARCHITECT, "Write"), "`### File map` holds every `FILE:` line of the outline and every file the reach file forces in."));
 });
 
 // ---------------------------------------------------------------------------
-// The reach in a slice brief and in the review
+// The reach in a slice brief
 // ---------------------------------------------------------------------------
 
-test("the header of plan-build.ts puts the Reach sections of a slice's files into its brief, which the detailer and the task reviewer read as Reach", () => {
-  assert.ok(has(PLAN_BUILD, "the File map lines of their Files and the Reach sections of those files."));
-  assert.ok(has(section(DETAILER, "Input"), "and Reach, the files referring to their `Files`, one `<path> | <hit count>` line each."));
-  assert.ok(has(section(TASK_REVIEW, "Input"), "`brief:` and `candidates:` (optional): your part of the plan, its `## Reach` naming the files that refer to your tasks' `Files`, and the hit lines behind them."));
-});
-
-const REACH_INPUT = "`reach:` and `candidates:` (optional): the files referring to each file or symbol the plan changes, and the hit lines behind them.";
-const REACH_ALREADY_RUN = "The reach file holds that search already run: grep yourself only for a symbol or path it lacks.";
-
-for (const [name, text] of [["planner-review", PLAN_REVIEW], ["planner-spec-review", SPEC_REVIEW], ["planner-graph-review", GRAPH_REVIEW]] as [string, string][]) {
-  test(`${name} names reach: and candidates: as the files referring to what the plan changes and the hit lines behind them`, () => {
-    assert.ok(has(section(text, "Input"), REACH_INPUT));
-  });
-}
-
-for (const [name, text] of [["planner-review", PLAN_REVIEW], ["planner-spec-review", SPEC_REVIEW]] as [string, string][]) {
-  test(`${name} takes the reach file as its search already run and greps itself only for a symbol or path it lacks`, () => {
-    assert.ok(has(section(text, "Input"), REACH_ALREADY_RUN));
-  });
-}
-
-test("planner-graph-review takes its callers from the reach file and searches itself only for one it lacks", () => {
-  assert.ok(has(section(GRAPH_REVIEW, "Input"), "taking the callers from the reach file and searching yourself only for one it lacks."));
-});
-
-test("planner-task-review takes its callers from the Reach section of its brief, which it reads in place of the plan", () => {
-  const input = section(TASK_REVIEW, "Input");
-  assert.ok(has(input, "Read the brief in place of the plan, and open the plan by range only for a section the brief lacks"));
-  assert.ok(has(input, "Callers come from `## Reach`:"));
+test("the header of plan-build.ts puts the Reach sections of a slice's files into its brief, which the author of the slice reads as Reach", () => {
+  assert.ok(has(PLAN_BUILD, "Reach (the sections of the paths page naming them)"));
+  assert.ok(has(section(AUTHOR, "Input"), "Reach (the files referring to them, one `<path> | <hit count>` line each)"));
 });

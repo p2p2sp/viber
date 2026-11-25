@@ -94,7 +94,7 @@ And `/viber:rules` reports each `ENFORCE:` line verbatim, and no rule and no cod
 
 ### S8 - a refactor task is pinned [NEW]
 
-Run on: the session model for `planner`, the `planner-review` frontmatter model for the gate
+Run on: the session model for `planner`, the plan reviewer's frontmatter model for the gate
 
 Given a plan task that restructures code while keeping every behaviour a caller observes
 When the planner writes it and the reviewer gates it
@@ -102,7 +102,7 @@ Then it is `TDD: none`, its `Verification` runs the existing tests pinning that 
 
 ### S9 - a mechanical change over many files is proven repository-wide [NEW]
 
-Run on: the session model for `planner`, the `planner-review` frontmatter model for the gate
+Run on: the session model for `planner`, the plan reviewer's frontmatter model for the gate
 
 Given a plan applying one mechanical change across more than five files
 When the planner writes the `Verification` of the last task carrying the change, which depends on every other task carrying it
@@ -170,7 +170,7 @@ Then they learn that `fixer` lists the same defect elsewhere for them to pick, a
 - modify - tests/viber/rules-trail-prose.unit.test.ts - pins of the admission exception, the auditor line and the skill report
 - modify - viber/references/plan-rules.md - the pin clause of `TDD` and the repository-wide grep of `Provable`
 - modify - tests/viber/test-pyramid-prose.unit.test.ts - pins of the two plan rules and the `plan-rules.md` byte cap
-- modify - tests/viber/rule-budget.unit.test.ts - the `planner-review` read-set cap
+- modify - tests/viber/rule-budget.unit.test.ts - the plan reviewer's read-set cap
 - modify - viber/skills/setup/assets/help.html - the `fixer` and `rules` cards, both languages
 - modify - docs/viber-functions.html - the `fixer` and `rules` feature lists
 - modify - viber/skills/setup/assets/viber-flow-en.svg - the plan gate line naming the code allowed before a plan
@@ -259,9 +259,9 @@ Then they learn that `fixer` lists the same defect elsewhere for them to pick, a
 - Uses: none
 - Depends-on: none
 - Files: tests/viber/test-pyramid-prose.unit.test.ts, tests/viber/rule-budget.unit.test.ts
-- Delivers: the `plan-rules.md` byte cap and the `planner-review` read-set cap raised by the room the two plan-rule clauses need, and the read-budget header describing the caps as they now stand.
+- Delivers: the `plan-rules.md` byte cap and the plan reviewer's read-set cap raised by the room the two plan-rule clauses need, and the read-budget header describing the caps as they now stand.
 - Verification: grep -c "19800" tests/viber/test-pyramid-prose.unit.test.ts && grep -c "30275" tests/viber/rule-budget.unit.test.ts && node --test --test-name-pattern "plan-rules stays within" tests/viber/test-pyramid-prose.unit.test.ts && node --test --test-name-pattern "planner" tests/viber/rule-budget.unit.test.ts -> both greps print 1 or more and the cap tests pass
-- DoD: `test-pyramid-prose.unit.test.ts` holds `plan-rules.md` within 19800 bytes, title and assertion alike; `rule-budget.unit.test.ts` caps the `planner-review` read set at 30275 bytes, every other cap unchanged
+- DoD: `test-pyramid-prose.unit.test.ts` holds `plan-rules.md` within 19800 bytes, title and assertion alike; `rule-budget.unit.test.ts` caps the plan reviewer's read set at 30275 bytes, every other cap unchanged
 <!-- /TASK -->
 
 <!-- TASK -->

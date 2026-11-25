@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 2572" width="1640" height="2572" role="img" aria-labelledby="svgTitle svgDesc" lang="pl">
   <title id="svgTitle">viber - od pomysłu do zacommitowanego kodu</title>
-  <desc id="svgDesc">Diagram przepływu wtyczki viber: jednorazowy setup, opcjonalna makieta UI, dwa wejścia (pomysł przez wywiad intent, który pyta w rundach i zapisuje potwierdzone podsumowanie do pliku, błąd przez diagnozę fixera), planner czytający te dane, wybierający kształt specyfikacji i piszący plan, agent planner-review, który go sprawdza, bramka, którą przechodzisz sam (plan napisany poza plannerem jest tylko recenzowany, przy przełączniku planning.outside-plan-review), a potem implementor budujący plan z task-coder, task-reviewer i jednym commitem na zadanie, z zadaniami równolegle tam, gdzie pozwalają zależności, poprzedzonymi, gdy build.baseline-tests ma wartość fast lub full, bazowym uruchomieniem testów, które zapisuje, co już nie przechodzi. Build kończy się końcowym przeglądem, szybkimi testami i testami integracyjnymi zmiany, które przy build.baseline-tests naprawiają tylko nowe błędy, opcjonalnymi writerami pamięci, reguł i QA, własnymi agentami rozszerzeń z build.extensions oraz closeoutem, który archiwizuje przebieg, a później przebiegiem e2e, który zamienia scenariusze QA w testy Playwright.</desc>
+  <desc id="svgDesc">Diagram przepływu wtyczki viber: jednorazowy setup, opcjonalna makieta UI, dwa wejścia (pomysł przez wywiad intent, który pyta w rundach i zapisuje potwierdzone podsumowanie do pliku, błąd przez diagnozę fixera), planner, którego agenci mapują zmianę, dają dużej zmianie ramę i piszą jej zadania porcja po porcji, a skrypt składa plan, agent plan-judge, który szuka w nim problemów krytycznych najwyżej w dwóch rundach, bramka, którą przechodzisz sam (plan napisany poza plannerem jest tylko recenzowany, przy przełączniku planning.outside-plan-review), a potem implementor budujący plan z task-coder, task-reviewer i jednym commitem na zadanie, z zadaniami równolegle tam, gdzie pozwalają zależności, poprzedzonymi, gdy build.baseline-tests ma wartość fast lub full, bazowym uruchomieniem testów, które zapisuje, co już nie przechodzi. Build kończy się końcowym przeglądem, szybkimi testami i testami integracyjnymi zmiany, które przy build.baseline-tests naprawiają tylko nowe błędy, opcjonalnymi writerami pamięci, reguł i QA, własnymi agentami rozszerzeń z build.extensions oraz closeoutem, który archiwizuje przebieg, a później przebiegiem e2e, który zamienia scenariusze QA w testy Playwright.</desc>
 
   <style>
     :root {
@@ -170,8 +170,8 @@
   <rect x="732" y="786" width="58" height="16" rx="8" class="badge"/>
   <text x="761" y="798" class="badge-t" text-anchor="middle">skill</text>
   <text x="254" y="806" class="mono-t">planner</text>
-  <text x="254" y="832" class="desc">Pisze plan w trybie planowania, na podstawie twojego kodu.</text>
-  <text x="254" y="850" class="desc">Wybiera kształt specyfikacji; zadania podają pliki, zależności i weryfikację.</text>
+  <text x="254" y="832" class="desc">Mapuje zmianę wyszukiwaniem; duża dostaje ramę: specyfikację i kontrakty.</text>
+  <text x="254" y="850" class="desc">Każda porcja ma autora, który pisze jej zadania z kodu; skrypt składa plan.</text>
   <text x="254" y="872" class="desc-s"><tspan class="sw">planning.adr</tspan> włączony: adr-screener ocenia decyzje; rekord to zadanie bez zależności</text>
   <text x="254" y="892" class="desc-s"><tspan class="sw">branching</tspan> włączony: plan podaje gałąź git, na której pracuje przebieg</text>
   <text x="254" y="912" class="mono">jeden plan · numerowane zadania · kryteria akceptacji</text>
@@ -182,9 +182,9 @@
   <rect x="230" y="964" width="580" height="88" rx="10" class="node agent"/>
   <rect x="732" y="974" width="58" height="16" rx="8" class="badge"/>
   <text x="761" y="986" class="badge-t" text-anchor="middle">agent</text>
-  <text x="254" y="994" class="mono-t">planner-review</text>
-  <text x="254" y="1016" class="desc">Sprawdza plan względem kodu, zanim w ogóle go zobaczysz.</text>
-  <text x="254" y="1036" class="desc-s">PASS albo FAIL - FAIL odsyła plan na kolejną rundę</text>
+  <text x="254" y="994" class="mono-t">plan-judge</text>
+  <text x="254" y="1016" class="desc">Ocenia plan względem potwierdzonego podsumowania, zanim go zobaczysz.</text>
+  <text x="254" y="1036" class="desc-s">tylko problemy krytyczne, najwyżej dwie rundy - reszta to notatki i punkty otwarte</text>
 
   <path d="M810 1008 L832 1008 Q850 1008 850 990 L850 880 Q850 862 832 862 L814 862" class="link l-i" marker-end="url(#ar-i)"/>
   <path d="M810 1008 L832 1008 Q850 1008 850 990 L850 880 Q850 862 832 862 L814 862" class="flow l-i"/>
@@ -192,13 +192,13 @@
 
   <path d="M520 1052 L520 1084" class="link l-a" marker-end="url(#ar-a)"/>
   <path d="M520 1052 L520 1084" class="flow l-a"/>
-  <text x="532" y="1074" class="lbl">PASS</text>
+  <text x="532" y="1074" class="lbl">PASS albo po dwóch rundach</text>
 
   <!-- ============ GATE ============ -->
   <rect x="40" y="1088" width="1560" height="64" rx="32" class="ring-a"/>
   <rect x="44" y="1092" width="1552" height="56" rx="28" fill="var(--amber-bg)" stroke="var(--amber)" stroke-width="1.5"/>
   <text x="820" y="1116" class="title" text-anchor="middle" style="font-size:14.5px">BRAMKA - zatwierdzasz plan</text>
-  <text x="820" y="1136" class="desc-s" text-anchor="middle">przed nią nie powstaje żaden kod poza kodem fixera (test reprodukcji, tymczasowa instrumentacja) · plan, który nie przeszedł przeglądu, nie wyjdzie z trybu planowania · plan napisany poza plannerem jest tylko recenzowany (planning.outside-plan-review)</text>
+  <text x="820" y="1136" class="desc-s" text-anchor="middle">przed nią nie powstaje żaden kod poza kodem fixera (test reprodukcji, tymczasowa instrumentacja) · plan bez recenzji nie opuści trybu planowania · widzisz punkty otwarte · plan napisany poza plannerem jest tylko recenzowany (planning.outside-plan-review)</text>
 
   <!-- ============ BUILD ============ -->
   <path d="M740 1152 L740 1186" class="link l-b" marker-end="url(#ar-b)"/>
@@ -216,7 +216,7 @@
   <text x="981" y="1290" class="badge-t" text-anchor="middle">skill</text>
   <text x="474" y="1298" class="mono-t">implementor</text>
   <text x="474" y="1324" class="desc">Zapisuje plan, dzieli go na pliki zadań, sam nigdy nie pisze kodu.</text>
-  <text x="474" y="1342" class="desc">Zadanie startuje dopiero, gdy jego zależności są gotowe.</text>
+  <text x="474" y="1342" class="desc">Skrypt wskazuje gotowe zadania: startują, gdy ich zależności są gotowe.</text>
   <text x="474" y="1364" class="desc-s">niezależne gotowe zadania idą równolegle, zadanie wyłączne idzie samo</text>
   <text x="474" y="1382" class="desc-s"><tspan class="sw">branching</tspan> włączony: przebieg pracuje na własnej gałęzi git</text>
   <text x="474" y="1404" class="mono">docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/</text>
@@ -253,7 +253,7 @@
   <text x="951" y="1502" class="badge-t" text-anchor="middle">agent</text>
   <text x="504" y="1510" class="mono-t">task-coder</text>
   <text x="504" y="1532" class="desc">Buduje jedno zadanie i dowodzi, że jest zielone.</text>
-  <text x="504" y="1552" class="desc-s">widzi tylko własny plik zadania, więc nie zboczy w pliki innego zadania</text>
+  <text x="504" y="1552" class="desc-s">dostaje tylko własny plik zadania; hook nie wpuszcza go w pliki innych zadań</text>
   <text x="504" y="1570" class="desc-s">5 prób, naprawa zadania, potem arbiter; orzeczenia w rulings.md</text>
 
   <path d="M740 1580 L740 1608" class="link l-b" marker-end="url(#ar-b)"/>

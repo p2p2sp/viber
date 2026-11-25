@@ -1,1 +1,1 @@
-Then screen the plan for decision records: read `${CLAUDE_SKILL_DIR}/references/adr-tasks.md` and follow it, its `refs:` line being `${CLAUDE_PLUGIN_ROOT}/references`, and run `plan-index.sh` again after any task it adds.
+Then screen the plan for decision records: read `${CLAUDE_SKILL_DIR}/references/adr-tasks.md` and follow it, its `refs:` line being `${CLAUDE_PLUGIN_ROOT}/references`, the fix it makes over once its `apply` printed `NEXT: judge`.

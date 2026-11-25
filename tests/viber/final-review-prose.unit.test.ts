@@ -5,7 +5,8 @@
  * `final-reviewer` reports nothing living in a `CLAUDE.md`, through its notes-line rule
  * included; the `final-review.true.md` fragment hands the fix coder a `memory:` line carrying
  * the config block's `build.memory` value; `task-coder` declares that `memory` input (C3) and
- * edits no `CLAUDE.md` on a `review` dispatch when it reads `true`. The files read here are
+ * edits no `CLAUDE.md` on a `review` dispatch when it reads `true`. It also holds the
+ * rule of a plan note the three build agents share. The files read here are
  * shipped prompts, whose text is the behaviour. Nothing is spawned.
  *
  * Run directly by Node's type stripping:
@@ -58,6 +59,14 @@ test("final-reviewer's CLAUDE.md exclusion names the notes line it covers", () =
   const sentence = reviewerBullet("Report nothing that lives in a `CLAUDE.md`");
   assert.ok(sentence.includes("when `memory` is `true`"));
   assert.ok(sentence.includes("notes line"));
+});
+
+test("final-reviewer holds the rule of a plan note task-coder and task-reviewer hold: advice of the plan review, never a requirement, never above a DoD clause or a Contracts block (an unfollowed note is no finding in itself)", () => {
+  const SHARED = "a `DoD` clause or a `Contracts` block";
+  const slice = lines(REVIEWER).find((line) => line.startsWith("Read in full: `<run>/spec.md`")) ?? "";
+  assert.ok(slice.includes(`A note is advice of the plan review, never a requirement, and never outranks ${SHARED}: one no coder followed is no finding in itself.`));
+  assert.ok(CODER.includes(`advice of the plan review that never outranks ${SHARED}`));
+  assert.ok(read("agents/task-reviewer.md").includes(`is advice of the plan review, never a requirement: how the coder handled it is a finding only where the handling broke ${SHARED}`));
 });
 
 test("the fix coder dispatch of the final review carries a memory line with the build.memory value", () => {

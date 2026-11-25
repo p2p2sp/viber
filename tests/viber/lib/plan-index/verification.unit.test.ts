@@ -38,7 +38,6 @@ for (const verification of [
   `dotnet test ${STORE} --list-tests -> lists them`,
   "dotnet test backend/A.IntegrationTests/ --list-tests -> lists them",
   `grep -c Store src/Store.cs && dotnet build ./${PROJECT} -> green`,
-  "PENDING",
 ]) {
   test(`"${verification}" passes for a task writing an integration test file`, () => {
     assert.equal(verify(verification, STORE).exit, 0);

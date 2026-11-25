@@ -2,31 +2,37 @@
 #
 # task-step.sh - answers one return of a task's coder with the directive the
 # implementor acts on next: the dispatch to send, its attempt number and tiers,
-# or the commit call.
+# or the commit call; and says which tasks to start next.
 #
 # It exists because the implementor re-read a decision table (attempt counting,
 # tier climbing, the review waiver, the limit with its dependents) on every
 # return and composed each dispatch by hand; one wrong application sent the
 # wrong tier or lost a line. This script keeps the task's step between returns
 # and prints the answer, so the model only runs it and follows the directive.
+# The order of the tasks was such a table too (which dependencies are done,
+# which task runs alone, how many run at once, who waited on whom): "ready"
+# answers it from task-ready.sh, so the implementor schedules nothing.
 #
 # Usage:
 #   task-step.sh <plan> <subject> <started> <event> [<flag>...]
 #     <plan>     the landed plan file, as plan-path.sh printed it
-#     <subject>  a task id the plan holds
+#     <subject>  a task id the plan holds; "-" for the event "ready"
 #     <started>  the run-summary.sh mark of this session ("unknown" included)
 #   events:
+#     ready
 #     start --tier <tier> --review <tier>|waived [--resume <path>[,<path>]...]
 #     coder PASS|FAIL|DENIED [--dod <m>/<n>] [--red <n>|missing] [--red-log <path>]
 #                            [--with <path>[,<path>]...]
 #                            [--defer <id>:<path>[,<id>:<path>]...]
 #                            [--decide] [--red-timeout]
+#                            [--wait <path>[,<path>]...]
 #                            (an omitted --dod is no short DOD; --red-timeout says
 #                            the earlier call of this return ran out of time in
 #                            the red check, so it is not run again; --decide says
-#                            the coder returned a DECIDE: line)
+#                            the coder returned a DECIDE: line; --wait, read on a
+#                            FAIL alone, carries the paths of its WAIT: line)
 #     reviewer PASS|FAIL|DENIED [--report <path>] [--with <path>[,<path>]...]
-#     retry coder [--denied] | retry reviewer
+#     retry coder [--denied|--waited] | retry reviewer
 #     accept
 #     commit <exit code>
 #     ruled --case decide|cap|baseline|tests|final-review|commit [--options "<a> | <b>"]
@@ -34,6 +40,8 @@
 #     resume-failed
 #     repair
 #     skip
+#     lost       (the coder or reviewer of the task ended with no return at
+#                all: it failed, was killed or was stopped)
 #
 # Directive format. An answer is one or more blocks, acted on in order, one block
 # per message. A block opens on a directive line, one of four:
@@ -55,6 +63,48 @@
 #
 # stdout, one block per directive, a block opening on a directive line and its
 # body lines (labelled "<label>: <value>") sent verbatim in the dispatch it names:
+#   NEXT: ready | start: <id>,<id> | retry: <id>,<id>
+#   NEXT: ready | none
+#         the answer to "ready", a field left out when empty: "start" is reported
+#         next for each start: id and "retry coder --waited" for each retry: id.
+#         The ids are what task-ready.sh lists for the tasks in flight, held and
+#         waiting (the "step" of each task state under the current mark); every
+#         listed id is marked in flight before the answer is printed, so a later
+#         call never lists it again. It is the answer to "lost" too, for a task
+#         whose coder is out: the first
+#         loss of a task in flight since its last PASS or FAIL return takes the
+#         task out of flight (step "lost"), so this block lists it under retry:
+#         once and the same attempt's coder block goes out again, carrying
+#         "reason: no return" when it has no ready reason line, so its coder
+#         continues the work in the tree. A task whose reviewer is out (the
+#         last block printed for it was a "NEXT: review") is answered by that
+#         round's "NEXT: review" block again instead, the round not counted
+#         twice and the task still in flight: its coder returned, so no coder
+#         goes out for it. A "lost" repeated before that retry
+#         was reported, and one for a task that is waiting, held, skipped or
+#         committed, changes nothing: no dispatch of it is out, and the block
+#         lists what is ready beside it. A "lost" for a task offered and never
+#         started withdraws the offer, so the block lists it under start:
+#         again. A task lost again after it went out again ends its attempt as
+#         a coder failure with the ready reason line "reason: no return": the
+#         answer is then the next attempt's coder block, the hold or the cap
+#         arbiter (below), never this block, and the task stays in flight
+#   NEXT: wait | on: <claimant>[ | sequenced]
+#         the answer to "coder FAIL --wait", one block per "wait:" or
+#         "sequence:" line task-ready.sh "wait" prints: the task waits (out of
+#         flight) until "ready" lists it under retry:, and the wait ends no
+#         attempt. <claimant> is the task claiming a named path, or, for a
+#         dirty path no task claims, the ids of the other tasks in flight
+#         ("on: T1,T3"): the task is sent again once all of them left flight,
+#         and its second wait on that path is a plain "coder FAIL". The second
+#         collision of a pair of tasks, and the first one with a claimant that
+#         is not in flight, carries "sequenced", after
+#   RUN: commit-task.sh --decide "<plan>" "<id>" "sequenced after <claimant>: both need <path>"
+#         the decision line that keeps the task behind its claimant for the rest
+#         of the build. With no task to wait on (every path unclaimed or
+#         blocked, or task-ready.sh failing) the return is a plain "coder FAIL".
+#         A task with no ready reason line gets "reason: waited on <paths>" on
+#         its next coder block, so its coder continues the work in the tree
 #   NEXT: coder | attempt: <n> | model: <tier> | review: <tier>|waived [| add: reason]
 #         the coder lines plan-index.sh --dispatch prints, then resume: <paths>
 #         when start got --resume, report: <path> after a review failure, then the
@@ -127,7 +177,8 @@
 #         after commit 4
 #
 # Attempts: a task gets 5 per session; a coder failure (a FAIL, a PASS whose --dod
-# is short, a PASS of a TDD: required task with no --red or --red 0), a reviewer
+# is short, a PASS of a TDD: required task with no --red or --red 0, a second
+# "lost" in a row), a reviewer
 # FAIL and a commit exiting other than 0 and 4 each end one; the next attempt of a
 # review failure carries the returned --report path as report:, that of a refused
 # commit "add: reason". Every reviewer FAIL rewrites the session lessons file
@@ -158,13 +209,32 @@
 # current attempt's coder block again, as "retry coder" does without a
 # "--denied"; both keep the ready reason line of that attempt and its resume:
 # line, and drop the "add" field. The state is written only once the answer is
-# complete. The session lessons file .temp/viber/lessons ("started: <mark>", then
+# complete. Its "step" key is where the task stands for "ready": "offered"
+# (listed under start:, the state holding the mark and the step alone until
+# "start" replaces it), "run" (a coder block was printed: in flight), "waiting"
+# (after a "NEXT: wait"), "held" (after a "NEXT: hold", until "repair"), "skipped"
+# (the task and its dependents on a skip chain, so a --skip call that failed
+# still keeps them off the list), "lost" (after a first "lost", until "ready"
+# lists the task) and "done" (after "commit 0"); a state with no
+# such key reads "run". "ready" hands the offered and running tasks to
+# task-ready.sh as --flight, the waiting ones as --waiting, the lost ones as
+# --lost and the held, skipped
+# and done ones as --held, so a task whose commit returned 0 is never listed
+# again. The "gone" key counts the losses since the last PASS or FAIL return of
+# a coder or reviewer: 0 none, 1 lost and not yet sent again, 2 sent again (by
+# "retry coder --waited" or a "start", or as the reviewer block a "lost"
+# answered at once), where the next "lost" ends the attempt. The "out" key reads
+# "reviewer" from a "NEXT: review" block until the reviewer returns or another
+# block of the task replaces it: it is how "lost" tells whose dispatch is gone.
+# "ready", "lost" and a skip chain write the step of other tasks than the
+# subject. Under the mark "unknown" the states an earlier session left under
+# that mark count for "ready" until "start" discards each. The session lessons file .temp/viber/lessons ("started: <mark>", then
 # the run-failures.sh --lessons list without its prefix, or nothing) is written by
 # "start" when it does not hold the current mark, and always under "unknown".
 #
 # Contract:
-#   argv   : as above; a flag value is the next argument; --with, --defer and
-#            --resume take comma-separated entries, the blanks around an entry
+#   argv   : as above; a flag value is the next argument; --with, --defer,
+#            --wait and --resume take comma-separated entries, the blanks around an entry
 #            trimmed and an empty one dropped (a comma inside one is not
 #            supported). No free text: only ids, verdict words, counts, paths.
 #   cwd    : any directory inside the repository; the plan path and the paths
@@ -174,16 +244,22 @@
 #   env    : none.
 #   reads  : plan-index.sh (the index, then --dispatch), config.sh (tiers.max,
 #            default opus; build.red-check, default off), run-failures.sh
-#            --lessons, red-check.sh, the state file; all four scripts are the
-#            ones beside this one, called as this one was invoked; plugin-root.sh
-#            beside this one is sourced for the plugin root of every RUN: line.
-#   writes : .temp/viber/<id>/state, and .temp/viber/lessons through a temporary
+#            --lessons, red-check.sh, task-ready.sh ("ready", then "wait" for a
+#            --wait), the state file, and for "ready", "lost" and a --wait the
+#            state file of every task; all five scripts are the ones beside this one, called as
+#            this one was invoked; plugin-root.sh beside this one is sourced for
+#            the plugin root of every RUN: line.
+#   writes : .temp/viber/<id>/state (for "ready", "lost" and a skip chain that
+#            of each task they name; "lost" removes the state of an offer nobody
+#            started), and .temp/viber/lessons, each through a temporary
 #            file renamed into place; red-check.sh writes
-#            .temp/viber/<id>/red-check.log when the red check runs.
+#            .temp/viber/<id>/red-check.log when the red check runs, and
+#            task-ready.sh .temp/viber/waits on a --wait.
 #   exit   : 0 with an answer on stdout. 2 with one "error: ..." line on stderr
 #            and nothing on stdout: bad arguments, an unknown event, a plan
 #            plan-index.sh refuses, an id the plan does not hold, an event that
-#            needs a state the task has not under the current mark.
+#            needs a state the task has not under the current mark, a "ready"
+#            task-ready.sh refuses.
 #
 set -euo pipefail
 
@@ -216,7 +292,7 @@ shift 4
 verdict=""
 exit_code=""
 case "$event" in
-  start|accept|ruled|resume-failed|repair|skip) ;;
+  ready|start|accept|ruled|resume-failed|repair|skip|lost) ;;
   coder|reviewer)
     [[ $# -ge 1 ]] || die "$event needs PASS, FAIL or DENIED"
     verdict="$1"
@@ -249,20 +325,24 @@ f_with=""
 f_defer=""
 f_report=""
 f_denied=0
+f_waited=0
 f_timeout=0
 f_decide=0
 f_refused=0
 f_case=""
 f_options=""
+f_wait=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --decide) f_decide=1; shift ;;
     --refused) f_refused=1; shift ;;
     --red-timeout) f_timeout=1; shift ;;
     --denied) f_denied=1; shift ;;
-    --tier|--review|--resume|--dod|--red|--red-log|--with|--defer|--report|--case|--options)
+    --waited) f_waited=1; shift ;;
+    --tier|--review|--resume|--dod|--red|--red-log|--with|--defer|--wait|--report|--case|--options)
       [[ $# -ge 2 ]] || die "$1 needs a value"
       case "$1" in
+        --wait) f_wait="$2" ;;
         --case) f_case="$2" ;;
         --options) f_options="$2" ;;
         --tier) f_tier="$2" ;;
@@ -343,6 +423,7 @@ trim_list() {
 f_with="$(trim_list "$f_with")"
 f_defer="$(trim_list "$f_defer")"
 f_resume="$(trim_list "$f_resume")"
+f_wait="$(trim_list "$f_wait")"
 
 # The cell n (1-based) of an index row, cells separated by " | ".
 cell() {
@@ -393,7 +474,7 @@ for ((i = 0; i < ${#t_ids[@]}; i++)); do
     [[ "${t_tdds[$i]}" != "required" ]] || tdd_required=1
   fi
 done
-[[ $known -eq 1 || $fixed_subject -eq 1 ]] || die "the plan holds no task $id"
+[[ $known -eq 1 || $fixed_subject -eq 1 || "$event" == "ready" ]] || die "the plan holds no task $id"
 
 # Every task depending on $id, directly or through another, in plan order.
 dependents_of_task() {
@@ -458,6 +539,9 @@ lf_add=""
 lf_rpt=""
 lf_review=0
 from_review=0
+step="run"
+gone=0
+out=""
 
 load_state() {
   local line
@@ -487,13 +571,18 @@ load_state() {
       lf_add=*) lf_add="${line#*=}" ;;
       lf_rpt=*) lf_rpt="${line#*=}" ;;
       lf_review=*) lf_review="${line#*=}" ;;
+      step=*) step="${line#*=}" ;;
+      gone=*) gone="${line#*=}" ;;
+      out=*) out="${line#*=}" ;;
     esac
   done < "$state_file"
 }
 
+# A state "ready" or a skip chain wrote for a task never started holds no model:
+# it is no step state.
 require_state() {
   load_state
-  [[ "$st_started" == "$started" ]] || die "no step state for $id under started $started: report start first"
+  [[ "$st_started" == "$started" && -n "$model" ]] || die "no step state for $id under started $started: report start first"
 }
 
 save_state() {
@@ -502,8 +591,50 @@ save_state() {
   printf '%s\n' "started=$started" "attempt=$attempt" "model=$model" "review=$review" "round=$round" \
     "with=$with" "defer=$defer" "anywith=$anywith" "redlog=$redlog" "resume=$resume" "reason=$reason" \
     "rpt=$rpt" "lastrev=$lastrev" "unrev=$unrev" "rc=$rc" "rcrej=$rcrej" "mode=$mode" "lf_reason=$lf_reason" \
-    "lf_add=$lf_add" "lf_rpt=$lf_rpt" "lf_review=$lf_review" > "$tmp"
+    "lf_add=$lf_add" "lf_rpt=$lf_rpt" "lf_review=$lf_review" "step=$step" "gone=$gone" "out=$out" > "$tmp"
   mv -f "$tmp" "$state_file"
+}
+
+# Sets ts_step to the step of task $1 under the current mark: empty for a task
+# with no state there, "run" for a state holding no step.
+task_step() {
+  local file="$root/.temp/viber/$1/state" line mark=""
+  ts_step=""
+  [[ -f "$file" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line//$'\r'/}"
+    case "$line" in
+      started=*) mark="${line#*=}" ;;
+      step=*) ts_step="${line#*=}" ;;
+    esac
+  done < "$file"
+  if [[ "$mark" != "$started" ]]; then
+    ts_step=""
+  elif [[ -z "$ts_step" ]]; then
+    ts_step="run"
+  fi
+}
+
+# Writes step $2 into the state of task $1, every other line of a state under the
+# current mark kept; with "fresh" as $3, or over a state under another mark, the
+# state holds the mark and the step alone.
+set_step() {
+  local dir="$root/.temp/viber/$1" line mark="" body="" tmp
+  if [[ "${3:-}" != "fresh" && -f "$dir/state" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      line="${line//$'\r'/}"
+      case "$line" in
+        started=*) mark="${line#*=}" ;;
+        step=*) continue ;;
+      esac
+      body="$body$line"$'\n'
+    done < "$dir/state"
+  fi
+  [[ "$mark" == "$started" ]] || body="started=$started"$'\n'
+  mkdir -p "$dir"
+  tmp="$dir/state.tmp.$$"
+  printf '%sstep=%s\n' "$body" "$2" > "$tmp"
+  mv -f "$tmp" "$dir/state"
 }
 
 # The session lessons file: rewritten when it does not hold the current mark,
@@ -577,6 +708,7 @@ review_block() {
   fi
   local repair_field=""
   [[ $mode -lt 1 ]] || repair_field=" | add: repair"
+  out="reviewer"
   say "NEXT: review | round: $round | model: $review_model${rc:+ | red-check: ${rc%% *}}$repair_field"
   dispatch reviewer
   say "report: $plan_dir/work/review-$id-$round.md"
@@ -678,6 +810,8 @@ climb() {
 next_attempt() {
   local rcfield="${4:-}"
   rc=""
+  gone=0
+  out=""
   lf_reason="$1"
   lf_add="$2"
   lf_rpt="$3"
@@ -691,6 +825,7 @@ next_attempt() {
     return 0
   fi
   if [[ $attempt -ge 5 ]]; then
+    step="held"
     say "NEXT: hold | dependents: $(dependents_of_task)${rcfield:+ | $rcfield}"
     return 0
   fi
@@ -745,13 +880,69 @@ cap_arbiter() {
 }
 
 # One skip call for the task, then one per task depending on it, in plan order.
+# Each is marked skipped first: a --skip call that fails leaves it off status.md,
+# and "ready" must list it no more.
 skip_chain() {
   local dep deps
   deps="$(dependents_of_task)"
+  step="skipped"
+  set_step "$id" skipped
   say "RUN: \"$plugin_root/scripts/commit-task.sh\" --skip \"$plan\" \"$id\""
   for dep in ${deps//,/ }; do
-    [[ "$dep" == "none" ]] || say "RUN: \"$plugin_root/scripts/commit-task.sh\" --skip \"$plan\" \"$dep\""
+    [[ "$dep" != "none" ]] || continue
+    set_step "$dep" skipped
+    say "RUN: \"$plugin_root/scripts/commit-task.sh\" --skip \"$plan\" \"$dep\""
   done
+}
+
+# Sets flight, held, waiting and lost to the comma-separated ids of the tasks
+# standing at those steps under the current mark, in plan order.
+read_steps() {
+  local i
+  flight=""
+  held=""
+  waiting=""
+  lost=""
+  for ((i = 0; i < ${#t_ids[@]}; i++)); do
+    task_step "${t_ids[$i]}"
+    case "$ts_step" in
+      offered|run) flight="${flight:+$flight,}${t_ids[$i]}" ;;
+      held|skipped|done) held="${held:+$held,}${t_ids[$i]}" ;;
+      waiting) waiting="${waiting:+$waiting,}${t_ids[$i]}" ;;
+      lost) lost="${lost:+$lost,}${t_ids[$i]}" ;;
+    esac
+  done
+}
+
+# The blocks answering a coder that waits on the paths of $f_wait: one per task
+# or set of tasks task-ready.sh says it waits on, a pair put in sequence with
+# the call that records it. task-ready.sh is told which tasks are in flight: it
+# sequences a pair whose claimant is not running at once, and waits out a dirty
+# path no task claims only while another task runs. Status 1 when it names no
+# task to wait on (every path unclaimed or blocked, or the script failing): the
+# return is then a plain coder failure.
+wait_blocks() {
+  local out line claimant path found=1
+  read_steps
+  out="$(bash "$here/task-ready.sh" "$plan" wait "$id" --started "$started" --flight "$flight" "$f_wait" 2>/dev/null)" || return 1
+  while IFS= read -r line; do
+    line="${line//$'\r'/}"
+    case "$line" in
+      "wait: $id | on: "?*)
+        say "NEXT: wait | on: ${line#"wait: $id | on: "}"
+        found=0
+        ;;
+      "sequence: $id | after: "?*" | path: "?*)
+        claimant="${line#"sequence: $id | after: "}"
+        path="${claimant#* | path: }"
+        claimant="${claimant%% | path: *}"
+        say "RUN: \"$plugin_root/scripts/commit-task.sh\" --decide \"$plan\" \"$id\" \"sequenced after $claimant: both need $path\""
+        say "NEXT: wait | on: $claimant | sequenced"
+        found=0
+        ;;
+    esac
+  done < <(printf '%s\n' "$out")
+  return $found
 }
 
 # The text after the first line of file $1 starting with prefix $2, a trailing
@@ -848,13 +1039,88 @@ resume_message() {
   say "Continue the task under these decisions, then return your output lines again."
 }
 
+# The answer to "ready": what task-ready.sh lists for the steps the tasks stand
+# at, every listed id marked in flight before the block is printed, so no later
+# call lists it again.
+ready_block() {
+  local line t starts="" retries="" ready_out err
+  read_steps
+  ready_args=("$plan" ready --started "$started")
+  [[ -z "$flight" ]] || ready_args+=(--flight "$flight")
+  [[ -z "$held" ]] || ready_args+=(--held "$held")
+  [[ -z "$waiting" ]] || ready_args+=(--waiting "$waiting")
+  [[ -z "$lost" ]] || ready_args+=(--lost "$lost")
+  ready_out="$(bash "$here/task-ready.sh" "${ready_args[@]}" 2>/dev/null)" || {
+    err="$(bash "$here/task-ready.sh" "${ready_args[@]}" 2>&1 >/dev/null || true)"
+    die "task-ready.sh refused the call: $err"
+  }
+  while IFS= read -r line; do
+    line="${line//$'\r'/}"
+    case "$line" in
+      "start: "*) starts="${line#start: }" ;;
+      "retry: "*) retries="${line#retry: }" ;;
+    esac
+  done < <(printf '%s\n' "$ready_out")
+  for t in ${starts//,/ }; do
+    set_step "$t" offered fresh
+  done
+  for t in ${retries//,/ }; do
+    set_step "$t" run
+  done
+  if [[ -z "$starts$retries" ]]; then
+    say "NEXT: ready | none"
+  else
+    say "NEXT: ready${starts:+ | start: $starts}${retries:+ | retry: $retries}"
+  fi
+}
+
 case "$event" in
+  ready)
+    ready_block
+    ;;
+
+  lost)
+    # The dispatch of the task ended with no return. Only a task this script
+    # holds in flight is taken back: a waiting, held, skipped or committed one
+    # has no dispatch out, and a second report of one loss finds gone=1.
+    answered=0
+    load_state
+    if [[ "$st_started" == "$started" && -z "$model" ]]; then
+      # an offer nobody started: withdrawn, so "ready" offers the task again
+      [[ "$step" != "offered" ]] || rm -f "$state_file"
+    elif [[ "$st_started" == "$started" && "$step" == "run" ]]; then
+      if [[ "$gone" == "0" && "$out" == "reviewer" ]]; then
+        # the reviewer of the round is the one that is gone: the coder returned
+        # its work, so the same round goes to a reviewer again, the task still
+        # in flight; the next loss ends the attempt
+        gone=2
+        review_block
+        save_state
+        answered=1
+      elif [[ "$gone" == "0" ]]; then
+        # the first loss since the last return: the same block goes out again
+        # once "ready" lists the task, told that its work may be in the tree
+        gone=1
+        step="lost"
+        [[ -n "$reason" ]] || reason="no return"
+        save_state
+      elif [[ "$gone" == "2" ]]; then
+        # lost again after it went out again: the attempt ends as a coder failure
+        next_attempt "no return" "" ""
+        save_state
+        answered=1
+      fi
+    fi
+    [[ $answered -eq 1 ]] || ready_block
+    ;;
+
   start)
     [[ -n "$f_tier" && -n "$f_review" ]] || die "start needs --tier and --review"
     kept=0
     if [[ "$started" != "unknown" && -f "$state_file" ]]; then
       load_state
-      [[ "$st_started" != "$started" ]] || kept=1
+      # a state holding no model is the mark "ready" or a skip chain left: no attempt to keep
+      [[ "$st_started" != "$started" || -z "$model" ]] || kept=1
     fi
     if [[ $kept -eq 0 ]]; then
       attempt=1
@@ -877,7 +1143,12 @@ case "$event" in
       lf_add=""
       lf_rpt=""
       lf_review=0
+      gone=0
+      out=""
     fi
+    step="run"
+    # a task taken back by "lost" is out again: its next loss ends the attempt
+    [[ "$gone" != "1" ]] || gone=2
     write_lessons
     coder_block ""
     save_state
@@ -885,6 +1156,12 @@ case "$event" in
 
   "retry coder")
     require_state
+    if [[ $f_waited -eq 1 ]]; then
+      step="run"
+      # a task taken back by "lost" is out again: its next loss ends the attempt
+      [[ "$gone" != "1" ]] || gone=2
+      save_state
+    fi
     add=""
     if [[ $f_denied -eq 1 ]]; then
       add="add: reason"
@@ -898,6 +1175,8 @@ case "$event" in
     if [[ "$verdict" == "DENIED" ]]; then
       say "ASK: retry -> retry coder --denied | skip -> skip | abort"
     else
+      gone=0
+      out=""
       with="$(union "$with" "$f_with")"
       defer="$(union "$defer" "$f_defer")"
       [[ -z "$f_with" ]] || anywith=1
@@ -905,7 +1184,14 @@ case "$event" in
       failed=0
       add=""
       why=""
-      if [[ "$verdict" == "FAIL" ]]; then
+      waits=0
+      if [[ "$verdict" == "FAIL" && -n "$f_wait" ]] && wait_blocks; then
+        # a wait ends no attempt: the same coder block goes out again once
+        # "ready" lists the task, told that its work is in the tree
+        waits=1
+        step="waiting"
+        [[ -n "$reason" ]] || reason="waited on $f_wait"
+      elif [[ "$verdict" == "FAIL" ]]; then
         failed=1
         add="add: reason"
       elif [[ $dod_m -lt $dod_n ]]; then
@@ -919,12 +1205,14 @@ case "$event" in
       rc=""
       rc_reason=""
       checked=0
-      if [[ $failed -eq 0 && $tdd_required -eq 1 && $red_check_on -eq 1 ]]; then
+      if [[ $waits -eq 0 && $failed -eq 0 && $tdd_required -eq 1 && $red_check_on -eq 1 ]]; then
         checked=1
         run_red_check
       fi
 
-      if [[ $failed -eq 1 ]]; then
+      if [[ $waits -eq 1 ]]; then
+        :
+      elif [[ $failed -eq 1 ]]; then
         if [[ $f_decide -eq 1 && $attempt -lt 5 ]] && route_arbiter "$why" "$add"; then
           :
         else
@@ -954,12 +1242,16 @@ case "$event" in
         say "ASK: retry -> retry reviewer | accept -> accept | abort"
         ;;
       PASS)
+        gone=0
+        out=""
         with="$(union "$with" "$f_with")"
         [[ -z "$f_with" ]] || anywith=1
         commit_block ""
         save_state
         ;;
       FAIL)
+        gone=0
+        out=""
         write_lessons force
         [[ -z "$f_report" ]] || lastrev="$f_report"
         from_review=1
@@ -978,6 +1270,7 @@ case "$event" in
   accept)
     require_state
     unrev=1
+    out=""
     commit_block ""
     save_state
     ;;
@@ -985,7 +1278,9 @@ case "$event" in
   commit)
     require_state
     if [[ $exit_code -eq 0 ]]; then
+      step="done"
       say "NEXT: done"
+      save_state
     elif [[ $exit_code -eq 4 ]]; then
       say "ASK: retry | skip -> skip | abort"
     else
@@ -1003,6 +1298,9 @@ case "$event" in
   repair)
     require_state
     mode=1
+    step="run"
+    gone=0
+    out=""
     repair_block
     save_state
     ;;

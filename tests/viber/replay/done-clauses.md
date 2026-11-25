@@ -1,8 +1,9 @@
 # Replay sample of done clauses
 
-Each line is one done clause for a replay of the plan reviewer and the coder: a `bad` clause
-must be reported under `Observable` naming the test rule after it, a `good` clause must not, and
-a `read` clause must not either: the coder writes no test for it and the reviewer judges its code.
+Each line is one done clause for a replay of the plan author and the coder: a `bad` clause
+breaks `Observable` by the test rule named after it and must not be written, a `good` clause
+holds, and a `read` clause holds too: the coder writes no test for it and the task reviewer
+judges its code.
 Line format: - <bad|good|read> | <test rule, or none> | <TDD value> | <clause>
 
 - bad | Earned | required | the key test covers `menuIcons` with its eight keys

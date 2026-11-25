@@ -1,8 +1,9 @@
 /*
  * read.ts - reads a plan once, line by line: its title, phases, criteria,
- * contract blocks, attachments map and task blocks, and the defects a single line
- * shows (a template slot, a scenario heading, a file map path, a malformed
- * heading), in line order. What the blocks say to each other is check.ts.
+ * contract blocks, attachments map, open items and task blocks, and the defects a
+ * single line shows (a template slot, a scenario heading, a file map path, a
+ * malformed heading, a line of the Open items section of another shape), in line
+ * order. What the blocks say to each other is check.ts.
  */
 
 import { bare, fenceReader, trim, valueOf } from "./text.ts";
@@ -28,6 +29,13 @@ export interface PlanTask {
   dod: string;
 }
 
+/** One line of the "## Open items" section: an open critical problem or a note, of the task where names or of the plan. */
+export interface OpenItem {
+  kind: "critical" | "note";
+  where: string;
+  text: string;
+}
+
 export interface PlanDoc {
   title: string;
   tasks: PlanTask[];
@@ -44,6 +52,8 @@ export interface PlanDoc {
   /** The phase names in build order, and the place (from 1) of the first one marked "(this plan)", 0 for none. */
   phases: string[];
   thisPhase: number;
+  /** The well-formed lines of the Open items section, in order. */
+  openItems: OpenItem[];
   defects: string[];
 }
 
@@ -63,8 +73,16 @@ export const OPEN_TASK = /^[ \t\n\v\f\r]*<!--[ \t\n\v\f\r]*TASK[ \t\n\v\f\r]*-->
 export const CLOSE_TASK = /^[ \t\n\v\f\r]*<!--[ \t\n\v\f\r]*\/TASK[ \t\n\v\f\r]*-->[ \t\n\v\f\r]*$/;
 export const PHASES = /^##[ \t\v\f\r]*(Phases|Roadmap)[ \t\v\f\r]*$/;
 export const TASKS = /^##[ \t\v\f\r]*Tasks/;
+export const OPEN_ITEMS = /^##[ \t\v\f\r]*Open items[ \t\v\f\r]*$/;
 export const SECTION = /^##[ \t\v\f\r]/;
 export const SUBSECTION = /^###[ \t\v\f\r]/;
+
+/** The item a line of the Open items section holds: `- critical|note | <task id>|plan | <text>`, the text everything after the second bar; null for any other line. */
+export function openItemOf(line: string): OpenItem | null {
+  const item = /^- (critical|note) \| ([^ \t|]+) \| (.*)$/s.exec(line.replace(/\r$/, ""));
+  if (item === null || trim(item[3]) === "") return null;
+  return { kind: item[1] as OpenItem["kind"], where: item[2], text: trim(item[3]) };
+}
 
 /** The `<id> - <name>` of a `### ` heading; null when it holds no " - ". */
 export function headingOf(line: string): { id: string; name: string } | null {
@@ -121,7 +139,7 @@ function mapPaths(line: string): { kind: string; paths: string[] } {
 
 /** fresh null: the plan is frozen, and the checks added after plans were frozen are skipped. */
 export function readPlan(lines: string[], fresh: Fresh | null): PlanDoc {
-  const doc: PlanDoc = { title: "", tasks: [], criteria: new Set(), contracts: [], contractFiles: new Map(), attachments: null, hasTasks: false, hasRootCause: false, phases: [], thisPhase: 0, defects: [] };
+  const doc: PlanDoc = { title: "", tasks: [], criteria: new Set(), contracts: [], contractFiles: new Map(), attachments: null, hasTasks: false, hasRootCause: false, phases: [], thisPhase: 0, openItems: [], defects: [] };
   const defect = (text: string): void => void doc.defects.push(`FIX: ${text}`);
   const fenced = fenceReader();
   const plain = plainReader();
@@ -133,6 +151,7 @@ export function readPlan(lines: string[], fresh: Fresh | null): PlanDoc {
   let inContracts = false;
   let inBehaviour = false;
   let inFileMap = false;
+  let inOpen = false;
   let scenarios = 0;
   let contract = "";
   /** The next non-blank line is the first of the contract block. */
@@ -206,7 +225,8 @@ export function readPlan(lines: string[], fresh: Fresh | null): PlanDoc {
     if (fresh !== null && fresh.slots.length > 0 && !fence) {
       // The heading line itself is read as the section it opens.
       const text = plain(line);
-      const appendix = SECTION.test(line) ? line.includes("Contracts") : inContracts;
+      // A script wrote the open items from a review: a slot quoted there is no slot of the plan.
+      const appendix = SECTION.test(line) ? line.includes("Contracts") : inContracts || inOpen;
       for (const slot of appendix ? [] : fresh.slots) {
         if (text.includes(slot)) defect(`line ${at}: template slot ${slot} left unfilled - replace it (Filled)`);
       }
@@ -222,8 +242,13 @@ export function readPlan(lines: string[], fresh: Fresh | null): PlanDoc {
       inCriteria = line.includes("Acceptance criteria");
       inContracts = line.includes("Contracts");
       inBehaviour = /^##[ \t\v\f\r]*Behaviour[ \t\v\f\r]*$/.test(line);
+      inOpen = OPEN_ITEMS.test(line);
       scenarios = 0;
       contract = "";
+    } else if (inOpen && task === null && trim(line) !== "" && !OPEN_TASK.test(line)) {
+      const item = fence ? null : openItemOf(line);
+      if (item === null) defect(`open items: line ${at} is not "- critical|note | <task id>|plan | <text>" (Open items)`);
+      else doc.openItems.push(item);
     }
     if (fresh !== null && !fence && inBehaviour && SUBSECTION.test(line)) readScenario(line, at);
     if (!fence && /^#+[ \t\v\f\r]/.test(line)) inFileMap = /^###[ \t\v\f\r]+File map[ \t\v\f\r]*$/.test(line);

@@ -42,6 +42,14 @@ test("--extra reads the coder's file alone: with none it prints nothing, whateve
   assert.deepEqual(scope(null, { [`${PLAN_DIR}/work/T3-extra-review.md`]: "lib/reviewer-only.ts\n" }), ok([]));
 });
 
+test("--extra: a path only a skipped task lists is printed (a skipped task never finishes, so it claims nothing, as in the file guard, task-ready and the commit check), and no recheck names that task", () => {
+  const at = indexOf(planBody(SCOPE_TASKS, 1), ["--extra", "T3"], {
+    status: ["progress: 2/4", "done: T1 T4", "skipped: T2"],
+    files: { [`${PLAN_DIR}/work/T3-extra.md`]: "src/todo.ts\nlib/new.ts\n", ...TREE },
+  });
+  assert.deepEqual(answerOf(at), ok(["extra: src/todo.ts,lib/new.ts"]));
+});
+
 test("under a drive root an MSYS path of the extras file is read as the drive path it spells", () => {
   const at = indexOf("", [], {
     cwd: "C:\\r",

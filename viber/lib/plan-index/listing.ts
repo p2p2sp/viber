@@ -1,10 +1,9 @@
 /*
  * listing.ts - the index of a sound plan: the state lines, one row and one
  * verify line per task, the profile lines of --split, the dirty and orphan lines
- * and, on a fresh plan, the review instruction.
+ * and, on a fresh plan past 30 tasks, the threshold line.
  */
 
-import { slicesOf } from "../plan-text.ts";
 import type { Checked } from "./check.ts";
 import type { PlanDoc } from "./read.ts";
 import type { RunState } from "./state.ts";
@@ -32,8 +31,8 @@ export interface ListingOpts {
   changed: string[];
   /** The tiers the profile lines are clamped into; null: no profile line. */
   profile: Tiers | null;
-  /** The review instruction, accepted the task count the user already kept; null: none. */
-  review: { accepted: number | null } | null;
+  /** The plan is fresh, accepted the task count the user already kept; null: a landed plan, which gets no threshold line. */
+  fresh: { accepted: number | null } | null;
 }
 
 /** A task's own tier and that of its review, decided before the clamp. */
@@ -58,16 +57,11 @@ function nextPhase({ phases, thisPhase }: PlanDoc): string[] {
   return [`next: phase ${thisPhase + 1} of ${phases.length} - ${trim(phases[thisPhase].replace(/[ \t\v\f\r]*\((built|this plan)\)$/, ""))}`];
 }
 
-/** The reviewers the planner dispatches. */
-function reviewLines(count: number, accepted: number | null): string[] {
-  if (count <= 12) return ["review: single", "dispatch: viber:planner-review"];
-  return [
-    "review: set",
-    "dispatch: viber:planner-spec-review",
-    "dispatch: viber:planner-graph-review",
-    ...slicesOf(count).map(({ from, to }) => `dispatch: viber:planner-task-review | tasks: T${from}-T${to}`),
-    ...(count > 30 && (accepted === null || count > accepted) ? [`threshold: ${count} tasks, past 30`] : []),
-  ];
+/** A plan the user is asked to split: more tasks than this, unless the user already kept that many. */
+const TASK_LIMIT = 30;
+
+function thresholdLines(count: number, accepted: number | null): string[] {
+  return count > TASK_LIMIT && (accepted === null || count > accepted) ? [`threshold: ${count} tasks, past ${TASK_LIMIT}`] : [];
 }
 
 export function indexLines(doc: PlanDoc, tasks: Checked[], state: RunState, opts: ListingOpts): string[] {
@@ -114,6 +108,6 @@ export function indexLines(doc: PlanDoc, tasks: Checked[], state: RunState, opts
     ...(opts.profile === null ? [] : open.filter(({ task }) => !state.skipped.has(task.id)).map((each) => profileLine(each, opts.profile as Tiers))),
     ...dirty,
     ...orphans.map((path) => `orphan: ${path}`),
-    ...(opts.review === null ? [] : reviewLines(tasks.length, opts.review.accepted)),
+    ...(opts.fresh === null ? [] : thresholdLines(tasks.length, opts.fresh.accepted)),
   ];
 }

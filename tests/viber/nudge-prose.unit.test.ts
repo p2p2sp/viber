@@ -74,8 +74,8 @@ test("planner/SKILL.md keeps SendMessage in allowed-tools (it continues its plan
   assert.ok(line.includes("SendMessage"));
 });
 
-test("planner/SKILL.md keeps its sentence forbidding a SendMessage to a reviewer", () => {
-  assert.ok(read("skills/planner/SKILL.md").includes("never a `SendMessage` to an earlier reviewer"));
+test("planner/SKILL.md keeps its sentence forbidding a SendMessage to an earlier judge", () => {
+  assert.ok(read("skills/planner/SKILL.md").includes("never a `SendMessage` to an earlier judge"));
 });
 
 for (const rel of ["skills/implementor/SKILL.md", "skills/e2e/SKILL.md"]) {

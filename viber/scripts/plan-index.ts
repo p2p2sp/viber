@@ -5,7 +5,7 @@
 // commands carry.
 //
 // Usage:
-//   plan-index.sh <plan-file>            validate + index (the planner's call)
+//   plan-index.sh <plan-file>            validate + index
 //   plan-index.sh <plan-file> --split    ... and decompose (the orchestrator's call)
 //   plan-index.sh <plan-file> --extra <task-id>
 //                                        the reviewer's scope for one task (below)
@@ -18,9 +18,6 @@
 //   plan-index.sh <plan-file> --input <summary-file>
 //                                        validate + index, and check the plan against the
 //                                        planner's input (below)
-//   plan-index.sh <plan-file> --detailed
-//                                        validate + index, and refuse a task still holding
-//                                        PENDING (below)
 //
 // stdout (the orchestrator's only view of the plan - the decomposed files are read
 // by agents):
@@ -76,19 +73,11 @@
 //                                   over each of the two present, qa.md first;
 //                                   <plugin root> is cut as under --dispatch. No block
 //                                   otherwise.
-//   review: single                last, on a fresh plan only (a plain call with
-//   dispatch: viber:planner-review  no status.md beside the plan; a landed plan,
-//                                   --split and --extra print none of it): a plan
-//                                   of 12 tasks or fewer
-//   review: set                     a plan of more than 12 tasks: the spec and graph
-//   dispatch: viber:planner-spec-review     reviewers, then one task reviewer per
-//   dispatch: viber:planner-graph-review    slice - ceil(n / 8) runs of consecutive
-//   dispatch: viber:planner-task-review | tasks: T1-T7     tasks, sizes differing
-//   dispatch: viber:planner-task-review | tasks: T8-T13    by at most one, the
-//                                   larger first, cut as plan-gate.sh cuts them
-//                                   (13 tasks -> T1-T7, T8-T13)
-//   threshold: 31 tasks, past 30    only past 30 tasks and, with --accepted <n>, past
-//                                   <n> tasks, after the dispatch lines
+//   threshold: 31 tasks, past 30    last, on a fresh plan only (a plain call with
+//                                   no status.md beside the plan; a landed plan,
+//                                   --split and --extra print none of it): only
+//                                   past 30 tasks and, with --accepted <n>, past
+//                                   <n> tasks. The index names no reviewer.
 //
 // --extra <task-id> prints, instead of the index, the scope a reviewer checks
 // beyond the task's own Files, read from the coder extras file
@@ -96,8 +85,10 @@
 // <task-id>-extra-review.md is never read):
 //   extra: lib/x.ts,src/a.ts        the file paths in file order, minus a blank
 //                                   line, a repeat, one under .temp/, one the
-//                                   task's own Files lists and one a task not yet
-//                                   done lists; a carriage return and a leading
+//                                   task's own Files lists and one a task neither
+//                                   done nor skipped lists (a skipped task never
+//                                   finishes, so it claims nothing); a carriage
+//                                   return and a leading
 //                                   "./" are stripped first, a backslash of a
 //                                   relative path is read as "/", an absolute path
 //                                   inside the repository is folded to its
@@ -160,7 +151,7 @@
 //   NEXT: skip                      status.md closes final-review, or no task is done
 // or one block per slice, the tasks cut into ceil(n / 8) runs of consecutive tasks in
 // index order, skipped ones included, sizes differing by at most one, the larger
-// first (as the planner review slices are cut):
+// first:
 //   NEXT: final-review | slice: <k> | model: <sonnet clamped into tiers.min..tiers.max>
 //   run: <dir>
 //   tasks: <id>, <id>, ...
@@ -197,14 +188,22 @@
 // "threshold:" line is then printed only when the count is also above <n>. A missing or
 // non-digit value exits 2 with the usage line; without it the line is printed past 30 alone.
 //
-// --detailed (validate mode, beside --input and --accepted too, never beside --split,
-// --extra, --dispatch, --slice or --final-review: exit 2, "error: --detailed cannot be
-// combined with ...") says the detail stage of the plan is over: a task whose
-// "Verification:" or "DoD:" value still opens with the word PENDING, the line of a skeleton
-// task plan-build.sh merge never filled, is a defect (exit 4), one line per field:
-//   FIX: task <id>: <Verification|DoD> is still PENDING - dispatch the plan-detailer block of its slice and merge its file (Detailed)
-// Without it such a task passes: a skeleton plan is validated before its tasks are written.
-// review-round.sh passes it on every start outside the skeleton stage.
+// The checks of a plan that never landed, and those of --input, are also what
+// plan-build.sh runs in process over a plan text it is about to write (planDefects of
+// viber/lib/plan-index/run.ts): the planner itself makes no plan-index.sh call.
+//
+// The "## Open items" section (optional, written by plan-build.sh alone, the last one
+// above "## Tasks") is validated in every mode, on a fresh and on a landed plan, each
+// defect a "FIX:" line (exit 4). Each of its lines with text is
+// "- critical | <task id or plan> | <text>" or "- note | <task id or plan> | <text>",
+// the text everything after the second " | ":
+//   FIX: open items: line <n> is not "- critical|note | <task id>|plan | <text>" (Open items)
+//   FIX: open items: <id> names no task of the plan (Open items)
+//   FIX: open items: task <id> holds <n> notes, past 3 (Open items)
+// A "critical" line is an open critical problem of the plan review and reaches no task
+// file; a "note" line naming a task reaches that task file (--split below), one naming
+// "plan" stays in the plan for the user. A template slot quoted on a line of the
+// section is no slot left in the plan.
 //
 // --split removes, once the plan is validated and decomposed and before the index
 // is printed, the coder and reviewer extras files of every task not done; a done
@@ -305,7 +304,9 @@
 //                    stays whole, comments and blank lines included, and a
 //                    heading line inside one is body text: it neither cuts
 //                    the plan, opens a section nor splits a contract block.
-//                    The "## Phases" section is cut out of it too, into phases.md.
+//                    The "## Phases" section is cut out of it too, into phases.md,
+//                    and so is the "## Open items" section, which stays in
+//                    plan.md alone.
 //                    It ends with "## Attachments" when <run>/attachments/ (the
 //                    files plan-path.sh --land copied there) holds an entry:
 //                    one line per file or directory, its repo-relative path
@@ -321,7 +322,14 @@
 //                    plan's "## Goal", the text of the criteria its "Covers:" line
 //                    names, the "## Contracts" blocks its "Uses:" line names, the
 //                    plan's "### Must not change" when the big shape has one,
-//                    the plan's "### Out of scope". It carries no attachment or
+//                    the plan's "### Out of scope" and, last and only when the
+//                    "## Open items" section holds a "- note | <id> | <text>"
+//                    line for this task, "## Notes", a blank line and one
+//                    "- N<k>: <text>" line per such note, numbered from 1 in
+//                    section order (at most 3: the validation refuses more).
+//                    A task with no note gets no "## Notes" heading, so a plan
+//                    with no notes yields the task files it always did. It
+//                    carries no attachment or
 //                    prototype section: a task that needs an attached file names
 //                    it itself. The block is
 //                    verbatim but for its "- DoD:" line, cut on ";" outside
@@ -388,9 +396,7 @@
 //       the same time -, a task naming a contract block in "Uses:" with no
 //       dependency path, direct or transitive, to a lower-numbered task that
 //       holds the block's "File:" path and names it in its own "Uses:" (the
-//       consumer would run beside its writer; the error names both tasks),
-//       a "Depends-on" naming a task marked "Exclusive: true": that task is a
-//       leaf of the dependency graph, so nothing may depend on it, or a
+//       consumer would run beside its writer; the error names both tasks), a
 //       "Depends-on" entry another entry of the same line already reaches,
 //       directly or transitively (the edge orders nothing; the error names the
 //       task, the entry and the one reaching it), or a "DoD:" line naming
@@ -424,8 +430,7 @@
 //       that test directory, or a file inside such a directory (stderr: "FIX:
 //       task <id>: Files writes <path> under an integration test directory, which
 //       no Verification command names - list or type-check that file or its test
-//       project there (Layered)"; a "Verification:" that is the word PENDING alone,
-//       a skeleton task plan-build.sh merge fills later, is not checked), or a git grep: a command of its "Verification:"
+//       project there (Layered)"), or a git grep: a command of its "Verification:"
 //       text before the first " -> " (cut at ";", "&&", "||" and "|") that runs
 //       git grep with no --untracked and names, as a token, a "Files:" path the
 //       tree does not hold (stderr: "FIX: task <id>: Verification runs git grep
@@ -503,8 +508,7 @@
 //   argv   : the plan file, optionally --split, --extra <task-id>, --dispatch
 //            <task-id> coder|reviewer, --slice <id>[,<id>]... or --final-review,
 //            never two of them, or --input <summary-file>, beside none of them;
-//            --accepted <n> (digits) beside --input or alone, never beside one of those;
-//            --detailed beside --input, --accepted or alone, never beside one of those.
+//            --accepted <n> (digits) beside --input or alone, never beside one of those.
 //   cwd    : the repository root - the plan path and every path in the index are
 //            relative to it; a plan path given absolute, or with a leading
 //            "./", inside it is read as its relative form.

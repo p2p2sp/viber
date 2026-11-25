@@ -36,7 +36,7 @@ Only with a `fix:` line, in place of "Read your slice":
 
 ## Read your slice
 
-Read in full: `<run>/spec.md`, `<run>/status.md`, each of your `tasks`' own task file under `<run>/tasks/`, and each of their coders' notes at `<run>/work/<task id>-coder.md` when present. Run your `scope` line: its `commit:` lines are your tasks' commits, which you read for what each changed, and its `file:` lines are your slice, the files those commits changed or removed that belong to no earlier slice. Nothing printed means no commit to review. Reach everything else - the rest of the repository, an earlier task's own commit, any file outside your slice - only through a targeted search, never a full read.
+Read in full: `<run>/spec.md`, `<run>/status.md`, each of your `tasks`' own task file under `<run>/tasks/`, and each of their coders' notes at `<run>/work/<task id>-coder.md` when present. A `- N<k>:` line under `## Notes` of a task file with no `N<k>:` line in that task's coder notes was acted on by no coder: check what it warns about inside your slice. A note is advice of the plan review, never a requirement, and never outranks a `DoD` clause or a `Contracts` block: one no coder followed is no finding in itself. Run your `scope` line: its `commit:` lines are your tasks' commits, which you read for what each changed, and its `file:` lines are your slice, the files those commits changed or removed that belong to no earlier slice. Nothing printed means no commit to review. Reach everything else - the rest of the repository, an earlier task's own commit, any file outside your slice - only through a targeted search, never a full read.
 
 ## What you search for
 

@@ -54,6 +54,9 @@ export function assertHint(stdout: string): void {
   assert.ok(out, `expected hookSpecificOutput, got: ${stdout}`);
   assert.equal(out.hookEventName, "UserPromptSubmit");
   const ctx = out.additionalContext ?? "";
-  assert.match(ctx, /dispatch the outside-plan-review agent after every write to the plan file and get its PASS on that version before ExitPlanMode/);
+  assert.match(ctx, /dispatch the outside-plan-review agent once the plan is written/);
+  assert.match(ctx, /dispatch it once more, adding those lines and what you changed for each to the plan path and the goal: that second review is the last/);
+  assert.match(ctx, /under "## Open items", and call ExitPlanMode/);
+  assert.match(ctx, /Never ask the user about a finding/);
   assert.match(ctx, /planning\.outside-plan-review/);
 }

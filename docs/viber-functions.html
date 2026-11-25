@@ -155,7 +155,7 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li><code>planning.questions-per-round</code>: how many decisions one interview round carries, <code>1</code> to <code>10</code> or <code>all</code>; a number, not a switch, default 5.</li>
         <li><code>tiers.min</code> / <code>tiers.max</code>: the build's model range (<code>haiku</code> &lt; <code>sonnet</code> &lt; <code>opus</code> &lt; <code>fable</code>).</li>
         <li><code>fable</code> runs only when the project names it.</li>
-        <li>Planning always runs on the session's model, outside the <code>tiers</code> range.</li>
+        <li>Planning stays outside the <code>tiers</code> range: the map runs on haiku, the task authors on sonnet, the judge on opus and the frame on the session's model.</li>
         <li><code>github.issue-title</code>: the issue title pattern (<code>{template-title}</code>, <code>{type}</code>, <code>{summary}</code>).</li>
         <li><code>github.pr-title</code>: the pull request title pattern (<code>{type}</code>, <code>{summary}</code>, <code>{issue-number}</code>, <code>{entry}</code>).</li>
         <li><code>directories.runs</code> / <code>directories.specifications</code>: the run and archive directory names under <code>docs/</code>.</li>
@@ -354,10 +354,14 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
       <ul class="f">
         <li>Enters only with a confirmed interview or diagnosis.</li>
         <li>Never reopens decisions the interview took.</li>
-        <li>File map first: what is created, modified, deleted.</li>
+        <li>A map first, by search alone: the areas of the change, the files created, modified or deleted, and a task estimate.</li>
+        <li>A script cuts the map into slices that each fit one agent: at most 8 estimated tasks and 200000 bytes of files.</li>
+        <li>A change of several slices gets a frame first: the specification and the contracts the slices share.</li>
+        <li>One author per slice, in parallel, reads its files once and writes its tasks whole, with the code facts each line rests on.</li>
+        <li>A change that fits one slice has one author, who writes the whole plan.</li>
+        <li>A script assembles the plan: it numbers the tasks and checks that every acceptance criterion and every referring file has a place.</li>
         <li>Before the plan is written, a script searches the code for every reference to what the change modifies, moves or deletes.</li>
         <li>Adds nothing the interview left unsettled.</li>
-        <li>Fixes a review finding, even a Minor one, that shows an unasked change of today's behaviour.</li>
         <li>One responsibility per file; an unwieldy file may be split.</li>
         <li>The specification (what and why) is kept apart from the tasks.</li>
         <li><code>spec-full</code>: problem, current behaviour, scenarios, edge cases, glossary.</li>
@@ -367,12 +371,12 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>Tasks: dependencies, files, contracts, deliverable, verification, DoD, coverage, TDD.</li>
         <li><code>C&lt;n&gt;</code> contracts: data shapes shared between tasks.</li>
         <li>Every acceptance criterion covered by a task.</li>
-        <li>Parallel tasks never share a file.</li>
-        <li>An acyclic, minimal dependency graph.</li>
+        <li>A script computes the order of the tasks from the files they list and the contracts they use; an author writes no dependency.</li>
+        <li>Two tasks sharing a file are put in order, never refused.</li>
         <li>Widening a contract requires handling at every consumer.</li>
         <li><code>TDD: required</code> by default.</li>
         <li>A task's verification is a concrete command, not the whole suite.</li>
-        <li>An <code>Exclusive</code> task for shared resources (a port, a database).</li>
+        <li>An <code>Exclusive</code> task for a machine-wide resource it needs alone (a port, a database).</li>
         <li>Every design choice settled in the task, so a sonnet coder makes none of its own.</li>
         <li>A <code>Hard</code> line only on a task whose design cannot be settled in advance.</li>
         <li>Designs a shared test harness when the project has none.</li>
@@ -382,9 +386,13 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>The files the plan is built from (a mockup, a <code>findings.md</code>) as <code>attachments:</code> in its frontmatter.</li>
         <li>A task that needs an attachment names it in its done clause; one that needs none names none.</li>
         <li>Script validation: the rules tagged <code>(script)</code>.</li>
-        <li>Review by the <code>planner-review</code> agent: the rules tagged <code>(review)</code>, rounds until PASS.</li>
-        <li>Findings that need a decision reach you as a question.</li>
-        <li>A write to the part of the plan a reviewer passed voids that PASS.</li>
+        <li>Review by the <code>plan-judge</code> agent, which reads the plan and your confirmed summary and searches no code.</li>
+        <li>Critical problems only: the plan contradicts what you confirmed, or a coder could not resolve it inside its own task.</li>
+        <li>At most two review rounds; the second reads only the text the fixes changed.</li>
+        <li>The author of the affected text fixes it from its notes of the code, without reading the code again.</li>
+        <li>Everything else is a note: at most 3 per task, placed in that task's file by a script.</li>
+        <li>No review finding asks you a question: what is left after round two is listed under <code>## Open items</code> of the plan.</li>
+        <li>Before you approve, you see the open items in one list, the open critical problems named.</li>
         <li>Shows the plan's full path and names the next step.</li>
         <li>The plan survives a cleared context through its <code>source:</code> line.</li>
       </ul>
@@ -405,18 +413,18 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
 
     <section id="gate" data-title="Plan gate and hooks">
       <h2>Plan gate and hooks <span class="count"></span></h2>
-      <p>Four hooks and one module working behind every session.</p>
+      <p>Seven hook scripts and one module working behind every session.</p>
       <ul class="f">
-        <li>Blocks leaving plan mode without a reviewer's PASS after the last plan write.</li>
-        <li>Compares the file's modification time with the verdict's time: an edit after PASS voids it.</li>
-        <li>Also catches edits made through <code>sed -i</code> or an editor.</li>
-        <li>A plan written outside the planner needs a PASS from the <code>outside-plan-review</code> agent when <code>planning.outside-plan-review</code> is on, whatever number of files it names.</li>
+        <li>Blocks leaving plan mode until the plan's reviewer has returned a verdict.</li>
+        <li>A FAIL must be answered by a write of the plan or by the planner's fix scripts; a PASS stays good whatever is written after it.</li>
+        <li>A plan written outside the planner is reviewed by the <code>outside-plan-review</code> agent when <code>planning.outside-plan-review</code> is on, whatever number of files it names: critical problems only, at most two rounds.</li>
         <li>Every deny message opens with "Next step:" and the ready command.</li>
-        <li>Injects one hint into a plan written outside the planner: get the <code>outside-plan-review</code> PASS before leaving plan mode.</li>
+        <li>Injects one hint into a plan written outside the planner: have <code>outside-plan-review</code> read it, at most twice, put what is left under <code>## Open items</code> and ask you nothing about a finding.</li>
         <li>Loads viber's rule manifest into the context at session start.</li>
         <li>The <code>viber loaded &lt;version&gt;</code> banner shown to the user.</li>
         <li>Warns about an outdated <code>schema:</code> and the need for <code>/viber:setup</code>.</li>
         <li>Blocks viber agents from mass-killing processes (<code>killall</code>, <code>pkill</code>, <code>taskkill /IM</code>).</li>
+        <li>Blocks a task coder from editing a file another unfinished task claims; the coder finishes the rest and waits for that task.</li>
         <li>Rescues agent report writes the harness blocks by file name.</li>
         <li>Every hook fails open: an error never blocks work.</li>
         <li>Manifest: no code before an approved plan.</li>
@@ -442,14 +450,15 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>Model choice: haiku for simple tasks, sonnet for ordinary ones, opus only for tasks the plan marks <code>Hard</code>.</li>
         <li>Every model clamped into the <code>tiers</code> range.</li>
         <li>Review waived only for sonnet tasks verified by the build or tests; a task whose contract three or more tasks use is reviewed on opus.</li>
-        <li>Dispatches every task whose dependencies are done, in parallel.</li>
+        <li>A script lists the tasks ready to start, up to 10 at work at once; the session orders and counts none itself.</li>
         <li>Never waits for a whole batch: unblocks the next tasks at once.</li>
         <li><code>Exclusive</code> tasks run alone, with nothing in the background.</li>
         <li>A task list in the UI with the model and a <code>[TDD]</code> tag.</li>
         <li>A commit after every task: <code>T&lt;n&gt; - &lt;title&gt;</code>.</li>
         <li>A commit stages only the task's files, as exact paths.</li>
         <li>Up to 5 attempts per task, each one model tier up.</li>
-        <li>Holds a task when another coder is changing a file it needs; no attempt is counted.</li>
+        <li>A task that needs a file another unfinished task holds waits for it; no attempt is counted.</li>
+        <li>A collision with a task not yet started, or the second collision of the same two tasks, puts them in sequence for the rest of the build, recorded as a decision.</li>
         <li>Files outside the task's map are added to its commit and recheck.</li>
         <li>Code left untested is deferred to a later task to prove; with no later task, it gets a repair pass before the final review.</li>
         <li>A task past its 5 attempts is held and gets a repair pass before the final review.</li>
@@ -496,6 +505,8 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>Matches the style of the surrounding code.</li>
         <li>A task rendering or styling an interface reads <code>references/ui-tells.md</code>, a short checklist of generated-UI tells, in the coder and the reviewer.</li>
         <li>Notes of up to 8 lines: conventions, traps, doubts.</li>
+        <li>Answers every note of the plan review in its task file with one line saying what it did with it.</li>
+        <li>A note is advice: it never outranks a DoD clause or a contract.</li>
         <li>Returns options to unblock a task it cannot complete.</li>
         <li>TDD: first a test that fails on an assertion.</li>
         <li>TDD: one test per DoD clause, named after the behaviour.</li>
@@ -576,6 +587,7 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>Every extension committed separately.</li>
         <li>Records drift: what was delivered beyond the specification.</li>
         <li>The build summary in <code>outcome.md</code>.</li>
+        <li>One list in <code>outcome.md</code>: every plan note with what happened to it, every open critical problem, every ruling, every refused path and every pair put in sequence.</li>
         <li>Archive in <code>docs/specs/</code>: specification, scenarios, rulings, attachments, summary.</li>
         <li>Plan, status, tasks and notes dropped in one commit (git keeps them).</li>
         <li>Closing screen: the result, tests and elapsed time, then one sentence saying whether <code>outcome.md</code> records a problem.</li>

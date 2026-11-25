@@ -4,7 +4,8 @@
  * the exact FIX: and SPLIT: lines and all of them in one run; what is no defect;
  * and the checks a plan that already landed is spared. The command of a
  * Verification is verification.unit.test.ts, the defects of a single line
- * read.unit.test.ts.
+ * read.unit.test.ts. The Open items section is checked here against the tasks:
+ * an item names a task of the plan or the plan, and a task holds at most 3 notes.
  */
 
 import assert from "node:assert/strict";
@@ -17,6 +18,10 @@ const owned = (file: string): string[] => ["### C1 - Login endpoint", "", `File:
 const NO_FILE = ["### C1 - Login endpoint", "", "POST /login -> 200 | 401"];
 const one = (task: TaskFields, contracts?: string[]): string => planBody([{ id: "T1", ...task }], 1, contracts);
 const two = (first: TaskFields, second: TaskFields, contracts?: string[]): string => planBody([{ id: "T1", ...first }, { id: "T2", ...second }], 1, contracts);
+
+/** The plan with these lines as its Open items section, above the Tasks heading. */
+const withOpen = (plan: string, ...items: string[]): string => plan.replace("## Tasks\n", ["## Open items", "", ...items, "", "## Tasks", ""].join("\n"));
+const notes = (count: number): string[] => Array.from({ length: count }, (_, k) => `- note | T1 | note ${k + 1}`);
 
 const MISPLACED = ["<!-- TASK -->", "### T0 - Misplaced", "- TDD: required", "- Covers: AC1", "- Uses: none", "- Depends-on: none", "- Files: src/m.ts", "- Delivers: x", "- Verification: npm test", "- DoD: it works", "<!-- /TASK -->", "", ""].join("\n");
 
@@ -50,6 +55,8 @@ const ALWAYS: Array<[string, string, string[]]> = [
   ["a contract file nothing creates", one({}, owned("src/session.ts")), ["FIX: contract C1 declares src/session.ts, which no task creates - put it in the Files of the task that writes the shape"]],
   ["a contract file whose holders never name the block", two({ uses: "none", files: "src/login.ts" }, { uses: "C1", deps: "T1", files: "src/b.ts" }, owned("src/login.ts")), ["FIX: contract C1 declares src/login.ts, held by T1, but no holder names C1 in Uses - its writer would never see the shape"]],
   ...["src/*.ts", "src/", "/abs/login.ts", "src/a[bc].ts"].map((entry): [string, string, string[]] => [`the contract File entry ${entry}`, one({}, owned(entry)), [`FIX: contract C1: File entry "${entry}" must be one bare repo-relative file path`]]),
+  ["an open item naming no task of the plan", withOpen(one({}), "- note | T9 | name the cap", "- critical | plan | still open", "- critical | T8 | wrong"), ["FIX: open items: T9 names no task of the plan (Open items)", "FIX: open items: T8 names no task of the plan (Open items)"]],
+  ["a task holding more than 3 notes", withOpen(one({}), ...notes(4), "- critical | T1 | counts as no note", "- note | plan | nor does this"), ["FIX: open items: task T1 holds 4 notes, past 3 (Open items)"]],
   ["a block above the Tasks heading", one({}).replace("## Goal\n", `## Goal\n\n${MISPLACED}`), ['FIX: task T0: <!-- TASK --> block sits above the "## Tasks" heading']],
 ];
 for (const [label, plan, lines] of ALWAYS) {
@@ -81,7 +88,6 @@ const FRESH: Array<[string, string, string[], Scene?]> = [
   ["a skipped task id", two({ files: "src/a.ts" }, { id: "T3", files: "src/b.ts" }), ["FIX: task T3: id must be T2, the 2th task block in order - renumber the tasks (Ids)"]],
   ["a skipped contract id", two({ uses: "C1", files: "src/a.ts" }, { uses: "C3", files: "src/b.ts" }, [...CONTRACT, "", "### C3 - Logout", "", "File: none"]), ["FIX: contract C3: id must be C2, the 2th block in order - renumber the blocks (Blocks)"]],
   ...[["feat(viber): Add x", "feat(viber):"], ["fix: Add x", "fix:"], ["Fix: Add x", "Fix:"], ["chore!: Add x", "chore!:"]].map(([title, prefix]): [string, string, string[]] => [`the title "${title}"`, one({ title }), [`FIX: task T1: title opens with the commit type prefix "${prefix}" - drop it, the commit subject is "<id> - <title>" (Title)`]]),
-  ["a dependency on an Exclusive task", two({ exclusive: "true", files: "src/a.ts" }, { deps: "T1", files: "src/b.ts" }), ["FIX: task T2: Depends-on T1, an Exclusive task - it runs last, so no task may depend on it"]],
   ["a dependency another entry reaches directly", planBody([{ id: "T1", files: "src/a.ts" }, { id: "T2", deps: "T1", files: "src/b.ts" }, { id: "T3", deps: "T1, T2", files: "src/c.ts" }], 1), ["FIX: task T3: Depends-on T1 is already reached through T2 - drop it"]],
   ["a dependency another entry reaches through a third task", planBody([{ id: "T1", files: "src/a.ts" }, { id: "T2", deps: "T1", files: "src/b.ts" }, { id: "T3", deps: "T2", files: "src/c.ts" }, { id: "T4", deps: "T1, T3", files: "src/d.ts" }], 1), ["FIX: task T4: Depends-on T1 is already reached through T3 - drop it"]],
   ["an appendix where no block carries File", one({}, NO_FILE), ['FIX: contract C1: missing File - name the paths the shape is declared in, or "none"']],
@@ -120,7 +126,10 @@ for (const [label, plan, lines, given] of FRESH) {
 }
 
 /** What none of the checks refuses. */
+const OPEN_SOUND = withOpen(one({}), ...notes(3), "- critical | T1 | the DoD contradicts AC1", "- critical | plan | AC1 - unproven", "- note | plan | for the user");
 const SOUND: Array<[string, string, Scene?]> = [
+  ["an Open items section of 3 notes for one task, open critical problems and a plan note", OPEN_SOUND],
+  ["a dependency on an Exclusive task (the script computes the edge from Files and contract use, so no author could drop it)", two({ exclusive: "true", files: "src/a.ts" }, { deps: "T1", files: "src/b.ts" })],
   ["two dependencies with no path between them", planBody([{ id: "T1", files: "src/a.ts" }, { id: "T2", files: "src/b.ts" }, { id: "T3", deps: "T1, T2", files: "src/c.ts" }], 1)],
   ["a contract file the tree already holds", one({}, owned("src/session.ts")), { files: { "src/session.ts": "x\n" } }],
   ["one holder of a contract file naming the block", two({ uses: "C1", files: "src/login.ts" }, { uses: "none", deps: "T1", files: "src/login.ts" }, owned("src/login.ts"))],
@@ -168,16 +177,7 @@ for (const [label, plan, lines] of TOGETHER) {
   });
 }
 
-const pending = one({ verification: "PENDING", dod: "PENDING - later" });
-const stillPending = (field: string): string => `FIX: task T1: ${field} is still PENDING - dispatch the plan-detailer block of its slice and merge its file (Detailed)`;
-test("--detailed refuses each field still opening with PENDING (a skeleton task the merge never filled would reach the coder with nothing to verify)", () => {
-  assert.deepEqual(answerOf(indexOf(pending, ["--detailed"])), refused(4, stillPending("Verification"), stillPending("DoD")));
-});
-
-test("a skeleton plan passes without --detailed", () => {
-  assert.equal(indexOf(pending).exit, 0);
-});
-
-test("a written plan passes --detailed", () => {
-  assert.equal(indexOf(one({}), ["--detailed"]).exit, 0);
+test("a Verification holding a bare word is checked as any command: a task writing an integration test file it does not name is refused (no word stands in for a line still to be written)", () => {
+  const path = "tests/integration/store.test.ts";
+  assert.deepEqual(answerOf(indexOf(one({ files: path, verification: "PENDING", dod: "PENDING - later" }))), refused(4, `FIX: task T1: Files writes ${path} under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`));
 });

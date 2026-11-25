@@ -52,6 +52,14 @@ const FORBIDDEN: string[] = [
   join("impact-", "mapper"),
   join("reach", ".sh"),
   join("planner/scripts/", "reach.ts"),
+  join("planner-", "review"),
+  join("planner-spec", "-review"),
+  join("planner-graph", "-review"),
+  join("planner-task", "-review"),
+  join("plan-", "detailer"),
+  join("plan-", "fixer"),
+  join("review-", "round"),
+  join("plan-", "parts"),
 ];
 
 const BINARY_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2"];

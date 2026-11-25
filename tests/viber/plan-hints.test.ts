@@ -4,7 +4,8 @@
  *
  * What it must do: on a prompt whose payload carries `"permission_mode":"plan"`,
  * print one UserPromptSubmit additionalContext holding the rule (an
- * outside-plan-review after every plan write, its PASS before ExitPlanMode) - unless a
+ * outside-plan-review once the plan is written, at most one more after a FAIL,
+ * what is left under "## Open items", then ExitPlanMode with no question) - unless a
  * planner, intent or fixer Skill tool_use, or a typed /viber:intent or
  * /viber:fixer command, sits in the current plan-mode episode, where the viber
  * chain already covers them. Any other mode, a payload

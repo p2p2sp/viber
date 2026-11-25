@@ -3,16 +3,20 @@
  * spellings of a plan path it folds, the run directory --split insists on, the
  * modes that take a plan as frozen, the config it resolves and the blocks --split
  * prints after the index. What each mode answers is the unit file of its module.
+ * `planDefects(text, opts)` is the same contract over a text, for the plan-build
+ * core: the checks of a fresh plan and those of an input text, no file read.
  */
 
 import assert from "node:assert/strict";
 import { test } from "../../../harness/test.ts";
 import { PLAN_DIR, PLAN_REL, planBody, TWO_TASKS } from "../../plan-body.ts";
+import { fakeFs } from "../../../harness/fakes.ts";
+import { planDefects, templateSlots } from "../../../../viber/lib/plan-index/run.ts";
 import { answerOf, indexOf, labelled, PLUGIN, refused, ROOT, type Scene } from "./scene.ts";
 
 const PLAN = planBody(TWO_TASKS);
 const USAGE =
-  "error: usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer | --slice <id>[,<id>]... | --final-review | --input <summary-file>] [--accepted <n>] [--detailed]";
+  "error: usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer | --slice <id>[,<id>]... | --final-review | --input <summary-file>] [--accepted <n>]";
 
 const UNPARSED: Array<[string, string[]]> = [
   ["an unknown flag", ["--decompose"]],
@@ -48,7 +52,6 @@ const MODES: Array<[string, string[]]> = [
 const OPTIONS: Array<[string, string[]]> = [
   ["--input", ["--input", "input.md"]],
   ["--accepted", ["--accepted", "5"]],
-  ["--detailed", ["--detailed"]],
 ];
 const CLASHES: Array<[string[], string]> = [
   [["--extra", "T1", "--split"], "--extra cannot be combined with --split"],
@@ -213,3 +216,35 @@ for (const [label, docs, config, status, block] of KEPT) {
     assert.deepEqual(labelled(indexOf(PLAN, ["--split"], { files, config, status }).lines, "NEXT", "RUN"), block);
   });
 }
+
+const NO_DEFECT = { slots: [], held: () => true, memory: false, input: null };
+
+test("planDefects of a sound plan text answers no line, and reads no file of its own", () => {
+  assert.deepEqual(planDefects(PLAN, NO_DEFECT), []);
+});
+
+test("planDefects answers the defects of a fresh plan in the order plan-index.sh prints them: a single line first, then the blocks together", () => {
+  const plan = planBody([{ id: "T1", title: "feat: Add x", files: "src/CLAUDE.md" }, { id: "T3", covers: "AC2", uses: "none", files: "src/b.ts" }]).replace("Users can log in.", "Users can <log in>.");
+  assert.deepEqual(planDefects(plan, { ...NO_DEFECT, slots: ["<log in>"], memory: true }), [
+    "FIX: line 5: template slot <log in> left unfilled - replace it (Filled)",
+    'FIX: task T1: title opens with the commit type prefix "feat:" - drop it, the commit subject is "<id> - <title>" (Title)',
+    MEMORY,
+    "FIX: task T3: id must be T2, the 2th task block in order - renumber the tasks (Ids)",
+  ]);
+});
+
+test("planDefects asks the tree for a file map path through held, and takes the input text as --input takes its file", () => {
+  const plan = planBody([{ id: "T1" }], 1).replace("- add - src/login.ts - the handler", "- modify - src/login.ts - the handler");
+  assert.deepEqual(planDefects(plan, { ...NO_DEFECT, held: (path) => path !== "src/login.ts" }), ["FIX: file map: modify src/login.ts, which the tree does not hold - correct the path or list it as add (File map)"]);
+  assert.deepEqual(planDefects(PLAN, { ...NO_DEFECT, input: "Root cause: the loop never ends\n" }), ['FIX: input gives a root cause but the plan has no "## Root cause" section - add it (Root cause)']);
+});
+
+test("planDefects of a text with no task block, or with task blocks and no Tasks heading, answers that one defect", () => {
+  assert.deepEqual(planDefects("# Plan\n", NO_DEFECT), ["FIX: no <!-- TASK --> blocks in the plan"]);
+  assert.deepEqual(planDefects(PLAN.replace("## Tasks\n", ""), NO_DEFECT), ['FIX: the plan carries <!-- TASK --> blocks but no "## Tasks" heading - that heading is where the specification is cut off']);
+});
+
+test("templateSlots reads the slots of the three planner templates of the plugin, a missing template adding none", () => {
+  const fs = fakeFs({ [`${PLUGIN}/skills/planner/templates/spec-lite.md`]: "# <change title>\n", [`${PLUGIN}/skills/planner/templates/tasks.md`]: "### T1 - <title>\n<!-- a <comment> -->\n" });
+  assert.deepEqual(templateSlots(PLUGIN, fs), ["<change title>", "<title>"]);
+});

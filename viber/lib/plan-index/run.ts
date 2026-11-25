@@ -37,21 +37,48 @@ interface Call {
   final: boolean;
   input: string | null;
   accepted: number | null;
-  detailed: boolean;
 }
 
 const USAGE =
-  "usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer | --slice <id>[,<id>]... | --final-review | --input <summary-file>] [--accepted <n>] [--detailed]";
+  "usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer | --slice <id>[,<id>]... | --final-review | --input <summary-file>] [--accepted <n>]";
 const TEMPLATES = ["spec-full.md", "spec-lite.md", "tasks.md"];
+
+/** The template slots a fresh plan may not keep, read from the planner templates of the plugin. */
+export const templateSlots = (pluginRoot: string, fs: Fs): string[] => slotsOf(TEMPLATES.flatMap((name) => fs.readText(`${pluginRoot}/skills/planner/templates/${name}`) ?? []));
+
+/** What the checks of a fresh plan read beside its text. */
+export interface DefectOpts {
+  /** The template slots, as templateSlots answers them. */
+  slots: string[];
+  /** The tree holds a file at the repo-relative path. */
+  held: (path: string) => boolean;
+  /** build.memory is on. */
+  memory: boolean;
+  /** The text of the planner's summary file; null with none. */
+  input: string | null;
+}
+
+/**
+ * Every defect of a plan text that never landed, one "FIX: " or "SPLIT: " line
+ * each, in the order plan-index.sh prints them: the checks of a fresh plan and,
+ * with an input text, those of --input. It reads no file of its own: the
+ * plan-build core validates a plan with it before and after it writes one.
+ */
+export function planDefects(text: string, opts: DefectOpts): string[] {
+  const fresh = { slots: opts.slots, held: opts.held, memory: opts.memory };
+  const doc = readPlan(linesOf(text), fresh);
+  if (doc.tasks.length === 0) return [...doc.defects, "FIX: no <!-- TASK --> blocks in the plan"];
+  if (!doc.hasTasks) return [...doc.defects, 'FIX: the plan carries <!-- TASK --> blocks but no "## Tasks" heading - that heading is where the specification is cut off'];
+  return [...doc.defects, ...checkPlan(doc, { fresh, held: opts.held }).defects, ...(opts.input === null ? [] : checkInput(opts.input, doc))];
+}
 
 /** null: the arguments do not parse. */
 function readCall(argv: string[]): Call | null {
-  const call: Call = { plan: argv[0] ?? "", split: false, extra: null, dispatch: null, slice: null, final: false, input: null, accepted: null, detailed: false };
+  const call: Call = { plan: argv[0] ?? "", split: false, extra: null, dispatch: null, slice: null, final: false, input: null, accepted: null };
   for (let i = 1; i < argv.length; i++) {
     const flag = argv[i];
     if (flag === "--split") call.split = true;
     else if (flag === "--final-review") call.final = true;
-    else if (flag === "--detailed") call.detailed = true;
     else if (flag === "--dispatch") {
       const [id, form] = [argv[i + 1], argv[i + 2]];
       if (!id || form === undefined) return null;
@@ -71,7 +98,7 @@ function readCall(argv: string[]): Call | null {
 }
 
 /** The modes a call combines that do not go together, as the error words them; null for none. */
-function clash({ split, extra, dispatch, slice, final, input, accepted, detailed }: Call): string | null {
+function clash({ split, extra, dispatch, slice, final, input, accepted }: Call): string | null {
   const modes = split || extra !== null || dispatch !== null || slice !== null;
   if (extra !== null && split) return "--extra cannot be combined with --split";
   if (dispatch !== null) {
@@ -80,7 +107,7 @@ function clash({ split, extra, dispatch, slice, final, input, accepted, detailed
   }
   if (slice !== null && (extra !== null || dispatch !== null || split)) return "--slice cannot be combined with --split, --extra or --dispatch";
   if (final && modes) return "--final-review cannot be combined with --split, --extra, --dispatch or --slice";
-  const beside = input !== null ? "--input" : accepted !== null ? "--accepted" : detailed ? "--detailed" : null;
+  const beside = input !== null ? "--input" : accepted !== null ? "--accepted" : null;
   return beside !== null && (modes || final) ? `${beside} cannot be combined with --split, --extra, --dispatch, --slice or --final-review` : null;
 }
 
@@ -133,15 +160,14 @@ export function runPlanIndex(argv: string[], cwd: string, script: string, ports:
 
   // Only the planner's own call on a plan that never landed takes the checks added after plans were frozen.
   const plain = !call.split && call.extra === null && call.dispatch === null && call.slice === null && !call.final;
-  const slots = (): string[] => slotsOf(TEMPLATES.flatMap((name) => fs.readText(`${pluginRoot}/skills/planner/templates/${name}`) ?? []));
-  const fresh = plain && !state.landed ? { slots: slots(), held: isFile, memory: config.get("build.memory") === "true" } : null;
+  const fresh = plain && !state.landed ? { slots: templateSlots(pluginRoot, fs), held: isFile, memory: config.get("build.memory") === "true" } : null;
 
   const doc = readPlan(linesOf(text), fresh);
   const defects = (more: string[], exit: number): MapAnswer => ({ stdout: "", stderr: [...doc.defects, ...more].map((line) => `${line}\n`).join(""), exit });
   if (doc.tasks.length === 0) return defects([`FIX: no <!-- TASK --> blocks in ${plan}`], 3);
   // The cut is that heading: without it tasks/ would come out empty while the index still lists every task.
   if (!doc.hasTasks) return defects([`FIX: ${plan} carries <!-- TASK --> blocks but no "## Tasks" heading - that heading is where the specification is cut off`], 4);
-  const checked = checkPlan(doc, { fresh, detailed: call.detailed, held: isFile });
+  const checked = checkPlan(doc, { fresh, held: isFile });
   const found = [...checked.defects, ...(call.input === null ? [] : checkInput(fs.readText(disk(call.input)) ?? "", doc))];
   if (doc.defects.length + found.length > 0) return defects(found, 4);
 
@@ -171,7 +197,7 @@ export function runPlanIndex(argv: string[], cwd: string, script: string, ports:
   if (call.final) return answer(finalReviewLines(planTasks, state, { plan, dir, pluginRoot, tiers, memory: config.get("build.memory") ?? "false" }));
 
   const changed = git.status(here).map((entry) => entry.path);
-  const listed = indexLines(doc, tasks, state, { plan, dir, changed, profile: call.split ? tiers : null, review: fresh === null ? null : { accepted: call.accepted } });
+  const listed = indexLines(doc, tasks, state, { plan, dir, changed, profile: call.split ? tiers : null, fresh: fresh === null ? null : { accepted: call.accepted } });
   if (!call.split) return answer(listed);
 
   // The extras files of a task not done belong to a session that is over.

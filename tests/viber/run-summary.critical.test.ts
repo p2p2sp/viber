@@ -50,7 +50,7 @@ test("a run directory after the mark follows the elapsed line with the token rep
   });
 });
 
-test("every planner-review and planner-graph-review transcript naming the planned path counts once, the backslash form, a retried dispatch and a transcript older than the run day included, and the rounds line follows the token lines", async () => {
+test("every plan-judge transcript naming the planned path counts once, the backslash form, a retried dispatch and a transcript older than the run day included, and the rounds line follows the token lines", async () => {
   await withTempDir("p2p2-viber-", async (tmp) => {
     const fx = seed(tmp);
     writePlan(fx, PLANNED);
@@ -58,10 +58,10 @@ test("every planner-review and planner-graph-review transcript naming the planne
       prompt(fx.runPrompt),
       assistant("m1", SONNET, { in: 1, out: 2, cacheRead: 3, cacheWrite: 4 }),
     ]);
-    review(fx, "r1", "viber:planner-review", PLANNED);
-    review(fx, "r2", "viber:planner-review", "C:\\plans\\p.md");
-    review(fx, "r3", "viber:planner-review", PLANNED);
-    review(fx, "r4", "viber:planner-graph-review", PLANNED);
+    review(fx, "r1", "viber:plan-judge", PLANNED);
+    review(fx, "r2", "viber:plan-judge", "C:\\plans\\p.md");
+    review(fx, "r3", "viber:plan-judge", PLANNED);
+    review(fx, "r4", "viber:plan-judge", PLANNED);
     const old = new Date("2019-06-01T00:00:00Z");
     fs.utimesSync(path.join(fx.config, "projects", "proj", "plan", "subagents", "agent-r3.jsonl"), old, old);
     const result = await report(tmp, fx);

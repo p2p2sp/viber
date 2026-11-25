@@ -28,7 +28,7 @@ Approve the plan and walk away. A task that fails gets up to five attempts, each
 
 ### It works in parallel
 
-Tasks that do not depend on each other are built at the same time, up to ten at once, each by its own coding agent. A plan of 27 tasks does not wait in a queue of 27.
+Tasks that do not depend on each other are built at the same time, up to ten at once, each by its own coding agent. A script decides which tasks are ready, and a hook keeps each coder out of the files another unfinished task claims. A plan of 27 tasks does not wait in a queue of 27.
 
 ### It saves your tokens
 
@@ -43,11 +43,11 @@ What a build learns about an area of your code goes into that area's `CLAUDE.md`
 | | You | viber |
 | --- | --- | --- |
 | **1. Describe** | Say what you want with `/viber:intent`, or report a bug with `/viber:fixer` | Asks a few questions at a time, each with options and its recommendation |
-| **2. Approve** | Read the plan and say yes | Writes the plan and has it reviewed against your code first |
+| **2. Approve** | Read the plan and its open items and say yes | Writes the plan from your code and has a judge check it against what you confirmed first |
 | **3. Build** | Nothing. Go do something else | Builds it task by task, reviews and commits each one, runs your tests at the end |
 | **4. Learn** | Nothing | Updates its memory and rules, so the next change needs less explaining |
 
-The plan is reviewed before you see it, each task is checked before its commit, by a reviewer or by your own tests, and the whole build is reviewed before it ends. Plan and progress are committed as the build goes, so an interrupted build picks up in a new session or on another machine.
+The plan is reviewed before you see it, in at most two rounds that report critical problems only, each task is checked before its commit, by a reviewer or by your own tests, and the whole build is reviewed before it ends. Plan and progress are committed as the build goes, so an interrupted build picks up in a new session or on another machine.
 
 ## More than the main loop
 

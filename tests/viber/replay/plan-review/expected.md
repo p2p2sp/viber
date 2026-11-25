@@ -1,12 +1,15 @@
 # Expected results of the plan review replay
 
-Each plan section holds the `input:` summary its `planner-review` dispatch carries, the planted defects a
-reviewer must report, and the reach references the reach search must list. A run passes only when every
-defect and every reference of its plan is reported; extra findings and extra reach lines never fail it.
+Each plan section holds the `input:` summary its `plan-judge` dispatch carries, the planted defects a
+run must report, and the reach references the reach search must list. A run passes only when every
+defect and every reference of its plan is reported; extra judge lines and extra reach lines never fail it.
 Line numbers are those of the plan's tree (`README.md` pins it) and may drift by a line or two.
 The reach search writes the file of each reference below as a `<path> | <hit count>` line under its target in `reach-paths.md`, and its lines as `<path>:<line>: <text>` lines of the candidates file.
 
-Defect format: `<id> | <rule a reviewer reports it under> | <where> | <what is missing>`.
+Defect format: `<id> | <what reports it> | <where> | <what is missing>`. `Reach` is reported by the reach
+search: every file the defect names has a line under a target in `reach-paths.md`. `critical` is reported
+by the judge, as a `CRITICAL:` line naming the task: a coder cannot resolve it without changing a `DoD`
+clause, a `## Contracts` block or a file outside its task's `Files`.
 Reference format: `<path>:<line>[,<line>]`, listed under its target as written.
 
 ## plan-a.md
@@ -50,8 +53,6 @@ Reach targets:
   - viber/skills/planner/SKILL.md:15,21,57
   - viber/skills/intent/SKILL.md:3
   - viber/hooks/scripts/plan-hints.sh:11,37,79
-  - viber/agents/planner-review.md:19
-  - viber/agents/planner-spec-review.md:19
   - viber/agents/adr-screener.md:22
 
 ## plan-b.md
@@ -120,7 +121,7 @@ Defects:
 
 - C1 | Reach | `### Out of scope` and the `Files` of T1, T2 and T5 | `.claude/rules/shell-path-strip.md` and `.claude/rules/shell-awk-quoting.md` name `viber/scripts/plan-index.sh` (and `shell-awk-quoting.md` names `viber/scripts/plan-path.sh`), both scripts changed by T1, T2 and T5; the rules files sit in neither a task's `Files` nor `### Out of scope`.
 - C2 | Reach | `### Out of scope` and every task `Files` | callers and users of `plan-path.sh`, changed by T5 to write a `planned:` line into the landed copy: `viber/scripts/archive-run.sh`, `viber/scripts/red-check.sh`, `viber/scripts/run-branch.sh`, `tests/viber/commit-task.test.ts` and `tests/viber/plan-gate.test.ts` sit in neither a task's `Files` nor `### Out of scope`.
-- C3 | Ordered | T6 `Depends-on` | T6 reads the `planned:` line of `plan.md` that T5 writes, and its `Depends-on` is `none`; it needs T5 among its dependencies.
+- C3 | critical | T6 `Depends-on` | T6 reads the `planned:` line of `plan.md` that T5 writes, and its `Depends-on` is `none`; it needs T5 among its dependencies.
 
 Reach targets:
 

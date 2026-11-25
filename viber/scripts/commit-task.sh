@@ -42,10 +42,13 @@
 # that lands a task is the whole task and builds on its own. A path the plan gave
 # no owner is taken as is. A path ANOTHER task's "Files:" claims is refused with a
 # warning while that task is not done: it may have a coder writing the file right
-# now, and its own commit stages it whole. Once every other claimant is done,
+# now, and its own commit stages it whole. The refusal is recorded in the same
+# commit as "<task-id>:<path>" on the "refused:" key of status.md, so the path
+# reaches the outcome of the run. Once every other claimant is done or skipped,
 # nothing would ever stage the file again, so it is taken, with a warning naming
-# the committed task whose file changed under a later one. A skipped claimant
-# still refuses: its half-finished files stay uncommitted and visible.
+# the committed task whose file changed under a later one, or the skipped task
+# that listed it: a skipped task never finishes, so it holds no claim (the file
+# guard and task-ready.sh read it the same way).
 #
 # A task commit also takes every path of the task's two extras files, the coder's
 # "<run-dir>/work/<task-id>-extra.md" and the reviewer's
@@ -56,7 +59,7 @@
 # the task's trail, as it does a changed "<run-dir>/work/<task-id>-options.md"
 # (the coder's options file). A path that an extras file of ANOTHER task lists
 # counts as that task's claim, as its "Files:" line would (refused while that task
-# is not done, taken once it is), for a --with path as well. --landed and a fix
+# is neither done nor skipped, taken once it is), for a --with path as well. --landed and a fix
 # number ignore them.
 #
 # --defer records code this task left without its own test because the criterion
@@ -156,10 +159,18 @@
 # and commits nothing. outcome.md is rewritten: the text above the heading line,
 # the heading and one "<path>: <reason> - committed <sha>" or
 # "<path>: <reason> - left uncommitted" line per leftover (no heading when there is
-# none), a blank line, "Drift: <n>" or "Drift: none". A file this form wrote before
-# is read back: its Drift: line and the section above it are replaced. A heading
-# lost to an earlier call that found no leftover is written as "## Leftovers". It
-# touches no status entry and leaves progress alone.
+# none), then the notes section, a blank line, "Drift: <n>" or "Drift: none". The
+# notes section is what run-notes.sh beside this script prints for the plan (what
+# became of every open item of the plan review, every ruling of the build, every
+# path a task commit refused and every pair of tasks put in sequence):
+# when it prints a line, a blank line, "## Notes and rulings", a blank line and
+# its lines verbatim; nothing when it prints none, so a run with none of the four
+# gets an outcome.md with no such section. run-notes.sh failing writes, under
+# the same heading, the one line "notes list not written: <its error: line>". A
+# file this form wrote before is read back: its Drift: line, the notes section
+# (found by its heading) and the leftovers section above it are replaced. A
+# heading lost to an earlier call that found no leftover is written as
+# "## Leftovers". It touches no status entry and leaves progress alone.
 #
 # --extension commits the files one of the host project's own closing agents
 # wrote just before the run is archived. <name> is the extension's name (letters,
@@ -217,6 +228,12 @@
 #                        --chore / --qa / --extension, that part of the close is done
 #   decision: T3: <text> --decide, the build's ruling on a stalled task; one
 #                        line per decision, appended after the keys above
+#   refused: T2:src/a.ts a task commit, one "<task-id>:<path>" entry per --with or
+#                        extras path it refused because a task not yet done
+#                        claims it, a space, a tab or a percent sign of the
+#                        path written as %20, %09 or %25 (the key is split on
+#                        blanks; run-notes.sh reads them back); the key is written only by the first such
+#                        refusal of the run, as the last line the file then holds
 #
 # --decide records the build's ruling on one task that is neither done nor
 # skipped. <text> is one non-empty line, stored verbatim (a ":" in it included);
@@ -277,8 +294,9 @@
 # stderr: a warning listing changed paths no task in the plan claims, the run's
 #         own directory excluded - it holds the plan, the decomposition, the
 #         status file and the trail, which no "Files:" line names and every form
-#         commits itself; one "refused <path> - claimed by task <id>" or
-#         "took <path> - claimed by committed task <ids>" per owned --with path
+#         commits itself; one "refused <path> - claimed by task <id>",
+#         "took <path> - claimed by committed task <ids>" or "took <path> -
+#         claimed by skipped task <ids>" per owned --with path
 #
 # exit != 0:
 #   2 - bad arguments / missing plan; for a task commit also a task on the skipped
@@ -315,6 +333,10 @@ export GIT_LITERAL_PATHSPECS=1
 # the subject of the one commit of the changes made outside the plan: --outside
 # makes it, --leftovers makes it and reads it back from the history
 OUTSIDE_SUBJECT="chore(viber): commit changes made outside the plan"
+
+# the heading --leftovers writes over the lines of run-notes.sh in outcome.md, and
+# finds again on a rerun
+NOTES_HEADING="## Notes and rulings"
 
 usage() {
   echo "error: usage: commit-task.sh <plan-file> <task-id> [--unreviewed] [--with <file> [<file>...]] [--defer <task-id>:<path> [...]] [--landed <sha>] | <plan-file> <task-id> <fix-number> <file> [<file>...] | --skip <plan-file> <task-id> | --decide <plan-file> <task-id> <text> | --decide <plan-file> <task-id> --from <ruling-file> | --decide <plan-file> <task-id> --first-of <options-file> | --rule <plan-file> <subject> <ruling> <why> <cost> | --rule <plan-file> <subject> --from <ruling-file> | --repair <plan-file> <round> <file> [<file>...] | --chore <plan-file> <file> [<file>...] | --qa <plan-file> <file> [<file>...] | --e2e <file> [<file>...] | --review <plan-file> <file> [<file>...] | --outside <plan-file> <file> [<file>...] | --leftovers <plan-file> --drift <n>|none | --extension <plan-file> <name> <file> [<file>...] | --drop <plan-file> <path> [<path>...]" >&2
@@ -1366,9 +1388,11 @@ if [[ "${1:-}" == "--leftovers" ]]; then
   fi
   lf_err="$(git rev-parse --absolute-git-dir)/leftovers.$$.err"
   trap 'rm -f -- "$lf_err"' EXIT
+  lf_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
   # outcome.md: the summary and its heading line, or what an earlier call of this
-  # form wrote - the heading, the leftover lines and the Drift line after them
+  # form wrote - the heading, the leftover lines, the notes section and the Drift
+  # line after them
   lf_re_drift_line='^Drift: (none|[0-9]+)$'
   lf_re_section=' - (committed [0-9a-f]+|left uncommitted)$'
   out_lines=()
@@ -1384,12 +1408,34 @@ if [[ "${1:-}" == "--leftovers" ]]; then
   lf_is_section_line() {
     [[ "$1" =~ $lf_re_section || "$1" == "leftover check not performed: "* ]]
   }
+  # a line run-notes.sh printed, or the one line written when it failed
+  lf_is_notes_line() {
+    case "$1" in
+      "- critical | "*|"- note | "*|"- ruling | "*|"- refused | "*|"- sequenced | "*|"notes list not written: "*) return 0 ;;
+    esac
+    return 1
+  }
   lf_trim_tail
   lf_heading=""
   lf_pop_heading=1
   if [[ $n -gt 0 && "${out_lines[$((n - 1))]}" =~ $lf_re_drift_line ]]; then
     n=$(( n - 1 ))
     lf_trim_tail
+    # the notes section an earlier call wrote: popped only under its own heading,
+    # so a summary that ends on such a line keeps it
+    k=$n
+    while [[ $k -gt 0 ]] && lf_is_notes_line "${out_lines[$((k - 1))]}"; do
+      k=$(( k - 1 ))
+    done
+    if [[ $k -lt $n ]]; then
+      while [[ $k -gt 0 && -z "${out_lines[$((k - 1))]//[[:space:]]/}" ]]; do
+        k=$(( k - 1 ))
+      done
+      if [[ $k -gt 0 && "${out_lines[$((k - 1))]}" == "$NOTES_HEADING" ]]; then
+        n=$(( k - 1 ))
+        lf_trim_tail
+      fi
+    fi
     lf_pop_heading=0
     while [[ $n -gt 0 ]] && lf_is_section_line "${out_lines[$((n - 1))]}"; do
       n=$(( n - 1 ))
@@ -1434,7 +1480,6 @@ if [[ "${1:-}" == "--leftovers" ]]; then
 
   lf_check=""
   lf_rc=0
-  lf_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   index_out="$(bash "$lf_here/plan-index.sh" "$plan" 2>"$lf_err")" || lf_rc=$?
   if [[ $lf_rc -ne 0 ]]; then
     lf_line="$(grep -m1 -E '^(FIX|SPLIT|error):' -- "$lf_err" || true)"
@@ -1639,6 +1684,21 @@ if [[ "${1:-}" == "--leftovers" ]]; then
     k=$(( k + 1 ))
   done
 
+  # the notes and rulings list: what run-notes.sh beside this script prints, verbatim
+  notes=()
+  lf_rc=0
+  notes_out="$(bash "$lf_here/run-notes.sh" "$plan" 2>"$lf_err")" || lf_rc=$?
+  if [[ $lf_rc -ne 0 ]]; then
+    lf_line="$(grep -m1 '^error:' -- "$lf_err" || true)"
+    lf_line="${lf_line%$'\r'}"
+    notes+=("notes list not written: ${lf_line:-error: run-notes.sh exited $lf_rc}")
+  else
+    while IFS= read -r line; do
+      line="${line%$'\r'}"
+      [[ -n "$line" ]] && notes+=("$line")
+    done <<< "$notes_out"
+  fi
+
   lf_tmp="$lf_outcome.tmp.$$"
   {
     k=0
@@ -1653,7 +1713,14 @@ if [[ "${1:-}" == "--leftovers" ]]; then
         printf '%s\n' "$s"
       done
     fi
-    if [[ $n -gt 0 || ${#section[@]} -gt 0 ]]; then printf '\n'; fi
+    if [[ ${#notes[@]} -gt 0 ]]; then
+      if [[ $n -gt 0 || ${#section[@]} -gt 0 ]]; then printf '\n'; fi
+      printf '%s\n\n' "$NOTES_HEADING"
+      for s in "${notes[@]}"; do
+        printf '%s\n' "$s"
+      done
+    fi
+    if [[ $n -gt 0 || ${#section[@]} -gt 0 || ${#notes[@]} -gt 0 ]]; then printf '\n'; fi
     printf 'Drift: %s\n' "$lf_drift"
   } > "$lf_tmp"
   mv -f "$lf_tmp" "$lf_outcome"
@@ -1981,29 +2048,39 @@ if [[ -z "$fix_n" && -z "$landed" && -n "$extras_dir" ]]; then
 fi
 
 # --- what the task forced outside its own map ---
-# Taken when no OTHER task claims the path, or every one that does is done: a
-# shared file is committed by whichever task declares it, never pulled out from
-# under a coder still writing it - but once its owner is committed, this commit
-# is the last one that will ever stage it.
+# Taken when no OTHER task claims the path, or every one that does is done or
+# skipped: a shared file is committed by whichever task declares it, never pulled
+# out from under a coder still writing it - but once its owner is committed, or
+# skipped and so never committed, this commit is the last one that will ever
+# stage it.
 done_list="$(done_ids "$plan")"
+skipped_list="$(skipped_ids "$plan")"
+refused=""
 while IFS= read -r f; do
   [[ -n "$f" ]] || continue
   open=""
   closed=""
+  dropped=""
   while IFS= read -r o; do
     [[ -n "$o" ]] || continue
     if printf '%s\n' "$done_list" | grep -Fxq -- "$o"; then
       closed="$closed $o"
+    elif printf '%s\n' "$skipped_list" | grep -Fxq -- "$o"; then
+      dropped="$dropped $o"
     else
       open="${open:-$o}"
     fi
   done < <({ claimants "$plan" "$f"; extras_claimants "$plan" "$task_id" "$f"; } | grep -vFx -- "$task_id" | awk '!seen[$0]++' || true)
   if [[ -n "$open" ]]; then
     echo "warning: refused $f - claimed by task $open" >&2
+    refused="$refused$f"$'\n'
     continue
   fi
   if [[ -n "$closed" ]]; then
     echo "warning: took $f - claimed by committed task${closed}" >&2
+  fi
+  if [[ -n "$dropped" ]]; then
+    echo "warning: took $f - claimed by skipped task${dropped}" >&2
   fi
   printf '%s\n' "$files" | grep -Fxq -- "$f" || files="$files$f"$'\n'
 done <<< "$extra"
@@ -2095,6 +2172,19 @@ progress="$(mark_status "$plan" done "$task_id")"
 if [[ $unreviewed -eq 1 ]]; then
   mark_status "$plan" unreviewed "$task_id" >/dev/null
 fi
+
+# Every path this commit refused because a task not yet done claims it. The
+# warning above is gone with the call; the entry rides in the commit, so the
+# outcome of the run lists the path (run-notes.sh) and no session carries it.
+# The key is a list split on blanks: a percent sign, a space or a tab of the path
+# is written as %25, %20 or %09, which run-notes reads back.
+while IFS= read -r f; do
+  [[ -n "$f" ]] || continue
+  f="${f//\%/%25}"
+  f="${f// /%20}"
+  f="${f//$'\t'/%09}"
+  mark_status "$plan" refused "$task_id:$f" >/dev/null
+done <<< "$refused"
 
 # What this task left for a later one to prove. The path is in this task's own
 # map and is committed with it; the entry only names who owes the test, so it

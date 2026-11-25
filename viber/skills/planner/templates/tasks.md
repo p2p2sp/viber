@@ -18,17 +18,19 @@
 - Exclusive: true
 - Covers: AC<n>
 - Uses: C1, C2
-- Depends-on: T1
+- Depends-on: none
 - Files: <repo-relative path>
 - Delivers: <...>
 - Verification: <...>
 - DoD: <...>
 <!-- /TASK -->
 
-<!-- One TASK block per unit of work; leave every HTML marker intact. Three lines are optional:
-     "Exclusive: true", the only value it takes, "Repro: <path>" on the task fixing a bug whose
-     reproduction test is already RED in the tree - that path, also listed in "Files:", on a
-     "TDD: none" task - and "Hard: <reason>" on a task whose design the plan cannot settle. -->
+<!-- One TASK block per unit of work; leave every HTML marker intact. "Depends-on:" is written
+     "none" on every task: a script computes it from "Files" and "Uses". Three lines are optional:
+     "Exclusive: true", the only value it takes, on a task that needs a machine-wide resource
+     alone, "Repro: <path>" on the task fixing a bug whose reproduction test is already RED in the
+     tree - that path, also listed in "Files:", on a "TDD: none" task - and "Hard: <reason>" on a
+     task whose design the plan cannot settle. -->
 
 ## Contracts
 

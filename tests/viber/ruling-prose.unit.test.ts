@@ -236,7 +236,7 @@ test("a --rule RUN line exiting non-zero still has the ruling carried out", () =
 });
 
 test("a --decide or --skip RUN line exiting non-zero after a ruling is named in the final summary and the next block acted on", () => {
-  assert.ok(RUN_AFTER_BULLET.includes("exiting non-zero after a ruling -> name it in the final summary and act on the next block"));
+  assert.ok(RUN_AFTER_BULLET.includes("exiting non-zero after a ruling or ahead of a `NEXT: wait` -> name it in the final summary and act on the next block"));
 });
 
 test("the RUN line bullet carries a --skip line's task completion in the message running it", () => {

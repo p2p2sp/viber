@@ -5,9 +5,8 @@
  * `plan-rules.md` names the exception in its End-to-end rule (the spec joins the task's
  * `Files`, proven by a type-check or listing step plus a grep of the new selector on both
  * sides, never run, no criterion) and in its Layers, TDD, Provable and Owned rules.
- * `test-strategy.md`'s end-to-end rule lets a coder update such a listed spec, `plan-architect.md`
- * names the exception in `## Write`, and `planner-review` and `planner-task-review` carry the same
- * Grounded sentence searching the end-to-end specs for the selectors of every component a task changes.
+ * `test-strategy.md`'s end-to-end rule lets a coder update such a listed spec, `plan-author.md`
+ * names the exception in `## Write`.
  * The files read here are shipped prompts, whose text is the behaviour. Nothing is spawned. Each
  * phrase is matched with any run of whitespace between its words, so rewrapping a line breaks
  * no test.
@@ -30,9 +29,7 @@ function read(relative: string): string {
 
 const PLAN_RULES = read("references/plan-rules.md");
 const STRATEGY = read("references/test-strategy.md");
-const ARCHITECT = read("agents/plan-architect.md");
-const PLAN_REVIEW = read("agents/planner-review.md");
-const TASK_REVIEW = read("agents/planner-task-review.md");
+const AUTHOR = read("agents/plan-author.md");
 
 function phrase(text: string): RegExp {
   const escaped = text.trim().split(/\s+/).map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
@@ -81,14 +78,7 @@ test("test-strategy lets a coder update a listed existing end-to-end spec withou
   assert.ok(has(STRATEGY, "A coder updates, without the user's request, an existing end-to-end spec its task lists in `Files`, and a reviewer raises no finding for it."));
 });
 
-test("plan-architect names the existing-spec exception in the end-to-end sentence of its Write section", () => {
-  assert.ok(has(section(ARCHITECT, "Write"), "an existing end-to-end spec whose selector a task changes is no new test: it joins that task's `Files` per the same rule"));
-});
-
-test("planner-review carries the Grounded sentence searching the end-to-end specs for the selectors of every changed component", () => {
-  assert.ok(has(PLAN_REVIEW, GROUNDED));
-});
-
-test("planner-task-review carries the Grounded sentence searching the end-to-end specs for the selectors of every changed component", () => {
-  assert.ok(has(TASK_REVIEW, GROUNDED));
+test("plan-author plans an end-to-end test only on the user's explicit request and names the existing-spec exception in the same sentence of its Write section", () => {
+  assert.ok(has(section(AUTHOR, "Write"), "Plan an end-to-end test only when the input or a criterion of your brief records the user explicitly asking for it, then per `plan-rules.md`'s End-to-end rule"));
+  assert.ok(has(section(AUTHOR, "Write"), "an existing end-to-end spec whose selector a task changes is no new test: it joins that task's `Files` per the same rule"));
 });

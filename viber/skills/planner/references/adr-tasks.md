@@ -28,7 +28,7 @@ One `AskUserQuestion` call, one question per line of the result, each offering a
 
 ## 3. Apply what was accepted
 
-With nothing accepted, go back to the skill. Otherwise run `date +%Y%m%d%H%M%S` and `date +%Y-%m-%d`, then make a fix as the skill's rules define it, the lines below being its `add: lines`; `plan-index.sh` must exit 0 after it.
+With nothing accepted, go back to the skill. Otherwise run `date +%Y%m%d%H%M%S` and `date +%Y-%m-%d`, then make a fix of your own as the skill's rules define it, the lines below being its `add: lines`; it is over once its `apply` printed `NEXT: judge`.
 
 ```
 records:
@@ -43,7 +43,7 @@ today: <the second date output>
 In this order:
 
 1. When item 2 or 3 adds a task, add one acceptance criterion for the records and point the `Covers` of every such task at it.
-2. One task per accepted `ADR:` line, appended after the plan's last task, never renumbering one:
+2. One task per accepted `ADR:` line, appended after the plan's last task:
    - `Files: docs/adr/<yyyyMMddHHmmss>-<slug>.md`, the stamp of the `stamp:` line so the path is exact - it is a commit file map, not a pattern.
    - `TDD: none`, `Uses: none`, `Depends-on: none`, and nothing ever depends on it.
    - `Delivers` carries the whole record in the shape below, `Status: accepted` dated from the `today:` line, because the task file is all its writer gets. From the code it names only `### File map` paths and `## Contracts` names.

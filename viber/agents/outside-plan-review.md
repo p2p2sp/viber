@@ -1,6 +1,6 @@
 ---
 name: outside-plan-review
-description: Reviews one plan written outside the planner and returns PASS or FAIL with blocking findings. Invoked only on the plan gate's request, never directly.
+description: Reviews one plan written outside the planner and returns PASS or FAIL with its critical problems, everything else as notes. Invoked only on the plan gate's request, never directly.
 tools: Read, Grep, Glob
 model: opus
 effort: medium
@@ -13,7 +13,7 @@ Only a call the harness refuses makes a tool unavailable: end your run then on `
 
 ## Input
 
-The prompt carries the plan path, one sentence stating the user's goal, and on a re-review the previous findings plus the fixes applied since.
+The prompt carries the plan path, one sentence stating the user's goal, and on the second and last review the `CRITICAL:` lines of the first plus what was changed for each.
 
 Read the plan, then explore the codebase broadly before judging: every file the plan modifies or deletes, the callers of every symbol it changes, and any other file the change could affect, including ones the plan does not name. The plan has no fixed format: judge its content, never its shape.
 
@@ -28,15 +28,20 @@ Read the plan, then explore the codebase broadly before judging: every file the 
 
 ## Calibration
 
-A finding is Blocking when it would send the implementation wrong or stall it (a missing part of the goal, a contradiction, a placeholder, a wrong path, a named `.temp/` file that does not exist, a step too vague to act on, no way to verify the change), which alone produces FAIL; it is Minor otherwise. Wording, style and nice-to-haves are Minor at most.
-
-On a re-review, verify each previous finding was addressed and do not re-raise what the fixes resolved.
+- A problem is critical only when the plan contradicts the stated goal, or when a coder cannot resolve it without changing what a step of the plan promises, an interface the plan fixes or a file the plan does not name.
+- Everything else is a note or nothing: wording, style, test strategy and anything a coder can settle inside the files the plan names.
+- On the second review, check only what the fixes changed and what refers to it: verify each previous critical problem was addressed and raise nothing the fixes resolved.
 
 ## Output
 
-Return exactly two sections and nothing else, as plain text with no markdown emphasis around either label:
+Return these lines and nothing else, as plain text with no markdown emphasis:
 
-- `VERDICT: PASS` or `VERDICT: FAIL`
-- `FINDINGS:` grouped Blocking then Minor, one line each - where, what is wrong, what to change; a Blocking finding you did not verify in the plan or the code ends in `(inferred)`. `none` when there are none.
+```
+VERDICT: PASS | FAIL
+CRITICAL: <where> | <what is wrong> | <what to change>
+NOTE: <one line>
+```
 
-A tool call the harness refuses replaces both sections with three lines: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`.
+`FAIL` exactly when you return a `CRITICAL:` line.
+
+A tool call the harness refuses replaces those lines with three lines: `VERDICT: DENIED`, then `REASON: <refused tool name>: <the exact refused command, or the path for a file tool>`, then `REFUSAL: <the refusal text, on one line>`.

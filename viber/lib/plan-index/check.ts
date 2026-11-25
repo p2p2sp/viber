@@ -1,7 +1,8 @@
 /*
  * check.ts - the plan contract as a whole: every defect of the task blocks, of
- * the dependency graph, of the criteria and of the contract files, in a fixed
- * order and all of them in one run, and what the index prints of a sound plan.
+ * the dependency graph, of the criteria, of the contract files and of the open
+ * items, in a fixed order and all of them in one run, and what the index prints
+ * of a sound plan.
  */
 
 import type { Fresh, PlanDoc, PlanTask } from "./read.ts";
@@ -11,8 +12,6 @@ import { blindGrep, integrationFloor, namesIntegration, unprovable } from "./ver
 export interface CheckOpts {
   /** null: the plan is frozen, and the checks added after plans were frozen are skipped. */
   fresh: (Fresh & { memory: boolean }) | null;
-  /** The detail stage is over: no field may still be PENDING. */
-  detailed: boolean;
   held: (path: string) => boolean;
 }
 
@@ -46,7 +45,7 @@ const namesId = (text: string, id: string): boolean => withoutTicks(text).split(
  * name inside one is none, a leading "./" and a sentence period are allowed, and a
  * backtick, a quote or a blank bound it.
  */
-function namesPath(text: string, path: string): boolean {
+export function namesPath(text: string, path: string): boolean {
   const padded = `   ${text}   `;
   for (let at = padded.indexOf(path); at >= 0; at = padded.indexOf(path, at + 1)) {
     const after = padded.slice(at + path.length);
@@ -134,13 +133,10 @@ export function checkPlan(doc: PlanDoc, opts: CheckOpts): { defects: string[]; t
 
   const checkVerification = (task: PlanTask, at: number): void => {
     const command = commandOf(task.verification);
-    // A skeleton task holds the word alone until the plan-build merge fills it.
-    if (!/^PENDING[ \t\n\v\f\r]*$/.test(task.verification)) {
-      for (const path of files[at]) {
-        const floor = integrationFloor(path);
-        if (floor !== null && !namesIntegration(command, path, floor)) {
-          defect(`task ${task.id}: Files writes ${path} under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`);
-        }
+    for (const path of files[at]) {
+      const floor = integrationFloor(path);
+      if (floor !== null && !namesIntegration(command, path, floor)) {
+        defect(`task ${task.id}: Files writes ${path} under an integration test directory, which no Verification command names - list or type-check that file or its test project there (Layered)`);
       }
     }
     for (const path of files[at]) {
@@ -186,7 +182,6 @@ export function checkPlan(doc: PlanDoc, opts: CheckOpts): { defects: string[]; t
       const place = places.get(id);
       if (place === undefined) defect(`task ${task.id}: Depends-on ${id}, no such task`);
       else if (place >= at) defect(`task ${task.id}: Depends-on ${id} must reference an earlier task`);
-      else if (fresh !== null && tasks[place].exclusive === "true") defect(`task ${task.id}: Depends-on ${id}, an Exclusive task - it runs last, so no task may depend on it`);
       else deps[at].push(id);
     }
   };
@@ -205,11 +200,6 @@ export function checkPlan(doc: PlanDoc, opts: CheckOpts): { defects: string[]; t
     if (task.delivers === "") defect(`task ${id}: missing Delivers`);
     if (task.verification === "") defect(`task ${id}: missing Verification`);
     if (task.dod === "") defect(`task ${id}: missing DoD`);
-    if (opts.detailed) {
-      const pending = (field: string): void => defect(`task ${id}: ${field} is still PENDING - dispatch the plan-detailer block of its slice and merge its file (Detailed)`);
-      if (task.verification.startsWith("PENDING")) pending("Verification");
-      if (task.dod.startsWith("PENDING")) pending("DoD");
-    }
     if (fresh !== null) {
       // A clause is proven inside the task that delivers it.
       const other = tasks.find((each) => each.id !== id && each.id !== "" && namesId(task.dod, each.id));
@@ -341,6 +331,15 @@ export function checkPlan(doc: PlanDoc, opts: CheckOpts): { defects: string[]; t
       }
     }
   }
+
+  // A task file takes 3 notes: plan-build.sh keeps a note past them in the plan, so more is a hand edit.
+  const noted = new Map<string, number>();
+  for (const item of doc.openItems) {
+    if (item.where === "plan") continue;
+    if (!places.has(item.where)) defect(`open items: ${item.where} names no task of the plan (Open items)`);
+    else if (item.kind === "note") noted.set(item.where, (noted.get(item.where) ?? 0) + 1);
+  }
+  for (const [id, count] of noted) if (count > 3) defect(`open items: task ${id} holds ${count} notes, past 3 (Open items)`);
 
   return {
     defects,

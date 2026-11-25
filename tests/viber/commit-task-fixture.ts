@@ -171,8 +171,10 @@ export const LEFTOVER_TASKS: LeftoverTask[] = [
   { id: "T3", files: "src/c.ts" },
 ];
 
-/** A plan plan-index.sh accepts: the leftovers form reads the index it prints. */
-export function leftoversPlan(tasks: LeftoverTask[]): string {
+/** A plan plan-index.sh accepts: the leftovers form reads the index it prints.
+ *  `items` are the lines of its "## Open items" section, which a plan with none
+ *  does not carry. */
+export function leftoversPlan(tasks: LeftoverTask[], items: string[] = []): string {
   return [
     "# Add login",
     "",
@@ -196,6 +198,7 @@ export function leftoversPlan(tasks: LeftoverTask[]): string {
     "",
     "- Password reset.",
     "",
+    ...(items.length === 0 ? [] : ["## Open items", "", ...items, ""]),
     "## Tasks",
     "",
     ...tasks.flatMap((t) => [
@@ -229,9 +232,9 @@ export function leftoversPlan(tasks: LeftoverTask[]): string {
  *  `outcome: null` leaves the run without one. */
 export async function seedLeftovers(
   repo: GitRepo,
-  opts: { skipped?: string; outcome?: string | null } = {},
+  opts: { skipped?: string; outcome?: string | null; items?: string[] } = {},
 ): Promise<void> {
-  write(repo.dir, PLAN_REL, leftoversPlan(LEFTOVER_TASKS));
+  write(repo.dir, PLAN_REL, leftoversPlan(LEFTOVER_TASKS, opts.items));
   write(repo.dir, STATUS_REL, statusBody(3).replace("skipped: none", `skipped: ${opts.skipped ?? "none"}`));
   write(repo.dir, "README.md", "seed\n");
   await repo.git("add", "-A");

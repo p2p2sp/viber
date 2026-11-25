@@ -22,7 +22,7 @@ older version is ignored.
 | Switch | Default | When on |
 | --- | --- | --- |
 | `planning.adr` | on | A decision worth keeping becomes an architecture decision record in `docs/adr/`. |
-| `planning.outside-plan-review` | on | A plan written outside the planner must pass a review before plan mode can be left. |
+| `planning.outside-plan-review` | on | A plan written outside the planner is reviewed before plan mode can be left: critical problems only, at most two rounds, the rest listed in the plan under `## Open items`. |
 | `build.baseline-tests` | **off** | Takes `off`, `fast` or `full`. Runs your tests before the first task, so the build repairs only the failures it caused. |
 | `build.final-review` | on | One reviewer checks the whole build's diff after the last task, and a coder fixes what it finds. |
 | `build.memory` | on | The build closes by updating your `CLAUDE.md` files below the root. |
@@ -120,7 +120,8 @@ tiers:
   `max: fable` runs the whole build on it.
 - A held task's repair pass, run after its 5 attempts and before the final review, runs at
   `tiers.max`.
-- Planning is not affected: it runs on your session's model.
+- Planning is not affected: the map of a change runs on Haiku, the task authors on Sonnet, the judge
+  on Opus and the frame of a large plan on your session's model.
 
 ## Titles and directories
 

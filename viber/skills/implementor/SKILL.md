@@ -30,7 +30,7 @@ You orchestrate and delegate: every piece of work runs inside a subagent. Open n
 - A `commit-task.sh` call exiting non-zero committed nothing, `--repair` aside. A `--drop` call, or a `--skip` call made on the user's `skip` answer, exiting non-zero -> `AskUserQuestion`: retry / abort, on abort one `left uncommitted: <path> | commit refused, the build was aborted` line per path in the final summary. Every other `commit-task.sh` form is handled by the step that makes it.
 - Scratch return: a `task-coder` return carrying `SCRATCH:`, in any step, is answered first, before any other dispatch or commit for that return, with one `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --drop "<plan>" "<path>" ["<path>"...]` call naming every path of the line, never a `--with` path; each `warning: kept <path> - <reason>` line it prints becomes `left uncommitted: <path> | <reason>` in the final summary.
 - An agent's completion notice saying it "stopped with background work of its own still running": hold its verdict and `SendMessage` that agent, once: `Stop every process you started that is still running, then return your output lines again.` Act on what it returns then. The same notice again -> act on the verdict and name that agent's task in the final summary.
-- An agent returning no `VERDICT:` line -> act as on its `VERDICT: FAIL` when its output defines one, else on its `VERDICT: DENIED`, with `REASON: no verdict returned`.
+- An agent returning output with no `VERDICT:` line -> act as on its `VERDICT: FAIL` when its output defines one, else on its `VERDICT: DENIED`, with `REASON: no verdict returned`.
 
 ## Answers
 
@@ -98,39 +98,33 @@ Each open task has a `profile:` line on the index: take its tier, review tier an
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" build.baseline-tests "${CLAUDE_SKILL_DIR}" baseline-run
 ```
 
-`deps` and the `excl` hold are the only ordering the plan imposes; arrange the rest yourself and never lock a schedule up front. Never break:
-
-- A task dispatches only once every id in its `deps` is done.
-- A task whose `excl` column says `yes` is held back while any task without `excl` is ready to dispatch or anything else is in flight; several ready `excl` tasks go out one after another as their turn comes, and each still runs alone until committed - nothing else in flight when it goes out, nothing new out until it is committed. Never infer or override it.
-- At most 10 tasks in flight at once, a task counting from its coder dispatch until it is committed, skipped or held: parallel coders running tests saturate the CPU. A ready task past the cap waits for the next slot.
-
-Start with every task whose `deps` are done, up to the cap, in one message. On every return, answer with ONE message carrying every dispatch now legal, the cap included, plus at most one commit. Never wait for a batch to drain; when a constraint forces a choice, start whatever unblocks the most tasks.
+Which task runs when is the script's to say: `"${CLAUDE_PLUGIN_ROOT}/scripts/task-step.sh" "<plan>" "-" "<started>" ready` answers `NEXT: ready | start: <ids> | retry: <ids>`, a field left out when empty, or `NEXT: ready | none`. Make that call alone in a message, at the start and after every message that answered a `NEXT: done`, `NEXT: hold`, `NEXT: wait` or a skip. Then report, all in one message, `start` for each `start:` id and `retry coder --waited` for each `retry:` id. Start no task it did not list; order, hold and count none yourself. On every return, answer with ONE message carrying every dispatch its blocks name plus at most one commit, and never wait for a batch to drain.
 
 Task loop: `"${CLAUDE_PLUGIN_ROOT}/scripts/task-step.sh" "<plan>" "<id>" "<started>" <event> [<flag>...]` answers each return of a task's agents with the directives to act on, `<started>` being the preloaded mark. It keeps the task's attempts, tiers and dispatch lines: count, climb and compose none yourself. One call per return; a non-zero exit -> report its stderr line and stop. Its stdout is blocks, each opening on a `NEXT:`, `RUN:`, `ASK:` or `STOP:` line, the lines after it its body: act on the blocks in order, one per message, a `NEXT: commit` and the `RUN:` after it being one action. A dispatch sends the lines its directive prints plus the `add:` lines it names, nothing else.
 
 Events:
 
 - `start --tier <tier> --review <tier>|waived`: before a task's first dispatch, the profile of step 3 as its flags, with `--resume "<paths>"` added when the user answered `continue` to its `dirty:` line.
-- A coder return: `coder PASS`, `coder FAIL` or `coder DENIED`, adding `--dod <m>/<n>` for its `DOD:` line, `--red <n>|missing` and `--red-log "<path>"` for its `RED:` line, `--decide` for its `DECIDE:` line, `--with "<path>,..."` for its `EXTRA:` paths and `--defer "<id>:<path>,..."` for its `DEFERRED:` lines; a `DEFERRED: <path> -> none` line takes no `--defer` and goes to the final summary as a deferred path without an owner. The call of a `PASS` of a `TDD: required` task runs the red check: Bash timeout 600000, never in the background; cut off by it, run the same call again with `--red-timeout`.
-- A coder `VERDICT: FAIL` carrying `WAIT:` -> hold the task and report nothing; once every task in flight at that return has returned, `retry coder` it, counting as no attempt and asking nothing. Nothing else in flight at that return, or the task already waited once on a path it names -> report it as `coder FAIL`.
+- A coder return: `coder PASS`, `coder FAIL` or `coder DENIED`, adding `--dod <m>/<n>` for its `DOD:` line, `--red <n>|missing` and `--red-log "<path>"` for its `RED:` line, `--decide` for its `DECIDE:` line, `--wait "<path>,..."` for its `WAIT:` line, `--with "<path>,..."` for its `EXTRA:` paths and `--defer "<id>:<path>,..."` for its `DEFERRED:` lines; a `DEFERRED: <path> -> none` line takes no `--defer` and goes to the final summary as a deferred path without an owner. The call of a `PASS` of a `TDD: required` task runs the red check: Bash timeout 600000, never in the background; cut off by it, run the same call again with `--red-timeout`.
 - A reviewer return: `reviewer PASS`, `reviewer FAIL` or `reviewer DENIED`, adding `--report "<path>"` for its `REVIEW` path and `--with` for its `EXTRA:` paths.
 - The `RUN:` line of a commit: `commit <exit>`.
 - A refused `SendMessage`: `resume-failed`.
-- An answer to an `ASK:` line: the event after its `->`.
+- A coder or reviewer returning no output at all (it failed, was killed or stopped): `lost`; act on a `NEXT: ready` answer as on the `ready` call's.
 
 Directives:
 
 - `NEXT: coder`: `viber:task-coder` (Agent tool, `model` = its `model:` field), the block's body lines verbatim as its prompt, then one line per label of its `add:` field: `reason: <the returned REASON>` (the commit's error after a refused commit), `repair: <one line: the problem this pass fixes>`. `TaskUpdate` -> in progress; past attempt 1 its subject is rewritten as in step 3 with the tiers its `model:` and `review:` fields name (`(<model>)` when `review` reads `waived`). A `repair: 1` field opens `TaskCreate` `R<n> - repair <id> (<tier>, review <review tier>)`, `<n>` counting from 1 in the session, completed with that task's `NEXT: done` or its `cap` ruling.
 - `NEXT: review`: `viber:task-reviewer` (Agent tool, `model` = its `model:` field), its prompt built the same way, `add: repair` taking the same `repair:` line.
-- `NEXT: commit`: run the `RUN:` line after it in the message carrying its `TaskUpdate` -> completed, then report its exit; the `ASK:` or `NEXT: coder` answering a refused commit sets the task back to in progress. Warnings off the commit never stop the build: carry `refused <path> - claimed by task <id>`, `took <path> - claimed by committed task <id>` and `changed, claimed by no task in the plan` to the final summary.
-- `NEXT: done`: nothing more for the task; its dependents are ready.
+- `NEXT: commit`: run the `RUN:` line after it in the message carrying its `TaskUpdate` -> completed, then report its exit; the `ASK:` or `NEXT: coder` answering a refused commit sets the task back to in progress. Warnings off the commit never stop the build: carry `took <path> - claimed by committed|skipped task <id>` and `changed, claimed by no task in the plan` to the final summary.
+- `NEXT: done`: nothing more for the task.
+- `NEXT: wait | on: <id>`: the task waits for that task, asking nothing and ending no attempt: dispatch nothing for it until a `ready` call lists it.
 - `NEXT: hold | dependents: <ids>|none`: hold the task and the tasks its `dependents:` field names, asking nothing and calling no arbiter; none of them dispatches while held, the rest of the plan goes on, and the failure waits for the repair pass below.
 - `NEXT: arbiter`: the arbiter dispatch below, `add: reason` taking the `reason:` line as above.
 - `NEXT: resume`: `SendMessage` that same coder the body lines verbatim, the attempt unchanged; its next return is judged as any coder return.
 - `NEXT: carry-out: <option>`: carry that option out; a `mismatch` field (a `RULING` naming no listed option) names the mismatch in the final summary.
 - `RUN:` line: run it exactly as written, a `--skip` one in the message carrying its task's `TaskUpdate` -> completed.
   - A `--rule` one exiting non-zero -> name it in the final summary, record no further ruling, retry nothing, and carry the ruling out all the same.
-  - A `--decide` or `--skip` one exiting non-zero after a ruling -> name it in the final summary and act on the next block.
+  - A `--decide` or `--skip` one exiting non-zero after a ruling or ahead of a `NEXT: wait` -> name it in the final summary and act on the next block.
 - `ASK:` line: one `AskUserQuestion` naming the task and offering those answers, the chosen one's event reported next; `retry` reruns the last `RUN:` line and reports its exit, `abort` goes to step 7.
 - `STOP:` line: report its sentence and stop.
 

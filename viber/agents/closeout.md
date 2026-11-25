@@ -50,7 +50,7 @@ Then one Bash call, exactly this line and nothing around it, `<n>` or `none` bei
 
 `"${CLAUDE_PLUGIN_ROOT}/scripts/commit-task.sh" --leftovers "<run>/plan.md" --drift "<n>|none"`
 
-It accounts for every leftover file, commits the unexplained ones and rewrites `outcome.md` from that heading on. Its output is trusted: never re-verify it, never call it twice.
+It accounts for every leftover file, commits the unexplained ones and rewrites `outcome.md` from that heading on, the list of plan notes and rulings included. Its output is trusted: never re-verify it, never call it twice.
 
 - Exit 0 -> its `left:` line is your `LEFT:` value, `<n>` or `none`.
 - A non-zero exit -> the run ends on `VERDICT: BLOCKED`, `REASON:` its `error:` line, with no archive call.

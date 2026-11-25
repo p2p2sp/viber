@@ -2,12 +2,14 @@
  * guard-prose.unit.test.ts - pins the agent prose that goes with the viber guards.
  *
  * `hooks/scripts/kill-guard.sh` and `shell-guard.sh` open every refusal with the
- * `viber guard:` marker. The agents holding `Bash` (and the extension template)
+ * `viber guard:` marker, and so does the file guard, whose deny line
+ * `lib/file-guard.ts` builds. The agents holding `Bash` (and the extension template)
  * say in their tools paragraph that such a refusal is a correction, the three
  * auditor agents say it in their hard rules, and the guarded rules of
  * `task-coder`, `task-reviewer` and `final-reviewer` (the cd rule among them)
  * stay one line each, their rationale living in the header of `shell-guard.sh`.
- * A `DENIED` output carries the refusal text on a `REFUSAL:` line, which the
+ * `task-coder` answers a file guard refusal as the refusal says, with the `WAIT:`
+ * line that refusal names. A `DENIED` output carries the refusal text on a `REFUSAL:` line, which the
  * asking skills quote. The files read here are shipped prompts, whose text is
  * the behaviour. Nothing is spawned.
  *
@@ -62,7 +64,10 @@ const TOOLS_PARAGRAPH_FILES = [
 ];
 const AUDITORS = ["agents/mapper.md", "agents/hunter.md", "agents/critic.md"];
 const REVIEWERS = ["agents/task-reviewer.md", "agents/final-reviewer.md"];
-const GUARDS = ["hooks/scripts/shell-guard.sh", "hooks/scripts/kill-guard.sh"];
+const GUARDS = ["hooks/scripts/shell-guard.sh", "hooks/scripts/kill-guard.sh", "lib/file-guard.ts"];
+const FILE_GUARD_CLAUSE = "n edit refused with `viber guard: ... belongs to task` is answered as the refusal says";
+const FILE_GUARD_REASON = " belongs to task ";
+const FILE_GUARD_STEP = "then return VERDICT: FAIL with WAIT: ";
 
 function read(rel: string): string {
   return fs.readFileSync(path.join(VIBER, rel), "utf8");
@@ -107,6 +112,46 @@ for (const rel of GUARDS) {
     assert.ok(read(rel).includes(`"permissionDecisionReason":"${MARKER} `));
   });
 }
+
+test("task-coder.md answers a file guard refusal as the refusal says, in its rule on a file outside its Files", () => {
+  const rule = lines(read("agents/task-coder.md")).find((line) => line.startsWith("- Touch the files in the task's `Files`")) ?? "";
+  assert.ok(rule.includes(FILE_GUARD_CLAUSE));
+});
+
+test("task-coder.md reads no other task file to learn what it may not touch (the file guard answers at the edit)", () => {
+  assert.ok(!read("agents/task-coder.md").includes("another task file in your `tasks` directory lists"));
+});
+
+test("lib/file-guard.ts words its refusal as task-coder.md names it and ends it on the WAIT line task-coder.md returns", () => {
+  const core = read("lib/file-guard.ts");
+  assert.ok(core.includes(FILE_GUARD_REASON) && core.includes(FILE_GUARD_STEP));
+  assert.ok(read("agents/task-coder.md").includes("- on FAIL only: `WAIT: <repo-relative path>"));
+});
+
+test("hooks.json runs file-guard.sh through bash on Edit and Write with timeout 10, and its description names the guard", () => {
+  const hooks = JSON.parse(read("hooks/hooks.json")) as { description: string; hooks: { PreToolUse: Array<{ matcher: string; hooks: Array<{ type: string; command: string; timeout: number }> }> } };
+  const entry = hooks.hooks.PreToolUse.find((each) => each.matcher === "Edit|Write");
+  assert.deepEqual(entry?.hooks, [{ type: "command", command: 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/file-guard.sh"', timeout: 10 }]);
+  assert.match(hooks.description, /file-guard\.sh/);
+});
+
+test("file-guard.sh lets only a viber:task-coder call reach node, and runs file-guard.ts beside it", () => {
+  const wrapper = read("hooks/scripts/file-guard.sh");
+  assert.ok(wrapper.includes('\\"agent_type\\"[[:space:]]*:[[:space:]]*\\"viber:task-coder\\" ]] || exit 0'));
+  assert.ok(wrapper.includes('node "${0%[/\\\\]*}/file-guard.ts"'));
+});
+
+test("file-guard.sh answers from the head of the payload and never reads a whole payload byte by byte (bash reads a pipe one byte per system call: 1.7 s for a 5 MB Write)", () => {
+  const code = read("hooks/scripts/file-guard.sh")
+    .split("\n")
+    .filter((line) => !line.startsWith("#"));
+  const reads = code.filter((line) => /(^|[ ;])read /.test(line));
+  assert.deepEqual(reads, ["IFS= read -r -n 4096 -d '' input || whole=1"]);
+  const text = code.join("\n");
+  // A caller that is no coder and whose agent_type stands in the head leaves before the rest is read.
+  assert.ok(text.indexOf('\\"agent_type\\"[[:space:]]*:[[:space:]]*\\"[^\\"]*\\" ]]') < text.indexOf('input="$input$(</dev/stdin)"'));
+  assert.ok(text.includes('{ printf \'%s\' "$input"; cat; } | node "${0%[/\\\\]*}/file-guard.ts" 2>/dev/null'));
+});
 
 for (const line of CODER_LINES) {
   test(`task-coder.md carries the rule line ${line.slice(0, 40)}`, () => {

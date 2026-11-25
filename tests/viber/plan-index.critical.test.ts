@@ -54,8 +54,6 @@ test("the index carries one row per task: id, state, TDD marker, exclusivity, no
         "T2 | todo | required | - | - | T1 | - | src/reject.ts | Reject a bad password",
         "verify: T1 | npm test",
         "verify: T2 | npm test",
-        "review: single",
-        "dispatch: viber:planner-review",
         "",
       ].join("\n"),
     );

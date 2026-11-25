@@ -160,13 +160,22 @@ The interview asks in rounds: the decisions whose prerequisites are settled go o
 message, at most `planning.questions-per-round` of them (five by default), each with three concrete
 options and a recommendation, and the confirmed summary is saved
 as a file for the planner. The planner chooses the shape of the specification. A
-reviewer reads the resulting plan against your codebase before you approve it. A plan past 12 tasks
-is read by three reviewers at once, one for the spec and its contracts, one for the dependency graph
-and one for the tasks, and plan mode ends only when all of them pass. A plan written outside the
-planner is only reviewed, through `planning.outside-plan-review`, whatever number of files it names. Then the build runs
+judge reads the resulting plan against the summary you confirmed before you approve it: it reports
+critical problems only, in at most two rounds, and everything else becomes a note. A plan written
+outside the planner is only reviewed, under the same rules, through `planning.outside-plan-review`,
+whatever number of files it names. Then the build runs
 task by task, reviewing and committing each one, and finishes with one final review and your fast
 tests plus the integration tests the change reaches. End-to-end tests stay with your CI and
 `/viber:e2e` unless you explicitly ask for them.
+
+Which task runs when is decided by a script: it lists the tasks whose dependencies are done, at most
+ten at work at once, and a task marked `Exclusive` runs alone. A hook refuses a coder's edit of a
+file that another unfinished task claims: the coder finishes what does not need that file and waits
+for that task, which costs it no attempt. A collision with a task that has not started, or the second
+collision of the same two tasks, puts them in sequence for the rest of the build and records that as a
+decision. A skipped task claims no file. A coder answers each note of the
+plan review in its task file with one line. A note is advice and never outranks a done clause or a
+contract, and the reviewer fails a task over a note only where handling it broke one of them.
 
 A task marked `TDD: required` is sealed three ways. Its coder shows the failing run of its new tests
 before the first production edit, or the attempt fails. With `build.red-check` on, the build reruns
@@ -182,7 +191,7 @@ nothing is stubbed in between. With GitHub issues on, each phase gets its own su
 one parent issue, and a phase that resumes is tied to its sub-issue.
 
 The planner checks the size too. Before any plan text exists, its `plan-surveyor` agent maps the
-change: the files it touches and an estimate of the tasks. When that map passes 30 tasks or 60
+change by search alone: its areas, the files it touches and an estimate of the tasks. When that map passes 30 tasks or 60
 files, the planner stops and asks whether to split the change into phases or keep one plan of that
 size; a split resumes the interview from the planner's own proposal. The planner also asks, one decision per question,
 every decision its exploration of the code finds that the interview left open and that belongs to you,
@@ -190,19 +199,27 @@ such as a behaviour, a scope or a product choice. Implementation choices stay wi
 
 Its agents read your code and write the plan, so neither the code nor the plan text passes through
 your session's context: each agent writes a file, a script puts the files together, and the session
-only passes their paths on. The `plan-architect` agent writes the plan. For a change past 8 tasks
-it writes a skeleton first, every task complete except how it is verified and when it is done, and
-`plan-detailer` agents then fill in those two lines, working in parallel on slices of at most 8
-tasks; in a plan past 12 tasks the spec and graph reviewers check the skeleton before the details
-are written. Before the plan is written, the planner searches your code for every reference to what the change modifies, moves or deletes,
-and every file that lists, counts or links a file it adds; the plan adds nothing the interview left
+only passes their paths on. A script cuts the map into slices, each small enough for one agent to
+read once: at most 8 estimated tasks and 200000 bytes of files. A change that fits one slice goes to
+one `plan-author` agent, which writes the whole plan. A larger change gets a frame first: the
+`plan-architect` agent writes the specification and the contracts the slices share, and one
+`plan-author` per slice then writes its tasks, in parallel, every line of them, and keeps notes of
+the code facts it relied on. A script assembles the plan: it numbers the tasks, computes their order
+from the files they list and the contracts they use, and checks that every acceptance criterion is
+covered and every file referring to the change has a place. Before the plan is written, the planner searches your code for every reference to what the change modifies, moves or deletes,
+and for the places that list or count the files beside one it adds; the plan adds nothing the interview left
 unsettled.
 
-After each review round you see one line per reviewer: its verdict and how many blocking and minor
-findings it wrote. The `plan-fixer` agent writes the fixes, a script applies them, and only the
-reviewers that failed and those whose part of the plan changed read it again. A review finding showing the plan changes a behaviour your code has today, unasked, gets
-fixed even when it is only Minor. A Minor finding a reviewer could not verify, or raised outside
-the fixed text, is left unapplied and shown to you in one list before you approve the plan.
+The `plan-judge` agent reads the plan and your confirmed summary, and searches no code. A problem is
+critical when the plan contradicts what you confirmed, or when a coder could not resolve it without
+changing a done clause, a contract or a file outside its task. After each round you see one line:
+the verdict and the number of critical problems and notes. The author of the text a critical problem
+names writes the fix from its notes, without reading the code again, a script applies it, and the
+second and last round reads only the text the fixes changed. A critical problem found in that round
+is fixed once more and checked by script alone. No review finding asks you a question: every note
+and every critical problem that could not be fixed is listed in the plan under `## Open items`,
+which you see in one list before you approve the plan. A note belongs to one task, at most three per
+task, and reaches that task's file when the build starts.
 
 ### When it decides for you
 
@@ -225,7 +242,7 @@ whether `outcome.md` records a problem, plus, when a further phase is left, a se
 you to continue the work and then the command that starts that phase. The full summary is in
 `outcome.md` in the archive, along with every file the build left uncommitted and the reason, and one
 `tokens:` line per agent role and model with its input, output, cache read and cache write counts. The
-main session and the `closeout` agent are not counted. The summary also names the `rounds:` line (the plan review rounds), the `attempts:` line (every task that needed more than one attempt, with its count) and the `arbiter:` line (the number of rulings). The archive also keeps `failures.md`, the failure trail of the run,
+main session and the `closeout` agent are not counted. The summary also names the `rounds:` line (the plan review rounds), the `attempts:` line (every task that needed more than one attempt, with its count) and the `arbiter:` line (the number of rulings), and one `refused:` line per path a task commit refused because another task claims it, so such a path shows in the summary of a build that archives nothing too. `outcome.md` also holds one list, `## Notes and rulings`: every open critical problem of the plan, every note of the plan review with what its coder did with it, every ruling with its cost if wrong, every path a task commit refused because another task claims it, and every pair of tasks the build put in sequence. After a build you read that list, not the plan. The archive also keeps `failures.md`, the failure trail of the run,
 which `/viber:rules` turns into rules when a failure repeats across runs. The close suggests
 `/viber:rules extend` once convention failures stand in two runs, and `/viber:rules` removes the
 convention entries it handled and every entry of another cause.

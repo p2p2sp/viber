@@ -791,21 +791,12 @@ do wklejenia do Claude.</p>
     <p class="say"><span lang="en">You approve the plan</span><span lang="pl">Zatwierdzasz plan</span></p>
     <p lang="en">The <a href="#skill-planner">planner</a> reads the summary file in Claude Code's
     <a href="#term-plan-mode">plan mode</a>, chooses the shape of the specification and writes the plan: acceptance criteria, a file map, then the tasks.
-    <a href="#agent-planner-review"><code>planner-review</code></a> checks it against your code, and plan mode
-    ends only after that <a href="#term-review">review</a> passes. A plan past 12 tasks is checked by
-    <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
-    <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
-    <a href="#agent-planner-task-review"><code>planner-task-review</code></a> at once, and plan mode ends only
-    when all of them pass. Then you approve the plan or reject it.</p>
+    <a href="#agent-plan-judge"><code>plan-judge</code></a> checks it against the summary you confirmed, in at most two rounds, and plan mode
+    ends only after that <a href="#term-review">review</a>. Then you see the items it left open and approve the plan or reject it.</p>
     <p lang="pl"><a href="#skill-planner">Planista</a> czyta plik z podsumowaniem w
     <a href="#term-plan-mode">trybie planowania</a> Claude Code, wybiera kształt specyfikacji i pisze plan: kryteria akceptacji, mapę plików,
-    a potem zadania. <a href="#agent-planner-review"><code>planner-review</code></a> sprawdza go na twoim kodzie,
-    a tryb planowania kończy się dopiero wtedy, gdy ta <a href="#term-review">recenzja</a> przejdzie. Plan
-    powyżej 12 zadań sprawdzają jednocześnie
-    <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
-    <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> i
-    <a href="#agent-planner-task-review"><code>planner-task-review</code></a>, a tryb planowania kończy się
-    dopiero wtedy, gdy przejdą wszyscy. Wtedy zatwierdzasz plan albo go odrzucasz.</p>
+    a potem zadania. <a href="#agent-plan-judge"><code>plan-judge</code></a> sprawdza go względem potwierdzonego podsumowania, najwyżej w dwóch rundach,
+    a tryb planowania kończy się dopiero po tej <a href="#term-review">recenzji</a>. Wtedy widzisz punkty, które zostawiła otwarte, i zatwierdzasz plan albo go odrzucasz.</p>
   </li>
   <li>
     <p class="say"><span lang="en">You ask Claude to build it</span><span lang="pl">Prosisz Claude o zbudowanie</span></p>
@@ -1036,19 +1027,13 @@ poproś o nią Claude wprost i powiedz, że ma ją zrobić bez planu.</p>
     <span class="label"><span lang="en">viber does</span><span lang="pl">viber robi</span></span>
     <p lang="en">The <a href="#skill-intent">interview</a> asks what your words and the code leave open, in
     rounds, and ends on a summary you confirm, saved as a file. <a href="#skill-planner"><code>planner</code></a>
-    reads it, picks the specification shape and writes the plan in plan mode and <a href="#agent-planner-review"><code>planner-review</code></a> checks it
-    (a plan past 12 tasks goes to the <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
-    <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
-    <a href="#agent-planner-task-review"><code>planner-task-review</code></a> set instead).
+    reads it, picks the specification shape and writes the plan in plan mode and <a href="#agent-plan-judge"><code>plan-judge</code></a> checks it.
     Once you approve it and ask Claude to build it, <a href="#skill-implementor"><code>implementor</code></a>
     builds and commits one task at a time.</p>
     <p lang="pl"><a href="#skill-intent">Wywiad</a> pyta o to, czego nie rozstrzygają twoje słowa i kod, po
     rundach, i kończy się podsumowaniem, które potwierdzasz i które trafia do pliku. <a href="#skill-planner"><code>planner</code></a>
-    czyta go, wybiera kształt specyfikacji i pisze plan w trybie planowania, a <a href="#agent-planner-review"><code>planner-review</code></a> go
-    sprawdza (plan powyżej 12 zadań trafia zamiast tego do zestawu
-    <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
-    <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> i
-    <a href="#agent-planner-task-review"><code>planner-task-review</code></a>). Kiedy plan zatwierdzisz i poprosisz Claude o jego zbudowanie,
+    czyta go, wybiera kształt specyfikacji i pisze plan w trybie planowania, a <a href="#agent-plan-judge"><code>plan-judge</code></a> go
+    sprawdza. Kiedy plan zatwierdzisz i poprosisz Claude o jego zbudowanie,
     <a href="#skill-implementor"><code>implementor</code></a> buduje go i commituje zadanie po zadaniu.</p>
   </li>
   <li>
@@ -1526,11 +1511,11 @@ mogą rozjechać się z kodem.</p>
 
 <h3 class="sub" id="hw-plan-first"><span lang="en">Plan before code</span><span lang="pl">Najpierw plan, potem kod</span><a class="self" href="#hw-plan-first">#</a></h3>
 <p lang="en">While viber is installed, Claude writes or edits no code before you approve a plan. The plan names
-the acceptance criteria, the files it touches and the tasks, and a review agent checks it against your code
-before you see it, so a wrong assumption shows up before any code depends on it.</p>
+the acceptance criteria, the files it touches and the tasks, and a review agent checks it against the summary
+you confirmed before you see it, so a wrong assumption shows up before any code depends on it.</p>
 <p lang="pl">Dopóki viber jest zainstalowany, Claude nie pisze ani nie zmienia kodu, zanim nie zatwierdzisz planu.
-Plan podaje kryteria akceptacji, pliki, których dotyczy, i zadania, a agent recenzujący sprawdza go na twoim
-kodzie, zanim go zobaczysz. Błędne założenie wychodzi więc na jaw, zanim oprze się na nim jakikolwiek kod.</p>
+Plan podaje kryteria akceptacji, pliki, których dotyczy, i zadania, a agent recenzujący sprawdza go względem
+potwierdzonego przez ciebie podsumowania, zanim go zobaczysz. Błędne założenie wychodzi więc na jaw, zanim oprze się na nim jakikolwiek kod.</p>
 <p lang="en">For a change you want made right away, say so: an explicit request for a direct change skips the
 plan. The one piece of code allowed before a plan is the failing test <a href="#skill-fixer"><code>fixer</code></a>
 writes to prove a bug, with its temporary instrumentation.</p>
@@ -1540,32 +1525,37 @@ udowadnia błąd, oraz tymczasowa instrumentacja, którą <code>fixer</code> dod
 
 <h3 class="sub" id="hw-gate"><span lang="en">The plan-mode gate</span><span lang="pl">Bramka trybu planowania</span><a class="self" href="#hw-gate">#</a></h3>
 <p lang="en">The <a href="#term-plan-gate">plan gate</a> is a hook that holds Claude inside plan mode until a
-review agent has passed the latest version of the plan. A plan the planner wrote goes to
-<a href="#agent-planner-review"><code>planner-review</code></a>; a planner plan past 12 tasks goes to
-<a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
-<a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
-<a href="#agent-planner-task-review"><code>planner-task-review</code></a> at once, and plan mode ends only when all
-of them pass. A plan written outside the planner goes to
+review agent has read the plan. A plan the planner wrote goes to
+<a href="#agent-plan-judge"><code>plan-judge</code></a>. A plan written outside the planner goes to
 <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a>, as long as
 <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> is on, whatever number of
 files it names.</p>
 <p lang="pl"><a href="#term-plan-gate">Bramka planu</a> to hook, który trzyma Claude w trybie planowania, dopóki
-agent recenzujący nie zaakceptuje najnowszej wersji planu. Plan napisany przez planistę trafia do
-<a href="#agent-planner-review"><code>planner-review</code></a>; plan planisty powyżej 12 zadań trafia do
-<a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
-<a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> i
-<a href="#agent-planner-task-review"><code>planner-task-review</code></a> jednocześnie, a tryb planowania kończy się
-dopiero wtedy, gdy przejdą wszyscy. Plan napisany poza planistą trafia do
+agent recenzujący nie przeczyta planu. Plan napisany przez planistę trafia do
+<a href="#agent-plan-judge"><code>plan-judge</code></a>. Plan napisany poza planistą trafia do
 <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a>, o ile włączony jest przełącznik
 <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a>, niezależnie od liczby
 wskazanych plików.</p>
-<p lang="en">Any change to the plan after the pass voids it, so the plan is reviewed again before plan mode can
-end. When the gate blocks, Claude gets the next step in words (run the review, fix its findings, or grant a
-permission the reviewer was refused), and the message says it comes from the gate and is no error.</p>
-<p lang="pl">Każda zmiana planu po akceptacji ją unieważnia, więc przed wyjściem z trybu planowania plan
-przechodzi recenzję jeszcze raz. Kiedy bramka blokuje wyjście, Claude dostaje opis następnego kroku (uruchom
-recenzję, popraw uwagi albo nadaj uprawnienie, którego odmówiono recenzentowi), a komunikat mówi, że pochodzi
-od bramki i nie jest błędem.</p>
+<p lang="en">The review runs at most two rounds and reports critical problems only: the plan contradicts the
+summary you confirmed, or a coder could not resolve the problem without changing a definition of done, a
+contract or a file outside its task. Everything else becomes a note, at most three per task, which a script
+puts into that task's file. A critical problem is fixed by the author of the text it names, and the second round
+reads only what the fixes changed. After round two nothing asks you a question: what could not be fixed is listed
+in the plan under <code>## Open items</code>, and you see that list before you approve the plan.</p>
+<p lang="pl">Recenzja ma najwyżej dwie rundy i zgłasza tylko problemy krytyczne: plan przeczy potwierdzonemu
+przez ciebie podsumowaniu albo wykonawca nie rozwiązałby problemu bez zmiany definicji ukończenia, kontraktu
+lub pliku spoza swojego zadania. Wszystko inne staje się notatką, najwyżej trzy na zadanie, a skrypt wpisuje ją
+do pliku tego zadania. Problem krytyczny poprawia autor tekstu, którego on dotyczy, a druga runda czyta tylko
+to, co zmieniły poprawki. Po drugiej rundzie nikt nie zadaje ci pytania: to, czego nie udało się poprawić,
+trafia do planu pod <code>## Open items</code>, a tę listę widzisz, zanim zatwierdzisz plan.</p>
+<p lang="en">The gate asks only for a trace of that review: it blocks while no verdict has come back, while a
+failed review has not been answered by a fix, or while the reviewer was refused a tool call. When the gate
+blocks, Claude gets the next step in words (run the review, answer its findings, or grant the permission the
+reviewer was refused), and the message says it comes from the gate and is no error.</p>
+<p lang="pl">Bramka wymaga tylko śladu tej recenzji: blokuje, dopóki nie wrócił żaden werdykt, dopóki na
+odrzucenie nie odpowiedziała poprawka albo dopóki recenzentowi odmówiono wywołania narzędzia. Kiedy bramka
+blokuje wyjście, Claude dostaje opis następnego kroku (uruchom recenzję, odpowiedz na jej uwagi albo nadaj
+uprawnienie, którego odmówiono recenzentowi), a komunikat mówi, że pochodzi od bramki i nie jest błędem.</p>
 
 <h3 class="sub" id="hw-run"><span lang="en">The run directory and its archive</span><span lang="pl">Katalog przebiegu i archiwum</span><a class="self" href="#hw-run">#</a></h3>
 <p lang="en">A build copies the approved plan into its own directory,
@@ -1617,6 +1607,25 @@ whose dependencies are done run side by side, and a task marked exclusive runs a
 weryfikacji i ponumerowana <a href="#term-dod">definicja ukończenia</a>. Reszty planu wykonawca nie widzi.
 Zadania, których zależności są już ukończone, idą równolegle, a zadanie oznaczone jako wyłączne działa
 samo.</p>
+<p lang="en">Which task runs when is decided by a script, never by the session: it lists the tasks whose
+dependencies are done, at most ten at work at once. A hook keeps a coder out of a file that another unfinished
+task claims: the coder finishes what does not need that file and waits for the other task, which costs it no
+attempt. When the other task has not started yet, or the same two tasks collide a second time, the build runs
+them one after the other from then on and records that as a decision. A skipped task claims no file. None of this
+asks you anything.</p>
+<p lang="pl">O tym, które zadanie kiedy rusza, decyduje skrypt, nigdy sesja: wypisuje zadania, których zależności
+są ukończone, najwyżej dziesięć w pracy naraz. Hook nie dopuszcza wykonawcy do pliku, do którego przyznaje się
+inne nieukończone zadanie: wykonawca kończy to, co tego pliku nie wymaga, i czeka na tamto zadanie, co nie
+kosztuje go próby. Gdy tamto zadanie jeszcze nie ruszyło albo te same dwa zadania zderzą się drugi raz, build do
+końca uruchamia je jedno po drugim i zapisuje to jako decyzję. Pominięte zadanie nie przyznaje się do żadnego
+pliku. Nic z tego nie zadaje ci pytania.</p>
+<p lang="en">A task file also carries the notes of the plan review that belong to its task. The coder writes one
+line per note saying what it did with it. A note is advice and never outranks the definition of done or a
+contract, and the reviewer fails a task over a note only where handling it broke one of them.</p>
+<p lang="pl">Plik zadania zawiera też notatki z recenzji planu, które dotyczą jego zadania. Wykonawca zapisuje
+po jednej linii na notatkę z tym, co z nią zrobił. Notatka jest radą i nigdy nie stoi ponad definicją ukończenia
+ani kontraktem, a recenzent odrzuca zadanie z powodu notatki tylko wtedy, gdy jej obsłużenie złamało jedno
+z nich.</p>
 <p lang="en"><a href="#agent-task-coder"><code>task-coder</code></a> implements the task and proves it green,
 test first when the task says <code>TDD: required</code>. <a href="#agent-task-reviewer"><code>task-reviewer</code></a>
 then checks it against its definition of done, within the task's 5 attempts. Review is skipped only for a task on
@@ -1684,13 +1693,15 @@ do całej reszty.</p>
 <p lang="en">A reviewer runs on the task's tier, with haiku raised to sonnet, and on opus for a task whose
 contract three or more other tasks use. A retry after a failed attempt goes
 one tier up. <a href="#key-tiers"><code>tiers</code></a> keeps all of it between <code>min</code> and
-<code>max</code>, haiku and opus by default, and fable runs only when <code>max</code> names it. Planning runs on
-your session's own model.</p>
+<code>max</code>, haiku and opus by default, and fable runs only when <code>max</code> names it. Planning stays
+outside that range: the map of a change runs on haiku, the task authors on sonnet, <code>plan-judge</code> on opus
+and the frame of a large plan on your session's own model.</p>
 <p lang="pl">Recenzent działa na poziomie zadania, przy czym haiku zostaje podniesione do sonnet, a zadanie,
 którego kontraktu używają co najmniej trzy inne zadania, recenzuje opus. Ponowienie po
 nieudanej próbie idzie poziom wyżej. Klucz <a href="#key-tiers"><code>tiers</code></a> trzyma to wszystko
 w przedziale od <code>min</code> do <code>max</code>, domyślnie od haiku do opus, a fable działa tylko wtedy, gdy
-wskazuje go <code>max</code>. Planowanie działa na modelu twojej sesji.</p>
+wskazuje go <code>max</code>. Planowanie zostaje poza tym przedziałem: mapa zmiany działa na haiku, autorzy
+zadań na sonnet, <code>plan-judge</code> na opus, a rama dużego planu na modelu twojej sesji.</p>
 
 <h3 class="sub" id="hw-close"><span lang="en">What the build close writes</span><span lang="pl">Co zapisuje zamknięcie buildu</span><a class="self" href="#hw-close">#</a></h3>
 <p lang="en">Once the fast tests and the change's integration tests pass, or the arbiter accepts their failure, the
@@ -1737,11 +1748,12 @@ uruchamia te części zamknięcia, które włączają twoje przełączniki:</p>
   <a href="#skill-extension"><code>/viber:extension</code></a> tworzy i rejestruje takiego agenta;</span></li>
   <li><span lang="en"><a href="#key-build-cleanup"><code>build.cleanup</code></a>: <a href="#agent-closeout"><code>closeout</code></a>
   notes on the specification what the build delivered beyond it, records every file the build left uncommitted
-  with its reason, commits those left without a deliberate reason, then archives the run. An aborted build
-  skips this part.</span><span lang="pl"><a href="#key-build-cleanup"><code>build.cleanup</code></a>:
+  with its reason, commits those left without a deliberate reason, has the list of notes and rulings written into
+  <code>outcome.md</code>, then archives the run. An aborted build skips this part.</span><span lang="pl"><a href="#key-build-cleanup"><code>build.cleanup</code></a>:
   <a href="#agent-closeout"><code>closeout</code></a> odnotowuje w specyfikacji to, co build dostarczył ponad
   nią, zapisuje każdy plik, który build zostawił niezacommitowany, z powodem, commituje te zostawione bez
-  celowego powodu, a potem archiwizuje przebieg. Przerwany build pomija tę część.</span></li>
+  celowego powodu, zleca zapisanie listy notatek i rozstrzygnięć w <code>outcome.md</code>, a potem archiwizuje
+  przebieg. Przerwany build pomija tę część.</span></li>
 </ul>
 <p lang="en">The build composes a short summary: the tasks committed, the review rounds spent, the test verdict,
 the time it took, what memory, rules and QA recorded, the archive path when the run is archived, and anything left for you, such as an
@@ -1750,14 +1762,14 @@ tasks committed, the test verdict and the time, then the path of <code>outcome.m
 whether <code>outcome.md</code> records a problem, plus, when a further phase is left, a sentence telling you
 to continue the work and then the <code>/viber:intent</code> command for that phase, and the full summary sits
 in <code>outcome.md</code> in the archive, with one <code>tokens:</code> line per agent role and model (input, output,
-cache read and cache write counts); the main session and the <code>closeout</code> agent are not counted. The summary also names the <code>rounds:</code> line (the plan review rounds), the <code>attempts:</code> line (every task that needed more than one attempt, with its count) and the <code>arbiter:</code> line (the number of rulings). When nothing is archived, the full summary prints on screen.</p>
+cache read and cache write counts); the main session and the <code>closeout</code> agent are not counted. The summary also names the <code>rounds:</code> line (the plan review rounds), the <code>attempts:</code> line (every task that needed more than one attempt, with its count) and the <code>arbiter:</code> line (the number of rulings), and one <code>refused:</code> line per path a task commit refused because another task claims it. When nothing is archived, the full summary prints on screen.</p>
 <p lang="pl">Build składa krótkie podsumowanie: zacommitowane zadania, zużyte rundy recenzji, wynik testów,
 czas trwania, to, co zapisały pamięć, reguły i QA, ścieżka archiwum, gdy przebieg trafia do archiwum, oraz wszystko, co zostaje dla ciebie, na
 przykład zadanie bez recenzji albo zmienione pliki, do których nie przyznało się żadne zadanie. Gdy przebieg trafia
 do archiwum, ekran pokazuje tylko krótki wynik (zacommitowane zadania, wynik testów i czas, potem ścieżkę
 <code>outcome.md</code>) i jedno zdanie, czy <code>outcome.md</code> zapisuje problem, a gdy zostaje kolejna faza, także zdanie każące kontynuować pracę i polecenie <code>/viber:intent</code>, które ją
 zaczyna; pełne podsumowanie leży w <code>outcome.md</code> w archiwum, z jedną linią <code>tokens:</code> na rolę agenta i model
-(liczby tokenów wejścia, wyjścia, odczytu i zapisu cache); sesja główna i agent <code>closeout</code> nie są liczone. Podsumowanie wskazuje też linię <code>rounds:</code> (rundy recenzji planu), linię <code>attempts:</code> (każde zadanie, które potrzebowało więcej niż jednej próby, z jej liczbą) i linię <code>arbiter:</code> (liczbę rozstrzygnięć). Gdy nic nie trafia do
+(liczby tokenów wejścia, wyjścia, odczytu i zapisu cache); sesja główna i agent <code>closeout</code> nie są liczone. Podsumowanie wskazuje też linię <code>rounds:</code> (rundy recenzji planu), linię <code>attempts:</code> (każde zadanie, które potrzebowało więcej niż jednej próby, z jej liczbą) i linię <code>arbiter:</code> (liczbę rozstrzygnięć) oraz jedną linię <code>refused:</code> na każdą ścieżkę, której commit zadania odmówił, bo przyznaje się do niej inne zadanie. Gdy nic nie trafia do
 archiwum, pełne podsumowanie pojawia się na ekranie.</p>
 <p lang="en">With <a href="#key-build-final-review"><code>build.final-review</code></a> on, the summary lists each finding
 of the final review with what was wrong and what the fix changed, followed by any findings left for you, the
@@ -1767,6 +1779,16 @@ as in <code>rulings.md</code>.</p>
 każdą uwagę recenzji końcowej wraz z tym, co było nie tak i co zmieniła poprawka, a po nich uwagi zostawione dla
 ciebie, właściciela. Po nim idzie lista rozstrzygnięć buildu, każde z uzasadnieniem i kosztem pomyłki, te same
 linie co w <code>rulings.md</code>.</p>
+<p lang="en">In the archive, <code>outcome.md</code> also holds one list under <code>## Notes and rulings</code>: every
+open critical problem of the plan, every note of the plan review with what its coder did with it, every ruling with
+its cost if wrong, every path a task commit refused because another task claims it, and every pair of tasks the
+build put in sequence. After a build you read that list, not the plan. A build with none of these has no such
+list.</p>
+<p lang="pl">W archiwum <code>outcome.md</code> zawiera też jedną listę pod <code>## Notes and rulings</code>: każdy
+otwarty problem krytyczny planu, każdą notatkę z recenzji planu z tym, co zrobił z nią wykonawca, każde
+rozstrzygnięcie z kosztem pomyłki, każdą ścieżkę, której commit zadania odmówił, bo przyznaje się do niej inne
+zadanie, i każdą parę zadań, którą build ustawił jedno po drugim. Po buildzie czytasz tę listę, nie plan. Build
+bez żadnej z tych pozycji nie ma takiej listy.</p>
 </section>
 
 <section data-search id="troubleshooting">
@@ -1774,18 +1796,20 @@ linie co w <code>rulings.md</code>.</p>
 <div class="faq">
 <details id="ts-plan-mode">
   <summary><span lang="en">Why can't Claude leave plan mode?</span><span lang="pl">Dlaczego Claude nie może wyjść z trybu planowania?</span></summary>
-  <p lang="en">The <a href="#term-plan-gate">plan gate</a> holds it there until a review agent passes the latest
-  version of the plan. Claude gets the next step along with the refusal and normally carries it out on its own:
-  it runs the review, fixes the findings, or has the plan reviewed again after an edit. You step in only when
-  the reviewer was refused a tool call: allow that call when Claude asks. A plan past 12 tasks needs every
-  reviewer of its review set to pass, and a plan written outside the planner needs a pass of
-  <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a>, whatever number of files it names.</p>
-  <p lang="pl">Trzyma go tam <a href="#term-plan-gate">bramka planu</a>, dopóki agent recenzujący nie zaakceptuje
-  najnowszej wersji planu. Razem z odmową Claude dostaje następny krok i zwykle wykonuje go sam: uruchamia
-  recenzję, poprawia uwagi albo po zmianie zleca recenzję jeszcze raz. Ty wkraczasz tylko wtedy, gdy recenzentowi
-  odmówiono wywołania narzędzia: zezwól na nie, gdy Claude poprosi. Plan powyżej 12 zadań wymaga akceptacji
-  każdego recenzenta swojego zestawu, a plan napisany poza planistą wymaga akceptacji
-  <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a>, niezależnie od liczby wskazanych plików.</p>
+  <p lang="en">The <a href="#term-plan-gate">plan gate</a> holds it there until a review agent has read the plan
+  and a failed review has been answered. Claude gets the next step along with the refusal and normally carries it
+  out on its own: it runs the review or fixes what the review found. You step in only when the reviewer was refused
+  a tool call in the first round: allow that call when Claude asks. The review runs at most two rounds; after the
+  second, what is left is listed in the plan under <code>## Open items</code> and plan mode can end. A plan written
+  outside the planner is read by <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a> under the
+  same rules, whatever number of files it names.</p>
+  <p lang="pl">Trzyma go tam <a href="#term-plan-gate">bramka planu</a>, dopóki agent recenzujący nie przeczyta planu,
+  a na odrzucenie nie odpowie poprawka. Razem z odmową Claude dostaje następny krok i zwykle wykonuje go sam:
+  uruchamia recenzję albo poprawia to, co recenzja znalazła. Ty wkraczasz tylko wtedy, gdy recenzentowi odmówiono
+  wywołania narzędzia w pierwszej rundzie: zezwól na nie, gdy Claude poprosi. Recenzja ma najwyżej dwie rundy; po
+  drugiej to, co zostało, trafia do planu pod <code>## Open items</code> i tryb planowania może się skończyć. Plan
+  napisany poza planistą czyta <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a> według tych
+  samych zasad, niezależnie od liczby wskazanych plików.</p>
 </details>
 <details id="ts-no-code">
   <summary><span lang="en">Why does Claude write a plan instead of changing the code?</span><span lang="pl">Dlaczego Claude pisze plan, zamiast zmienić kod?</span></summary>
@@ -2046,9 +2070,9 @@ każdą ustawioną przez ciebie wartość.</p>
   </div>
   <div id="term-plan-gate">
     <dt><span lang="en">plan gate</span><span lang="pl">bramka planu</span></dt>
-    <dd><span lang="en">The hook that keeps Claude in plan mode until a review agent passes the latest version of
-    the plan.</span><span lang="pl">Hook, który trzyma Claude w trybie planowania, dopóki agent recenzujący nie
-    zaakceptuje najnowszej wersji planu.</span></dd>
+    <dd><span lang="en">The hook that keeps Claude in plan mode until a review agent has read the plan and a
+    failed review has been answered.</span><span lang="pl">Hook, który trzyma Claude w trybie planowania, dopóki
+    agent recenzujący nie przeczyta planu, a na odrzucenie nie odpowie poprawka.</span></dd>
   </div>
   <div id="term-plan-mode">
     <dt><span lang="en">plan mode</span><span lang="pl">tryb planowania</span></dt>
@@ -2522,47 +2546,55 @@ z nich mówi, jak nim sterować.</p>
   contracts, verification and definition of done. Its agents read your code and write the plan, each into a
   file of its own that a script puts together, so neither the code nor the plan text passes through your
   session's context. The <a href="#agent-plan-surveyor"><code>plan-surveyor</code></a> agent maps the change
-  first: the files it touches and an estimate of the tasks. When that map passes 30 tasks or 60 files, the
-  planner asks whether to split the change through the interview or keep one plan, and it asks every
-  decision its exploration finds that the interview left open. The
-  <a href="#agent-plan-architect"><code>plan-architect</code></a> agent then writes the plan; for a change
-  past 8 tasks it writes a skeleton, and <a href="#agent-plan-detailer"><code>plan-detailer</code></a> agents
-  fill in how each task is verified and when it is done, in parallel on slices of at most 8 tasks.
-  The <a href="#agent-planner-review"><code>planner-review</code></a>
-  agent reviews the plan against your code, and plan mode can be left only after it passes; a plan past 12 tasks
-  goes to the <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
-  <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
-  <a href="#agent-planner-task-review"><code>planner-task-review</code></a> reviewers at once, and all of them
-  must pass. After each review round you see one line per reviewer: its verdict and the number of its
-  findings. The <a href="#agent-plan-fixer"><code>plan-fixer</code></a> agent writes the fixes, and only the
-  reviewers that failed and those whose part of the plan changed read it again. Before the plan is written,
+  first, by search alone: its areas, the files it touches and an estimate of the tasks. When that map passes
+  30 tasks or 60 files, the planner asks whether to split the change through the interview or keep one plan,
+  and it asks every decision its exploration finds that the interview left open. A script cuts the map into
+  slices, each small enough for one agent to read once: at most 8 estimated tasks and 200000 bytes of files.
+  A change that fits one slice goes to one <a href="#agent-plan-author"><code>plan-author</code></a> agent,
+  which writes the whole plan; a larger change gets a frame from the
+  <a href="#agent-plan-architect"><code>plan-architect</code></a> agent, the specification and the contracts
+  its slices share, and one <a href="#agent-plan-author"><code>plan-author</code></a> per slice writes its
+  tasks, in parallel, each keeping notes of the code facts it relied on. A script assembles the plan: it
+  numbers the tasks, computes their order from the files they list and the contracts they use, and checks
+  that every acceptance criterion is covered and every file referring to the change has a place.
+  The <a href="#agent-plan-judge"><code>plan-judge</code></a>
+  agent reviews the plan against the summary you confirmed, in at most two rounds, and reports critical
+  problems only; after each round you see one line: its verdict and the number of its critical problems and
+  notes. The author of the text a problem names writes the fix from its notes, without reading the code
+  again. Everything else is a note, and what is left after the second round is listed in the plan under
+  <code>## Open items</code>, which you see before you approve the plan; no review finding asks you a
+  question. Before the plan is written,
   the planner searches your code for every reference to what the change
-  modifies, moves or deletes, and every file that lists, counts or links a file it adds; the plan adds
-  nothing the interview left unsettled. A review finding showing the plan changes a behaviour your code
-  has today, unasked, gets fixed even when it is only Minor.</p>
+  modifies, moves or deletes, and for the places that list or count the files beside one it adds; the plan adds
+  nothing the interview left unsettled.</p>
   <p lang="pl">Czyta plik z podsumowaniem wywiadu albo przyjmuje diagnozę z <a href="#skill-fixer"><code>fixer</code></a>,
   sam wybiera kształt specyfikacji i zamienia dane wejściowe w plan,
   w trybie planowania Claude Code: kryteria akceptacji, mapę plików, a potem zadania z zależnościami,
   kontraktami, weryfikacją i definicją ukończenia. Jego agenci czytają twój kod i piszą plan, każdy do
   własnego pliku, a skrypt składa te pliki w całość, więc ani kod, ani treść planu nie przechodzą przez
   kontekst twojej sesji. Agent <a href="#agent-plan-surveyor"><code>plan-surveyor</code></a> najpierw mapuje
-  zmianę: pliki, których ona dotyka, i szacunkową liczbę zadań. Gdy ta mapa przekroczy 30 zadań lub 60 plików,
-  planner pyta, czy podzielić zmianę przez wywiad, czy zostawić jeden plan, i pyta o każdą
-  decyzję, którą znajdzie w swoim badaniu, a której wywiad nie rozstrzygnął. Potem agent
-  <a href="#agent-plan-architect"><code>plan-architect</code></a> pisze plan; przy zmianie powyżej 8 zadań
-  pisze szkielet, a agenci <a href="#agent-plan-detailer"><code>plan-detailer</code></a> uzupełniają, jak
-  każde zadanie jest weryfikowane i kiedy jest ukończone, równolegle, w porcjach po najwyżej 8 zadań.
-  Agent <a href="#agent-planner-review"><code>planner-review</code></a>
-  sprawdza plan na twoim kodzie, a wyjść z trybu planowania można dopiero po jego akceptacji; plan powyżej
-  12 zadań trafia jednocześnie do recenzentów <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
-  <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> i
-  <a href="#agent-planner-task-review"><code>planner-task-review</code></a>, a przejść muszą wszyscy. Po każdej
-  rundzie recenzji widzisz po jednym wierszu na recenzenta: jego werdykt i liczbę jego uwag. Agent
-  <a href="#agent-plan-fixer"><code>plan-fixer</code></a> pisze poprawki, a plan czytają ponownie tylko ci
-  recenzenci, którzy go odrzucili, oraz ci, których część planu się zmieniła. Zanim plan powstanie, planner
+  zmianę, samym wyszukiwaniem: jej obszary, pliki, których ona dotyka, i szacunkową liczbę zadań. Gdy ta mapa
+  przekroczy 30 zadań lub 60 plików, planner pyta, czy podzielić zmianę przez wywiad, czy zostawić jeden plan,
+  i pyta o każdą decyzję, którą znajdzie w swoim badaniu, a której wywiad nie rozstrzygnął. Skrypt tnie mapę
+  na porcje, każdą na tyle małą, żeby jeden agent przeczytał ją raz: najwyżej 8 szacowanych zadań i 200000
+  bajtów plików. Zmiana, która mieści się w jednej porcji, trafia do jednego agenta
+  <a href="#agent-plan-author"><code>plan-author</code></a>, który pisze cały plan; większa zmiana dostaje
+  ramę od agenta <a href="#agent-plan-architect"><code>plan-architect</code></a>, czyli specyfikację
+  i kontrakty wspólne dla jej porcji, a po jednym agencie
+  <a href="#agent-plan-author"><code>plan-author</code></a> na porcję pisze jej zadania, równolegle, i notuje
+  fakty z kodu, na których się oparł. Skrypt składa plan: numeruje zadania, wylicza ich kolejność z plików,
+  które wymieniają, i kontraktów, których używają, oraz sprawdza, że każde kryterium akceptacji jest pokryte,
+  a każdy plik odwołujący się do zmiany ma swoje miejsce.
+  Agent <a href="#agent-plan-judge"><code>plan-judge</code></a>
+  recenzuje plan względem potwierdzonego przez ciebie podsumowania, najwyżej w dwóch rundach, i zgłasza tylko
+  problemy krytyczne; po każdej rundzie widzisz jeden wiersz: jego werdykt oraz liczbę jego problemów
+  krytycznych i notatek. Poprawkę pisze autor tekstu, którego dotyczy problem, ze swoich notatek, bez
+  ponownego czytania kodu. Wszystko inne jest notatką, a to, co zostaje po drugiej rundzie, trafia do planu
+  pod <code>## Open items</code>, które widzisz, zanim zatwierdzisz plan; żadna uwaga z recenzji nie zadaje
+  ci pytania. Zanim plan powstanie, planner
   znajduje w twoim kodzie każde odwołanie do tego, co zmiana
-  zmienia, przenosi lub usuwa, oraz każdy plik, który wylicza, zlicza lub linkuje plik dodawany przez
-  zmianę; plan nie dodaje niczego, czego wywiad nie rozstrzygnął. Uwagę z przeglądu, która pokazuje, że plan bez prośby zmienia dzisiejsze zachowanie kodu, planner poprawia nawet jako Minor.</p>
+  zmienia, przenosi lub usuwa, oraz miejsca, które wyliczają lub zliczają pliki obok pliku dodawanego przez
+  zmianę; plan nie dodaje niczego, czego wywiad nie rozstrzygnął.</p>
   <dl>
     <div>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
@@ -2609,11 +2641,14 @@ z nich mówi, jak nim sterować.</p>
   <h4><code>implementor</code> <span class="tag auto"><span lang="en">starts on its own</span><span lang="pl">startuje sam</span></span></h4>
   <p lang="en">Builds an approved plan task by task. It copies the plan into its run directory, splits it into
   one file per task, sends each task to <a href="#agent-task-coder"><code>task-coder</code></a> and, where a review
-  is due, to <a href="#agent-task-reviewer"><code>task-reviewer</code></a>, and commits each task on its own.</p>
+  is due, to <a href="#agent-task-reviewer"><code>task-reviewer</code></a>, and commits each task on its own. A
+  script names the tasks ready to run, a hook keeps each coder out of the files other unfinished tasks claim, and a
+  task that needs such a file waits for the task holding it.</p>
   <p lang="pl">Buduje zatwierdzony plan zadanie po zadaniu. Kopiuje plan do katalogu przebiegu, dzieli go na
   osobny plik dla każdego zadania, każde zadanie zleca <a href="#agent-task-coder"><code>task-coder</code></a>,
   a gdy należy się recenzja, także <a href="#agent-task-reviewer"><code>task-reviewer</code></a>, i każde commituje
-  osobno.</p>
+  osobno. Skrypt wskazuje zadania gotowe do startu, hook nie dopuszcza wykonawcy do plików, do których przyznają
+  się inne nieukończone zadania, a zadanie, które takiego pliku potrzebuje, czeka na zadanie, które go trzyma.</p>
   <p lang="en">Then, with <a href="#key-build-final-review"><code>build.final-review</code></a> on,
   <a href="#agent-final-reviewer"><code>final-reviewer</code></a> reviews the whole build, a coder fixes what it
   finds and a reviewer rechecks the fix, before it runs the fast tests, the integration tests the change reaches and the close parts your switches
@@ -3354,43 +3389,31 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
 
 <h4><span lang="en">Planning</span><span lang="pl">Planowanie</span></h4>
 <ul class="agents">
-  <li id="agent-planner-review"><code>planner-review</code> <span lang="en">reviews a
-  <a href="#skill-planner"><code>planner</code></a> plan and returns pass or fail with blocking
-  findings.</span><span lang="pl">recenzuje plan z <a href="#skill-planner"><code>planner</code></a> i zwraca
-  akceptację albo odrzucenie z blokującymi uwagami.</span></li>
-  <li id="agent-planner-spec-review"><code>planner-spec-review</code> <span lang="en">reviews the specification half of
-  a plan past 12 tasks, beside <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
-  <a href="#agent-planner-task-review"><code>planner-task-review</code></a>.</span><span lang="pl">recenzuje część
-  specyfikacyjną planu powyżej 12 zadań, obok <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a>
-  i <a href="#agent-planner-task-review"><code>planner-task-review</code></a>.</span></li>
-  <li id="agent-planner-graph-review"><code>planner-graph-review</code> <span lang="en">reviews the task graph of a plan
-  past 12 tasks: dependencies and task boundaries.</span><span lang="pl">recenzuje graf zadań planu powyżej 12
-  zadań: zależności i granice zadań.</span></li>
-  <li id="agent-planner-task-review"><code>planner-task-review</code> <span lang="en">reviews one slice of at most 8
-  tasks of a plan past 12 tasks, one reviewer per slice, working in parallel.</span><span lang="pl">recenzuje jedną
-  porcję, najwyżej 8 zadań, planu powyżej 12 zadań, po jednym recenzencie na porcję, równolegle.</span></li>
+  <li id="agent-plan-judge"><code>plan-judge</code> <span lang="en">judges a
+  <a href="#skill-planner"><code>planner</code></a> plan against the summary you confirmed, in at most two rounds,
+  and returns pass or fail with its critical problems, everything else as notes.</span><span lang="pl">ocenia plan
+  z <a href="#skill-planner"><code>planner</code></a> względem potwierdzonego podsumowania, najwyżej w dwóch rundach,
+  i zwraca akceptację albo odrzucenie z problemami krytycznymi, a resztę jako notatki.</span></li>
   <li id="agent-outside-plan-review"><code>outside-plan-review</code> <span lang="en">reviews a plan written outside the
   planner, with no file limit, when <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> is
-  on.</span><span lang="pl">recenzuje plan napisany poza planistą, bez limitu plików, gdy
-  <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> jest włączony.</span></li>
-  <li id="agent-plan-surveyor"><code>plan-surveyor</code> <span lang="en">maps a change before its plan is
-  written: the files it touches, an estimate of the tasks, the decisions that belong to you and, for a change
-  past 30 tasks or 60 files, the phases to split it into.</span><span lang="pl">mapuje zmianę, zanim powstanie
+  on: at most twice, returning pass or fail with its critical problems, everything else as notes.</span><span lang="pl">recenzuje plan napisany poza planistą, bez limitu plików, gdy
+  <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> jest włączony: najwyżej dwa razy,
+  zwracając akceptację albo odrzucenie z problemami krytycznymi, a resztę jako notatki.</span></li>
+  <li id="agent-plan-surveyor"><code>plan-surveyor</code> <span lang="en">maps a change by search before its
+  plan is written: the files it touches, an estimate of the tasks, the decisions that belong to you and, for a
+  change past 30 tasks or 60 files, the phases to split it into.</span><span lang="pl">mapuje zmianę samym wyszukiwaniem, zanim powstanie
   jej plan: pliki, których zmiana dotyka, szacunkową liczbę zadań, decyzje należące do ciebie, a przy zmianie
   powyżej 30 zadań lub 60 plików także fazy, na które można ją podzielić.</span></li>
-  <li id="agent-plan-architect"><code>plan-architect</code> <span lang="en">writes the plan from that map and the
-  code the change reaches: the whole plan, or for a change past 8 tasks its skeleton, together with a log of
-  the decisions the plan rests on.</span><span lang="pl">pisze plan na podstawie tej mapy i kodu, którego
-  dotyczy zmiana: cały plan albo, przy zmianie powyżej 8 zadań, jego szkielet, razem z dziennikiem decyzji,
-  na których plan się opiera.</span></li>
-  <li id="agent-plan-detailer"><code>plan-detailer</code> <span lang="en">fills in one slice of at most 8 tasks
-  of a plan skeleton: how each task is verified and when it is done. One agent per slice, working in
-  parallel.</span><span lang="pl">uzupełnia jedną porcję, najwyżej 8 zadań, szkieletu planu: jak każde zadanie
-  jest weryfikowane i kiedy jest ukończone. Po jednym agencie na porcję, równolegle.</span></li>
-  <li id="agent-plan-fixer"><code>plan-fixer</code> <span lang="en">writes the edits a plan needs after its
-  scripted check, a review, an accepted decision record or your own change; a script applies them to the
-  plan.</span><span lang="pl">pisze poprawki, których plan wymaga po kontroli skryptu, po recenzji, po przyjęciu
-  rekordu decyzji albo po twojej własnej zmianie; skrypt nanosi je na plan.</span></li>
+  <li id="agent-plan-architect"><code>plan-architect</code> <span lang="en">writes the frame of a larger plan
+  from that map: the specification, the contracts its slices share and a log of the decisions the plan rests
+  on.</span><span lang="pl">pisze ramę większego planu na podstawie tej mapy: specyfikację, kontrakty wspólne
+  dla jego porcji i dziennik decyzji, na których plan się opiera.</span></li>
+  <li id="agent-plan-author"><code>plan-author</code> <span lang="en">writes the tasks of one slice of a plan
+  from the code they touch, or the whole plan of a smaller change, and fixes that text when the review or the
+  scripted check finds a problem in it. One agent per slice, working in parallel.</span><span lang="pl">pisze
+  zadania jednej porcji planu na podstawie kodu, którego dotyczą, albo cały plan mniejszej zmiany, i poprawia
+  ten tekst, gdy recenzja lub kontrola skryptu znajdzie w nim problem. Po jednym agencie na porcję,
+  równolegle.</span></li>
   <li id="agent-adr-screener"><code>adr-screener</code> <span lang="en">screens the decisions of a plan against a
   strict admission test and names the architecture decision records worth writing.</span><span lang="pl">sprawdza decyzje planu względem ścisłego testu przyjęcia i wskazuje rekordy
   decyzji architektonicznych warte zapisania.</span></li>
@@ -3399,17 +3422,24 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
 <h4><span lang="en">Build</span><span lang="pl">Build</span></h4>
 <ul class="agents">
   <li id="agent-task-coder"><code>task-coder</code> <span lang="en">implements one task, or fixes one review or
-  test report, and proves it green.</span><span lang="pl">realizuje jedno zadanie albo poprawia jeden raport
-  z recenzji lub testów i dowodzi, że wszystko przechodzi.</span></li>
+  test report, and proves it green. It answers each note of the plan review in its task file with one line, and
+  when a hook refuses its edit of a file another unfinished task claims, it finishes the rest and waits for that
+  task.</span><span lang="pl">realizuje jedno zadanie albo poprawia jeden raport
+  z recenzji lub testów i dowodzi, że wszystko przechodzi. Na każdą notatkę z recenzji planu w pliku swojego
+  zadania odpowiada jedną linią, a gdy hook odmówi mu zmiany pliku, do którego przyznaje się inne nieukończone
+  zadanie, kończy resztę i czeka na tamto zadanie.</span></li>
   <li id="agent-task-reviewer"><code>task-reviewer</code> <span lang="en">gates one finished task against its
-  definition of done and writes a findings report when it fails.</span><span lang="pl">sprawdza jedno ukończone
-  zadanie względem jego definicji ukończenia i przy odrzuceniu pisze raport z uwagami.</span></li>
+  definition of done and writes a findings report when it fails. A note of the plan review fails the task only
+  where handling it broke the definition of done or a contract.</span><span lang="pl">sprawdza jedno ukończone
+  zadanie względem jego definicji ukończenia i przy odrzuceniu pisze raport z uwagami. Notatka z recenzji planu
+  odrzuca zadanie tylko wtedy, gdy jej obsłużenie złamało definicję ukończenia albo kontrakt.</span></li>
   <li id="agent-final-reviewer"><code>final-reviewer</code> <span lang="en">reviews one slice of the whole
   build past the diff of its own tasks, once every task is committed, or rechecks the fix of its findings, when
-  <a href="#key-build-final-review"><code>build.final-review</code></a> is on.</span><span lang="pl">recenzuje jeden
+  <a href="#key-build-final-review"><code>build.final-review</code></a> is on. It checks what a note of the plan
+  review warns about when no coder acted on that note.</span><span lang="pl">recenzuje jeden
   wycinek całego builda poza diffem własnych zadań, gdy każde zadanie jest już zatwierdzone, albo ponownie
   sprawdza poprawkę swoich uwag, gdy <a href="#key-build-final-review"><code>build.final-review</code></a> jest
-  włączony.</span></li>
+  włączony. Sprawdza to, przed czym ostrzega notatka z recenzji planu, gdy żaden wykonawca się nią nie zajął.</span></li>
   <li id="agent-test-runner"><code>test-runner</code> <span lang="en">runs the project's build, its fast tests
   and the integration tests the change reaches once and returns a verdict, keeping the log out of the conversation. With
   <a href="#key-build-baseline-tests"><code>build.baseline-tests</code></a> set to <code>fast</code> or <code>full</code>, it also runs a baseline before the first task,
@@ -3449,10 +3479,10 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
   <a href="#key-build-qa"><code>build.qa</code></a> jest włączony.</span></li>
   <li id="agent-closeout"><code>closeout</code> <span lang="en">notes on the specification what the build
   delivered beyond it, commits the files the build left uncommitted without a deliberate reason, writes the build
-  summary to <code>outcome.md</code> with every file left uncommitted and its reason, then archives the run, when <a href="#key-build-cleanup"><code>build.cleanup</code></a> is
+  summary to <code>outcome.md</code> with every file left uncommitted and its reason and with the list of what happened to every plan note and ruling, then archives the run, when <a href="#key-build-cleanup"><code>build.cleanup</code></a> is
   on.</span><span lang="pl">odnotowuje w specyfikacji to, co build dostarczył ponad nią, commituje pliki zostawione przez build
   niezacommitowane bez celowego powodu, zapisuje podsumowanie buildu w <code>outcome.md</code> wraz z każdym
-  niezacommitowanym plikiem i jego powodem, a potem archiwizuje przebieg, gdy <a href="#key-build-cleanup"><code>build.cleanup</code></a> jest włączony.</span></li>
+  niezacommitowanym plikiem i jego powodem oraz z listą tego, co stało się z każdą notatką planu i każdym rozstrzygnięciem, a potem archiwizuje przebieg, gdy <a href="#key-build-cleanup"><code>build.cleanup</code></a> jest włączony.</span></li>
 </ul>
 
 <h4><span lang="en">After a build</span><span lang="pl">Po buildzie</span></h4>
@@ -3577,11 +3607,13 @@ wartość.</p>
   </div>
   <div id="key-planning-outside-plan-review">
     <dt><code>planning.outside-plan-review</code> <span class="tag on"><span lang="en">on</span><span lang="pl">wł.</span></span></dt>
-    <dd><span lang="en">A plan written outside the planner must pass
+    <dd><span lang="en">A plan written outside the planner is reviewed by
     <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a> before plan mode can be left, the same
-    gate the planner's plans get. No limit applies to the number of files such a plan names.</span><span lang="pl">Plan napisany poza planistą
-    musi przejść recenzję <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a>, zanim będzie można
-    wyjść z trybu planowania; plany planisty przechodzą tę samą bramkę. Liczba plików wskazanych w takim planie nie jest ograniczona.</span></dd>
+    gate the planner's plans get: critical problems only, at most two rounds, what is left listed in the plan under
+    <code>## Open items</code>. No limit applies to the number of files such a plan names.</span><span lang="pl">Plan napisany poza planistą
+    recenzuje <a href="#agent-outside-plan-review"><code>outside-plan-review</code></a>, zanim będzie można
+    wyjść z trybu planowania; plany planisty przechodzą tę samą bramkę: tylko problemy krytyczne, najwyżej dwie rundy,
+    a to, co zostaje, trafia do planu pod <code>## Open items</code>. Liczba plików wskazanych w takim planie nie jest ograniczona.</span></dd>
   </div>
   <div id="key-planning-questions-per-round">
     <dt><code>planning.questions-per-round</code> <span class="tag">5</span></dt>
@@ -3804,12 +3836,13 @@ tylko z wnętrza tej grupy: wartość zawierająca ukośnik jest ignorowana i ob
 </dl>
 <p class="note" lang="en">A <code>tiers:</code> group, each value one of <code>haiku</code>, <code>sonnet</code>, <code>opus</code> or <code>fable</code>. Every task,
 review and retry is kept inside that range; fable runs only when the range names it. An unknown
-value falls back to its default and an inverted range to the default one. Planning runs on the
-session's own model and is not bound by it.</p>
+value falls back to its default and an inverted range to the default one. Planning is not bound by
+it: its agents run on fixed models of their own, the frame of a large plan on the session's own model.</p>
 <p class="note" lang="pl">Grupa <code>tiers:</code>, każda wartość to jedna z: <code>haiku</code>, <code>sonnet</code>, <code>opus</code> lub
 <code>fable</code>. Każde zadanie, recenzja i ponowienie mieści się w tym zakresie; fable działa tylko wtedy,
 gdy zakres go wymienia. Nieznana wartość wraca do domyślnej, a odwrócony zakres do zakresu
-domyślnego. Planowanie działa na modelu bieżącej sesji i zakres go nie ogranicza.</p>
+domyślnego. Planowania zakres nie ogranicza: jego agenci działają na własnych, stałych modelach, a rama dużego
+planu na modelu bieżącej sesji.</p>
 
 <h4 id="key-branching"><code>branching</code> <span lang="en">group</span><span lang="pl">grupa</span></h4>
 <dl>

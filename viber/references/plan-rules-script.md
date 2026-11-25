@@ -12,12 +12,10 @@ Every rule `plan-index.sh` rejects, under the section of `plan-rules.md` it belo
 
 ## Graph
 
+`Depends-on` is written `none`; `plan-build.sh` computes it from `Files` and contract use.
+
 - Ids: task ids are `T1`, `T2`, … in order; `plan-index.sh` rejects any other, with `FIX: task <id>: id must be T<k>, the <k>th task block in order - renumber the tasks (Ids)`. (script)
-- Depends: `Depends-on` references lower-numbered tasks only, which keeps the graph acyclic. (script)
-- Minimal: no `Depends-on` entry names a task already reached through another entry of the same line. (script)
-- Read after: a task whose `Verification`, `Delivers` or `DoD` names a file a lower-numbered task's `Files` lists depends on that task, directly or through another, and never names a file the tree does not hold that only a higher-numbered task lists; the `Delivers` of a decision record task (every `Files` path under `docs/adr/`) may name paths other tasks list. `plan-index.sh` rejects each, with `FIX: task <id> reads <path>, listed by <other>, but has no dependency path to <other> - add <other> to its Depends-on` or `FIX: task <id> reads <path>, which only the later task <other> creates - move the reading after <other> (Read after)`. (script)
-- Disjoint: tasks with no dependency path between them never list the same file, since they run at the same time. (script)
-- Leaf: an Exclusive task is never named in another task's `Depends-on` - it runs last, so nothing may depend on it. (script)
+- Read after: no task names in its `Verification`, `Delivers` or `DoD` a file the tree does not hold that only a higher-numbered task lists; the `Delivers` of a decision record task (every `Files` path under `docs/adr/`) may name paths other tasks list. `plan-index.sh` rejects it, with `FIX: task <id> reads <path>, which only the later task <other> creates - move the reading after <other> (Read after)`. (script)
 - Covers: every acceptance criterion is covered by at least one task's `Covers`, and every token there, written `AC<n>`, is an acceptance criterion. (script)
 
 ## Task
@@ -41,4 +39,3 @@ Every rule `plan-index.sh` rejects, under the section of `plan-rules.md` it belo
 - Named: every block is named by at least one task's `Uses`. (script)
 - Homed: every `File:` path is in some task's `Files` unless the tree already holds it. (script)
 - Seen: at least one task holding a block's `File:` path names that block in its `Uses`. (script)
-- Consumed after: a task naming a block in `Uses` depends, directly or transitively, on every lower-numbered task holding that block's `File:` path and naming it in its own `Uses`. (script)

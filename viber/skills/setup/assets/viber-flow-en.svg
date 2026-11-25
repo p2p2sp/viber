@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 2572" width="1640" height="2572" role="img" aria-labelledby="svgTitle svgDesc">
   <title id="svgTitle">viber - from an idea to committed code</title>
-  <desc id="svgDesc">Flow diagram of the viber plugin: one-time setup, the optional UI prototype, the two entries (an idea through the intent interview, which asks in rounds and saves the confirmed summary as a file, a bug through the fixer diagnosis), the planner reading that input, choosing the spec shape and writing the plan, the planner-review agent gating it, the approval gate you pass yourself (a plan written outside the planner is only reviewed, under the planning.outside-plan-review switch), then the implementor building the plan with task-coder, task-reviewer and one commit per task, its tasks in parallel where their dependencies allow, preceded, when build.baseline-tests is fast or full, by a baseline test run recording what already fails. The build closes with the final review, the fast tests plus the change's integration tests, which under build.baseline-tests treats only new failures as repair work, the optional memory, rules and QA writers, the project's own extension agents listed in build.extensions and the closeout that archives the run, followed later by the e2e pass that turns the QA scenarios into Playwright tests.</desc>
+  <desc id="svgDesc">Flow diagram of the viber plugin: one-time setup, the optional UI prototype, the two entries (an idea through the intent interview, which asks in rounds and saves the confirmed summary as a file, a bug through the fixer diagnosis), the planner having agents map the change, frame a large one and write its tasks slice by slice while a script assembles the plan, the plan-judge agent reviewing it for critical problems in at most two rounds, the approval gate you pass yourself (a plan written outside the planner is only reviewed, under the planning.outside-plan-review switch), then the implementor building the plan with task-coder, task-reviewer and one commit per task, its tasks in parallel where their dependencies allow, preceded, when build.baseline-tests is fast or full, by a baseline test run recording what already fails. The build closes with the final review, the fast tests plus the change's integration tests, which under build.baseline-tests treats only new failures as repair work, the optional memory, rules and QA writers, the project's own extension agents listed in build.extensions and the closeout that archives the run, followed later by the e2e pass that turns the QA scenarios into Playwright tests.</desc>
 
   <style>
     :root {
@@ -170,8 +170,8 @@
   <rect x="732" y="786" width="58" height="16" rx="8" class="badge"/>
   <text x="761" y="798" class="badge-t" text-anchor="middle">skill</text>
   <text x="254" y="806" class="mono-t">planner</text>
-  <text x="254" y="832" class="desc">Writes the plan in plan mode, against your actual codebase.</text>
-  <text x="254" y="850" class="desc">Picks the spec shape; every task names its files, dependencies and verification.</text>
+  <text x="254" y="832" class="desc">Maps the change by search; a large one gets a frame: spec and shared contracts.</text>
+  <text x="254" y="850" class="desc">One author per slice writes its tasks from the code; a script assembles them.</text>
   <text x="254" y="872" class="desc-s"><tspan class="sw">planning.adr</tspan> on: adr-screener screens decisions; a record is a task with no dependencies</text>
   <text x="254" y="892" class="desc-s"><tspan class="sw">branching</tspan> on: the plan names the git branch the run works on</text>
   <text x="254" y="912" class="mono">one plan · numbered tasks · acceptance criteria</text>
@@ -182,23 +182,23 @@
   <rect x="230" y="964" width="580" height="88" rx="10" class="node agent"/>
   <rect x="732" y="974" width="58" height="16" rx="8" class="badge"/>
   <text x="761" y="986" class="badge-t" text-anchor="middle">agent</text>
-  <text x="254" y="994" class="mono-t">planner-review</text>
-  <text x="254" y="1016" class="desc">Reads the plan against the codebase before you ever see it.</text>
-  <text x="254" y="1036" class="desc-s">PASS or FAIL - a FAIL sends the plan back for another round</text>
+  <text x="254" y="994" class="mono-t">plan-judge</text>
+  <text x="254" y="1016" class="desc">Judges the plan against the summary you confirmed, before you see it.</text>
+  <text x="254" y="1036" class="desc-s">critical problems only, at most two rounds - the rest become notes and open items</text>
 
   <path d="M810 1008 L832 1008 Q850 1008 850 990 L850 880 Q850 862 832 862 L814 862" class="link l-i" marker-end="url(#ar-i)"/>
   <path d="M810 1008 L832 1008 Q850 1008 850 990 L850 880 Q850 862 832 862 L814 862" class="flow l-i"/>
-  <text x="868" y="925" class="lbl" text-anchor="middle" transform="rotate(-90 868 925)">FAIL → revise</text>
+  <text x="868" y="925" class="lbl" text-anchor="middle" transform="rotate(-90 868 925)">FAIL → fix</text>
 
   <path d="M520 1052 L520 1084" class="link l-a" marker-end="url(#ar-a)"/>
   <path d="M520 1052 L520 1084" class="flow l-a"/>
-  <text x="532" y="1074" class="lbl">PASS</text>
+  <text x="532" y="1074" class="lbl">PASS, or two rounds done</text>
 
   <!-- ============ GATE ============ -->
   <rect x="40" y="1088" width="1560" height="64" rx="32" class="ring-a"/>
   <rect x="44" y="1092" width="1552" height="56" rx="28" fill="var(--amber-bg)" stroke="var(--amber)" stroke-width="1.5"/>
   <text x="820" y="1116" class="title" text-anchor="middle" style="font-size:14.5px">GATE - you approve the plan</text>
-  <text x="820" y="1136" class="desc-s" text-anchor="middle">no code is written before this, except fixer's reproduction test and temporary instrumentation · a plan that failed review cannot leave plan mode · a plan written outside the planner is only reviewed (planning.outside-plan-review)</text>
+  <text x="820" y="1136" class="desc-s" text-anchor="middle">no code is written before this, except fixer's reproduction test and temporary instrumentation · no plan leaves plan mode unreviewed · you see its open items · a plan written outside the planner is only reviewed (planning.outside-plan-review)</text>
 
   <!-- ============ BUILD ============ -->
   <path d="M740 1152 L740 1186" class="link l-b" marker-end="url(#ar-b)"/>
@@ -216,7 +216,7 @@
   <text x="981" y="1290" class="badge-t" text-anchor="middle">skill</text>
   <text x="474" y="1298" class="mono-t">implementor</text>
   <text x="474" y="1324" class="desc">Lands the plan, splits it into task files, never writes code itself.</text>
-  <text x="474" y="1342" class="desc">A task starts only once its dependencies are done.</text>
+  <text x="474" y="1342" class="desc">A script lists the ready tasks: one starts only once its dependencies are done.</text>
   <text x="474" y="1364" class="desc-s">independent ready tasks run side by side, an exclusive task runs alone</text>
   <text x="474" y="1382" class="desc-s"><tspan class="sw">branching</tspan> on: the run works on its own git branch</text>
   <text x="474" y="1404" class="mono">docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/</text>
@@ -253,7 +253,7 @@
   <text x="951" y="1502" class="badge-t" text-anchor="middle">agent</text>
   <text x="504" y="1510" class="mono-t">task-coder</text>
   <text x="504" y="1532" class="desc">Builds one task and proves it green.</text>
-  <text x="504" y="1552" class="desc-s">sees only its own task file, so it cannot drift into another task's files</text>
+  <text x="504" y="1552" class="desc-s">gets only its own task file; a hook keeps it out of other tasks' files</text>
   <text x="504" y="1570" class="desc-s">5 attempts, a repair pass, then the arbiter; rulings go to rulings.md</text>
 
   <path d="M740 1580 L740 1608" class="link l-b" marker-end="url(#ar-b)"/>

@@ -1,6 +1,7 @@
 /*
  * scope.ts - the --extra answer: the paths a coder's extras file names beyond
- * every Files list still open, and the checks of the done tasks they reach.
+ * the Files list of every task neither done nor skipped, and the checks of the
+ * done tasks they reach.
  */
 
 import { drivePath } from "../drive-path.ts";
@@ -22,7 +23,8 @@ function spelled(raw: string, root: string, fs: Pick<Fs, "kind" | "realPath">): 
 /** extras: the text of the task's coder extras file. */
 export function scopeLines(self: Checked, tasks: Checked[], state: RunState, extras: string, root: string, fs: Pick<Fs, "kind" | "realPath">): string[] {
   const paths = [...new Set(linesOf(extras).map((line) => spelled(line, root, fs)))];
-  const claimed = new Set([...self.files, ...tasks.filter(({ task }) => !state.done.has(task.id)).flatMap(({ files }) => files)]);
+  // A skipped task never finishes, so it claims nothing: no coder of its own will own the path.
+  const claimed = new Set([...self.files, ...tasks.filter(({ task }) => !state.done.has(task.id) && !state.skipped.has(task.id)).flatMap(({ files }) => files)]);
   const extra = paths.filter((path) => path !== "" && !path.startsWith(".temp/") && !claimed.has(path));
   if (extra.length === 0) return [];
   const reached = tasks.filter(({ task, files }) => state.done.has(task.id) && files.some((path) => extra.includes(path)));

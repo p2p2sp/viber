@@ -54,6 +54,9 @@
  * uncommitted (the `plan-index.sh` skipped, dirty and orphan lines), commits the
  * unexplained ones under the `--outside` subject with one `Leftover:` line each, and
  * rewrites the leftovers section and the `Drift:` line of the run's `outcome.md`.
+ * Between the two it writes, under `## Notes and rulings`, the lines
+ * `run-notes.sh` beside it prints for the plan (what became of every open item of
+ * the plan review, and every ruling), and no such section when it prints none.
  * Every commit form also carries the run's own trail - the notes and reports
  * under `<run-dir>/work/` - derived from the task id or the round, so a parallel
  * task's notes never ride along and the trail reaches another machine.
@@ -75,6 +78,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { withGitRepo, withTempDir, type GitRepo } from "../harness/tmp.ts";
+import { canDenyRead, denyRead, restoreRead } from "../harness/perms.ts";
+import { runScript } from "../harness/run.ts";
 import {
   run,
   RUN_DIR,
@@ -105,6 +110,9 @@ import {
   readOutcome,
   headSha,
 } from "./commit-task-fixture.ts";
+
+/** The script that lists what a run recorded, the reader of the refused: key. */
+const NOTES_SH = path.resolve(import.meta.dirname, "../../viber/scripts/run-notes.sh");
 
 /** Commits a hand-written plan body verbatim, for a case `planBody`'s task
  *  shape cannot express (a Contracts appendix, prose mentioning the marker). */
@@ -307,19 +315,100 @@ test("an extras path that no other task's extras file lists is staged without a 
   });
 });
 
-test("--with still refuses a path whose owner was skipped (its half-finished files stay uncommitted and visible)", async () => {
+test("--with takes a path whose only other claimant was skipped, names that task on stderr and records no refusal (a skipped task never finishes, so no later commit would ever stage the file)", async () => {
   await withGitRepo(async (repo) => {
     await seed(repo);
     write(repo.dir, STATUS_REL, statusBody(2).replace("skipped: none", "skipped: T2"));
     await repo.git("add", "-A");
     await repo.git("commit", "-m", "T2 skipped");
     write(repo.dir, "src/a.ts", "work\n");
-    write(repo.dir, "src/b.ts", "half-finished\n");
+    write(repo.dir, "src/b.ts", "a defect T1's tests exposed\n");
 
     const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", "src/b.ts"]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stderr, /refused src\/b\.ts - claimed by task T2/);
-    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts"].sort());
+    assert.match(result.stderr, /warning: took src\/b\.ts - claimed by skipped task T2/);
+    assert.doesNotMatch(result.stderr, /refused/);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "src/a.ts", "src/b.ts"].sort());
+    assert.doesNotMatch(readStatus(repo), /^refused:/m);
+  });
+});
+
+test("an extras path that only a skipped task's extras file lists is taken, naming the skipped task", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, STATUS_REL, statusBody(2).replace("skipped: none", "skipped: T2"));
+    write(repo.dir, `${RUN_DIR}/work/T2-extra.md`, "lib/shared.ts\n");
+    await repo.git("add", "-A");
+    await repo.git("commit", "-m", "T2 skipped");
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "lib/shared.ts", "shared\n");
+    write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, "lib/shared.ts\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, /warning: took lib\/shared\.ts - claimed by skipped task T2/);
+    assert.deepEqual(await committedFiles(repo), [STATUS_REL, "lib/shared.ts", "src/a.ts", `${RUN_DIR}/work/T1-extra.md`].sort());
+  });
+});
+
+test("a refused --with path and a refused extras path are recorded as <task-id>:<path> on the refused: key of status.md, in the task's own commit (the warning is gone with the call, the outcome of the run still lists the path)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "src/b.ts", "T2 is writing this\n");
+    write(repo.dir, "lib/shared.ts", "both tasks forced this\n");
+    write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, "lib/shared.ts\n");
+    write(repo.dir, `${RUN_DIR}/work/T2-extra.md`, "lib/shared.ts\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", "./src/b.ts"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(readStatus(repo), /^refused: T1:src\/b\.ts T1:lib\/shared\.ts$/m);
+    assert.match(readStatus(repo), /^done: T1$/m);
+    assert.equal((await repo.git("status", "--porcelain", "--", STATUS_REL)).stdout, "", "the entry rides in the task commit");
+    assert.ok((await committedFiles(repo)).includes(STATUS_REL));
+  });
+});
+
+test("a refused path holding a space is one entry of the refused: key, its space written as %20 and a percent sign as %25, and the outcome list names the whole path (the key is split on spaces: written raw, the path was recorded as two)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "lib/my shared 50%.ts", "both tasks forced this\n");
+    write(repo.dir, `${RUN_DIR}/work/T1-extra.md`, "lib/my shared 50%.ts\n");
+    write(repo.dir, `${RUN_DIR}/work/T2-extra.md`, "lib/my shared 50%.ts\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stderr, /warning: refused lib\/my shared 50%\.ts - claimed by task T2/);
+    assert.match(readStatus(repo), /^refused: T1:lib\/my%20shared%2050%25\.ts$/m);
+
+    const notes = await runScript(NOTES_SH, [PLAN_REL], { cwd: repo.dir, shell: "bash", env: repo.env });
+    assert.equal(notes.status, 0, `stderr: ${notes.stderr}`);
+    assert.match(notes.stdout, /^- refused \| T1 \| lib\/my shared 50%\.ts \| claimed by task T2$/m);
+  });
+});
+
+test("a task commit that refuses no path writes no refused: key (a build with no collision keeps the status.md it had)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/a.ts", "work\n");
+    write(repo.dir, "src/wiring.ts", "nobody claims this\n");
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", "src/wiring.ts"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.doesNotMatch(readStatus(repo), /refused/);
+  });
+});
+
+test("a task commit that stages nothing records no refused path (the entry rides in a commit or is not written)", async () => {
+  await withGitRepo(async (repo) => {
+    await seed(repo);
+    write(repo.dir, "src/b.ts", "T2 is writing this\n");
+    const before = readStatus(repo);
+
+    const result = await run(repo.dir, repo.env, [PLAN_REL, "T1", "--with", "src/b.ts"]);
+    assert.equal(result.status, 4, `stderr: ${result.stderr}`);
+    assert.equal(readStatus(repo), before);
   });
 });
 
@@ -3365,5 +3454,145 @@ test("--leftovers without --drift exits 2 with the usage text", async () => {
     assert.equal(result.status, 2);
     assert.match(result.stderr, /^error: usage: commit-task\.sh/);
     assert.equal(readOutcome(repo), OUTCOME_HEAD);
+  });
+});
+
+// --- --leftovers: the notes and rulings list of run-notes.sh, between the leftovers and the Drift line ---
+
+const OPEN_ITEMS = [
+  "- critical | plan | AC1 - no task covers the reload",
+  "- note | T1 | the handler name differs from the route table",
+  "- note | T3 | the fixture is shared with the billing tests",
+  "- note | plan | the summary leaves the session length open",
+];
+const RULING_ENTRY = `T1: ${RULE_LINE}`;
+
+test("--leftovers writes what run-notes.sh prints for the plan under '## Notes and rulings', between the leftovers section and the Drift line", async () => {
+  await withGitRepo(async (repo) => {
+    await seedLeftovers(repo, { items: OPEN_ITEMS });
+    write(repo.dir, `${RUN_DIR}/work/T1-coder.md`, "N1: renamed the handler to match the table\nA trap: the table is generated.\n");
+    write(repo.dir, RULINGS_REL, `# Rulings\n\n- ${RULING_ENTRY}\n`);
+    write(repo.dir, "src/a.ts", "half done\n");
+
+    const result = await runLeftovers(repo);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "left: 1\n");
+    assert.equal(
+      readOutcome(repo),
+      [
+        "Build summary.",
+        "",
+        "## Leftovers",
+        "src/a.ts: unfinished work of task T1 - left uncommitted",
+        "",
+        "## Notes and rulings",
+        "",
+        "- critical | plan | AC1 - no task covers the reload | open",
+        "- note | T1 | N1 | the handler name differs from the route table | renamed the handler to match the table",
+        "- note | T3 | N1 | the fixture is shared with the billing tests | no coder line",
+        "- note | plan | the summary leaves the session length open | for the user",
+        `- ruling | ${RULING_ENTRY}`,
+        "",
+        "Drift: none",
+        "",
+      ].join("\n"),
+    );
+    assert.deepEqual(await subjects(repo), ["seed"]);
+  });
+});
+
+test("--leftovers lists a path a task commit refused and a pair of tasks put in sequence under '## Notes and rulings', and a rerun writes the two lines once", async () => {
+  await withGitRepo(async (repo) => {
+    await seedLeftovers(repo);
+    fs.appendFileSync(path.join(repo.dir, STATUS_REL), "decision: T3: sequenced after T1: both need src/a.ts\nrefused: T3:src/b.ts\n");
+    const expected = "Build summary.\n\n## Notes and rulings\n\n- refused | T3 | src/b.ts | claimed by task T2\n- sequenced | T3 | after T1 | src/a.ts\n\nDrift: none\n";
+
+    const first = await runLeftovers(repo);
+    assert.equal(first.status, 0, `stderr: ${first.stderr}`);
+    assert.equal(readOutcome(repo), expected);
+
+    const second = await runLeftovers(repo);
+    assert.equal(second.status, 0, `stderr: ${second.stderr}`);
+    assert.equal(readOutcome(repo), expected);
+  });
+});
+
+test("--leftovers run again rebuilds the notes section once from the run as it stands then, with no leftover and with one", async () => {
+  await withGitRepo(async (repo) => {
+    await seedLeftovers(repo, { items: ["- note | T1 | the handler name differs from the route table"] });
+
+    const first = await runLeftovers(repo);
+    assert.equal(first.status, 0, `stderr: ${first.stderr}`);
+    assert.equal(first.stdout, "left: none\n");
+    assert.equal(
+      readOutcome(repo),
+      "Build summary.\n\n## Notes and rulings\n\n- note | T1 | N1 | the handler name differs from the route table | no coder line\n\nDrift: none\n",
+    );
+
+    write(repo.dir, `${RUN_DIR}/work/T1-coder.md`, "N1: renamed the handler\n");
+    const second = await runLeftovers(repo, "2");
+    assert.equal(second.status, 0, `stderr: ${second.stderr}`);
+    assert.equal(
+      readOutcome(repo),
+      "Build summary.\n\n## Notes and rulings\n\n- note | T1 | N1 | the handler name differs from the route table | renamed the handler\n\nDrift: 2\n",
+    );
+
+    write(repo.dir, "src/a.ts", "half done\n");
+    const third = await runLeftovers(repo, "2");
+    assert.equal(third.status, 0, `stderr: ${third.stderr}`);
+    assert.equal(third.stdout, "left: 1\n");
+    assert.equal(
+      readOutcome(repo),
+      [
+        "Build summary.",
+        "",
+        "## Leftovers",
+        "src/a.ts: unfinished work of task T1 - left uncommitted",
+        "",
+        "## Notes and rulings",
+        "",
+        "- note | T1 | N1 | the handler name differs from the route table | renamed the handler",
+        "",
+        "Drift: 2",
+        "",
+      ].join("\n"),
+    );
+  });
+});
+
+test("--leftovers keeps a summary line shaped like a notes line over a rerun when no notes heading stands above it (only its own section is rebuilt)", async () => {
+  await withGitRepo(async (repo) => {
+    const summary = "Build summary.\n- ruling | quoted by the summary itself\n";
+    await seedLeftovers(repo, { outcome: `${summary}\n## Leftovers\n` });
+
+    for (const drift of ["none", "1"]) {
+      const result = await runLeftovers(repo, drift);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(readOutcome(repo), `${summary}\nDrift: ${drift}\n`);
+    }
+  });
+});
+
+test("--leftovers with a plan run-notes.sh cannot read writes the one 'notes list not written' line under the notes heading, exits 0, and a later call replaces it", { skip: !canDenyRead() }, async () => {
+  await withGitRepo(async (repo) => {
+    await seedLeftovers(repo, { items: OPEN_ITEMS });
+    const plan = path.join(repo.dir, PLAN_REL);
+    assert.equal(denyRead(plan), true);
+    try {
+      const result = await runLeftovers(repo);
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.match(
+        readOutcome(repo),
+        /^Build summary\.\n\n## Leftovers\nleftover check not performed: [^\n]+\n\n## Notes and rulings\n\nnotes list not written: error: plan file not found: [^\n]*plan\.md\n\nDrift: none\n$/,
+      );
+    } finally {
+      restoreRead(plan);
+    }
+
+    const again = await runLeftovers(repo);
+    assert.equal(again.status, 0, `stderr: ${again.stderr}`);
+    assert.equal(readOutcome(repo).split("\n").filter((line) => line.startsWith("notes list not written")).length, 0);
+    assert.equal(readOutcome(repo).split("\n").filter((line) => line === "## Notes and rulings").length, 1);
+    assert.match(readOutcome(repo), /^Build summary\.\n\n## Notes and rulings\n\n- critical \| plan \| /);
   });
 });

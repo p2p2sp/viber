@@ -22,16 +22,16 @@ const IMPLEMENTOR = "the file is read on every start and re-read through the who
 const MEMORY = "the file is read on every /viber:memory or /viber:rules run; the mechanical steps live in scripts, so it sits below its count before them (memory skill 2053, memory-auditor 736, rules skill 1848, rules-auditor 1463)";
 const PLANNER = "the file is read on every plan and review round; the cap sits below the 2100 words before the scripted review rounds and the 1800 before the scripted steps of intent, fixer and e2e";
 const REVIEWER = "a plan reviewer reads its whole file on every review round; the cap sits below its count before the scripted plan checks";
-const PLAN_REVIEW = "a plan reviewer reads its whole file on every review round; the cap carries the findings file it writes, its reach, previous and fixes inputs and the (behaviour) marker, and is raised only on purpose";
+const PLAN_JUDGE = "the plan judge reads its whole file on each of the two review rounds, on the top tier; it holds one rule and names no rule file, and is raised only on purpose";
 const PLAN_AGENT = "a planning agent reads its whole file on every dispatch, and its words count against the user's usage limits; raised only on purpose";
 const SKILL = "a skill reads its whole file on every run; the cap sits below its count before the scripted steps";
 const AUDITOR = "the file is read on every audit run; the cap sits below its count before the scripted pipeline";
 const BUDGET = "the text a role reads on a dispatch counts against the user's usage limits; raised only on purpose";
 
 export const rules: RuleInstance[] = [
-  words("implementor-skill", "skills/implementor/SKILL.md", 2837, `${IMPLEMENTOR}; the cap sits below the 2867 words of the cap of part 1 (task loop scripted)`),
+  words("implementor-skill", "skills/implementor/SKILL.md", 2720, `${IMPLEMENTOR}; the cap sits below the 2867 words of the cap of part 1 (task loop scripted)`),
   words("implementor-close", "skills/implementor/parts/close.md", 1312, `${IMPLEMENTOR}; the cap sits below the 1325 words held before the scripted close`),
-  words("closeout", "agents/closeout.md", 914, `${IMPLEMENTOR}; the cap sits below the 1431 words held before the scripted close`),
+  words("closeout", "agents/closeout.md", 922, `${IMPLEMENTOR}; the cap sits below the 1431 words held before the scripted close`),
   words("test-runner", "agents/test-runner.md", 1233, `${IMPLEMENTOR}; the cap sits below the 1257 words held before the scripted close`),
 
   words("memory-skill", "skills/memory/SKILL.md", 1900, MEMORY),
@@ -39,16 +39,12 @@ export const rules: RuleInstance[] = [
   words("rules-skill", "skills/rules/SKILL.md", 1700, MEMORY),
   words("rules-auditor", "agents/rules-auditor.md", 1467, MEMORY),
 
-  words("planner-skill", "skills/planner/SKILL.md", 1531, `${PLANNER}; the code reading and the plan text live in the planning agents (1775 before), and the cap carries the paragraph that keeps the planner on its scripts in plan mode`),
-  words("plan-surveyor", "agents/plan-surveyor.md", 798, PLAN_AGENT),
-  words("plan-architect", "agents/plan-architect.md", 1140, PLAN_AGENT),
-  words("plan-detailer", "agents/plan-detailer.md", 640, `${PLAN_AGENT}; it is dispatched once per slice of 8 tasks`),
-  words("plan-fixer", "agents/plan-fixer.md", 890, `${PLAN_AGENT}; it is dispatched once per fix`),
-  words("planner-review", "agents/planner-review.md", 1172, PLAN_REVIEW),
-  words("planner-spec-review", "agents/planner-spec-review.md", 940, PLAN_REVIEW),
-  words("planner-graph-review", "agents/planner-graph-review.md", 765, PLAN_REVIEW),
-  words("planner-task-review", "agents/planner-task-review.md", 880, PLAN_REVIEW),
-  words("outside-plan-review", "agents/outside-plan-review.md", 470, `${REVIEWER} (490 before)`),
+  words("planner-skill", "skills/planner/SKILL.md", 1511, `${PLANNER}; the code reading and the plan text live in the planning agents (1775 before), and the cap carries the paragraph that keeps the planner on its scripts in plan mode, the rules of the two review rounds and of a change made after them that ask the user nothing, the fix step every owner of a defect answers and a branch for every exit code of plan-build.sh`),
+  words("plan-surveyor", "agents/plan-surveyor.md", 885, `${PLAN_AGENT}; it maps by search alone, on the lowest tier`),
+  words("plan-architect", "agents/plan-architect.md", 1530, `${PLAN_AGENT}; it is dispatched only for a change cut into slices, and the cap carries the fix file of the frame owner`),
+  words("plan-author", "agents/plan-author.md", 1818, `${PLAN_AGENT}; it is dispatched once per slice and once per fix of its text, and the cap carries the whole plan of a change that fits one slice and the fix file of an owner`),
+  words("plan-judge", "agents/plan-judge.md", 499, PLAN_JUDGE),
+  words("outside-plan-review", "agents/outside-plan-review.md", 471, `${REVIEWER} (490 before)`),
 
   words("fixer-skill", "skills/fixer/SKILL.md", 1180, `${SKILL} (1191 before)`),
   words("e2e-skill", "skills/e2e/SKILL.md", 1189, `${SKILL} (1213 before)`),
@@ -69,34 +65,22 @@ export const rules: RuleInstance[] = [
   words("hunter", "agents/hunter.md", 854, `${AUDITOR} (877 before)`),
   words("mapper", "agents/mapper.md", 760, `${AUDITOR} (882 before)`),
 
-  bytes("plan-architect", 42330, [
-    { path: "viber/agents/plan-architect.md" },
-    { path: "viber/references/plan-rules.md" },
-    { path: "viber/references/plan-rules-script.md" },
-    { path: "viber/skills/planner/templates/spec-full.md" },
-    { path: "viber/skills/planner/templates/tasks.md" },
-    { path: TEST_STRATEGY, sections: ["Layers", "Proves", "Ports"] },
-  ], BUDGET),
-  bytes("plan-detailer", 22450, [
-    { path: "viber/agents/plan-detailer.md" },
+  bytes("plan-author", 30806, [
+    { path: "viber/agents/plan-author.md" },
     { path: "viber/references/plan-rules.md", sections: ["Task"] },
     { path: "viber/references/plan-rules-script.md", sections: ["Task"] },
+    { path: "viber/skills/planner/templates/tasks.md" },
     { path: TEST_STRATEGY, sections: ["Layers", "Proves", "Ports"] },
-  ], `${BUDGET}; the set is read once per slice of 8 tasks`),
-  bytes("planner-review", 31223, [
-    { path: "viber/agents/planner-review.md" },
-    { path: "viber/references/plan-rules.md" },
-    { path: TEST_STRATEGY, sections: ["Layers", "Proves", "Ports"] },
-  ], `${BUDGET}; the cap carries the room of the two plan rules a restructuring task and a mechanical change add to plan-rules.md`),
-  bytes("task-coder", 26800, [
+  ], `${BUDGET}; the set is read once per slice of a plan, by the author of that slice`),
+  bytes("task-coder", 27090, [
     { path: "viber/agents/task-coder.md" },
     { path: "viber/references/tdd.md" },
     { path: TEST_STRATEGY },
-  ], BUDGET),
-  bytes("task-reviewer", 18800, [
+  ], `${BUDGET}; the cap carries the note lines of the plan review`),
+  bytes("task-reviewer", 19001, [
     { path: "viber/agents/task-reviewer.md" },
     { path: TEST_STRATEGY, sections: ["Layers", "Proves", "Writing"] },
-  ], `${BUDGET}; the cap carries the room of the red check verdicts a review receives`),
+  ], `${BUDGET}; the cap carries the room of the red check verdicts a review receives; the cap carries the note lines of the plan review`),
   bytes("hunter", 18463, [
     { path: "viber/agents/hunter.md" },
     { path: "viber/skills/code-auditor/references/lenses/tests.md" },

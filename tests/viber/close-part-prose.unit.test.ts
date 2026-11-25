@@ -329,6 +329,18 @@ test("the archived close bullet names no token line, so none prints on screen th
   assert.ok(paragraph.includes("the archived close prints no token line on screen"));
 });
 
+test("a path a task commit refused reaches the final summary of every close through the summary call: step 7 names the lines, run-summary.sh prints them after the rounds line on both of its exits, and the body carries no refused warning of a commit (a close that runs no closeout still shows the path, from script stdout)", () => {
+  assert.ok(stepSevenParagraph("First, in every close").includes("its `elapsed:` line is the clock, the lines after it the token report and the paths task commits refused."));
+  const script = fs.readFileSync(path.resolve(SKILL_DIR, "../../scripts/run-summary.sh"), "utf8");
+  assert.ok(script.includes("#              refused: <task id> | <path> | claimed by task <id>"));
+  // The function, then one call ahead of each exit 0 of the token report.
+  const calls = lines(script).filter((line) => line.trim() === "refused_rows");
+  assert.equal(calls.length, 2);
+  assert.match(script, /\n  rounds\n  refused_rows\n  exit 0\n/);
+  assert.match(script, /\nrounds\nrefused_rows\nexit 0\n/);
+  assert.ok(!SKILL.includes("refused <path>"));
+});
+
 /** The step 7 paragraph carrying the C5 effort lines that follow the token lines. */
 function effortParagraph(): string {
   return stepSevenParagraph("Right after the token lines");

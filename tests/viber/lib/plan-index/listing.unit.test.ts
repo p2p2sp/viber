@@ -1,7 +1,7 @@
 /*
  * listing.unit.test.ts - the index of a sound plan: its rows, the profile lines of
  * --split, the dirty and orphan lines of a work tree an earlier session left, and
- * the review instruction of a fresh plan. The state lines are state.unit.test.ts.
+ * the threshold line of a fresh plan. The state lines are state.unit.test.ts.
  */
 
 import assert from "node:assert/strict";
@@ -13,7 +13,7 @@ const HEAD = "tasks: id | state | tdd | excl | hard | deps | feeds | files | tit
 const owned = (file: string): string[] => ["### C1 - Login endpoint", "", `File: ${file}`, "", "POST /login -> 200"];
 const rowsOf = (lines: string[]): string[] => lines.filter((line) => /^T[0-9]+ \| /.test(line));
 
-test("a fresh plan prints its rows, a verify line per task and the review instruction, a task's exclusivity, hardness and dependencies in its row", () => {
+test("a fresh plan prints its rows and a verify line per task and names no reviewer, a task's exclusivity, hardness and dependencies in its row", () => {
   const plan = planBody([
     { id: "T1", title: "Add the login handler", files: "src/login.ts", hard: "lockout races" },
     { id: "T2", title: "Prove it against a real server", covers: "AC2", uses: "none", deps: "T1", files: "test/login.api.ts", exclusive: "true" },
@@ -29,8 +29,6 @@ test("a fresh plan prints its rows, a verify line per task and the review instru
       "T2 | todo | required | yes | - | T1 | - | test/login.api.ts | Prove it against a real server",
       "verify: T1 | npm test",
       "verify: T2 | npm test",
-      "review: single",
-      "dispatch: viber:planner-review",
     ]),
   );
 });
@@ -122,20 +120,18 @@ for (const [label, plan, state, changed, lines] of TREES) {
 
 /** Independent tasks, each on its own file. */
 const planned = (count: number): string => planBody(Array.from({ length: count }, (_, k) => ({ id: `T${k + 1}`, files: `src/t${k + 1}.ts` })), 1);
-const slices = (...ranges: string[]): string[] => ["review: set", "dispatch: viber:planner-spec-review", "dispatch: viber:planner-graph-review", ...ranges.map((range) => `dispatch: viber:planner-task-review | tasks: ${range}`)];
-const REVIEWS: Array<[number, string[], string[]]> = [
-  [1, [], ["review: single", "dispatch: viber:planner-review"]],
-  [12, [], ["review: single", "dispatch: viber:planner-review"]],
-  [13, [], slices("T1-T7", "T8-T13")],
-  [30, [], slices("T1-T8", "T9-T16", "T17-T23", "T24-T30")],
-  [31, [], [...slices("T1-T8", "T9-T16", "T17-T24", "T25-T31"), "threshold: 31 tasks, past 30"]],
-  [31, ["--accepted", "0"], [...slices("T1-T8", "T9-T16", "T17-T24", "T25-T31"), "threshold: 31 tasks, past 30"]],
-  [33, ["--accepted", "33"], slices("T1-T7", "T8-T14", "T15-T21", "T22-T27", "T28-T33")],
-  [33, ["--input", "input.md", "--accepted", "34"], slices("T1-T7", "T8-T14", "T15-T21", "T22-T27", "T28-T33")],
-  [36, ["--accepted", "34"], [...slices("T1-T8", "T9-T15", "T16-T22", "T23-T29", "T30-T36"), "threshold: 36 tasks, past 30"]],
+const THRESHOLDS: Array<[number, string[], string[]]> = [
+  [1, [], []],
+  [13, [], []],
+  [30, [], []],
+  [31, [], ["threshold: 31 tasks, past 30"]],
+  [31, ["--accepted", "0"], ["threshold: 31 tasks, past 30"]],
+  [33, ["--accepted", "33"], []],
+  [33, ["--input", "input.md", "--accepted", "34"], []],
+  [36, ["--accepted", "34"], ["threshold: 36 tasks, past 30"]],
 ];
-for (const [count, argv, tail] of REVIEWS) {
-  test(`a fresh plan of ${count} tasks${argv.length > 0 ? ` with ${argv.join(" ")}` : ""} ends on the reviewers to dispatch, a threshold line only past the accepted count`, () => {
+for (const [count, argv, tail] of THRESHOLDS) {
+  test(`a fresh plan of ${count} tasks${argv.length > 0 ? ` with ${argv.join(" ")}` : ""} ends on its verify lines, a threshold line only past 30 tasks and past the accepted count, and no review or dispatch line`, () => {
     assert.deepEqual(indexOf(planned(count), argv, { files: { "input.md": "\n" } }).lines.slice(3 + 1 + 2 * count), tail);
   });
 }
@@ -144,7 +140,7 @@ for (const [label, argv, state] of [
   ["a landed plan", [], ["done: none"]],
   ["--split", ["--split"], undefined],
 ] as const) {
-  test(`${label} of 13 tasks prints no review instruction (other scripts parse the index of a landed run)`, () => {
-    assert.deepEqual(labelled(indexOf(planned(13), [...argv], { status: state === undefined ? undefined : [...state] }).lines, "review", "dispatch", "threshold"), []);
+  test(`${label} of 31 tasks prints no threshold line (other scripts parse the index of a landed run)`, () => {
+    assert.deepEqual(labelled(indexOf(planned(31), [...argv], { status: state === undefined ? undefined : [...state] }).lines, "review", "dispatch", "threshold"), []);
   });
 }

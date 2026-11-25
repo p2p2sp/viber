@@ -16,6 +16,11 @@
 # skips. One script serves both so the close makes one call for the two. It assumes
 # no jq: the JSON lines are read with bash and awk.
 #
+# The same call ends on the paths the task commits of the run refused. Every close
+# makes this call, the one that runs no closeout included (an abort, the archive
+# switched off), and the session keeps no warning of a commit: without these lines
+# such a path reached the user through the outcome.md list of the closeout alone.
+#
 # The clock measures the CURRENT SESSION alone. The mark lives in the
 # orchestrator's context and nowhere else: nothing is written, no state file is
 # kept, and `status.md`'s contract is untouched - a run resumed in another
@@ -58,7 +63,9 @@
 #            else `$HOME/.claude/projects`.
 #   reads  : with <run-dir>, the transcripts `*/subagents/agent-<id>.jsonl` under the
 #            projects directory and the `agent-<id>.meta.json` beside each counted one,
-#            and `<run-dir>/plan.md`. Nothing is written.
+#            `<run-dir>/plan.md` and `<run-dir>/status.md`; for a status.md holding a
+#            `refused:` line, what run-notes.sh beside this script reads (its header).
+#            Nothing is written.
 #   stdout : no argument  : "started: <epoch>" (`date +%s`), or "started: unknown"
 #                           when the clock cannot be read.
 #            one argument : "elapsed: <n>h <nn>m <nn>s", "elapsed: <n>m <nn>s" or
@@ -85,10 +92,9 @@
 #            all): never a partial sum. The reason is decided by the build transcripts
 #            alone; the planning rows print after it either way.
 #            The planning rows are the same line for each transcript, wherever and
-#            whenever written (no date cut), whose `agentType` ends in `:planner-review`,
-#            `:planner-spec-review`, `:planner-graph-review`, `:planner-task-review`,
-#            `:adr-screener`, `:plan-surveyor`, `:plan-architect`, `:plan-detailer` or
-#            `:plan-fixer` and whose first line names the `planned:` path of plan.md
+#            whenever written (no date cut), whose `agentType` ends in `:plan-judge`,
+#            `:adr-screener`, `:plan-surveyor`, `:plan-architect` or `:plan-author`
+#            and whose first line names the `planned:` path of plan.md
 #            (the spellings the rounds line accepts): a transcript the
 #            build rows counted is not counted again, one with no readable usage adds no
 #            row, and no `planned:` line or no projects directory means no planning row.
@@ -97,12 +103,21 @@
 #              rounds: plan review unavailable - <reason>
 #            <n> counts the transcripts, wherever and whenever written (the plan is
 #            reviewed before the run key exists), whose `agentType` ends in
-#            `:planner-review` or `:planner-graph-review` and whose first line names
+#            `:plan-judge` (one dispatch per review round) and whose first line names
 #            the path of the `planned:` line of plan.md (forward slashes, or its
 #            backslash spelling, JSON-escaped or not, followed by a character that
 #            cannot continue a path). <reason> is `no projects directory`, `no planned
 #            line in plan.md` (plan.md missing included) or `no review transcript names
 #            the plan`.
+#            After the rounds line, only when `<run-dir>/status.md` holds a `refused:`
+#            line, one line per path a task commit of the run refused, in the order
+#            of that key:
+#              refused: <task id> | <path> | claimed by task <id>
+#            the `- refused | ` lines of run-notes.sh (run through node) without that
+#            prefix, `claimed by another task` when no task lists the path any more;
+#            none for a key reading `none`. When run-notes.sh cannot be run or exits
+#            non-zero (no node, no plan.md), the one line
+#              refused: unavailable - run-notes.sh could not list the paths the refused: key of status.md holds
 #   exit   : 0 with no argument, with one argument (it is called as a `!` preload,
 #            where a non-zero exit aborts the whole skill load) and with a usable
 #            <run-dir>, the token report being `unavailable` when the transcripts
@@ -174,6 +189,10 @@ print_elapsed "$1"
 raw="$2"
 [[ -n "$raw" ]] || usage
 
+# The directory of this script, taken before the cwd moves: a relative invoked
+# path would name nothing from the repository root.
+here="$(CDPATH= cd -- "${0%[/\\]*}" 2>/dev/null && pwd)" || here=""
+
 # A relative argument is relative to the repository root, never to the cwd of the
 # agent that calls this script. Outside a repository the cwd stays.
 if git rev-parse --git-dir >/dev/null 2>&1; then
@@ -242,7 +261,7 @@ rounds() {
       [[ "$meta_text" =~ $role_re && -n "${BASH_REMATCH[1]}" ]] || continue
       role="${BASH_REMATCH[1]}"
       case "$role" in
-        *:planner-review | *:planner-graph-review) ;;
+        *:plan-judge) ;;
         *) continue ;;
       esac
       first=""
@@ -358,7 +377,7 @@ plan_rows() {
     [[ "$meta_text" =~ $role_re && -n "${BASH_REMATCH[1]}" ]] || continue
     role="${BASH_REMATCH[1]}"
     case "$role" in
-      *:planner-review | *:planner-spec-review | *:planner-graph-review | *:planner-task-review | *:adr-screener | *:plan-surveyor | *:plan-architect | *:plan-detailer | *:plan-fixer) ;;
+      *:plan-judge | *:adr-screener | *:plan-surveyor | *:plan-architect | *:plan-author) ;;
       *) continue ;;
     esac
     first=""
@@ -376,10 +395,31 @@ plan_rows() {
   fi
 }
 
+# The paths task commits refused, after the rounds line: one line per entry of
+# the `refused:` key of status.md, as run-notes.sh beside this script lists them
+# (it reads the key back and names who claims each path). A run with no such key
+# starts nothing.
+refused_rows() {
+  local listed="" line=""
+  [[ -r "$abs/status.md" ]] || return 0
+  grep -q '^refused:' "$abs/status.md" 2>/dev/null || return 0
+  if [[ -n "$here" ]] && listed="$(bash "$here/run-notes.sh" "$abs/plan.md" 2>/dev/null)"; then
+    while IFS= read -r line; do
+      line="${line%$'\r'}"
+      case "$line" in
+        "- refused | "*) printf 'refused: %s\n' "${line#- refused | }" ;;
+      esac
+    done <<< "$listed"
+  else
+    echo "refused: unavailable - run-notes.sh could not list the paths the refused: key of status.md holds"
+  fi
+}
+
 unavailable() {
   echo "tokens: unavailable - $1"
   plan_rows
   rounds
+  refused_rows
   exit 0
 }
 
@@ -455,4 +495,5 @@ printf '%s' "$rows" | sum_rows
 plan_rows
 echo "tokens: agents only - the main session and the closeout agent are not counted"
 rounds
+refused_rows
 exit 0

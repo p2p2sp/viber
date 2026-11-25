@@ -1,12 +1,10 @@
 /*
  * plan-gate.critical.test.ts - the critical tier of
  * viber/hooks/scripts/plan-gate.sh: the gate fails open on broken input,
- * denies ExitPlanMode until a current review verdict PASS exists for planner,
- * plain outside-plan-review and large review-set plans, rejects stale or
- * tampered plans, reads a plan-build.sh write as a plan write, keeps a PASS
- * across a fix write only for the members that did not fail, keeps a PASS on a
- * `sum:` line only while its part of the plan is unchanged, and arms on Windows
- * backslash paths.
+ * denies ExitPlanMode while the reviewer of the plan (plan-judge under the
+ * planner, outside-plan-review for a plain plan) has returned no verdict, a
+ * DENIED, or a FAIL nothing answered, never takes the verdict of the other
+ * reviewer, and arms and reads an answering write on Windows backslash paths.
  *
  * A case lives here when its failure means lost user work, an open gate, a
  * break only one platform shows or a script that no longer starts; the rest
@@ -29,24 +27,18 @@ import {
   runCase,
   skillUse,
   planWrite,
-  scriptWrite,
+  scriptCall,
   dispatch,
   verdict,
-  realPlan,
   PASS,
   FAIL,
+  JUDGE,
   PLAIN,
   GROUPED_ON,
   sessionWithConfig,
-  SET_SPEC,
-  SET_GRAPH,
-  SET_TASK,
-  taskPlan,
-  reviewSetRound,
-  memberRound,
-  ALL_PASS,
-  memberSums,
 } from "./plan-gate-fixture.ts";
+
+const WIN_PLAN = "C:\\Users\\dariu\\repo\\docs\\plans\\2026-09-20_feat-x\\plan.md";
 
 test("empty stdin -> allow (a broken gate must never trap the user in plan mode)", async () => {
   const result = await runScript(SUT, [], { shell: "bash", input: "" });
@@ -54,21 +46,22 @@ test("empty stdin -> allow (a broken gate must never trap the user in plan mode)
   assert.equal(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, "allow");
 });
 
-test("both signals but no review dispatch -> deny naming the plan file", async () => {
+test("both signals but no review dispatch -> deny naming the plan file and the plan-judge agent", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite()]);
     const { decision, reason } = await runCase(f);
     assert.equal(decision, "deny");
-    assert.match(reason ?? "", /plan\.md/);
-    assert.match(reason ?? "", /planner-review agent has not run on this version/);
+    assert.match(reason ?? "", /^Next step: review the plan/);
+    assert.match(reason ?? "", /wrote plan\.md but the viber:plan-judge agent has not returned a verdict on it/);
   });
 });
 
 test("a Windows plan path (backslashes) arms the gate the same way", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const win = "C:\\Users\\dariu\\repo\\docs\\plans\\2026-09-20_feat-x\\plan.md";
-    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(win)]);
-    assert.equal((await runCase(f)).decision, "deny");
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(WIN_PLAN)]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /wrote plan\.md but/);
   });
 });
 
@@ -79,35 +72,35 @@ test("dispatch + VERDICT: PASS -> allow", async () => {
   });
 });
 
-test("a review that ran BEFORE the last plan write does not count -> deny (the current version was never reviewed)", async () => {
+test("dispatch + VERDICT: DENIED -> deny with the permission next step (a reviewer that read nothing reviewed nothing)", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(), dispatch(), PASS, planWrite()]);
+    const denied = verdict("DENIED", { body: "VERDICT: DENIED\nREASON: Read: /x/plan.md" });
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(), dispatch(), denied]);
     const { decision, reason } = await runCase(f);
     assert.equal(decision, "deny");
-    assert.match(reason ?? "", /has not run on this version/);
+    assert.match(reason ?? "", /^Next step: grant the permission/);
   });
 });
 
-test("a plan-build.sh apply call after the PASS -> deny, a Windows plan path on its call line included (the planner writes its plan through that script, so a PASS before it reviewed another text)", async () => {
+test("dispatch + VERDICT: FAIL with no write after it -> deny with the answer next step (a failed review nothing answered opens no gate)", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const win = "C:\\Users\\dariu\\repo\\docs\\plans\\2026-09-20_feat-x\\plan.md";
-    for (const plan of [undefined, win]) {
-      const f = writeTranscript(dir, plan ? "win.jsonl" : "t.jsonl", [skillUse(), planWrite(plan), dispatch(), PASS, scriptWrite("apply", plan)]);
-      const { decision, reason } = await runCase(f);
-      assert.equal(decision, "deny", plan ?? "posix");
-      assert.match(reason ?? "", /has not run on this version/);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(), dispatch(), FAIL]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: answer the review/);
+    assert.match(reason ?? "", /viber:plan-judge agent returned 'VERDICT: FAIL' for plan\.md and the plan was not written since/);
+  });
+});
+
+test("a FAIL answered by a plan-build.sh apply call -> allow, a Windows plan path on its call line included", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    for (const plan of [undefined, WIN_PLAN]) {
+      const name = plan ? "win" : "posix";
+      const open = writeTranscript(dir, `${name}-open.jsonl`, [skillUse(), planWrite(plan), dispatch(), FAIL]);
+      assert.equal((await runCase(open)).decision, "deny", name);
+      const answered = writeTranscript(dir, `${name}.jsonl`, [skillUse(), planWrite(plan), dispatch(), FAIL, scriptCall("apply", plan)]);
+      assert.equal((await runCase(answered)).decision, "allow", name);
     }
-  });
-});
-
-test("a plan modified after its own PASS -> deny (catches an edit made through a channel the transcript scan cannot see)", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const plan = realPlan(dir);
-    const stale = new Date(Date.now() - 3600_000).toISOString();
-    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), dispatch(), verdict("PASS", { timestamp: stale })]);
-    const { decision, reason } = await runCase(f);
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /was modified after its 'VERDICT: PASS'/);
   });
 });
 
@@ -117,13 +110,13 @@ test("plain plan with outside-plan-review on and no review dispatch -> deny nami
     const f = writeTranscript(dir, "t.jsonl", [planWrite()]);
     const { decision, reason } = await runCase(f, cwd);
     assert.equal(decision, "deny");
-    assert.match(reason ?? "", /outside-plan-review agent has not run on this version/);
+    assert.match(reason ?? "", /viber:outside-plan-review agent has not returned a verdict on it/);
     assert.match(reason ?? "", /one sentence stating the user's goal/);
     assert.match(reason ?? "", /planning\.outside-plan-review in \.claude\/viber\.yml/);
   });
 });
 
-test("plain plan with outside-plan-review on: outside-plan-review PASS -> allow, FAIL -> deny", async () => {
+test("plain plan with outside-plan-review on: outside-plan-review PASS -> allow, FAIL -> deny until an Edit of the plan answers it", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const cwd = sessionWithConfig(dir, GROUPED_ON);
     const pass = writeTranscript(dir, "pass.jsonl", [planWrite(), dispatch(undefined, PLAIN), PASS]);
@@ -131,58 +124,22 @@ test("plain plan with outside-plan-review on: outside-plan-review PASS -> allow,
     const fail = writeTranscript(dir, "fail.jsonl", [planWrite(), dispatch(undefined, PLAIN), FAIL]);
     const { decision, reason } = await runCase(fail, cwd);
     assert.equal(decision, "deny");
-    assert.match(reason ?? "", /outside-plan-review agent returned 'VERDICT: FAIL'/);
+    assert.match(reason ?? "", /viber:outside-plan-review agent returned 'VERDICT: FAIL'/);
+    const answered = writeTranscript(dir, "answered.jsonl", [planWrite(), dispatch(undefined, PLAIN), FAIL, planWrite(undefined, "Edit")]);
+    assert.equal((await runCase(answered, cwd)).decision, "allow");
   });
 });
 
-test("review set: past 12 tasks a planner-review PASS alone is refused with the review next step naming every member", async () => {
+test("the PASS of the other reviewer opens neither gate -> a planner plan denies on an outside-plan-review PASS, a plain plan on a plan-judge PASS", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const plan = taskPlan(dir, 20);
-    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), dispatch(), PASS]);
-    const { decision, reason } = await runCase(f);
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /^Next step: review the plan/);
-    assert.match(reason ?? "", new RegExp(SET_SPEC));
-    assert.match(reason ?? "", new RegExp(SET_GRAPH));
-    assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(uncovered tasks T1-T20\\)`));
-  });
-});
-
-test("review set: every member's latest verdict PASS with the passed slices covering every task -> allow", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const plan = taskPlan(dir, 20);
-    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS)]);
-    assert.equal((await runCase(f)).decision, "allow");
-  });
-});
-
-test("review set: a PASS on a sum: line survives a later script write only while that sum is still the sum of its part of the plan -> matching sums allow, a member whose part changed is missing", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const plan = taskPlan(dir, 20);
-    const sums = await memberSums(dir, plan);
-    const same = writeTranscript(dir, "same.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS, { sums }), scriptWrite("apply", plan)]);
-    assert.equal((await runCase(same)).decision, "allow");
-    const changed = writeTranscript(dir, "changed.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS, { sums: { ...sums, b: "1-1" } }), scriptWrite("apply", plan)]);
-    const { decision, reason } = await runCase(changed);
-    assert.equal(decision, "deny");
-    assert.match(reason ?? "", /^Next step: review the plan/);
-    assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(uncovered tasks T9-T16\\)`));
-  });
-});
-
-test("review set: a fix write keeps the PASS of the other members only while the failed member passes again -> the failed one alone allows, another one alone or a write after a full PASS denies", async () => {
-  await withTempDir("p2p2-plan-gate-", async (dir) => {
-    const plan = taskPlan(dir, 20);
-    const failed = [skillUse(), planWrite(plan), ...reviewSetRound({ ...ALL_PASS, b: "FAIL" }), planWrite(plan, "Edit")];
-    const fixed = writeTranscript(dir, "fixed.jsonl", [...failed, ...memberRound("b", "PASS", { round: 2 })]);
-    assert.equal((await runCase(fixed)).decision, "allow");
-    const other = writeTranscript(dir, "other.jsonl", [...failed, ...memberRound("a", "PASS", { round: 2 })]);
-    const kept = await runCase(other);
-    assert.equal(kept.decision, "deny");
-    assert.match(kept.reason ?? "", new RegExp(`${SET_TASK} \\(tasks T9-T16\\) returned 'VERDICT: FAIL'`));
-    const voided = writeTranscript(dir, "voided.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS), planWrite(plan, "Edit"), ...memberRound("b", "PASS", { round: 2 })]);
-    const missing = await runCase(voided);
-    assert.equal(missing.decision, "deny");
-    assert.match(missing.reason ?? "", /^Next step: review the plan/);
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const planner = writeTranscript(dir, "planner.jsonl", [skillUse(), planWrite(), dispatch(undefined, PLAIN), PASS]);
+    const own = await runCase(planner, cwd);
+    assert.equal(own.decision, "deny");
+    assert.match(own.reason ?? "", /viber:plan-judge agent has not returned a verdict on it/);
+    const plain = writeTranscript(dir, "plain.jsonl", [planWrite(), dispatch(undefined, JUDGE), PASS]);
+    const other = await runCase(plain, cwd);
+    assert.equal(other.decision, "deny");
+    assert.match(other.reason ?? "", /viber:outside-plan-review agent has not returned a verdict on it/);
   });
 });
