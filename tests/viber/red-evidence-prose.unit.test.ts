@@ -104,7 +104,7 @@ test("task-coder returns RED: <n> failing pointing at its red.log on a TDD: requ
 });
 
 test("task-coder on an attempt starting with the production code in the tree, or for a test green on its first run, takes red from the revert route into a fresh log (a green rerun must not fail the attempt or overwrite earlier evidence)", () => {
-  assert.ok(has(CODER, "On a dispatch carrying `reason`, `report`, `resume` or `repair`, where the production code is already in the tree, or for a test green on its first run, a new test's red comes from `tdd.md`'s revert route instead"));
+  assert.ok(has(CODER, "On a dispatch carrying `reason`, `report`, `resume` or `repair`, where the production code is already in the tree, or for a test green on its first run, a new or extended test's red comes from `tdd.md`'s revert route instead"));
   assert.ok(has(CODER, "goes to the next free log of `<out>` (`red-2.log`, `red-3.log`, ...), never over an earlier one"));
 });
 
@@ -149,7 +149,7 @@ test("task-reviewer on red-check UNRUNNABLE holds a test that would pass on HEAD
 
 test("task-reviewer on red-check NO-PRODUCTION-CHANGE or PASSED-WITHOUT-CHANGE holds a new test not failing in the red: log as Blocking, and behaviour HEAD already holds as no finding (a pre-delivered task must not loop between a coder that cannot change the tree and a gate that cannot pass)", () => {
   assert.ok(has(REVIEWER, "on `red-check: NO-PRODUCTION-CHANGE` (HEAD already holds the behaviour, which is no finding) or `PASSED-WITHOUT-CHANGE`"));
-  assert.ok(has(REVIEWER, "a new test not failing in the `red:` log, the coder's run with the behaviour reverted, being Blocking"));
+  assert.ok(has(REVIEWER, "a new or extended test not failing in the `red:` log, the coder's run with the behaviour reverted, being Blocking"));
 });
 
 test("task-coder writes a contract block of its own file only as far as its DoD asks (a coder delivering the whole block takes the production change of the later task listing that file)", () => {

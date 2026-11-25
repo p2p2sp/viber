@@ -4,12 +4,12 @@
 
 New behavior gets no production code before a failing test for it exists and has been watched to fail. `TDD: required` on the task is the authorization, decided before this file is read: nothing reopens it here. Production code this cycle wrote before its failing test is deleted, then rewritten from that test. A test never watched failing on an assertion backs no `DoD` clause, a clause the task proves by an integration test excepted: write that test and its code with no red or green run, since `Verification` only lists or type-checks it.
 
-On `resume`, `reason` or `report` input, the code already in the tree is existing work, not a violation: keep it. For each of its behaviors that no existing test covers, write that test, see it fail on an assertion once by temporarily reverting the behavior it covers, never the test, confirm the failure names the gap, then restore that code so the test passes. Leave every test already in the tree as it is. A behavior new to this cycle still goes through red before green.
+On `resume`, `reason` or `report` input, the code already in the tree is existing work, not a violation: keep it. For each of its behaviors that no existing test covers, write that test, see it fail on an assertion once by temporarily reverting the behavior it covers, never the test, confirm the failure names the gap, then restore that code so the test passes. Leave every test already in the tree as it is, except for an assertion a component or integration test gains (`Act`). A behavior new to this cycle still goes through red before green.
 
 ## Red-Green-Refactor cycle
 
 ### Red - write one failing test
-One behavior, one test, named after the behavior ("user can checkout with valid cart", never "constructor returns instance"). Where a component test of this task already makes the act, the behavior is a failing assertion added to it (`Act`). Through the `Public` rule of `test-strategy.md`.
+One behavior, one test, named after the behavior ("user can checkout with valid cart", never "constructor returns instance"). Where a component or integration test in the task's `Files` already makes the arrangement and act, the behavior is an assertion added to it (`Act`), red first in a component test. Through the `Public` rule of `test-strategy.md`.
 
 ### Verify red - watch it fail
 Run it. A run counts as red only when the test fails on an assertion about the missing behavior, never on a typo, import miss or harness error. A compile, import or missing-symbol failure gets a signature-only skeleton with no logic, then a rerun, until the test fails on an assertion. Passes immediately? The code already holds the behavior: keep the test only if it alone fails once that behavior is reverted (Iron law), else delete it.

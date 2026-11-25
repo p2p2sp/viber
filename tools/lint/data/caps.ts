@@ -64,7 +64,7 @@ export const rules: RuleInstance[] = [
   words("hunter", "agents/hunter.md", 854, `${AUDITOR} (877 before)`),
   words("mapper", "agents/mapper.md", 760, `${AUDITOR} (882 before)`),
 
-  bytes("planner", 44212, [
+  bytes("planner", 44420, [
     { path: "viber/agents/plan-writer.md" },
     { path: "viber/references/plan-rules.md" },
     { path: "viber/references/plan-rules-script.md" },
@@ -77,12 +77,12 @@ export const rules: RuleInstance[] = [
     { path: "viber/references/plan-rules.md" },
     { path: TEST_STRATEGY, sections: ["Layers", "Proves", "Ports"] },
   ], `${BUDGET}; the cap carries the room of the two plan rules a restructuring task and a mechanical change add to plan-rules.md`),
-  bytes("task-coder", 26670, [
+  bytes("task-coder", 26800, [
     { path: "viber/agents/task-coder.md" },
     { path: "viber/references/tdd.md" },
     { path: TEST_STRATEGY },
   ], BUDGET),
-  bytes("task-reviewer", 18780, [
+  bytes("task-reviewer", 18800, [
     { path: "viber/agents/task-reviewer.md" },
     { path: TEST_STRATEGY, sections: ["Layers", "Proves", "Writing"] },
   ], `${BUDGET}; the cap carries the room of the red check verdicts a review receives`),
