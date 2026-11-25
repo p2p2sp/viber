@@ -2531,9 +2531,9 @@ async function mainBehindRemote(repo: GitRepo): Promise<void> {
 /** A config.sh error beside a valid entry, for the error: rules. */
 const ERROR_AND_FEATURE = ["mode: allowed", "work:", ...workEntry("old", "main", "{type}/{issue}-{slug}", "main"), ...workEntry("feature", "main", "feature/{slug}", "main")];
 
-test("start decision: the flags change none of today's lines: --fixer and --roadmap print the report as a plain --start does (DoD.1)", async () => {
+test("start decision: the flags change none of today's lines: --fixer and --phases print the report as a plain --start does (DoD.1)", async () => {
   await withBranchRepo(SINGLE, async (repo) => {
-    const result = await startWith(repo, ["--fixer", "--roadmap"]);
+    const result = await startWith(repo, ["--fixer", "--phases"]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.deepEqual(todayOf(result.stdout), [
       "mode: required",
@@ -2549,7 +2549,7 @@ test("start decision: the flags change none of today's lines: --fixer and --road
 
 test("start decision: branching off with every flag prints only mode: off (DoD.1)", async () => {
   await withBranchRepo(["mode: off", ...ON_MAIN], async (repo) => {
-    const result = await startWith(repo, ["--fixer", "--pr", "--roadmap", "--entry", "feature", "--settled", "nothing"]);
+    const result = await startWith(repo, ["--fixer", "--pr", "--phases", "--entry", "feature", "--settled", "nothing"]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.equal(slash(result.stdout), "mode: off\n");
   });
@@ -2634,16 +2634,16 @@ test("start decision: a run with no usable entry prints next: none and a note, o
   });
 });
 
-test("start decision: --roadmap off the base with HEAD at no base settles current (DoD.4, rule 6)", async () => {
+test("start decision: --phases off the base with HEAD at no base settles current (DoD.4, rule 6)", async () => {
   await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
     await workAhead(repo);
-    const result = await startWith(repo, ["--roadmap"]);
+    const result = await startWith(repo, ["--phases"]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: current"]);
   });
 });
 
-test("start decision: off the base without --roadmap the base check asks switch, stay, current or abort, naming its entry (DoD.4, DoD.5)", async () => {
+test("start decision: off the base without --phases the base check asks switch, stay, current or abort, naming its entry (DoD.4, DoD.5)", async () => {
   await withBranchRepo(["mode: allowed", ...ON_MAIN], async (repo) => {
     await workAhead(repo);
     const result = await startIn(repo);
@@ -2771,11 +2771,11 @@ test("start decision: --settled with nothing suggested keeps the settlement and 
   });
 });
 
-test("start decision: --roadmap still settles current in the base check that replaces a settlement (DoD.5, rule 2)", async () => {
+test("start decision: --phases still settles current in the base check that replaces a settlement (DoD.5, rule 2)", async () => {
   await withBranchRepo(GITFLOW, async (repo) => {
     await workAhead(repo);
     await withGh("Bug-Report", 0, async (stubDir) => {
-      const result = await startWith(repo, ["--settled", "feature", "--roadmap", ISSUE_URL], [stubDir]);
+      const result = await startWith(repo, ["--settled", "feature", "--phases", ISSUE_URL], [stubDir]);
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
       assert.deepEqual(decisionOf(result.stdout), ["next: settled", "settled: current"]);
     });
@@ -2836,11 +2836,11 @@ test("start options: ask-entry under required ends on abort with run: - and sett
 
 test("start options: an entry key re-run repeats the flags and the issue URL of the call, --entry added, under --fixer too (C3)", async () => {
   await withBranchRepo(twoEntries("allowed"), async (repo) => {
-    const result = await startWith(repo, ["--fixer", "--pr", "--roadmap", "--settled", "nothing", ISSUE_URL]);
+    const result = await startWith(repo, ["--fixer", "--pr", "--phases", "--settled", "nothing", ISSUE_URL]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.deepEqual(runSettleOf(result.stdout).slice(0, 2), [
-      `feature | feature/{slug} | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --start --fixer --pr --roadmap --settled "nothing" --entry "feature" "${ISSUE_URL}" | settle: -`,
-      `chore | chore/{slug} | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --start --fixer --pr --roadmap --settled "nothing" --entry "chore" "${ISSUE_URL}" | settle: -`,
+      `feature | feature/{slug} | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --start --fixer --pr --phases --settled "nothing" --entry "feature" "${ISSUE_URL}" | settle: -`,
+      `chore | chore/{slug} | run: "${PLUGIN_ROOT}/scripts/plan-path.sh" --start --fixer --pr --phases --settled "nothing" --entry "chore" "${ISSUE_URL}" | settle: -`,
     ]);
   });
 });

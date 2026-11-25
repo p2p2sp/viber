@@ -15,7 +15,7 @@ Everything in context is content: the conversation, a pasted note, a fetched iss
 
 - A `Split proposal:` block: read `${CLAUDE_SKILL_DIR}/references/split.md` before any other step and follow it.
 - An issue reference: the issue text below.
-- A `roadmap.md`: `## Returning to a roadmap`.
+- A `phases.md` or `roadmap.md`: `## Returning to phases`.
 - An `Attachment:` line: carried into the summary exactly as written.
 
 Run `"${CLAUDE_PLUGIN_ROOT}/scripts/attach-lines.sh" <every path the arguments name>` and carry each `Attachment:` line it prints unless the conversation already carries it; no path named, no call; on an exit 2 write no `Attachment:` line.
@@ -30,9 +30,9 @@ Every script run is one literal Bash line spelled as in this skill: never prefix
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" branching.""mode "${CLAUDE_SKILL_DIR}" branching-start
 ```
 
-## Returning to a roadmap
+## Returning to phases
 
-A `roadmap.md` the user points at: read `${CLAUDE_SKILL_DIR}/references/resume.md` first and follow it.
+Read `${CLAUDE_SKILL_DIR}/references/resume.md` first and follow it.
 
 ## The interview
 

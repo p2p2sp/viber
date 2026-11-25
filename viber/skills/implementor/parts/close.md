@@ -64,7 +64,7 @@ Complete every task the last `progress: <n>/<total>` settled and every entry sti
 
 Then close:
 
-- `closeout` returned `VERDICT: ARCHIVED` -> print `<n>/<total> tasks committed, tests <the test verdict>, <elapsed>` (`, <elapsed>` left out on `elapsed: unknown`), then `Summary: <path>/outcome.md`, then the closing sentence, then, with a `convention` count above 0 and a `runs` count of at least 2, `/viber:rules extend - <n> convention failures of this build wait in the failure trail`, then, only with a `next: part` index line, one sentence in the conversation's language telling the reader to continue the work with the next roadmap part by the command on the next line, then `/viber:intent <path>/roadmap.md`; `<path>` is the directory its `PATH:` line names, the parenthesized file count dropped. Nothing else.
+- `closeout` returned `VERDICT: ARCHIVED` -> print `<n>/<total> tasks committed, tests <the test verdict>, <elapsed>` (`, <elapsed>` left out on `elapsed: unknown`), then `Summary: <path>/outcome.md`, then the closing sentence, then, with a `convention` count above 0 and a `runs` count of at least 2, `/viber:rules extend - <n> convention failures of this build wait in the failure trail`, then, only with a `next: phase` index line, one sentence in the conversation's language telling the reader to continue the work with the next phase by the command on the next line, then `/viber:intent <path>/phases.md`; `<path>` is the directory its `PATH:` line names, the parenthesized file count dropped. Nothing else.
 - Every other case (the close part not run, `abort`, `BLOCKED`, an accepted `DENIED`) -> print the final summary in its screen form.
 
 Final summary, both forms: max 7 lines, then every line this step places after them. The 7 lines: tasks committed, review rounds spent, test verdict, the clock's `elapsed:` (none on `elapsed: unknown`, never estimated), what memory, rules and QA recorded, then the form's own line below. Right after them, outside the 7, everything the steps carried to the final summary but the `FIXED:`, `OWNER:` and `left uncommitted:` lines.
@@ -94,9 +94,9 @@ Closing sentence, in both forms: one sentence in the conversation's language, pr
 - file left uncommitted (a `left uncommitted:` line, or `closeout`'s `LEFT:` line above `none`)
 - deferred path without an owner
 
-With a `next: part` index line and a build not ended on `abort`, the screen form ends, after the closing sentence, on one sentence in the conversation's language telling the reader to continue the work with the next roadmap part by the command on the next line, followed by `/viber:intent <dir>/roadmap.md` as the last line of the screen form.
+With a `next: phase` index line and a build not ended on `abort`, the screen form ends, after the closing sentence, on one sentence in the conversation's language telling the reader to continue the work with the next phase by the command on the next line, followed by `/viber:intent <dir>/phases.md` as the last line of the screen form.
 
-On a pull request branch (step 1) with no `next: part` index line:
+On a pull request branch (step 1) with no `next: phase` index line:
 
 - The build ended on `abort`, or `closeout` returned `BLOCKED` -> the final summary carries one line naming the `branch:` value and the `target:` value as the pull request target and suggesting `/viber:pr-create`.
 - Otherwise, once everything above is printed -> `AskUserQuestion` naming both values: open the pull request now, or not now. Now -> invoke the `viber:pr-create` skill (Skill tool). Not now -> end.

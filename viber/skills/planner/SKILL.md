@@ -38,15 +38,15 @@ input:
 <the summary file path alone on its line, or the summary or diagnosis verbatim>
 ```
 
-Its `VERDICT: MAPPED` reply carries a `TASKS:` count, the `TARGET:` lines, the `DECIDE:` lines and, past the threshold, the `PART:` lines.
+Its `VERDICT: MAPPED` reply carries a `TASKS:` count, the `TARGET:` lines, the `DECIDE:` lines and, past the threshold, the `PHASE:` lines.
 
-Close the step on the threshold check before anything else: on a `TASKS:` count of more than 30, ask through one `AskUserQuestion`: split the change into parts, or keep one plan of that many tasks.
+Close the step on the threshold check before anything else: on a `TASKS:` count of more than 30, ask through one `AskUserQuestion`: split the change into phases, or keep one plan of that many tasks.
 
-- Split: invoke `viber:intent` through the `Skill` tool with the summary file path, else the summary text or fixer diagnosis verbatim, followed by a `Split proposal:` block in this shape, and write no plan. Its parts are the `PART:` lines as returned; `Open decisions:` lists the decision of each `DECIDE:` line, never asked here, and is left out when there are none.
+- Split: invoke `viber:intent` through the `Skill` tool with the summary file path, else the summary text or fixer diagnosis verbatim, followed by a `Split proposal:` block in this shape, and write no plan. Its phases are the `PHASE:` lines as returned; `Open decisions:` lists the decision of each `DECIDE:` line, never asked here, and is left out when there are none.
 
   ```
   Split proposal:
-  <n>. <part> - owns: <what it delivers>; consumes: <what earlier parts produce, or nothing>; files: <repo-relative paths>; tasks: <estimated count>
+  <n>. <phase> - owns: <what it delivers>; consumes: <what earlier phases produce, or nothing>; files: <repo-relative paths>; tasks: <estimated count>
   Open decisions:
   - <decision owed to the user, one per line>
   ```
@@ -76,7 +76,7 @@ Apply a `VERDICT: FIXED` reply as written, nothing added:
 - One `Edit` of the plan file per `@@ EDIT` block: the lines up to `@@ WITH` are the text to replace, the lines up to `@@ END` the text replacing it.
 - Keep its `fix: <where> - <change>` lines for the next review round.
 
-`plan-index.sh` prints a `threshold:` line only past 30 tasks. Once the user kept a plan, add `--accepted "<accepted count>"` to every `plan-index.sh` call. Ask the step 1 question again on every `threshold:` line of that output, a keep recording that line's count as the accepted one. Count no row yourself. A split chosen there first sends the writer `split:` for its `PART:` lines.
+`plan-index.sh` prints a `threshold:` line only past 30 tasks. Once the user kept a plan, add `--accepted "<accepted count>"` to every `plan-index.sh` call. Ask the step 1 question again on every `threshold:` line of that output, a keep recording that line's count as the accepted one. Count no row yourself. A split chosen there first sends the writer `split:` for its `PHASE:` lines.
 
 ```!
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" planning.adr "${CLAUDE_SKILL_DIR}" adr

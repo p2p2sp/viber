@@ -22,7 +22,7 @@
 #                                          situation for <plan> (C3), then the
 #                                          planner decision (see stdout below);
 #                                          nothing moves, nothing is written
-#   plan-path.sh --start [--fixer] [--pr] [--roadmap]
+#   plan-path.sh --start [--fixer] [--pr] [--phases]
 #                        [--entry <key>] [--settled <key>] [<issue URL>]
 #                                          read-only start report (C1) needing no
 #                                          plan: the same situation as --branch
@@ -198,7 +198,7 @@
 #   "error:" lines follow --branch's rules.
 #   The decision, mode allowed or required, after those lines (flags: --fixer
 #   for a bug fix, --pr a pull request's own
-#   branch, --roadmap the next part of a roadmap, --entry the entry to base-check,
+#   branch, --phases the next phase of a phase list, --entry the entry to base-check,
 #   --settled <entry key>|no-branch|current|pr|nothing the re-run after an issue
 #   save, "nothing" being no settlement reached before it):
 #     next: settled | kept | ask-entry | ask-base | errors | none | abort
@@ -212,7 +212,7 @@
 #   stay | current | abort. "run:" is the command to run when the answer is
 #   chosen, "-" for none; "settle:" what the answer settles, "-" for nothing yet:
 #     <entry key>  run: this call again with --entry <key> (its --fixer, --pr,
-#                  --roadmap, --settled "<value>" and issue URL kept)  settle: -
+#                  --phases, --settled "<value>" and issue URL kept)  settle: -
 #     no-branch    run: -  settle: no-branch
 #     switch       run: --checkout "<the entry base>"  settle: <the checking: key>
 #     stay         run: -  settle: <the checking: key>
@@ -234,7 +234,7 @@
 #     5. suggested: other than none -> rule 6; otherwise ask-entry with every
 #        usable: yes entry plus no-branch (allowed) or abort (required); none
 #        usable -> next: none and a note.
-#     6. base check of one entry: at-base: yes -> settled; --roadmap off an entry
+#     6. base check of one entry: at-base: yes -> settled; --phases off an entry
 #        base and off a detached HEAD -> settled current; otherwise ask-base with
 #        switch (left out on base-exists: no), stay (left out with --fixer),
 #        current (left out under required on an entry base or a detached HEAD)
@@ -666,15 +666,15 @@ if [[ "$mode" == "--start" ]]; then
   start_url=""
   st_fixer=0
   st_pr=0
-  st_roadmap=0
+  st_phases=0
   st_entry=""
   st_settled=""
-  start_usage="error: usage: plan-path.sh --start [--fixer] [--pr] [--roadmap] [--entry <key>] [--settled <key>] [<issue URL ending in /issues/<n>>]"
+  start_usage="error: usage: plan-path.sh --start [--fixer] [--pr] [--phases] [--entry <key>] [--settled <key>] [<issue URL ending in /issues/<n>>]"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --fixer) st_fixer=1 ;;
       --pr) st_pr=1 ;;
-      --roadmap) st_roadmap=1 ;;
+      --phases) st_phases=1 ;;
       --entry|--settled)
         if [[ $# -lt 2 || -z "$2" || "$2" == --* ]]; then
           echo "$start_usage" >&2

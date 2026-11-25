@@ -45,8 +45,8 @@ before they read any code:
   - Switching leaves the run branch to be cut from the base when the plan lands.
 - Under `required`, building on the current branch is never offered on a detached HEAD or on any
   entry's base; `/viber:intent` still offers "stay" there, as the run gets its own branch.
-- `/viber:intent` continuing a `roadmap.md` on a branch that is no entry's base builds on it
-  without asking: the next part builds on the previous part's branch.
+- `/viber:intent` continuing a `phases.md` on a branch that is no entry's base builds on it
+  without asking: the next phase builds on the previous phase's branch.
 - `/viber:intent` started by `/viber:pr-feedback` makes no run branch and asks nothing: the fixes
   land on the pull request's own branch. Under `required` this holds only when that branch is no
   entry's base and HEAD is not detached; otherwise the usual questions follow.
@@ -262,9 +262,9 @@ instead. Release branches, their version numbers and back-merging a hotfix into 
   body ends with `Closes #<n>` per issue when the target is the default branch, `Refs #<n>` otherwise.
 - You answer create, create as draft or cancel. Only on create does it push the branch to its
   remote and open the pull request.
-- A build that finishes on its run branch, with no roadmap part left, asks whether to open the
+- A build that finishes on its run branch, with no phase left, asks whether to open the
   pull request now and runs `/viber:pr-create` on your yes. A build ended on abort, or whose
-  archive commit failed, only suggests the command; a build with a next roadmap part neither asks
+  archive commit failed, only suggests the command; a build with a next phase neither asks
   nor suggests.
 - A run's `qa.md` is posted as a comment on the run's issue, or on the branch's pull request when
   the run has no issue, once per run, by the build close and by `/viber:pr-create`; a target that

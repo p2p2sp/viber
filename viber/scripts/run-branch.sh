@@ -12,7 +12,7 @@
 #   argv   : none - sourced. Every function takes its own arguments.
 #   cwd    : the repository root, as plan-path.sh's own contract pins it.
 #   env    : none. branch_decide takes its flags from the st_fixer, st_pr,
-#            st_roadmap, st_entry and st_settled shell variables
+#            st_phases, st_entry and st_settled shell variables
 #            plan-path.sh sets before branch_start; branch_plan_decide from
 #            pb_work, pb_name and pb_entry, set before branch_report, and
 #            pb_plan, the plan path branch_report sets.
@@ -715,7 +715,7 @@ branch_start() {
 # What the --start decision report adds after today's lines (C1 of
 # plan-path.sh): one verdict of rules 1 to 6, read from the st_* entry arrays,
 # st_suggested, rp_errors and the tl_* tail values branch_start and branch_tail
-# set, and from the flags plan-path.sh sets: st_fixer, st_pr and st_roadmap
+# set, and from the flags plan-path.sh sets: st_fixer, st_pr and st_phases
 # (1 or 0), st_entry and st_settled (empty for not given).
 branch_decide() {
   local settled="${st_settled:-}"
@@ -832,7 +832,7 @@ decide_rerun() {
   cmd="\"$(decide_root)/scripts/plan-path.sh\" --start"
   [[ "${st_fixer:-0}" != 1 ]] || cmd+=" --fixer"
   [[ "${st_pr:-0}" != 1 ]] || cmd+=" --pr"
-  [[ "${st_roadmap:-0}" != 1 ]] || cmd+=" --roadmap"
+  [[ "${st_phases:-0}" != 1 ]] || cmd+=" --phases"
   [[ -z "${st_settled:-}" ]] || cmd+=" --settled \"$st_settled\""
   cmd+=" --entry \"$1\""
   [[ -z "${st_url:-}" ]] || cmd+=" \"$st_url\""
@@ -853,7 +853,7 @@ decide_base() {
     decide_settled "$1"
     return 0
   fi
-  if [[ "${st_roadmap:-0}" == 1 && "$tl_is_base" == no && "$tl_cur" != detached ]]; then
+  if [[ "${st_phases:-0}" == 1 && "$tl_is_base" == no && "$tl_cur" != detached ]]; then
     decide_settled current
     return 0
   fi

@@ -2527,25 +2527,25 @@ test("both spec templates carry the four anchors, so the shape is a choice and n
   assert.ok(!fs.existsSync(path.join(TEMPLATES, "plan.md")), "plan.md was replaced by the three templates");
 });
 
-/** A template's `## Roadmap` section, heading included, up to the line before
- *  the next `## ` heading - the span `--split` cuts into roadmap.md. */
-function roadmapSection(template: string): string {
+/** A template's `## Phases` section, heading included, up to the line before
+ *  the next `## ` heading - the span `--split` cuts into phases.md. */
+function phasesSection(template: string): string {
   const body = fs.readFileSync(path.join(TEMPLATES, template), "utf-8");
-  return body.match(/^## Roadmap\n[\s\S]*?(?=^## )/m)?.[0] ?? "";
+  return body.match(/^## Phases\n[\s\S]*?(?=^## )/m)?.[0] ?? "";
 }
 
 /** The entry this plan builds, any lines of its own, then a later entry
- *  carrying an indented decision line - what a later part's interview resumes from. */
-const ROADMAP_SHAPE = /^\d+\. .+ \(this plan\)\n(?:[ \t]+- .*\n)*\d+\. .+\n[ \t]+- \S/m;
+ *  carrying an indented decision line - what a later phase's interview resumes from. */
+const PHASES_SHAPE = /^\d+\. .+ \(this plan\)\n(?:[ \t]+- .*\n)*\d+\. .+\n[ \t]+- \S/m;
 
 for (const template of ["spec-lite.md", "spec-full.md"]) {
-  test(`Roadmap shape: ${template} carries a "(this plan)" entry and a later entry with an indented decision line (a later part's settled decisions would otherwise have no place to survive)`, () => {
-    assert.match(roadmapSection(template), ROADMAP_SHAPE);
+  test(`Phases shape: ${template} carries a "(this plan)" entry and a later entry with an indented decision line (a later phase's settled decisions would otherwise have no place to survive)`, () => {
+    assert.match(phasesSection(template), PHASES_SHAPE);
   });
 }
 
-test("Roadmap shape: both spec templates carry the same Roadmap section (one planner rule writes it, whichever shape the plan takes)", () => {
-  assert.equal(roadmapSection("spec-full.md"), roadmapSection("spec-lite.md"));
+test("Phases shape: both spec templates carry the same Phases section (one planner rule writes it, whichever shape the plan takes)", () => {
+  assert.equal(phasesSection("spec-full.md"), phasesSection("spec-lite.md"));
 });
 
 /** A task file with the one block only the big shape contributes removed, which
@@ -2667,18 +2667,18 @@ test("--split writes the run's state file, and a later --split leaves the progre
   });
 });
 
-// --- the roadmap -----------------------------------------------------------
+// --- the phase list -----------------------------------------------------------
 
-/** A split change's `## Roadmap` section, placed where both templates put it:
+/** A split change's `## Phases` section, placed where both templates put it:
  *  after the goal, before the acceptance criteria. Its guidance comment is the
  *  template's own, which the cut drops. */
-const ROADMAP = [
-  "## Roadmap",
+const PHASES = [
+  "## Phases",
   "",
-  "<!-- Only when the change was split into parts; otherwise drop this section.",
-  "     The build cuts it into roadmap.md, never into spec.md. -->",
+  "<!-- Only when the change was split into phases; otherwise drop this section.",
+  "     The build cuts it into phases.md, never into spec.md. -->",
   "",
-  "Part 2 of 3 - Add login",
+  "Phase 2 of 3 - Add login",
   "",
   "1. Account model (built)",
   "2. Add login (this plan)",
@@ -2687,22 +2687,22 @@ const ROADMAP = [
   "",
 ];
 
-function withRoadmap(body: string): string {
-  return body.replace("## Acceptance criteria\n", [...ROADMAP, "## Acceptance criteria", ""].join("\n"));
+function withPhases(body: string): string {
+  return body.replace("## Acceptance criteria\n", [...PHASES, "## Acceptance criteria", ""].join("\n"));
 }
 
-test("--split writes the Roadmap section into roadmap.md, heading included and its HTML comment dropped", async () => {
+test("--split writes the Phases section into phases.md, heading included and its HTML comment dropped", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
-    seed(dir, withRoadmap(planBody(TWO_TASKS)));
+    seed(dir, withPhases(planBody(TWO_TASKS)));
 
     const result = await run(dir, {}, [PLAN_REL, "--split"]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.equal(
-      readRun(dir, "roadmap.md"),
+      readRun(dir, "phases.md"),
       [
-        "## Roadmap",
+        "## Phases",
         "",
-        "Part 2 of 3 - Add login",
+        "Phase 2 of 3 - Add login",
         "",
         "1. Account model (built)",
         "2. Add login (this plan)",
@@ -2714,9 +2714,23 @@ test("--split writes the Roadmap section into roadmap.md, heading included and i
   });
 });
 
-test("--split leaves the Roadmap section out of spec.md, the goal running straight into the acceptance criteria (a later part's decisions are not this part's specification)", async () => {
+test("--split reads a plan's Roadmap heading as its phases and writes phases.md under the Phases heading (a plan approved under that heading still builds and names its next phase)", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
-    seed(dir, withRoadmap(planBody(TWO_TASKS)));
+    seed(dir, withPhases(planBody(TWO_TASKS)).replace("## Phases\n", "## Roadmap\n"));
+    write(dir, `${PLAN_DIR}/roadmap.md`, "stale\n");
+
+    const result = await run(dir, {}, [PLAN_REL, "--split"]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(result.stdout, /^next: phase 3 of 3 - Session expiry$/m);
+    assert.match(readRun(dir, "phases.md"), /^## Phases\n\nPhase 2 of 3 - Add login\n/);
+    assert.doesNotMatch(readRun(dir, "spec.md"), /Roadmap|Phases|Session expiry/);
+    assert.ok(!fs.existsSync(path.join(dir, PLAN_DIR, "roadmap.md")), "roadmap.md was left behind");
+  });
+});
+
+test("--split leaves the Phases section out of spec.md, the goal running straight into the acceptance criteria (a later phase's decisions are not this phase's specification)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, withPhases(planBody(TWO_TASKS)));
 
     assert.equal((await run(dir, {}, [PLAN_REL, "--split"])).status, 0);
     const spec = readRun(dir, "spec.md");
@@ -2724,16 +2738,16 @@ test("--split leaves the Roadmap section out of spec.md, the goal running straig
       spec.includes("## Goal\n\nUsers can log in.\nThe session is durable.\n\n## Acceptance criteria\n"),
       spec,
     );
-    assert.doesNotMatch(spec, /Roadmap|Part 2 of 3|Account model|Session expiry|Idle sessions/);
+    assert.doesNotMatch(spec, /Phases|Phase 2 of 3|Account model|Session expiry|Idle sessions/);
   });
 });
 
-test("roadmap.md is committed with the decomposition", async () => {
+test("phases.md is committed with the decomposition", async () => {
   await withGitRepo(async (repo) => {
     write(repo.dir, "README.md", "seed\n");
     await repo.git("add", "-A");
     await repo.git("commit", "-m", "seed");
-    seed(repo.dir, withRoadmap(planBody(TWO_TASKS)));
+    seed(repo.dir, withPhases(planBody(TWO_TASKS)));
 
     const result = await run(repo.dir, repo.env, [PLAN_REL, "--split"]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
@@ -2746,7 +2760,7 @@ test("roadmap.md is committed with the decomposition", async () => {
       .sort();
     assert.deepEqual(committed, [
       PLAN_REL,
-      `${PLAN_DIR}/roadmap.md`,
+      `${PLAN_DIR}/phases.md`,
       `${PLAN_DIR}/spec.md`,
       `${PLAN_DIR}/status.md`,
       `${PLAN_DIR}/tasks/T1.md`,
@@ -2755,20 +2769,20 @@ test("roadmap.md is committed with the decomposition", async () => {
   });
 });
 
-test("a plan with no Roadmap section writes no roadmap.md and exactly the spec.md it always did (a change built in one part carries no roadmap)", async () => {
+test("a plan with no Phases section writes no phases.md and exactly the spec.md it always did (a change built in one phase carries no phase list)", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     seed(dir, planBody(TWO_TASKS));
 
     assert.equal((await run(dir, {}, [PLAN_REL, "--split"])).status, 0);
-    assert.ok(!fs.existsSync(path.join(dir, PLAN_DIR, "roadmap.md")), "roadmap.md was written");
+    assert.ok(!fs.existsSync(path.join(dir, PLAN_DIR, "phases.md")), "phases.md was written");
     assert.equal(readRun(dir, "spec.md"), liteHead(2).join("\n"));
   });
 });
 
-test("the header names roadmap.md among the files --split writes", () => {
+test("the header names phases.md among the files --split writes", () => {
   const source = fs.readFileSync(SUT, "utf-8");
   const splitDoc = source.slice(source.indexOf("# --split writes"), source.indexOf("# Validation"));
-  assert.match(splitDoc, /^#\s+roadmap\.md\s+- /m);
+  assert.match(splitDoc, /^#\s+phases\.md\s+- /m);
 });
 
 // --- the attachments ---------------------------------------------------------
@@ -2903,51 +2917,41 @@ test("--split without attachments commits nothing beyond the decomposition (a ru
   });
 });
 
-/** A plan whose `## Roadmap` lists exactly `entries`, placed like the templates place it. */
-function roadmapPlan(entries: string[]): string {
+/** A plan whose `## Phases` lists exactly `entries`, placed like the templates place it. */
+function phasesPlan(entries: string[]): string {
   return planBody(TWO_TASKS).replace(
     "## Acceptance criteria\n",
-    ["## Roadmap", "", "Part 1 of 1 - x", "", ...entries, "", "## Acceptance criteria", ""].join("\n"),
+    ["## Phases", "", "Phase 1 of 1 - x", "", ...entries, "", "## Acceptance criteria", ""].join("\n"),
   );
 }
 
-test("a Roadmap entry after the one marked (this plan) prints the next line between the decision lines and the tasks line", async () => {
+test("a Phases section entry after the one marked (this plan) prints the next line between the decision lines and the tasks line", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
-    seed(dir, withRoadmap(planBody(TWO_TASKS)));
+    seed(dir, withPhases(planBody(TWO_TASKS)));
     write(dir, `${PLAN_DIR}/status.md`, ["# status", "", "progress: 0/2", "decision: T1: keep the old handler", ""].join("\n"));
 
     const result = await run(dir, {}, [PLAN_REL]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.match(
       result.stdout,
-      /^decision: T1: keep the old handler\nnext: part 3 of 3 - Session expiry\ntasks: /m,
+      /^decision: T1: keep the old handler\nnext: phase 3 of 3 - Session expiry\ntasks: /m,
     );
   });
 });
 
-test("the next line strips a trailing marker from the name and counts every numbered entry (a marker is bookkeeping, never part of the part's name)", async () => {
+test("the next line strips a trailing marker from the name and counts every numbered entry (a marker is bookkeeping, never part of the phase's name)", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
-    seed(dir, roadmapPlan(["1. Account model (this plan)", "2. Session expiry (built)", "3. Audit log"]));
+    seed(dir, phasesPlan(["1. Account model (this plan)", "2. Session expiry (built)", "3. Audit log"]));
 
     const result = await run(dir, {}, [PLAN_REL]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.match(result.stdout, /^next: part 2 of 3 - Session expiry\n/m);
+    assert.match(result.stdout, /^next: phase 2 of 3 - Session expiry\n/m);
   });
 });
 
-test("a Roadmap whose (this plan) entry is last prints no next line (nothing is left to interview)", async () => {
+test("a Phases section whose (this plan) entry is last prints no next line (nothing is left to interview)", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
-    seed(dir, roadmapPlan(["1. Account model (built)", "2. Add login (this plan)"]));
-
-    const result = await run(dir, {}, [PLAN_REL]);
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.doesNotMatch(result.stdout, /^next:/m);
-  });
-});
-
-test("a Roadmap with no (this plan) entry prints no next line", async () => {
-  await withTempDir("p2p2-viber-", async (dir) => {
-    seed(dir, roadmapPlan(["1. Account model (built)", "2. Add login"]));
+    seed(dir, phasesPlan(["1. Account model (built)", "2. Add login (this plan)"]));
 
     const result = await run(dir, {}, [PLAN_REL]);
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
@@ -2955,7 +2959,17 @@ test("a Roadmap with no (this plan) entry prints no next line", async () => {
   });
 });
 
-test("a plan with no Roadmap prints no next line, the tasks line straight after the state lines", async () => {
+test("a Phases section with no (this plan) entry prints no next line", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, phasesPlan(["1. Account model (built)", "2. Add login"]));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.doesNotMatch(result.stdout, /^next:/m);
+  });
+});
+
+test("a plan with no Phases section prints no next line, the tasks line straight after the state lines", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     seed(dir, planBody(TWO_TASKS));
 
@@ -2965,9 +2979,9 @@ test("a plan with no Roadmap prints no next line, the tasks line straight after 
   });
 });
 
-test("a numbered line outside the Roadmap section is no entry (a later section's list names no part)", async () => {
+test("a numbered line outside the Phases section is no entry (a later section's list names no phase)", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
-    seed(dir, roadmapPlan(["1. Add login (this plan)"]).replace("- Password reset.\n", "2. Session expiry\n- Password reset.\n"));
+    seed(dir, phasesPlan(["1. Add login (this plan)"]).replace("- Password reset.\n", "2. Session expiry\n- Password reset.\n"));
 
     const result = await run(dir, {}, [PLAN_REL]);
     assert.doesNotMatch(result.stdout, /^next:/m);
@@ -2977,7 +2991,7 @@ test("a numbered line outside the Roadmap section is no entry (a later section's
 test("the header's stdout block lists the next line", () => {
   const source = fs.readFileSync(SUT, "utf-8");
   const stdoutDoc = source.slice(source.indexOf("# stdout"), source.indexOf("# \"feeds\""));
-  assert.match(stdoutDoc, /^#\s+next: part <n> of <N> - <name>/m);
+  assert.match(stdoutDoc, /^#\s+next: phase <n> of <N> - <name>/m);
 });
 
 test("a second --split with the plan unchanged commits nothing and still exits 0", async () => {

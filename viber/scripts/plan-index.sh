@@ -34,11 +34,11 @@
 #                                   plan (commit-task.sh --rule), leading "- "
 #                                   dropped, in file order, after the decision
 #                                   lines; none when the file is absent
-#   next: part <n> of <N> - <name>
-#                                   only when the plan Roadmap has an entry after
+#   next: phase <n> of <N> - <name>
+#                                   only when the plan's phases have an entry after
 #                                   the one marked "(this plan)": that entry, its
 #                                   1-based position, the entry count, the name
-#                                   without its marker (e.g. next: part 3 of 4 - X)
+#                                   without its marker (e.g. next: phase 3 of 4 - X)
 #   tasks: id | state | tdd | excl | hard | deps | feeds | files | title
 #   T1 | done | none     | -   | -   | -  | C1:1 | .claude/settings.json | Tighten the settings schema
 #   T2 | todo | required | yes | yes | T1 | -    | src/a.ts,src/b.ts     | Add the retry loop
@@ -291,18 +291,18 @@
 #                    stays whole, comments and blank lines included, and a
 #                    heading line inside one is body text: it neither cuts
 #                    the plan, opens a section nor splits a contract block.
-#                    The "## Roadmap" section is cut out of it too, into roadmap.md.
+#                    The "## Phases" section is cut out of it too, into phases.md.
 #                    It ends with "## Attachments" when <run>/attachments/ (the
 #                    files plan-path.sh --land copied there) holds an entry:
 #                    one line per file or directory, its repo-relative path
 #                    ("$dir" is the repo-relative run directory, as for the
 #                    orphan line), a directory ending in "/", sorted by name;
 #                    no directory or no entry, no section.
-#   roadmap.md    - only when the plan carries a "## Roadmap" section: that
+#   phases.md    - only when the plan carries a "## Phases" section: that
 #                    section, heading included, up to the next "## " heading,
-#                    its HTML comments dropped. The parts of a split change and
+#                    its HTML comments dropped. The phases of a split change and
 #                    the decisions settled for the later ones, which a later
-#                    part's interview resumes from; committed with the rest.
+#                    phase's interview resumes from; committed with the rest.
 #   tasks/<id>.md  - the whole job of one coder: its task block, then the
 #                    plan's "## Goal", the text of the criteria its "Covers:" line
 #                    names, the "## Contracts" blocks its "Uses:" line names, the
@@ -1275,15 +1275,15 @@ mode != "--split" && nslot > 0 && !infc {
 # plan title: the first H1
 !infc && /^#[[:space:]]/ && title == "" { title = trim(substr($0, 2)); next }
 
-# the "## Roadmap" section above "## Tasks": its numbered entries in build order
+# the "## Phases" section above "## Tasks": its numbered entries in build order
 # and which one carries the "(this plan)" marker. Guidance comments are skipped;
 # a heading of any other name closes the section.
 !hastasks {
   rt = trim($0)
   if (rcom) { if (rt ~ /-->/) rcom = 0 }
   else if (rt ~ /^<!--/) { if (rt !~ /-->/) rcom = 1 }
-  else if (!infc && $0 ~ /^##[[:space:]]/) inroad = ($0 ~ /^##[[:space:]]*Roadmap[[:space:]]*$/)
-  else if (inroad && $0 ~ /^[0-9]+\. /) {
+  else if (!infc && $0 ~ /^##[[:space:]]/) inphases = ($0 ~ /^##[[:space:]]*(Phases|Roadmap)[[:space:]]*$/)
+  else if (inphases && $0 ~ /^[0-9]+\. /) {
     rname = $0
     sub(/^[0-9]+\.[[:space:]]+/, "", rname)
     rname = trim(rname)
@@ -1840,7 +1840,7 @@ END {
   if (rthis && rthis < nrent) {
     rnext = rent[rthis + 1]
     sub(/[[:space:]]*\((built|this plan)\)$/, "", rnext)
-    printf "next: part %d of %d - %s\n", rthis + 1, nrent, trim(rnext)
+    printf "next: phase %d of %d - %s\n", rthis + 1, nrent, trim(rnext)
   }
   printf "tasks: id | state | tdd | excl | hard | deps | feeds | files | title\n"
   for (i = 1; i <= n; i++) {
@@ -2278,7 +2278,7 @@ fi
 # --- the decomposition, beside the plan ---
 # A second pass over a file the first one just proved well-formed: every id is
 # present, unique and a bare token, so nothing here has to guard against drift.
-rm -rf -- "$dir/tasks" "$dir/roadmap.md"
+rm -rf -- "$dir/tasks" "$dir/phases.md" "$dir/roadmap.md"
 mkdir -p -- "$dir/tasks"
 
 dir="$dir" awk '
@@ -2416,24 +2416,27 @@ END {
     print "---" > spec
     print "" > spec
   }
-  # The "## Roadmap" section, heading included, up to the next "## " heading,
-  # goes to roadmap.md instead, under the same comment and blank-line rules: it
-  # holds the parts this plan does not build, which are no part of its
+  # The "## Phases" section, heading included, up to the next "## " heading,
+  # goes to phases.md instead, under the same comment and blank-line rules: it
+  # holds the phases this plan does not build, which are no part of its
   # specification. No section, no file.
-  roadmap = dir "/roadmap.md"
+  phases = dir "/phases.md"
   for (i = sfrom; i < cut; i++) {
     t = trim(line[i])
     if (incom) { if (t ~ /-->/) incom = 0; continue }
     if (sfence == "") {
       if (t ~ /^<!--/) { if (t !~ /-->/) incom = 1; continue }
-      if (line[i] ~ /^##[[:space:]]/) inroad = (line[i] ~ /^##[[:space:]]*Roadmap[[:space:]]*$/)
-      if (t == "") { if (inroad) rblank = 1; else sblank = 1; continue }
+      if (line[i] ~ /^##[[:space:]]/) {
+        inphases = (line[i] ~ /^##[[:space:]]*(Phases|Roadmap)[[:space:]]*$/)
+        if (inphases) line[i] = "## Phases"
+      }
+      if (t == "") { if (inphases) rblank = 1; else sblank = 1; continue }
       if (t ~ /^(```|~~~)/) { sfence = substr(t, 1, 1); slen = frun(t) }
     } else if (substr(t, 1, 1) == sfence && t ~ /^(`+|~+)$/ && length(t) >= slen) sfence = ""
-    if (inroad) {
-      if (rblank && rkept) print "" > roadmap
+    if (inphases) {
+      if (rblank && rkept) print "" > phases
       rblank = 0; rkept = 1
-      print line[i] > roadmap
+      print line[i] > phases
       continue
     }
     if (sblank && skept) print "" > spec
@@ -2441,7 +2444,7 @@ END {
     print line[i] > spec
   }
   close(spec)
-  if (rkept) close(roadmap)
+  if (rkept) close(phases)
 
   # the standing context every task file carries: what the run is for, and the
   # two boundaries none of its coders may cross - the behaviour that has to keep
@@ -2572,8 +2575,8 @@ fi
 # The decomposition lives under docs/, so it has to be committed by somebody: no
 # task's "Files:" list names it, and commit-task.sh stages nothing it was not
 # given. The pathspec names only the paths this call itself writes or owns
-# (plan.md, spec.md, tasks/, status.md, roadmap.md when the plan carries a
-# "## Roadmap" section and attachments/ when --land copied files in, which
+# (plan.md, spec.md, tasks/, status.md, phases.md when the plan carries a
+# "## Phases" section and attachments/ when --land copied files in, which
 # spec.md lists under "## Attachments") rather than the whole run directory:
 # a coder's own docs/<run>/work/ trail file is written later, by a different
 # actor, and must stay untracked until commit-task.sh decides it belongs in a
@@ -2610,7 +2613,9 @@ issue="$(issue_ref "$plan")"
 commit_msg=(-m "chore(viber): decompose plan ${dir##*/}")
 [[ -z "$issue" ]] || commit_msg+=(-m "Refs: $issue")
 split_paths=("$dir/plan.md" "$dir/spec.md" "$dir/tasks" "$dir/status.md")
-[[ ! -f "$dir/roadmap.md" ]] || split_paths+=("$dir/roadmap.md")
+[[ ! -f "$dir/phases.md" ]] || split_paths+=("$dir/phases.md")
+# a run split under the name roadmap.md: its removal above is committed too
+! git ls-files --error-unmatch -- "$dir/roadmap.md" >/dev/null 2>&1 || split_paths+=("$dir/roadmap.md")
 [[ -z "$attach_list" ]] || split_paths+=("$dir/attachments")
 if git rev-parse --git-dir >/dev/null 2>&1; then
   git add -A -- "${split_paths[@]}" >/dev/null 2>&1 || true

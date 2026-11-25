@@ -277,7 +277,7 @@ test("the archived close prints the rules line after the closing sentence and be
   const rules = bullet.indexOf("/viber:rules extend");
   assert.ok(sentence > 0);
   assert.ok(rules > sentence);
-  assert.ok(bullet.indexOf("`/viber:intent <path>/roadmap.md`") > rules);
+  assert.ok(bullet.indexOf("`/viber:intent <path>/phases.md`") > rules);
 });
 
 test("a non-zero exit of the trail call puts the not-written line in the final summary, asks nothing and goes on to the cleanup close part", () => {

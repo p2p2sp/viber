@@ -29,24 +29,24 @@ To build this plan you must invoke skill `viber:implementor` with `source:` path
 
 - <behaviour that already works and has to keep working>
 
-## Roadmap
+## Phases
 
-<!-- Only when the change was split into parts; otherwise drop this section.
-     The build cuts it into roadmap.md, never into spec.md. Every later part
+<!-- Only when the change was split into phases; otherwise drop this section.
+     The build cuts it into phases.md, never into spec.md. Every later phase
      lists the decisions settled for it as indented lines; a plan continuing
-     the roadmap marks the earlier parts (built) and moves its own part's
-     decisions into its specification. A part that has an issue carries
+     the list marks the earlier phases (built) and moves its own phase's
+     decisions into its specification. A phase that has an issue carries
      `   - Issue: <full issue URL>` as the first indented line under it, before
-     its decisions; a part with none carries no such line. -->
+     its decisions; a phase with none carries no such line. -->
 
-Part <n> of <N> - <this part>
+Phase <n> of <N> - <this phase>
 
-1. <part> (built)
-2. <part> (this plan)
-   - Issue: <full issue URL of this part's sub-issue>
-3. <part>
-   - Issue: <full issue URL of this part's sub-issue>
-   - <decision settled for this part>
+1. <phase> (built)
+2. <phase> (this plan)
+   - Issue: <full issue URL of this phase's sub-issue>
+3. <phase>
+   - Issue: <full issue URL of this phase's sub-issue>
+   - <decision settled for this phase>
 
 ## Behaviour
 

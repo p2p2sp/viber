@@ -1,4 +1,4 @@
-A new issue saved after the start step (the `ISSUE_URL=` of `issue-create.sh`; after an issue set save, this cycle's part sub-issue URL, and no re-run when that one did not land or `mode: off`) -> right after that save and before the "what next" question, run the same `--start` line once more with the same flags plus `--settled <settlement>` and the new issue URL in place of the earlier one.
+A new issue saved after the start step (the `ISSUE_URL=` of `issue-create.sh`; after an issue set save, this cycle's phase sub-issue URL, and no re-run when that one did not land or `mode: off`) -> right after that save and before the "what next" question, run the same `--start` line once more with the same flags plus `--settled <settlement>` and the new issue URL in place of the earlier one.
 
 - The settlement is the entry key, `no-branch`, `current` or `pr` last settled, `nothing` when none was.
 - Handle its report as the start step does.

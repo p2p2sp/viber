@@ -78,7 +78,7 @@ Never dispatch a `done` or `skipped` task again. Also on the index:
 - `unreviewed: <ids>` -> carry to the final summary.
 - `closed: <parts>` -> those parts of steps 6 and 7 are already recorded.
 - `ruling: <subject>: <text>` -> carry to step 7.
-- `next: part <n> of <N> - <name>` -> carry it to step 7.
+- `next: phase <n> of <N> - <name>` -> carry it to step 7.
 - `NEXT: extension | step: <k> | name: <name>` block (its four lines after it) -> carry every one to step 6, acting on none before it.
 - `NEXT: qa-kept` block (its `RUN:` line) -> carry it to step 6, running its `RUN:` line no earlier.
 

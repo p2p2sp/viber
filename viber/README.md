@@ -105,7 +105,7 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
   (on the pull request when the run has none), once per run. For a pull request to a branch other than the default one,
   it creates the branch on GitHub linked to the first issue before the push, so the pull request shows in that issue's
   Development section; a branch already pushed cannot be linked, and it then tells you first to link it by hand.
-  A build finished on its run branch, with no roadmap part left, offers to run it.
+  A build finished on its run branch, with no phase left, offers to run it.
 - **`/viber:pr-feedback`**: `/viber:pr-feedback <pull request number or URL>` lists the unresolved review
   threads not yet answered and the remarks outside them, the pull request's Conversation comments and the
   bodies of submitted reviews (leaving out your own, bots' and answered ones), lets you pick which to act on and hands them to `/viber:intent`, so that every
@@ -175,14 +175,14 @@ the task back. Its reviewer checks that the tests that failed are the task's new
 
 Tests go through the public contract alone. A domain rule is proven by a unit test and a use case by a component test on fakes, so most proof stays fast and in memory. Every external dependency gets a port, an in-memory fake and a contract test that the fake and the real adapter both pass. A build writes a test only for a critical path or a decision in the logic, one per regression, and none for an empty or missing input, a default value, a name, a data shape, what the compiler, type checker, linter or schema rejects or what a screen renders: a screen's decision is proven in the reducer, state machine or function holding it. Behaviour too plain to earn a test is checked by the reviewer reading the code. An integration test proves only what the real dependency reveals: its task writes it without running it, and the final run runs it once. A review finding on a test rule names the rule and covers every test of the task that breaks it, so one round of fixes clears the whole class. Later coders of the run get the test rules that earlier reviews of the run raised.
 
-An idea too big for one cycle, such as a whole application, is split into ordered parts before any
-detail question, and the interview covers every part. Each part gets its own plan and its own
-build. A finished build names the next part, which resumes from the decisions already made, and
-nothing is stubbed in between. With GitHub issues on, each part gets its own sub-issue under
-one parent issue, and a part that resumes is tied to its sub-issue.
+An idea too big for one cycle, such as a whole application, is split into ordered phases before any
+detail question, and the interview covers every phase. Each phase gets its own plan and its own
+build. A finished build names the next phase, which resumes from the decisions already made, and
+nothing is stubbed in between. With GitHub issues on, each phase gets its own sub-issue under
+one parent issue, and a phase that resumes is tied to its sub-issue.
 
 The planner checks the size too. When its plan grows past 30 tasks, it stops and asks through the
-interview whether to split the change into parts or keep one plan of that many tasks; a split
+interview whether to split the change into phases or keep one plan of that many tasks; a split
 resumes the interview from the planner's own proposal. The planner also asks, one decision per question,
 every decision its exploration of the code finds that the interview left open and that belongs to you,
 such as a behaviour, a scope or a product choice. Implementation choices stay with it. Its `plan-writer`
@@ -209,8 +209,8 @@ A coder finishes every clause its dispute does not touch before it returns `DECI
 
 Every ruling goes into `rulings.md` with its reason and its cost if wrong, and the final summary
 lists them. When the run is archived, the screen shows a short result and one closing sentence saying
-whether `outcome.md` records a problem, plus, when a further roadmap part is left, a sentence telling
-you to continue the work and then the command that starts that part. The full summary is in
+whether `outcome.md` records a problem, plus, when a further phase is left, a sentence telling
+you to continue the work and then the command that starts that phase. The full summary is in
 `outcome.md` in the archive, along with every file the build left uncommitted and the reason, and one
 `tokens:` line per agent role and model with its input, output, cache read and cache write counts. The
 main session and the `closeout` agent are not counted. The summary also names the `rounds:` line (the plan review rounds), the `attempts:` line (every task that needed more than one attempt, with its count) and the `arbiter:` line (the number of rulings). The archive also keeps `failures.md`, the failure trail of the run,

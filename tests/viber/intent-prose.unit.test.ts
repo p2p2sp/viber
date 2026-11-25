@@ -84,7 +84,7 @@ test("SKILL.md gets repository facts from the built-in Explore agent with no mod
   assert.match(SKILL, /only the questions that need it wait/);
 });
 
-for (const heading of ["## Returning to a roadmap", "## The interview", "## Done"]) {
+for (const heading of ["## Returning to phases", "## The interview", "## Done"]) {
   test(`SKILL.md keeps the heading ${heading} that the references point at`, () => {
     assert.ok(SKILL.split(/\r?\n/).includes(heading));
   });
@@ -93,7 +93,7 @@ for (const heading of ["## Returning to a roadmap", "## The interview", "## Done
 test("SKILL.md names the closed signal list of four signals", () => {
   assert.match(SKILL, /`Split proposal:`/);
   assert.match(SKILL, /issue reference/);
-  assert.match(SKILL, /`roadmap\.md`/);
+  assert.match(SKILL, /`phases\.md`/);
   assert.match(SKILL, /`Attachment:`/);
 });
 
@@ -194,7 +194,7 @@ test("inside plan mode the hand-off writes no file and restates the confirmed su
 });
 
 test("the summary file carries the summary fields and each signal line that applies", () => {
-  const tokens = ["problem", "acceptance criteria", "out of scope", "binding constraints", "way to resolve", "`Issue:", "`Attachment:", "`Work:", "`Branch:", "`Roadmap:"];
+  const tokens = ["problem", "acceptance criteria", "out of scope", "binding constraints", "way to resolve", "`Issue:", "`Attachment:", "`Work:", "`Branch:", "`Phases:"];
   assert.deepEqual(tokens.filter((token) => !DONE.includes(token)), []);
 });
 

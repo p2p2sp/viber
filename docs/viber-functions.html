@@ -302,23 +302,23 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
       </ul>
     </section>
 
-    <section id="roadmap" data-title="Large scopes and roadmap">
-      <h2>Large scopes and roadmap <span class="count"></span></h2>
+    <section id="phases" data-title="Large scopes and phases">
+      <h2>Large scopes and phases <span class="count"></span></h2>
       <p>An idea too big for one cycle, such as a whole application.</p>
       <ul class="f">
         <li>A scope above about 30 tasks is split before any detail question.</li>
         <li>Cut by size alone, never by theme or milestone.</li>
-        <li>Every part holds about 8 tasks or more; smaller ones are merged.</li>
-        <li>Ordered parts: each one consumes only what earlier ones produced.</li>
-        <li>No stubs, mocks or temporary stand-ins between parts.</li>
-        <li>A part is not a release: no working application is required in between.</li>
-        <li>The interview covers every part in order.</li>
-        <li>A question hanging on an earlier part's code becomes an unknown of that part.</li>
-        <li>Every part gets its own plan and its own build.</li>
-        <li><code>roadmap.md</code> holds the decisions and unknowns of later parts.</li>
-        <li>A finished build names the command for the next part.</li>
+        <li>Every phase holds about 8 tasks or more; smaller ones are merged.</li>
+        <li>Ordered phases: each one consumes only what earlier ones produced.</li>
+        <li>No stubs, mocks or temporary stand-ins between phases.</li>
+        <li>A phase is not a release: no working application is required in between.</li>
+        <li>The interview covers every phase in order.</li>
+        <li>A question hanging on an earlier phase's code becomes an unknown of that phase.</li>
+        <li>Every phase gets its own plan and its own build.</li>
+        <li><code>phases.md</code> holds the decisions and unknowns of later phases.</li>
+        <li>A finished build names the command for the next phase.</li>
         <li>Resuming asks only what the builds since changed.</li>
-        <li>The next part builds on the previous part's branch.</li>
+        <li>The next phase builds on the previous phase's branch.</li>
       </ul>
     </section>
 
@@ -580,8 +580,8 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>Plan, status, tasks and notes dropped in one commit (git keeps them).</li>
         <li>Closing screen: the result, tests and elapsed time, then one sentence saying whether <code>outcome.md</code> records a problem.</li>
         <li>Summary without an archive: at most 7 lines plus fixes and rulings.</li>
-        <li>On a run branch with no roadmap part left: asks whether to open the pull request through <code>/viber:pr-create</code>.</li>
-        <li>Suggests the command for the next roadmap part.</li>
+        <li>On a run branch with no phase left: asks whether to open the pull request through <code>/viber:pr-create</code>.</li>
+        <li>Suggests the command for the next phase.</li>
         <li>Uncommitted paths and skipped tasks named in the summary.</li>
       </ul>
     </section>
@@ -615,7 +615,7 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
       <p><code>/viber:pr-create</code>.</p>
       <ul class="f">
         <li>A pull request for the current branch, after a preview.</li>
-        <li>Started by you, or by your yes when a build finishes on its run branch with no roadmap part left.</li>
+        <li>Started by you, or by your yes when a build finishes on its run branch with no phase left.</li>
         <li>Refuses with a reason: no <code>gh</code>, no repository, detached HEAD, dirty tree.</li>
         <li>Refuses: a base branch, an existing pull request, no commits.</li>
         <li>The target comes from the branch entry or from a question.</li>

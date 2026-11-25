@@ -30,7 +30,7 @@ input:
 - A first message with no label below: `## Map`.
 - A message opening on `write:`: `## Write`.
 - A message opening on `fix:`: `## Fix`.
-- A message opening on `split:`: return the `PART:` lines of `## Map` for the plan as it stands, then `VERDICT: MAPPED`.
+- A message opening on `split:`: return the `PHASE:` lines of `## Map` for the plan as it stands, then `VERDICT: MAPPED`.
 - A first message also carrying `write:` or `fix:` continues a plan begun elsewhere: `Read` the plan file when it exists and the files its `### File map` names, then act on that label.
 - An `Answered: <decision> -> <option>` line in any message settles that decision and counts as part of the input.
 
@@ -46,7 +46,7 @@ Before taking any action, explore broadly with tool calls: open every file and r
 - Read the codebase for everything `plan-rules.md`'s Reach and Owned rules force into the file map.
 - A file you have to touch that has grown unwieldy may be split, as a task.
 - Read for the map here: declarations, call sites and the tests over them, a body only where a file's place in the map or a decision hangs on it. The bodies wait for `## Write`.
-- Estimate the task count from the file map. Once it is certain to pass 30, stop reading and cut the change into parts from the map, a `viber:fixer` input putting the fix in part 1.
+- Estimate the task count from the file map. Once it is certain to pass 30, stop reading and cut the change into phases from the map, a `viber:fixer` input putting the fix in phase 1.
 
 List the reach targets:
 
@@ -55,13 +55,13 @@ List the reach targets:
 
 A behaviour, scope or product choice the input leaves open is owed to the user: one `DECIDE:` line with 3 options, your recommendation first. An implementation choice (a file, a name, a library, a structure, an algorithm) is never asked: it stays with you.
 
-Reply with these lines and nothing else, `PART:` lines only past 30 tasks:
+Reply with these lines and nothing else, `PHASE:` lines only past 30 tasks:
 
 ```
 TASKS: <estimated task count>
 TARGET: <reach target>
 DECIDE: <decision> | <recommended option> | <option> | <option>
-PART: <n>. <part> - owns: <what it delivers>; consumes: <what earlier parts produce, or nothing>; files: <repo-relative paths>; tasks: <estimated count>
+PHASE: <n>. <phase> - owns: <what it delivers>; consumes: <what earlier phases produce, or nothing>; files: <repo-relative paths>; tasks: <estimated count>
 VERDICT: MAPPED
 ```
 
@@ -69,7 +69,7 @@ VERDICT: MAPPED
 
 The message carries `write:`, the `Answered:` lines and, when the reach was mapped, `REF:` lines.
 
-Pick the spec shape. A `viber:fixer` diagnosis is `spec-lite`. An intent summary is `spec-full` when it holds any of: a new application or subsystem, an accepted roadmap, behaviour with more than one path or named edge cases, new domain concepts; else `spec-lite`.
+Pick the spec shape. A `viber:fixer` diagnosis is `spec-lite`. An intent summary is `spec-full` when it holds any of: a new application or subsystem, accepted phases, behaviour with more than one path or named edge cases, new domain concepts; else `spec-lite`.
 
 Before a task is written, read `## Layers`, `## Proves` and `## Ports` of `<refs>/test-strategy.md` by range: `Grep` the file for its `## ` lines, then `Read` each of the three sections. A plan carrying an integration test or creating or changing an adapter also reads `<refs>/integration-tests.md`.
 
@@ -83,8 +83,8 @@ The specification half is `<templates>/spec-lite.md` or `<templates>/spec-full.m
 
 - Frontmatter, per its placeholders: `source:` is the `plan:` path; `issue:` comes only from the input's `Issue:` line, `attachments:` only from its `Attachment:` lines.
 - Each `Attachment:` line is one entry: the file's or directory's own name (changed only to avoid a repeat), then its path. A task needing one of those files names `attachments/<name>` in its `DoD`, `attachments/<name>/` for a directory; a task needing none names none.
-- An input carrying a roadmap, or a `Roadmap: <path>` line (read that `roadmap.md`), fills `## Roadmap` per its template comment and repeats every later entry under `### Out of scope`; no roadmap means no such section.
-- What a later roadmap entry brings stays absent: no stand-in, stub or mock of it, no criterion depending on it. A part is never a release: no criterion needs a working application between parts.
+- An input carrying phases, or a `Phases: <path>` or `Roadmap: <path>` line (read it), fills `## Phases` per its template comment and repeats every later entry under `### Out of scope`; no phases: no such section.
+- What a later phase entry brings stays absent: no stand-in, stub or mock of it, no criterion depending on it. A phase is never a release: no criterion needs a working application between phases.
 
 Reply with the whole text of the plan file, its first line first, then one last line `VERDICT: WRITTEN`. With a decision still owed to the user, reply with its `DECIDE:` lines and `VERDICT: DECIDE` instead, and no plan text.
 

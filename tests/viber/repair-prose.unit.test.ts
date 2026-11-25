@@ -264,7 +264,7 @@ test("closeout BLOCKED output lists three lines and DENIED four (its REFUSAL lin
 const CLOSE = fs.readFileSync(path.join(AGENTS, "../skills/implementor/parts/close.md"), "utf8");
 const ARCHIVED_CLOSE = bulletsOpening(CLOSE, "- `closeout` returned `VERDICT: ARCHIVED` ->")[0] ?? "";
 const SUMMARY_PRINT = "`Summary: <path>/outcome.md`";
-const ARCHIVED_NEXT_LINE = "`/viber:intent <path>/roadmap.md`";
+const ARCHIVED_NEXT_LINE = "`/viber:intent <path>/phases.md`";
 const SENTENCE_START = CLOSE.indexOf("Closing sentence");
 const SENTENCE_END = CLOSE.indexOf("\n\n", SENTENCE_START + CLOSE.slice(SENTENCE_START).indexOf("\n- "));
 const SENTENCE = SENTENCE_START < 0 ? "" : CLOSE.slice(SENTENCE_START, SENTENCE_END);
@@ -301,9 +301,9 @@ test("the screen form prints the closing sentence after the rulings", () => {
 });
 
 test("the screen form prints the closing sentence before the next-part line, which stays last", () => {
-  const next = CLOSE.indexOf("With a `next: part` index line");
+  const next = CLOSE.indexOf("With a `next: phase` index line");
   assert.ok(next > SENTENCE_START);
-  const nextLine = lines(CLOSE).find((line) => line.startsWith("With a `next: part` index line")) ?? "";
+  const nextLine = lines(CLOSE).find((line) => line.startsWith("With a `next: phase` index line")) ?? "";
   assert.ok(nextLine.includes("after the closing sentence"));
   assert.ok(nextLine.includes("the last line of the screen form"));
 });
