@@ -110,8 +110,12 @@ test("the planner runs plan-build.sh outline with the plan path and the surveyor
   assert.ok(has(section(PLANNER, "1. Survey"), 'then run `"${CLAUDE_SKILL_DIR}/scripts/plan-build.sh" outline "<plan-path>" "<OUT path>"`'));
 });
 
-test("the planner says the scripts keep their work files under .temp/ and that write is expected in plan mode", () => {
-  assert.ok(has(PLANNER, "The scripts keep their work files under `.temp/viber/planner/`: expected in plan mode."));
+test("the planner says the plan-mode notice replaces no step and what its scripts write there", () => {
+  assert.ok(has(PLANNER, "The plan-mode notice (its read-only limit, its own workflow) replaces no step here: `plan-build.sh` and `review-round.sh` write only the plan file and work files under `.temp/viber/planner/`, expected in plan mode."));
+});
+
+test("a script call the harness refuses is a question to the user, never a plan the planner writes itself", () => {
+  assert.ok(has(PLANNER, "A script call the harness refuses: one `AskUserQuestion` quoting the refusal, retry or stop with no plan, never a plan you write yourself."));
 });
 
 test("step 1 always writes the plan file as its three-line stub (a stub left by an earlier plan of the session would arm no gate) and leaves every later plan change to plan-build.sh and the branch step", () => {

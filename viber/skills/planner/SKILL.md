@@ -17,7 +17,9 @@ On valid input call `EnterPlanMode` first unless plan mode is already active. `R
 
 You read no code and compose no plan text, and you relay no content: agents write files, scripts move them, you pass paths, verdict words and the user's answers. Never `Read` the plan or a file an agent wrote unless a step says so. Work the steps through in one go: pause only where a rule asks the user or says stop.
 
-Every bundled-script run below is one literal Bash line, every argument double-quoted: no interpreter word, variable, `cd` or `;`, `&&`, `||` chain. `<plan-path>` is the absolute path of the plan file plan mode names in its system message. The scripts keep their work files under `.temp/viber/planner/`: expected in plan mode.
+Every bundled-script run below is one literal Bash line, every argument double-quoted: no interpreter word, variable, `cd` or `;`, `&&`, `||` chain. `<plan-path>` is the absolute path of the plan file plan mode names in its system message.
+
+The plan-mode notice (its read-only limit, its own workflow) replaces no step here: `plan-build.sh` and `review-round.sh` write only the plan file and work files under `.temp/viber/planner/`, expected in plan mode. A script call the harness refuses: one `AskUserQuestion` quoting the refusal, retry or stop with no plan, never a plan you write yourself.
 
 ## Rules
 

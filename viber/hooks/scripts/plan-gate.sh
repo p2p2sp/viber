@@ -245,8 +245,13 @@ if [ "$1" -gt "$episode_start" ] || [ "$2" -gt "$episode_start" ]; then
     [ "$planner_fm" = "0" ] && planner_owns=0
   fi
 fi
+# Text of the missing-review refusals under the planner: a plan the model wrote by
+# hand reaches this gate with the planner steps ahead of the review skipped, and a
+# refusal naming the review alone would send it straight past them.
+steps_first=""
 if [ "$planner_owns" = "1" ]; then
   agent="planner-review"
+  steps_first="first run the planner skill steps this plan has not been through, their scripts being expected in plan mode: plan-index.sh to exit 0, the ADR screen when planning.adr is true, then review-round.sh start, whose printed blocks are the dispatch, the input verbatim and never a digest of it. Then "
   writer="The planner skill"
   dispatch_with="the plan path, \`refs:\` (the reference directory), \`memory:\` (the planner's resolved config value) and \`input:\` (the summary file path, the summary text or the bug diagnosis the plan answers), as planner-review.md expects its input"
   gate="the planner's review gate"
@@ -518,7 +523,7 @@ if [ "$task_count" -gt 12 ]; then
       names="${names:+$names, }viber:planner-task-review (uncovered tasks ${uncovered})"
       todo="${todo:+$todo; }$d_task ${uslices}"
     fi
-    emit_deny "Next step: review the plan. ${plan_name} holds ${task_count} tasks, past 12, so a planner-review PASS alone does not open ExitPlanMode: every member of the review set must hold a 'VERDICT: PASS' for it - a write of the plan made while no member holds a FAIL voids every earlier verdict of a dispatch that carried no \`sum:\` line, and a verdict of one that did counts only while that sum is still the sum of its part of the plan - and these still miss a dispatch or a verdict: ${names}. Dispatch ${todo} - all in one message - wait for every 'VERDICT: PASS', then retry ExitPlanMode without writing the plan again: Minor findings stay unapplied, except one showing the plan changes a behaviour today's code has that the request never asked for - fix that one and dispatch again, since any write after the PASS voids it. (This is ${gate}, not an error.)"
+    emit_deny "Next step: review the plan. ${plan_name} holds ${task_count} tasks, past 12, so a planner-review PASS alone does not open ExitPlanMode: every member of the review set must hold a 'VERDICT: PASS' for it - a write of the plan made while no member holds a FAIL voids every earlier verdict of a dispatch that carried no \`sum:\` line, and a verdict of one that did counts only while that sum is still the sum of its part of the plan - and these still miss a dispatch or a verdict: ${names}. Before that, ${steps_first#first }dispatch ${todo} - all in one message - wait for every 'VERDICT: PASS', then retry ExitPlanMode without writing the plan again: Minor findings stay unapplied, except one showing the plan changes a behaviour today's code has that the request never asked for - fix that one and dispatch again, since any write after the PASS voids it. (This is ${gate}, not an error.)"
   fi
 
   whole_set="${d_spec}; ${d_graph}; ${d_task} ${allslices}"
@@ -627,7 +632,7 @@ dispatch_line="$2"
 verdict_line="$3"
 
 if [ "$last_dispatch" = "0" ]; then
-  emit_deny "Next step: review the plan. ${writer} wrote ${plan_name} but the viber:${agent} agent has not run on this version - dispatch it with ${dispatch_with}, wait for 'VERDICT: PASS', then retry ExitPlanMode without writing the plan again: Minor findings stay unapplied, except one showing the plan changes a behaviour today's code has that the request never asked for - fix that one and dispatch again, since any write after the PASS voids it. (This is ${gate}, not an error.)"
+  emit_deny "Next step: review the plan. ${writer} wrote ${plan_name} but the viber:${agent} agent has not run on this version - ${steps_first}dispatch it with ${dispatch_with}, wait for 'VERDICT: PASS', then retry ExitPlanMode without writing the plan again: Minor findings stay unapplied, except one showing the plan changes a behaviour today's code has that the request never asked for - fix that one and dispatch again, since any write after the PASS voids it. (This is ${gate}, not an error.)"
 fi
 
 if [ "$verdict_line" = "0" ]; then

@@ -39,7 +39,7 @@ export const rules: RuleInstance[] = [
   words("rules-skill", "skills/rules/SKILL.md", 1700, MEMORY),
   words("rules-auditor", "agents/rules-auditor.md", 1467, MEMORY),
 
-  words("planner-skill", "skills/planner/SKILL.md", 1490, `${PLANNER}; the code reading and the plan text live in the planning agents (1775 before)`),
+  words("planner-skill", "skills/planner/SKILL.md", 1531, `${PLANNER}; the code reading and the plan text live in the planning agents (1775 before), and the cap carries the paragraph that keeps the planner on its scripts in plan mode`),
   words("plan-surveyor", "agents/plan-surveyor.md", 798, PLAN_AGENT),
   words("plan-architect", "agents/plan-architect.md", 1140, PLAN_AGENT),
   words("plan-detailer", "agents/plan-detailer.md", 640, `${PLAN_AGENT}; it is dispatched once per slice of 8 tasks`),

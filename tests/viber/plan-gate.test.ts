@@ -164,6 +164,25 @@ test("the planner refusal also names input: as the summary file path, the summar
   });
 });
 
+test("the planner refusal sends back to the planner steps ahead of the review, its scripts included", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite()]);
+    const { reason } = await runCase(f);
+    assert.match(reason ?? "", /plan-index.sh to exit 0, the ADR screen when planning.adr is true/);
+    assert.match(reason ?? "", /review-round.sh start/);
+  });
+});
+
+test("the outside plan refusal names no planner step", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const f = writeTranscript(dir, "t.jsonl", [planWrite()]);
+    const { decision, reason } = await runCase(f, cwd);
+    assert.equal(decision, "deny");
+    assert.doesNotMatch(reason ?? "", /plan-index.sh|review-round.sh/);
+  });
+});
+
 test("the unprefixed skill spelling 'planner' arms the gate too (the install form must not decide)", async () => {
   await withTempDir("p2p2-plan-gate-", async (dir) => {
     const f = writeTranscript(dir, "t.jsonl", [skillUse("planner"), planWrite()]);
@@ -1026,6 +1045,15 @@ test("review set: the spec reviewer dispatch text describes input: as the summar
     const { reason } = await runCase(f);
     assert.match(reason ?? "", /`input:` \(the summary file path, the summary text or the bug diagnosis the plan answers\)/);
     assert.doesNotMatch(reason ?? "", /confirmed interview summary/);
+  });
+});
+
+test("review set: the refusal sends back to the planner steps ahead of the review", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan)]);
+    const { reason } = await runCase(f);
+    assert.match(reason ?? "", /plan-index\.sh to exit 0, the ADR screen when planning\.adr is true, then review-round\.sh start/);
   });
 });
 
