@@ -7,9 +7,10 @@
  *
  * The cases pin what a slice brief relies on: a block ends before the blank
  * lines that only separate it from the next one, a `## ` line inside a task
- * block or a fenced block opens no section, a field is read once per task, and
- * the cut is the one `scripts/plan-index.sh` prints (ceil(n / 8) runs, sizes
- * differing by at most one, the larger first).
+ * block or a fenced block opens no section, a fenced block under Must not change
+ * is quoted whole, a criterion opens at column 0 alone, a field is read once per
+ * task, and the cut is the one `scripts/plan-index.sh` prints (ceil(n / 8) runs,
+ * sizes differing by at most one, the larger first).
  */
 
 import assert from "node:assert/strict";
@@ -28,12 +29,16 @@ const PLAN = [
   "### Must not change",
   "",
   "- the login keeps its route",
+  "```",
+  "POST /login",
+  "```",
   "- the audit stays",
   "",
   "## Acceptance criteria",
   "",
   "1. The first criterion.",
   "   Its second line.",
+  "   1. A step of it.",
   "2. The second criterion.",
   "",
   "## Scope",
@@ -105,17 +110,17 @@ test("a contract block runs from its heading to its last line with text, a headi
   ]);
 });
 
-test("an acceptance criterion keeps its continuation lines and ends before the blank line after it", () => {
+test("an acceptance criterion keeps its continuation lines, an indented numbered step among them, and ends before the blank line after it", () => {
   const plan = parsePlan(PLAN);
   assert.deepEqual(plan.criteria.map((item) => [item.id, plan.lines.slice(item.first, item.last + 1)]), [
-    ["AC1", ["1. The first criterion.", "   Its second line."]],
+    ["AC1", ["1. The first criterion.", "   Its second line.", "   1. A step of it."]],
     ["AC2", ["2. The second criterion."]],
   ]);
 });
 
-test("the must-not-change lines come without their heading and outer blank lines, the file map by path with a leading ./ and backticks dropped", () => {
+test("the must-not-change lines come without their heading and outer blank lines, a fenced block among them whole, the file map by path with a leading ./ and backticks dropped", () => {
   const plan = parsePlan(PLAN);
-  assert.deepEqual(plan.mustNot, ["- the login keeps its route", "- the audit stays"]);
+  assert.deepEqual(plan.mustNot, ["- the login keeps its route", "```", "POST /login", "```", "- the audit stays"]);
   assert.deepEqual([...plan.fileMap.keys()], ["src/a.ts", "src/b.ts"]);
   assert.equal(plan.fileMap.get("src/b.ts"), "- add - `./src/b.ts` - its helper");
 });

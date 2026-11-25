@@ -46,7 +46,8 @@
  * ends the review. A `start` after `NEXT: fix`, `NEXT: detail` or
  * `NEXT: exit-plan` opens the next round, and after any other answer needs
  * `--fresh`. That round sends only the members without a PASS and the members
- * whose part of the plan changed, the whole set when the slices changed, each
+ * whose part of the plan changed (planner-review every time), the whole set
+ * with no previous findings when the members changed, each
  * block naming the member's previous findings and the fixes file when those
  * exist; `--answered` adds the readers of the `Answered:` lines, and a member
  * that returned no verdict at all takes the previous findings off the round. A
@@ -1024,6 +1025,23 @@ test("start after a fix that adds a task prints every member at round 2 on the n
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.equal(nextLines(result.stdout).length, 4);
     assert.match(result.stdout, /^tasks: T8-T14$/m);
+    assert.deepEqual(valuesOf(result.stdout, "previous"), []);
+    assert.equal(exists(repo, `${DIR_REL}/findings-3.md`), false);
+  });
+});
+
+test("start after a fix that takes a plan past 12 tasks sends the whole review set with no previous findings and removes the findings file of planner-review (numbered 1, it would reach the spec reviewer, which would check the fixes of a part it never read)", async () => {
+  await withGitRepo(async (repo) => {
+    await begin(repo, 12);
+    await returned(repo, "1=FAIL", ...wrote(repo, 1));
+    write(repo.dir, `${DIR_REL}/fixes.md`, "fix: T12 - split in two\n");
+    write(repo.dir, PLAN_REL, litePlan(13));
+
+    const result = await start(repo, PLAN_REL);
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(shaped(repo, result.stdout), [...spec(2), ...graph(2), ...tasks3(2), ...tasks4(2), ""].join("\n"));
+    assert.equal(exists(repo, `${DIR_REL}/findings-1.md`), false);
   });
 });
 
@@ -1084,6 +1102,35 @@ const PASSED_SET: Arranger = async (repo) => {
   await begin(repo, 13);
   await returned(repo, "1=PASS", "2=PASS", "3=PASS", "4=PASS", ...wrote(repo, 4, ["VERDICT: PASS", "FINDINGS:", "Minor", "- T9 reads a file no task lists (inferred)"]));
 };
+
+test("start after NEXT: exit-plan on a plan of 12 tasks or fewer sends planner-review again with the plan unchanged (the gate pairs its verdict with a dispatch after the last plan write, so a kept PASS would answer exit-plan to a plan the gate refuses)", async () => {
+  await withGitRepo(async (repo) => {
+    await AFTER_EXIT_PLAN(repo);
+
+    const result = await start(repo, PLAN_REL);
+
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.equal(shaped(repo, result.stdout), [...single(2), ""].join("\n"));
+  });
+});
+
+test("start outside the skeleton stage on a plan whose task still holds PENDING exits 2 on the FIX lines of plan-index.sh --detailed, while start --skeleton takes the same plan", async () => {
+  await withGitRepo(async (repo) => {
+    write(repo.dir, PLAN_REL, litePlan(2).replace("- Verification: npm test -> green", "- Verification: PENDING").replace("- DoD: it works", "- DoD: PENDING"));
+
+    const full = await start(repo, PLAN_REL, "--fresh");
+    const skeleton = await start(repo, PLAN_REL, "--fresh", "--skeleton");
+
+    assert.equal(full.status, 2);
+    assert.equal(full.stdout, "");
+    assert.equal(
+      full.stderr,
+      "error: plan-index.sh refused the plan\nFIX: task T1: Verification is still PENDING - dispatch the plan-detailer block of its slice and merge its file (Detailed)\nFIX: task T1: DoD is still PENDING - dispatch the plan-detailer block of its slice and merge its file (Detailed)\n",
+    );
+    assert.equal(skeleton.status, 0, `stderr: ${skeleton.stderr}`);
+    assert.equal(skeleton.stdout, "NEXT: detail\n");
+  });
+});
 
 test("start after NEXT: exit-plan with the plan unchanged sends nobody and prints NEXT: exit-plan at once, with its MINOR: lines", async () => {
   await withGitRepo(async (repo) => {

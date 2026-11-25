@@ -50,7 +50,7 @@ Owns the Node modules holding script logic (the config core under `config/`, `ar
 - A config key or report line: the header of `../scripts/config.ts` and the module that resolves it, with its unit test.
 - A switch key: the `KEYS` set of `switch-text.ts`, the header of `../scripts/switch-text.ts` and the switch table of `tools/lint/data/invocations.ts`.
 - An entry under `../skills/<skill>/scripts/`: its path in the `entries` list of `tools/lint/data/layering.ts`, named whole.
-- The planner work file names under `.temp/viber/planner/`: the `WORK` pattern of `plan-build.ts` (what a survey of another plan removes) and the scratch list of `archive-run.ts`.
+- The planner work file names under `.temp/viber/planner/`: the `WORK` pattern of `plan-build.ts` (what a survey removes, unless `--phase` goes on with the plan surveyed last) and the scratch list of `archive-run.ts`.
 - The slice cut (`ceil(n / 8)` runs, sizes differing by at most one, the larger first): `slicesOf` of `plan-text.ts`, the review lines of `../scripts/plan-index.sh` and `../hooks/scripts/plan-gate.sh`.
 - The task block markers and the `- <Label>: <value>` field lines `parsePlan` reads, and the ones `../scripts/plan-index.sh` validates.
 
@@ -64,7 +64,7 @@ Owns the Node modules holding script logic (the config core under `config/`, `ar
 - `runSynthesize` hands its workspace and the lens file `run.md` names to `Fs` as written, and `runRunFailures` joins a relative run directory to the repository root as written (`..` and `./` kept), so the system follows a link before a `..` after it.
 - `runSynthesize`, `runRunFailures` and `runPlanBuild` read every file as UTF-8 text and write what they read back as UTF-8: a byte that is no valid UTF-8 in a report, a hit line or the plan reaches `findings.md`, `failures.md`, the candidates file or the plan file as U+FFFD. The ledger alone is appended to as bytes.
 - `runPlanBuild` rewrites the plan through `linesOf` and `textOf`: `merge` and `apply` leave every line ending on a line feed, a carriage return dropped, and `skeleton` also drops the blank lines at both ends of the plan text. `plan_part_sum` drops the carriage return too, so a checksum taken before such a write still matches.
-- `runPlanBuild` compares the plan path with the one of its state file as text, and hands every file path of its arguments to `Fs` as written.
+- `runPlanBuild` compares the plan path of a `survey --phase` with the one of its state file as text, and hands every file path of its arguments to `Fs` as written.
 - `collectReach` skips a search term shorter than 3 characters (`skipped:`) and keeps at most 200 hit lines per target and 200 characters of each, counted in characters, never bytes; a target with an empty path gets no section.
 - A `- Blocking [<cause>]` word is lower-cased letter by letter in ASCII (`runRunFailures`): a full Unicode fold would turn a Kelvin sign into `k` and admit a cause that is none.
 - The fake file system matches a path as text: `runAttachLines` and `runQaLedger` make an argument absolute and drop `.`, `..`, doubled and trailing slashes themselves (`absolutePath`) before they ask a port, and a core module that prints a path it looked up does the same.

@@ -50,7 +50,9 @@ const FILE_LIMIT = 60;
 /** The architect writes a plan of this many tasks or fewer whole, with no task author. */
 const WHOLE_LIMIT = 8;
 const PENDING = "PENDING";
-/** The work files of one plan: a survey of another plan path removes them. */
+/** The three lines that frame an edit block of a fix file. */
+const MARKS = ["@@ EDIT", "@@ WITH", "@@ END"];
+/** The work files of one plan: a survey removes them unless it goes on with a phase of that plan. */
 const WORK = /^(outline|decisions|reach-paths|reach-.*|slice-.*|findings-.*|review-.*|fixes|gaps|survey|architect|tasks-.*|fix)\.md$/s;
 
 const enc = (lines: string[]): Uint8Array => new TextEncoder().encode(textOf(lines));
@@ -113,10 +115,12 @@ const addInput = (ctx: Context): string => (ctx.state.input === "" ? " | add: in
 const candidatesLine = (ctx: Context): string[] => (ctx.state.candidates === "" ? [] : [`candidates: ${ctx.state.candidates}`]);
 
 function survey(ctx: Context): BuildResult {
-  const read = flags(ctx.rest, ["--input"], []);
+  const read = flags(ctx.rest, ["--input"], ["--phase"]);
   if (typeof read === "string") return misuse(`survey: ${read}`);
+  if (read.args.length > 0) return misuse(`survey: unexpected argument: ${read.args[0]}`);
   const { fs } = ctx.ports;
-  const resumed = ctx.state.plan === ctx.plan;
+  // The same path alone proves nothing: plan mode names one plan file for a whole session, an abandoned plan included.
+  const resumed = read.set.has("--phase") && ctx.state.plan === ctx.plan;
   if (!resumed) {
     for (const name of fs.listDir(ctx.dir)) if (WORK.test(name)) fs.remove(`${ctx.dir}/${name}`);
     ctx.state = { plan: ctx.plan, input: "", candidates: "" };
@@ -404,20 +408,26 @@ function apply(ctx: Context): BuildResult {
 
   const edits: { old: string[]; fresh: string[] }[] = [];
   const fixes: string[] = [];
+  const misplaced: string[] = [];
   let part: "none" | "old" | "fresh" = "none";
-  for (const line of source) {
+  source.forEach((line, at) => {
     const mark = line.trim();
     if (part === "none" && mark === "@@ EDIT") {
       edits.push({ old: [], fresh: [] });
       part = "old";
     } else if (part === "old" && mark === "@@ WITH") part = "fresh";
-    else if (part !== "none" && mark === "@@ END") part = "none";
+    else if (part === "fresh" && mark === "@@ END") part = "none";
+    // A marker anywhere else is a block cut short: read as text it would land in the plan, or delete what it matched.
+    else if (MARKS.includes(mark)) misplaced.push(`FIX: line ${at + 1} of the fix file: ${mark} is out of place - a block is @@ EDIT, the text to replace, @@ WITH, the new text, @@ END`);
     else if (part === "old") edits[edits.length - 1].old.push(line);
     else if (part === "fresh") edits[edits.length - 1].fresh.push(line);
     else if (line.startsWith("fix: ")) fixes.push(line);
-  }
+  });
+  if (misplaced.length > 0) return fail(4, misplaced);
   if (edits.length === 0) return fail(4, ["FIX: the fix file holds no @@ EDIT block"]);
   if (part !== "none") return fail(4, ["FIX: the last @@ EDIT block of the fix file has no @@ END line"]);
+  // The reviewers of the next round check the fix lines alone: with none they would check nothing.
+  if (fixes.length === 0) return fail(4, ["FIX: the fix file holds no fix: line outside its blocks - add one per fix applied, below the @@ END line of its block"]);
 
   let lines = linesOf(text);
   const defects: string[] = [];

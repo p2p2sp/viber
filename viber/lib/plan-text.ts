@@ -85,8 +85,13 @@ export function parsePlan(text: string): Plan {
       task = { id: "", first: at, last: at, fields: new Map() };
       return;
     }
-    if (/^(```|~~~)/.test(line)) fenced = !fenced;
-    if (fenced) return;
+    const fence = /^(```|~~~)/.test(line);
+    if (fence) fenced = !fenced;
+    // A fenced block opens no section, and one under Must not change is quoted whole, both fence lines with it.
+    if (fenced || fence) {
+      if (sub === "Must not change") plan.mustNot.push(line);
+      return;
+    }
     if (line.startsWith("## ")) {
       close(at - 1);
       section = line.slice(3).trim();
@@ -104,7 +109,8 @@ export function parsePlan(text: string): Plan {
       return;
     }
     if (section === "Acceptance criteria") {
-      const item = /^[ \t]*(\d+)\.[ \t]/.exec(line);
+      // At column 0 alone, as plan-index.sh counts a criterion: an indented numbered line is a step of the criterion above it.
+      const item = /^(\d+)\.[ \t]/.exec(line);
       if (item !== null) {
         close(at - 1);
         block = { id: `AC${item[1]}`, first: at, last: at };

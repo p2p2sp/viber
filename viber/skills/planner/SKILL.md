@@ -35,9 +35,9 @@ Every bundled-script run below is one literal Bash line, every argument double-q
 
 ## 1. Survey
 
-`Write` the plan file as three lines, `---`, `source: <plan-path>`, `---`, unless it already opens with them. From here on the plan changes only through `plan-build.sh` and the branch step.
+`Write` the plan file as three lines, `---`, `source: <plan-path>`, `---`, always: it arms the plan gate. Refused: `Read` its first 3 lines, `Write` again. From here on the plan changes only through `plan-build.sh` and the branch step.
 
-Run `"${CLAUDE_SKILL_DIR}/scripts/plan-build.sh" survey "<plan-path>" --input "<summary file>"`, dispatch its block, then run `"${CLAUDE_SKILL_DIR}/scripts/plan-build.sh" outline "<plan-path>" "<OUT path>"`.
+Run `"${CLAUDE_SKILL_DIR}/scripts/plan-build.sh" survey "<plan-path>" --input "<summary file>"`, adding `--phase` for an input carrying phases or a `Phases:` line, dispatch its block, then run `"${CLAUDE_SKILL_DIR}/scripts/plan-build.sh" outline "<plan-path>" "<OUT path>"`.
 
 Close the step on the threshold check before anything else: on a `threshold:` line, ask through one `AskUserQuestion`: split the change into phases, or keep one plan of that size. With no `Split proposal:` block in the output the options are keep or stop: you compose no phase.
 

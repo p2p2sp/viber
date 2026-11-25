@@ -114,9 +114,9 @@ test("the planner says the scripts keep their work files under .temp/ and that w
   assert.ok(has(PLANNER, "The scripts keep their work files under `.temp/viber/planner/`: expected in plan mode."));
 });
 
-test("step 1 writes the plan file as its three-line stub and leaves every later plan change to plan-build.sh and the branch step", () => {
+test("step 1 always writes the plan file as its three-line stub (a stub left by an earlier plan of the session would arm no gate) and leaves every later plan change to plan-build.sh and the branch step", () => {
   const step = section(PLANNER, "1. Survey");
-  assert.ok(has(step, "`Write` the plan file as three lines, `---`, `source: <plan-path>`, `---`, unless it already opens with them."));
+  assert.ok(has(step, "`Write` the plan file as three lines, `---`, `source: <plan-path>`, `---`, always: it arms the plan gate. Refused: `Read` its first 3 lines, `Write` again."));
   assert.ok(has(step, "From here on the plan changes only through `plan-build.sh` and the branch step."));
 });
 

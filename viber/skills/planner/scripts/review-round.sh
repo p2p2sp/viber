@@ -69,6 +69,8 @@
 #   start      runs <plugin root>/scripts/plan-index.sh "<plan>" and opens a round
 #              on its dispatch: lines, one member each: planner-review for a plan
 #              of 12 tasks or fewer, else the spec, graph and task reviewers.
+#              Outside the skeleton stage it adds --detailed, so a plan whose
+#              task still holds PENDING is refused before anyone reviews it.
 #              Round 1, carrying no previous findings, on --fresh, with no state
 #              or with the state of another plan path; it removes the
 #              findings-*.md and review-*.md files an earlier round left in
@@ -79,8 +81,13 @@
 #              Round r+1 prints the blocks of the members to review again only:
 #              a member without a PASS, and a member whose part of the plan
 #              differs from the part it passed on. The other members keep their
-#              PASS and get no block. The whole set is printed when the
-#              dispatch: lines differ from the members of the state. --answered
+#              PASS and get no block. planner-review is sent every time: the
+#              plan gate pairs its verdict with a dispatch made after the last
+#              plan write, a write that left the text as it was included. The
+#              whole set is printed when the dispatch: lines differ from the
+#              members of the state; such a round carries no previous findings
+#              and removes the findings-*.md files, which are numbered by
+#              member and would reach another reviewer. --answered
 #              (after a user's answer to a finding) also prints the members that
 #              read the Answered: lines, planner-review and planner-spec-review,
 #              whatever they hold. A round after a member returned no verdict at
@@ -166,7 +173,8 @@
 #            raised and the cksum of its part of the plan at its last dispatch. A
 #            start replaces it, a returned updates it; an error leaves it as it
 #            was. Also <dir>/findings-<k>.md, copied from --out and removed as
-#            the events say; a round 1 start removes <dir>/review-*.md too; a
+#            the events say (a start whose members differ from the state removes
+#            them all); a round 1 start removes <dir>/review-*.md too; a
 #            start outside the skeleton stage with a task reviewer among its
 #            members has plan-build.sh slices replace <dir>/slice-*.md.
 #   stdout : the lines above, nothing on an error.
@@ -486,8 +494,21 @@ do_start() {
   locate_state
 
   mkdir -p "$statedir" || fail "cannot create $statedir"
+  load_state
+
+  # The stage this start opens, settled again with the round below: past the
+  # skeleton stage plan-index.sh refuses a task still holding PENDING.
+  index_args=(--detailed)
+  if [ "$fresh" -eq 1 ] || [ -z "$st_plan" ] || [ "$st_plan" != "$plan" ]; then
+    if [ "$skeleton" -eq 1 ]; then
+      index_args=()
+    fi
+  elif [ "$st_answer" = "fix" ] && [ "$st_stage" = "skeleton" ]; then
+    index_args=()
+  fi
+
   errfile="$statedir/review-round.err.$$"
-  idx="$(bash "$plugin_root/scripts/plan-index.sh" "$plan" 2>"$errfile")"
+  idx="$(bash "$plugin_root/scripts/plan-index.sh" "$plan" ${index_args[@]+"${index_args[@]}"} 2>"$errfile")"
   idx_status=$?
   refusal="$(cat "$errfile" 2>/dev/null || true)"
   rm -f "$errfile"
@@ -519,8 +540,6 @@ do_start() {
     esac
   done < <(printf '%s\n' "$idx")
   [ "$count" -gt 0 ] || fail "plan-index.sh printed no dispatch: line - the plan is not a fresh one"
-
-  load_state
 
   # keep: a later round keeps the PASS of a member whose part of the plan is the
   # part it passed on, as long as the members are the ones of the state.
@@ -558,17 +577,25 @@ do_start() {
     esac
   done < <(printf '%s\n' "$cfg")
 
-  if [ "$keep" -eq 1 ] && [ "$st_count" -ne "$count" ]; then
-    keep=0
-  fi
   if [ "$keep" -eq 1 ]; then
+    if [ "$st_count" -ne "$count" ]; then
+      keep=0
+    fi
     k=0
-    while [ "$k" -lt "$count" ]; do
+    while [ "$keep" -eq 1 ] && [ "$k" -lt "$count" ]; do
       if [ "${st_agents[$k]-}" != "${agents[$k]}" ] || [ "${st_slices[$k]-}" != "${slices[$k]}" ]; then
         keep=0
       fi
       k=$((k + 1))
     done
+    # The findings files are numbered by member: with other members than the
+    # ones of the state a file would reach a reviewer that never wrote it, which
+    # would then check the fixes of a part it has not read. The round carries
+    # none, so every member reviews its whole part.
+    if [ "$keep" -eq 0 ]; then
+      previous="no"
+      rm -f "$statedir"/findings-*.md
+    fi
   fi
 
   # A member whose FAIL is a second none reviewed nothing, and a reviewer given the
@@ -621,6 +648,12 @@ do_start() {
       case "${agents[$i]}" in
         viber:planner-review | viber:planner-spec-review) resend=1 ;;
       esac
+    fi
+    # The gate pairs a planner-review verdict with a dispatch made after the last
+    # plan write, whatever that write left of the text: a PASS kept on a matching
+    # sum would answer exit-plan to a plan the gate still refuses.
+    if [ "${agents[$i]}" = "viber:planner-review" ]; then
+      resend=1
     fi
     # The skeleton stage holds the reviewers of the tasks back: they read tasks
     # that are not written yet.

@@ -17,6 +17,9 @@
 #   plan-index.sh <plan-file> --input <summary-file>
 #                                        validate + index, and check the plan against the
 #                                        planner's input (below)
+#   plan-index.sh <plan-file> --detailed
+#                                        validate + index, and refuse a task still holding
+#                                        PENDING (below)
 #
 # stdout (the orchestrator's only view of the plan - the decomposed files are read
 # by agents):
@@ -191,6 +194,15 @@
 # combined with ...") is the task count the user already kept past the threshold: the
 # "threshold:" line is then printed only when the count is also above <n>. A missing or
 # non-digit value exits 2 with the usage line; without it the line is printed past 30 alone.
+#
+# --detailed (validate mode, beside --input and --accepted too, never beside --split,
+# --extra, --dispatch, --slice or --final-review: exit 2, "error: --detailed cannot be
+# combined with ...") says the detail stage of the plan is over: a task whose
+# "Verification:" or "DoD:" value still opens with the word PENDING, the line of a skeleton
+# task plan-build.sh merge never filled, is a defect (exit 4), one line per field:
+#   FIX: task <id>: <Verification|DoD> is still PENDING - dispatch the plan-detailer block of its slice and merge its file (Detailed)
+# Without it such a task passes: a skeleton plan is validated before its tasks are written.
+# review-round.sh passes it on every start outside the skeleton stage.
 #
 # --split removes, once the plan is validated and decomposed and before the index
 # is printed, the coder and reviewer extras files of every task not done; a done
@@ -488,7 +500,8 @@
 #   argv   : the plan file, optionally --split, --extra <task-id>, --dispatch
 #            <task-id> coder|reviewer, --slice <id>[,<id>]... or --final-review,
 #            never two of them, or --input <summary-file>, beside none of them;
-#            --accepted <n> (digits) beside --input or alone, never beside one of those.
+#            --accepted <n> (digits) beside --input or alone, never beside one of those;
+#            --detailed beside --input, --accepted or alone, never beside one of those.
 #   cwd    : the repository root - the plan path and every path in the index are
 #            relative to it; a plan path given absolute, or with a leading
 #            "./", inside it is read as its relative form.
@@ -521,12 +534,14 @@ has_input=0
 input_file=""
 has_accepted=0
 accepted=""
+has_detailed=0
 [[ $# -eq 0 ]] || shift
-usage="error: usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer | --slice <id>[,<id>]... | --final-review | --input <summary-file>] [--accepted <n>]"
+usage="error: usage: plan-index.sh <plan-file> [--split | --extra <task-id> | --dispatch <task-id> coder|reviewer | --slice <id>[,<id>]... | --final-review | --input <summary-file>] [--accepted <n>] [--detailed]"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --split) mode="--split" ;;
     --final-review) has_final=1 ;;
+    --detailed) has_detailed=1 ;;
     --extra)
       if [[ $# -lt 2 || -z "$2" ]]; then echo "$usage" >&2; exit 2; fi
       has_extra=1
@@ -601,6 +616,11 @@ fi
 
 if [[ "$has_accepted" -eq 1 && ( "$has_final" -eq 1 || "$has_slice" -eq 1 || "$has_extra" -eq 1 || "$has_dispatch" -eq 1 || "$mode" == "--split" ) ]]; then
   echo "error: --accepted cannot be combined with --split, --extra, --dispatch, --slice or --final-review" >&2
+  exit 2
+fi
+
+if [[ "$has_detailed" -eq 1 && ( "$has_final" -eq 1 || "$has_slice" -eq 1 || "$has_extra" -eq 1 || "$has_dispatch" -eq 1 || "$mode" == "--split" ) ]]; then
+  echo "error: --detailed cannot be combined with --split, --extra, --dispatch, --slice or --final-review" >&2
   exit 2
 fi
 
@@ -855,7 +875,7 @@ profile="$profile_on" tier_min="$tier_min" tier_max="$tier_max" \
 extra="$extra_id" extra_paths="$extra_paths" dispatch="$dispatch_id" \
 st_done="$st_done" st_skipped="$st_skipped" st_unreviewed="$st_unreviewed" \
 st_deferred="$st_deferred" st_closed="$st_closed" st_decisions="$st_decisions" st_rulings="$st_rulings" \
-accepted="$accepted" in_on="$has_input" in_atts="$in_atts" in_repros="$in_repros" in_cause="$in_cause" \
+accepted="$accepted" detailed="$has_detailed" in_on="$has_input" in_atts="$in_atts" in_repros="$in_repros" in_cause="$in_cause" \
 awk '
 function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
 function val(s)  { sub(/^[^:]*:/, "", s); return trim(s) }
@@ -1485,6 +1505,13 @@ END {
     if (deliv[i] == "") fail("task " id[i] ": missing Delivers")
     if (verif[i] == "") fail("task " id[i] ": missing Verification")
     if (dod[i] == "")   fail("task " id[i] ": missing DoD")
+    # Detailed: once the detail stage is over no task keeps the PENDING a skeleton
+    # task carries. The word is read as lib/plan-build.ts reads it: the value
+    # opens with it.
+    if (ENVIRON["detailed"] == "1") {
+      if (verif[i] ~ /^PENDING/) fail("task " id[i] ": Verification is still PENDING - dispatch the plan-detailer block of its slice and merge its file (Detailed)")
+      if (dod[i] ~ /^PENDING/)   fail("task " id[i] ": DoD is still PENDING - dispatch the plan-detailer block of its slice and merge its file (Detailed)")
+    }
 
     # Self-proven: a done clause may not hand its own proof to another task -
     # every clause is proven inside the task that delivers it. Skipped under

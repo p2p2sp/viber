@@ -9,10 +9,12 @@
  * passes its path, and the script reads and writes the files.
  *
  * Commands, <plan> the absolute path of the plan file plan mode names:
- *   survey <plan> [--input <summary file>]
- *       The block of viber:plan-surveyor. A plan path other than the one of the last survey removes
- *       the work files of that plan first; the same path adds "outline: <dir>/outline.md" when that
- *       file exists, so a phase cut from a split starts from the outline of the whole change.
+ *   survey <plan> [--input <summary file>] [--phase]
+ *       The block of viber:plan-surveyor. It removes the work files of the last survey first, with
+ *       one exception: --phase on the plan path of that survey keeps them and adds
+ *       "outline: <dir>/outline.md" when that file exists, so a phase cut from a split starts from
+ *       the outline of the whole change. The path alone keeps nothing: plan mode names one plan
+ *       file for a whole session, the plan abandoned before this one included.
  *   outline <plan> <survey file>
  *       Copies the survey file to <dir>/outline.md, searches its TARGET: lines (below) and prints
  *         TASKS: <n>                     its TASKS: line
@@ -46,7 +48,10 @@
  *       all or none: the lines up to "@@ WITH" must occur exactly once in the plan (trailing blanks
  *       ignored) and are replaced by the lines up to "@@ END". Writes the "fix: " lines outside the
  *       blocks to <dir>/fixes.md, the briefs again when the plan has some, and prints
- *       "applied: <n> edits" and "fixes: <path>".
+ *       "applied: <n> edits" and "fixes: <path>". A fix file is refused (exit 4) when one of the
+ *       three marker lines stands out of that order (a block cut short would put its markers into
+ *       the plan or delete what it matched) and when it holds no "fix: " line outside its blocks
+ *       (the reviewers of the next round check those lines alone).
  *   fix <plan> [--findings <file>]... [--brief <file>]... [--gaps]
  *       The block of viber:plan-fixer, "add: lines" on it when neither findings nor gaps are named.
  *

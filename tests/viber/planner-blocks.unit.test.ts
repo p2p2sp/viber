@@ -105,7 +105,7 @@ const SURVEY = rows("TASKS: 9", "FILE: modify | src/auth.ts | core | the loop", 
 const SCENES: [string, () => string[], () => string[], string[]][] = [
   [
     "plan-surveyor",
-    () => printed(["survey", PLAN, "--input", "/s.md"], { ...BARE, [`${DIR}/outline.md`]: "TASKS: 3\n" }),
+    () => printed(["survey", PLAN, "--phase", "--input", "/s.md"], { ...BARE, [`${DIR}/outline.md`]: "TASKS: 3\n" }),
     () => printed(["survey", PLAN], {}),
     [],
   ],

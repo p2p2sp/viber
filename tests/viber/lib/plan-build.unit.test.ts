@@ -92,8 +92,15 @@ test("survey of a new plan path removes the work files of the earlier plan, keep
   assert.equal(result.fs.readText(`${DIR}/plan-build`), rows(`plan: ${PLAN}`, "input: ", "candidates: "));
 });
 
-test("survey of the plan path surveyed last keeps its files and names the outline to start from, a summary file going on the input line", () => {
-  const result = build(["survey", PLAN, "--input", "/s.md"], { [`${DIR}/plan-build`]: rows(`plan: ${PLAN}`, "input: ", "candidates: /c.md"), [`${DIR}/outline.md`]: "TASKS: 3\n" });
+test("survey of the plan path surveyed last with no --phase removes its work files and names no outline: the path alone tells no phase from an abandoned plan", () => {
+  const result = build(["survey", PLAN], { [`${DIR}/plan-build`]: rows(`plan: ${PLAN}`, "input: /s.md", "candidates: /c.md"), [`${DIR}/outline.md`]: "TASKS: 3\n", [`${DIR}/slice-T1-T5.md`]: "x\n" });
+  assert.equal(result.stdout, rows("NEXT: dispatch | agent: viber:plan-surveyor | add: input", ...HEAD, `out: ${DIR}/survey.md`));
+  assert.deepEqual(result.fs.listDir(DIR), ["plan-build"]);
+  assert.equal(result.fs.readText(`${DIR}/plan-build`), rows(`plan: ${PLAN}`, "input: ", "candidates: "));
+});
+
+test("survey --phase of the plan path surveyed last keeps its files and names the outline to start from, a summary file going on the input line", () => {
+  const result = build(["survey", PLAN, "--phase", "--input", "/s.md"], { [`${DIR}/plan-build`]: rows(`plan: ${PLAN}`, "input: ", "candidates: /c.md"), [`${DIR}/outline.md`]: "TASKS: 3\n" });
   assert.equal(result.stdout, rows("NEXT: dispatch | agent: viber:plan-surveyor", ...HEAD, `outline: ${DIR}/outline.md`, `out: ${DIR}/survey.md`, "input: /s.md"));
   assert.equal(result.fs.readText(`${DIR}/plan-build`), rows(`plan: ${PLAN}`, "input: /s.md", "candidates: /c.md"));
 });
@@ -244,7 +251,7 @@ test("apply replaces the text of each edit block in order, saves the fix lines a
 });
 
 test("apply exits 4 and writes nothing when one edit matches no text or more than one place, naming each on a FIX line", () => {
-  const fix = rows("@@ EDIT", "1. First criterion.", "@@ WITH", "1. First.", "@@ END", "@@ EDIT", "", "@@ WITH", "x", "@@ END", "@@ EDIT", "no such line", "@@ WITH", "y", "@@ END");
+  const fix = rows("@@ EDIT", "1. First criterion.", "@@ WITH", "1. First.", "@@ END", "@@ EDIT", "", "@@ WITH", "x", "@@ END", "@@ EDIT", "no such line", "@@ WITH", "y", "@@ END", "fix: AC1 - shortened");
   const result = build(["apply", PLAN, "/a/fix.md"], { [PLAN]: planOf(1), "/a/fix.md": fix });
   assert.deepEqual([result.exit, result.stdout], [4, ""]);
   assert.match(result.stderr, /^FIX: edit 2: its text occurs \d+ times in the plan, it must occur once: \nFIX: edit 3: its text occurs 0 times in the plan, it must occur once: no such line\n$/);
@@ -252,14 +259,20 @@ test("apply exits 4 and writes nothing when one edit matches no text or more tha
   assert.equal(result.fs.exists(`${DIR}/fixes.md`), false);
 });
 
+const BLOCK = "a block is @@ EDIT, the text to replace, @@ WITH, the new text, @@ END";
+
 // [case, the fix file, the FIX line]
 for (const [name, fix, line] of [
   ["no edit block", "fix: nothing\n", "FIX: the fix file holds no @@ EDIT block"],
   ["an edit block never closed", "@@ EDIT\nx\n@@ WITH\ny\n", "FIX: the last @@ EDIT block of the fix file has no @@ END line"],
+  ["a block opened before the one above it closed", "@@ EDIT\n1. First criterion.\n@@ WITH\n1. First.\n@@ EDIT\n2. Second criterion.\n@@ END\nfix: AC1 - shortened\n", `FIX: line 5 of the fix file: @@ EDIT is out of place - ${BLOCK}`],
+  ["a block closed before its @@ WITH line", "@@ EDIT\n1. First criterion.\n@@ END\nfix: AC1 - dropped\n", `FIX: line 3 of the fix file: @@ END is out of place - ${BLOCK}`],
+  ["no fix line outside its blocks", "@@ EDIT\n1. First criterion.\n@@ WITH\n1. First.\nfix: AC1 - shortened\n@@ END\n", "FIX: the fix file holds no fix: line outside its blocks - add one per fix applied, below the @@ END line of its block"],
 ] as [string, string, string][]) {
-  test(`apply of a fix file with ${name} exits 4 on its FIX line`, () => {
+  test(`apply of a fix file with ${name} exits 4 on its FIX line and leaves the plan as it was`, () => {
     const result = build(["apply", PLAN, "/a/fix.md"], { [PLAN]: planOf(1), "/a/fix.md": fix });
     assert.deepEqual([result.exit, result.stdout, result.stderr], [4, "", `${line}\n`]);
+    assert.equal(result.fs.readText(PLAN), planOf(1));
   });
 }
 

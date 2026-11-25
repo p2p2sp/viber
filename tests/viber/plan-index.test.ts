@@ -1600,6 +1600,44 @@ test("integration check: a Verification that is the word PENDING alone validates
   });
 });
 
+test("--detailed refuses a task whose Verification or DoD still opens with PENDING, one FIX line per field, and takes the plan once both are written (a skeleton task the merge never filled would reach the coder with nothing to verify)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, plannedTasks(2).replace(/^- Verification: .*$/m, "- Verification: PENDING").replace(/^- DoD: .*$/m, "- DoD: PENDING - later"));
+
+    const plain = await run(dir, {}, [PLAN_REL]);
+    const detailed = await run(dir, {}, [PLAN_REL, "--detailed"]);
+    seed(dir, plannedTasks(2));
+    const written = await run(dir, {}, [PLAN_REL, "--detailed"]);
+
+    assert.equal(plain.status, 0, `stderr: ${plain.stderr}`);
+    assert.equal(detailed.status, 4);
+    assert.equal(detailed.stdout, "");
+    assert.equal(
+      detailed.stderr,
+      "FIX: task T1: Verification is still PENDING - dispatch the plan-detailer block of its slice and merge its file (Detailed)\nFIX: task T1: DoD is still PENDING - dispatch the plan-detailer block of its slice and merge its file (Detailed)\n",
+    );
+    assert.equal(written.status, 0, `stderr: ${written.stderr}`);
+  });
+});
+
+for (const [label, args] of [
+  ["--split", ["--detailed", "--split"]],
+  ["--extra", ["--detailed", "--extra", "T1"]],
+  ["--dispatch", ["--detailed", "--dispatch", "T1", "coder"]],
+  ["--slice", ["--detailed", "--slice", "T1"]],
+  ["--final-review", ["--detailed", "--final-review"]],
+] as Array<[string, string[]]>) {
+  test(`--detailed beside ${label} exits 2 with nothing on stdout`, async () => {
+    await withTempDir("p2p2-viber-", async (dir) => {
+      seed(dir, plannedTasks(2));
+
+      const result = await run(dir, {}, [PLAN_REL, ...args]);
+      assert.equal(result.status, 2);
+      assert.equal(result.stdout, "");
+    });
+  });
+}
+
 test("integration check: a Verification naming the test directory itself validates", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     seed(dir, integrationPlan(STORE_TEST, "dotnet test backend/A.IntegrationTests/ --list-tests -> lists them"));
