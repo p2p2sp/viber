@@ -30,6 +30,8 @@ interface State {
   plan: string;
   input: string;
   candidates: string;
+  /** The last outline of this plan printed a split proposal: the one state a phase goes on from. */
+  split: boolean;
 }
 
 interface Context {
@@ -61,18 +63,19 @@ const fail = (exit: number, lines: string[]): BuildResult => ({ stdout: "", stde
 const misuse = (reason: string): BuildResult => fail(2, [`error: ${reason}`]);
 
 function readState(dir: string, fs: Fs): State {
-  const state: State = { plan: "", input: "", candidates: "" };
+  const state: State = { plan: "", input: "", candidates: "", split: false };
   for (const line of linesOf(fs.readText(`${dir}/plan-build`) ?? "")) {
     if (line.startsWith("plan: ")) state.plan = line.slice(6);
     if (line.startsWith("input: ")) state.input = line.slice(7);
     if (line.startsWith("candidates: ")) state.candidates = line.slice(12);
+    if (line === "split: yes") state.split = true;
   }
   return state;
 }
 
 function writeState(ctx: Context): boolean {
-  const { plan, input, candidates } = ctx.state;
-  return ctx.ports.fs.writeBytes(`${ctx.dir}/plan-build`, enc([`plan: ${plan}`, `input: ${input}`, `candidates: ${candidates}`]));
+  const { plan, input, candidates, split } = ctx.state;
+  return ctx.ports.fs.writeBytes(`${ctx.dir}/plan-build`, enc([`plan: ${plan}`, `input: ${input}`, `candidates: ${candidates}`, `split: ${split ? "yes" : "no"}`]));
 }
 
 /** The text of a file an agent wrote, a leaked closing tag on its last line dropped first; null when it cannot be read. */
@@ -120,10 +123,11 @@ function survey(ctx: Context): BuildResult {
   if (read.args.length > 0) return misuse(`survey: unexpected argument: ${read.args[0]}`);
   const { fs } = ctx.ports;
   // The same path alone proves nothing: plan mode names one plan file for a whole session, an abandoned plan included.
-  const resumed = read.set.has("--phase") && ctx.state.plan === ctx.plan;
+  // A phase goes on only from the outline that proposed the split it was cut from.
+  const resumed = read.set.has("--phase") && ctx.state.plan === ctx.plan && ctx.state.split;
   if (!resumed) {
     for (const name of fs.listDir(ctx.dir)) if (WORK.test(name)) fs.remove(`${ctx.dir}/${name}`);
-    ctx.state = { plan: ctx.plan, input: "", candidates: "" };
+    ctx.state = { plan: ctx.plan, input: "", candidates: "", split: false };
   }
   ctx.state.input = read.values.get("--input")?.[0] ?? "";
   if (!writeState(ctx)) return misuse(`cannot write ${DIR}/plan-build`);
@@ -155,10 +159,10 @@ function outline(ctx: Context): BuildResult {
     if (!fs.writeBytes(candidates, enc(reach.candidates)) || !fs.writeBytes(`${ctx.dir}/reach-paths.md`, enc(reach.paths))) return misuse(`cannot write the reach files under ${DIR}`);
     ctx.state.candidates = candidates;
   }
-  if (!writeState(ctx)) return misuse(`cannot write ${DIR}/plan-build`);
-
   const thresholds = [...(tasks > TASK_LIMIT ? [`threshold: ${tasks} tasks, past ${TASK_LIMIT}`] : []), ...(files > FILE_LIMIT ? [`threshold: ${files} files, past ${FILE_LIMIT}`] : [])];
   const proposal = thresholds.length > 0 && phases.length > 0 ? ["Split proposal:", ...phases, ...(decides.length > 0 ? ["Open decisions:", ...decides.map((line) => `- ${line.split("|")[0].trim()}`)] : [])] : [];
+  ctx.state.split = proposal.length > 0;
+  if (!writeState(ctx)) return misuse(`cannot write ${DIR}/plan-build`);
   const reachLines = targets.length > 0 ? [`reach: ${ctx.dir}/reach-paths.md`, ...candidatesLine(ctx)] : [];
   return ok([
     `TASKS: ${tasks}`,
@@ -200,7 +204,8 @@ const blockLines = (plan: Plan, block: PlanBlock | PlanTask): string[] => plan.l
 function briefOf(plan: Plan, slice: Slice, reach: Map<string, string[][]>): string[] {
   const tasks = plan.tasks.slice(slice.from - 1, slice.to);
   const named = (label: string): Set<string> => new Set(tasks.flatMap((task) => listOf(task.fields.get(label))));
-  const covers = named("Covers");
+  // Covers as plan-index.sh reads it: cut on commas and blanks, only the AC<n> words kept.
+  const covers = new Set(tasks.flatMap((task) => (task.fields.get("Covers") ?? "").split(/[,\s]+/).filter((word) => /^AC\d+$/.test(word))));
   const uses = named("Uses");
   const files = new Set([...named("Files")].map((file) => file.replace(/^\.\//, "")));
   const spaced = (blocks: string[][]): string[] => blocks.flatMap((block, at) => (at === 0 ? block : ["", ...block]));
@@ -225,7 +230,8 @@ function briefOf(plan: Plan, slice: Slice, reach: Map<string, string[][]>): stri
     "",
     "## File map",
     "",
-    ...[...files].flatMap((file) => (plan.fileMap.has(file) ? [plan.fileMap.get(file) as string] : [])),
+    // A line naming two of the files is quoted once.
+    ...new Set([...files].flatMap((file) => (plan.fileMap.has(file) ? [plan.fileMap.get(file) as string] : []))),
     "",
     "## Reach",
     "",
@@ -421,7 +427,11 @@ function apply(ctx: Context): BuildResult {
     else if (MARKS.includes(mark)) misplaced.push(`FIX: line ${at + 1} of the fix file: ${mark} is out of place - a block is @@ EDIT, the text to replace, @@ WITH, the new text, @@ END`);
     else if (part === "old") edits[edits.length - 1].old.push(line);
     else if (part === "fresh") edits[edits.length - 1].fresh.push(line);
-    else if (line.startsWith("fix: ")) fixes.push(line);
+    else {
+      // A fix line the fixer indented or wrote as a list item counts too: dropped, its edit would go unchecked.
+      const fixed = /^[ \t]*(?:[-*][ \t]+)?(fix: .*)$/.exec(line);
+      if (fixed !== null) fixes.push(fixed[1].trimEnd());
+    }
   });
   if (misplaced.length > 0) return fail(4, misplaced);
   if (edits.length === 0) return fail(4, ["FIX: the fix file holds no @@ EDIT block"]);
@@ -447,7 +457,9 @@ function apply(ctx: Context): BuildResult {
   });
   if (defects.length > 0) return fail(4, defects);
   if (!fs.writeBytes(ctx.plan, enc(lines))) return fail(5, [`error: cannot write the plan file: ${ctx.plan}`]);
-  if (!fs.writeBytes(`${ctx.dir}/fixes.md`, enc(fixes))) return misuse(`cannot write ${DIR}/fixes.md`);
+  // Added to the lines of the fixes applied since the last round closed (review-round.sh removes the file there): the next round checks them all.
+  const earlier = linesOf(fs.readText(`${ctx.dir}/fixes.md`) ?? "");
+  if (!fs.writeBytes(`${ctx.dir}/fixes.md`, enc([...earlier, ...fixes]))) return misuse(`cannot write ${DIR}/fixes.md`);
   if (fs.listDir(ctx.dir).some((name) => /^slice-.*\.md$/s.test(name)) && writeBriefs(ctx, parsePlan(textOf(lines))) === null) return misuse(`cannot write the slice briefs under ${DIR}`);
   return ok([`applied: ${edits.length} edits`, `fixes: ${ctx.dir}/fixes.md`]);
 }

@@ -89,21 +89,33 @@ test("survey of a new plan path removes the work files of the earlier plan, keep
   assert.deepEqual([result.exit, result.stderr], [0, ""]);
   assert.equal(result.stdout, rows("NEXT: dispatch | agent: viber:plan-surveyor | add: input", ...HEAD, `out: ${DIR}/survey.md`));
   assert.deepEqual(result.fs.listDir(DIR), ["plan-build", "review-round"]);
-  assert.equal(result.fs.readText(`${DIR}/plan-build`), rows(`plan: ${PLAN}`, "input: ", "candidates: "));
+  assert.equal(result.fs.readText(`${DIR}/plan-build`), rows(`plan: ${PLAN}`, "input: ", "candidates: ", "split: no"));
 });
 
 test("survey of the plan path surveyed last with no --phase removes its work files and names no outline: the path alone tells no phase from an abandoned plan", () => {
   const result = build(["survey", PLAN], { [`${DIR}/plan-build`]: rows(`plan: ${PLAN}`, "input: /s.md", "candidates: /c.md"), [`${DIR}/outline.md`]: "TASKS: 3\n", [`${DIR}/slice-T1-T5.md`]: "x\n" });
   assert.equal(result.stdout, rows("NEXT: dispatch | agent: viber:plan-surveyor | add: input", ...HEAD, `out: ${DIR}/survey.md`));
   assert.deepEqual(result.fs.listDir(DIR), ["plan-build"]);
-  assert.equal(result.fs.readText(`${DIR}/plan-build`), rows(`plan: ${PLAN}`, "input: ", "candidates: "));
+  assert.equal(result.fs.readText(`${DIR}/plan-build`), rows(`plan: ${PLAN}`, "input: ", "candidates: ", "split: no"));
 });
 
-test("survey --phase of the plan path surveyed last keeps its files and names the outline to start from, a summary file going on the input line", () => {
-  const result = build(["survey", PLAN, "--phase", "--input", "/s.md"], { [`${DIR}/plan-build`]: rows(`plan: ${PLAN}`, "input: ", "candidates: /c.md"), [`${DIR}/outline.md`]: "TASKS: 3\n" });
+test("survey --phase of the plan path surveyed last, whose outline printed a split proposal, keeps its files and names the outline to start from, a summary file going on the input line", () => {
+  const result = build(["survey", PLAN, "--phase", "--input", "/s.md"], { [`${DIR}/plan-build`]: rows(`plan: ${PLAN}`, "input: ", "candidates: /c.md", "split: yes"), [`${DIR}/outline.md`]: "TASKS: 3\n" });
   assert.equal(result.stdout, rows("NEXT: dispatch | agent: viber:plan-surveyor", ...HEAD, `outline: ${DIR}/outline.md`, `out: ${DIR}/survey.md`, "input: /s.md"));
-  assert.equal(result.fs.readText(`${DIR}/plan-build`), rows(`plan: ${PLAN}`, "input: /s.md", "candidates: /c.md"));
+  assert.equal(result.fs.readText(`${DIR}/plan-build`), rows(`plan: ${PLAN}`, "input: /s.md", "candidates: /c.md", "split: yes"));
 });
+
+// [case, the split line of the state]
+for (const [name, split] of [
+  ["printed no split proposal", ["split: no"]],
+  ["left a state with no split line", []],
+] as [string, string[]][]) {
+  test(`survey --phase of the plan path surveyed last, whose outline ${name}, removes its work files and names no outline (an abandoned plan of the session has the same path, and its outline would pass for the wider change)`, () => {
+    const result = build(["survey", PLAN, "--phase"], { [`${DIR}/plan-build`]: rows(`plan: ${PLAN}`, "input: /s.md", "candidates: /c.md", ...split), [`${DIR}/outline.md`]: "TASKS: 3\n", [`${DIR}/fixes.md`]: "fix: T1 - x\n" });
+    assert.equal(result.stdout, rows("NEXT: dispatch | agent: viber:plan-surveyor | add: input", ...HEAD, `out: ${DIR}/survey.md`));
+    assert.deepEqual(result.fs.listDir(DIR), ["plan-build"]);
+  });
+}
 
 test("outline copies the survey file, writes both reach files for its targets and prints the counts, the decisions and the architect block in skeleton mode", () => {
   const survey = rows("TASKS: 9", "AREA: core - the loop", "FILE: modify | src/auth.ts | core | the loop", "FILE: add | src/b.ts | core | its helper", "TARGET: src/auth.ts", "TARGET: src/auth.ts | login", "DECIDE: Keep the old route? | yes | no | both", "NOTE: the loop retries twice");
@@ -131,7 +143,7 @@ test("outline copies the survey file, writes both reach files for its targets an
   assert.equal(result.fs.readText(`${DIR}/outline.md`), survey);
   assert.equal(result.fs.readText(`${DIR}/reach-paths.md`), rows("## src/auth.ts", "docs/x.md | 1", "## src/auth.ts | login", "docs/x.md | 1"));
   assert.equal(result.fs.readText(candidates), rows("## src/auth.ts", "terms: src/auth.ts, auth.ts, auth", "docs/x.md:1: See src/auth.ts and login.", "## src/auth.ts | login", "terms: login", "docs/x.md:1: See src/auth.ts and login."));
-  assert.equal(result.fs.readText(`${DIR}/plan-build`), rows(`plan: ${PLAN}`, "input: /s.md", `candidates: ${candidates}`));
+  assert.equal(result.fs.readText(`${DIR}/plan-build`), rows(`plan: ${PLAN}`, "input: /s.md", `candidates: ${candidates}`, "split: no"));
 });
 
 test("outline of 8 tasks with no target prints whole mode and no reach line, asks for the input text and drops an earlier reach paths file", () => {
@@ -140,9 +152,9 @@ test("outline of 8 tasks with no target prints whole mode and no reach line, ask
   assert.equal(result.fs.exists(`${DIR}/reach-paths.md`), false);
 });
 
-test("outline past 30 tasks and past 60 files prints both threshold lines and the split proposal with the open decisions", () => {
+test("outline past 30 tasks and past 60 files prints both threshold lines and the split proposal with the open decisions, and records the proposal in the state", () => {
   const survey = rows("TASKS: 31", ...Array.from({ length: 61 }, (_, i) => `FILE: add | src/f${i}.ts | a | x`), "DECIDE: Keep the route? | yes | no | both", "PHASE: 1. Core - owns: the loop; consumes: nothing; files: src/a.ts; tasks: 16", "PHASE: 2. Screen - owns: the page; consumes: the loop; files: src/b.ts; tasks: 15");
-  const result = build(["outline", PLAN, "/a/survey.md"], { "/a/survey.md": survey });
+  const result = build(["outline", PLAN, "/a/survey.md"], { "/a/survey.md": survey, [`${DIR}/plan-build`]: rows(`plan: ${PLAN}`, "input: ", "candidates: ", "split: no") });
   assert.deepEqual(result.stdout.split("\n").slice(0, 11), [
     "TASKS: 31",
     "FILES: 61",
@@ -156,6 +168,7 @@ test("outline past 30 tasks and past 60 files prints both threshold lines and th
     "- Keep the route?",
     "NEXT: dispatch | agent: viber:plan-architect | add: answered | add: input",
   ]);
+  assert.equal(result.fs.readText(`${DIR}/plan-build`), rows(`plan: ${PLAN}`, "input: ", "candidates: ", "split: yes"));
 });
 
 test("outline of a survey file with no TASKS line exits 4 on one FIX line and writes no outline", () => {
@@ -209,6 +222,17 @@ test("slices writes one brief per run of at most 8 tasks, an earlier cut removed
   assert.deepEqual([second.includes("### C1 - Retry"), second.includes("2. Second criterion."), second.includes("## src/f6.ts\ndocs/y.md | 1")], [false, false, true]);
 });
 
+test("a brief quotes a File map line naming several paths once for the tasks holding any of them, and the criteria of a Covers value cut on blanks or carrying a note (plan-index.sh takes both forms)", () => {
+  const plan = planOf(2)
+    .replace("- modify - src/f1.ts - the loop", "- modify - src/f1.ts, `./src/f2.ts` - the loop and its caller")
+    .replace("- Covers: AC1", "- Covers: AC1 AC2 (see C1)")
+    .replace("- Covers: AC2", "- Covers: none");
+  const result = build(["slices", PLAN], { [PLAN]: plan });
+  const brief = (result.fs.readText(`${DIR}/slice-T1-T2.md`) ?? "").split("\n");
+  assert.deepEqual(brief.slice(brief.indexOf("## Acceptance criteria"), brief.indexOf("## Tasks")), ["## Acceptance criteria", "", "1. First criterion.", "2. Second criterion.", ""]);
+  assert.deepEqual(brief.slice(brief.indexOf("## File map"), brief.indexOf("## Reach")), ["## File map", "", "- modify - src/f1.ts, `./src/f2.ts` - the loop and its caller", ""]);
+});
+
 test("merge puts the Verification and DoD lines of each task file into its tasks alone, writes the briefs again and names the tasks still pending", () => {
   const tasks = rows("### T1", "- Verification: node --test a -> pass", "- DoD: the loop retries; the log holds it", "### T2 - with its title", "- DoD: done two", "- Verification: run two -> ok");
   const result = build(["merge", PLAN, "T1-T2=/a/t.md"], { [PLAN]: planOf(3), "/a/t.md": tasks, [`${DIR}/gaps.md`]: "old\n" });
@@ -248,6 +272,13 @@ test("apply replaces the text of each edit block in order, saves the fix lines a
   assert.equal(result.fs.readText(PLAN), planOf(1).replace("- the login keeps its route\n", "- the login keeps its route and its name\n- the audit stays\n").replace("2. Second criterion.\n", ""));
   assert.equal(result.fs.readText(`${DIR}/fixes.md`), rows("fix: Must not change - the audit added", "fix: AC2 - dropped"));
   assert.equal((result.fs.readText(`${DIR}/slice-T1-T1.md`) ?? "").includes("- the audit stays"), true);
+});
+
+test("apply adds its fix lines below those of the fixes applied before it, an indented one and a list item read as fix lines (two fixes land between two rounds, and the reviewers check the fix lines alone)", () => {
+  const fix = rows("@@ EDIT", "1. First criterion.", "@@ WITH", "1. First.", "@@ END", "  fix: AC1 - shortened  ", "- fix: AC1 - reworded");
+  const result = build(["apply", PLAN, "/a/fix.md"], { [PLAN]: planOf(1), "/a/fix.md": fix, [`${DIR}/fixes.md`]: "fix: T1 - a command\n" });
+  assert.deepEqual([result.exit, result.stderr], [0, ""]);
+  assert.equal(result.fs.readText(`${DIR}/fixes.md`), rows("fix: T1 - a command", "fix: AC1 - shortened", "fix: AC1 - reworded"));
 });
 
 test("apply exits 4 and writes nothing when one edit matches no text or more than one place, naming each on a FIX line", () => {

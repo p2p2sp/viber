@@ -50,7 +50,7 @@ Owns the Node modules holding script logic (the config core under `config/`, `ar
 - A config key or report line: the header of `../scripts/config.ts` and the module that resolves it, with its unit test.
 - A switch key: the `KEYS` set of `switch-text.ts`, the header of `../scripts/switch-text.ts` and the switch table of `tools/lint/data/invocations.ts`.
 - An entry under `../skills/<skill>/scripts/`: its path in the `entries` list of `tools/lint/data/layering.ts`, named whole.
-- The planner work file names under `.temp/viber/planner/`: the `WORK` pattern of `plan-build.ts` (what a survey removes, unless `--phase` goes on with the plan surveyed last) and the scratch list of `archive-run.ts`.
+- The planner work file names under `.temp/viber/planner/`: the `WORK` pattern of `plan-build.ts` (what a survey removes, unless `--phase` goes on with the plan surveyed last, whose outline printed a split proposal) and the scratch list of `archive-run.ts`.
 - The slice cut (`ceil(n / 8)` runs, sizes differing by at most one, the larger first): `slicesOf` of `plan-text.ts`, the review lines of `../scripts/plan-index.sh` and `../hooks/scripts/plan-gate.sh`.
 - The task block markers and the `- <Label>: <value>` field lines `parsePlan` reads, and the ones `../scripts/plan-index.sh` validates.
 

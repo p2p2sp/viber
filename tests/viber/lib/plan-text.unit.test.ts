@@ -47,6 +47,7 @@ const PLAN = [
   "",
   "- modify - src/a.ts - the retry loop",
   "- add - `./src/b.ts` - its helper",
+  "- modify - src/c.ts, `./src/d.ts` - two files of one owner",
   "",
   "### Out of scope",
   "",
@@ -118,10 +119,11 @@ test("an acceptance criterion keeps its continuation lines, an indented numbered
   ]);
 });
 
-test("the must-not-change lines come without their heading and outer blank lines, a fenced block among them whole, the file map by path with a leading ./ and backticks dropped", () => {
+test("the must-not-change lines come without their heading and outer blank lines, a fenced block among them whole, the file map by path with a leading ./ and backticks dropped, a line naming several paths under each of them (plan-index.sh takes that line, and keyed by its first path alone a slice brief lost it)", () => {
   const plan = parsePlan(PLAN);
   assert.deepEqual(plan.mustNot, ["- the login keeps its route", "```", "POST /login", "```", "- the audit stays"]);
-  assert.deepEqual([...plan.fileMap.keys()], ["src/a.ts", "src/b.ts"]);
+  assert.deepEqual([...plan.fileMap.keys()], ["src/a.ts", "src/b.ts", "src/c.ts", "src/d.ts"]);
+  assert.deepEqual([plan.fileMap.get("src/c.ts"), plan.fileMap.get("src/d.ts")], Array(2).fill("- modify - src/c.ts, `./src/d.ts` - two files of one owner"));
   assert.equal(plan.fileMap.get("src/b.ts"), "- add - `./src/b.ts` - its helper");
 });
 

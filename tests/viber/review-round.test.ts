@@ -963,6 +963,40 @@ test("start after NEXT: fix, the plan unchanged, prints only the failed member a
   });
 });
 
+test("start without --fresh on a skeleton round with no returned yet exits 2 naming --fresh, never the PENDING lines of plan-index.sh --detailed (they would tell the model to write the tasks before the skeleton passed)", async () => {
+  await withGitRepo(async (repo) => {
+    write(repo.dir, PLAN_REL, litePlan(13).replaceAll("- Verification: npm test -> green", "- Verification: PENDING").replaceAll("- DoD: it works", "- DoD: PENDING"));
+    const opened = await start(repo, PLAN_REL, "--fresh", "--skeleton");
+    assert.equal(opened.status, 0, `stderr: ${opened.stderr}`);
+
+    const result = await start(repo, PLAN_REL);
+
+    assert.deepEqual([result.status, result.stdout, result.stderr], [2, "", NOT_CLOSED_ERROR]);
+  });
+});
+
+// [case, the verdict words, whether the fixes file is still there]: plan-build.sh apply adds to the file.
+const FIXES_KEPT: { name: string; words: string[]; kept: boolean }[] = [
+  { name: "closed on NEXT: fix removes the fixes file (its lines would reach the next round beside the fixes applied after it)", words: ["1=FAIL"], kept: false },
+  { name: "closed on NEXT: exit-plan removes the fixes file", words: ["1=PASS"], kept: false },
+  { name: "sent again after a none keeps the fixes file (the member has yet to read it)", words: ["1=none"], kept: true },
+  { name: "waiting on ASK: keeps the fixes file (the retry sends the member again)", words: ["1=DENIED"], kept: true },
+];
+
+for (const row of FIXES_KEPT) {
+  test(`a round ${row.name}`, async () => {
+    await withGitRepo(async (repo) => {
+      await begin(repo, 2);
+      write(repo.dir, `${DIR_REL}/fixes.md`, "fix: T1 - a command\n");
+
+      const result = await returned(repo, ...row.words, ...(row.words[0] === "1=FAIL" ? wrote(repo, 1) : []));
+
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(exists(repo, `${DIR_REL}/fixes.md`), row.kept);
+    });
+  });
+}
+
 test("start after NEXT: fix names the fixes file after the previous findings once plan-build.sh apply wrote it", async () => {
   await withGitRepo(async (repo) => {
     await FAILED_GRAPH(repo);

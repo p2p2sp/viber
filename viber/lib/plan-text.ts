@@ -29,7 +29,7 @@ export interface Plan {
   criteria: PlanBlock[];
   /** The body lines under `### Must not change`, without the heading. */
   mustNot: string[];
-  /** The `- <action> - <path> ...` lines under `### File map`, by path. */
+  /** The `- <action> - <path>[, <path>]... - <text>` lines under `### File map`, by each path they name. */
   fileMap: Map<string, string>;
 }
 
@@ -120,8 +120,17 @@ export function parsePlan(text: string): Plan {
     }
     if (sub === "Must not change") plan.mustNot.push(line);
     if (sub === "File map") {
-      const entry = /^- [a-z]+[ \t]+-[ \t]+`?([^\s`]+)`?/.exec(line);
-      if (entry !== null) plan.fileMap.set(entry[1].replace(/^\.\//, ""), line);
+      // The path list as plan-index.sh reads it: up to the first " - ", one path per comma.
+      const entry = /^- [a-z]+[ \t]+-[ \t]+(.*)$/.exec(line);
+      const paths = entry === null ? [] : entry[1].split(" - ")[0].split(",");
+      for (const part of paths) {
+        const path = part
+          .trim()
+          .replace(/^`(.*)`$/, "$1")
+          .trim()
+          .replace(/^\.\//, "");
+        if (path !== "") plan.fileMap.set(path, line);
+      }
     }
   });
   close(lines.length - 1);

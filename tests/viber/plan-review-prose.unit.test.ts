@@ -540,7 +540,7 @@ for (const marker of ["@@ EDIT", "@@ WITH", "@@ END"]) {
 
 test("plan-fixer writes one fix: line per fix applied and the header of plan-build.ts saves the fix: lines for the next review round", () => {
   assert.ok(section(FIXER, "Output").includes("\nfix: <where> - <change>\n"));
-  assert.ok(PLAN_BUILD.includes('Writes the "fix: " lines outside the'));
+  assert.ok(PLAN_BUILD.includes('Adds the "fix: " lines outside the'));
 });
 
 test("plan-fixer and the header of plan-build.ts agree that the text of an edit occurs exactly once in the plan and the blocks apply in order, all or none", () => {

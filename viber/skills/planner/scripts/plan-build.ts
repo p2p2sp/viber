@@ -11,10 +11,11 @@
  * Commands, <plan> the absolute path of the plan file plan mode names:
  *   survey <plan> [--input <summary file>] [--phase]
  *       The block of viber:plan-surveyor. It removes the work files of the last survey first, with
- *       one exception: --phase on the plan path of that survey keeps them and adds
- *       "outline: <dir>/outline.md" when that file exists, so a phase cut from a split starts from
- *       the outline of the whole change. The path alone keeps nothing: plan mode names one plan
- *       file for a whole session, the plan abandoned before this one included.
+ *       one exception: --phase on the plan path of that survey, when the last outline of it
+ *       printed a split proposal, keeps them and adds "outline: <dir>/outline.md" when that file
+ *       exists, so a phase cut from a split starts from the outline of the whole change. The path
+ *       alone keeps nothing: plan mode names one plan file for a whole session, the plan abandoned
+ *       before this one included.
  *   outline <plan> <survey file>
  *       Copies the survey file to <dir>/outline.md, searches its TARGET: lines (below) and prints
  *         TASKS: <n>                     its TASKS: line
@@ -46,8 +47,10 @@
  *   apply <plan> <fix file>
  *       Applies every "@@ EDIT" / "@@ WITH" / "@@ END" block of the fix file to the plan, in order,
  *       all or none: the lines up to "@@ WITH" must occur exactly once in the plan (trailing blanks
- *       ignored) and are replaced by the lines up to "@@ END". Writes the "fix: " lines outside the
- *       blocks to <dir>/fixes.md, the briefs again when the plan has some, and prints
+ *       ignored) and are replaced by the lines up to "@@ END". Adds the "fix: " lines outside the
+ *       blocks (blanks and a list mark in front of one dropped) to <dir>/fixes.md, below the lines
+ *       of the fixes applied since review-round.sh last closed a round and removed the file,
+ *       writes the briefs again when the plan has some, and prints
  *       "applied: <n> edits" and "fixes: <path>". A fix file is refused (exit 4) when one of the
  *       three marker lines stands out of that order (a block cut short would put its markers into
  *       the plan or delete what it matched) and when it holds no "fix: " line outside its blocks
@@ -76,7 +79,8 @@
  *            search, tracked files and untracked files the repository does not ignore, binary
  *            files, each target's own file and everything under .temp/ left out.
  *   writes : under <dir> = <repository root>/.temp/viber/planner: plan-build (the plan path, the
- *            summary file and the candidates file of the last survey), outline.md, decisions.md,
+ *            summary file and the candidates file of the last survey, and whether its outline
+ *            printed a split proposal), outline.md, decisions.md,
  *            slice-*.md, gaps.md, fixes.md, reach-<yyyy-mm-dd-HH-MM-SS>.md (per target "## <target>",
  *            "terms:", an optional "skipped:", at most 200 lines "<path>:<line>: <text>" and a
  *            "truncated:" line past that cap) and reach-paths.md (per target "## <target>" and one

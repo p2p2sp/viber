@@ -175,6 +175,9 @@
 #            was. Also <dir>/findings-<k>.md, copied from --out and removed as
 #            the events say (a start whose members differ from the state removes
 #            them all); a round 1 start removes <dir>/review-*.md too; a
+#            round closed on NEXT: fix, NEXT: detail or NEXT: exit-plan removes
+#            <dir>/fixes.md, whose lines its members have read (plan-build.sh
+#            apply adds to that file); a
 #            start outside the skeleton stage with a task reviewer among its
 #            members has plan-build.sh slices replace <dir>/slice-*.md.
 #   stdout : the lines above, nothing on an error.
@@ -505,6 +508,10 @@ do_start() {
     fi
   elif [ "$st_answer" = "fix" ] && [ "$st_stage" = "skeleton" ]; then
     index_args=()
+  elif [ "$st_answer" != "fix" ] && [ "$st_answer" != "detail" ] && [ "$st_answer" != "exit-plan" ]; then
+    # Refused before plan-index.sh runs: on a round still open in the skeleton
+    # stage its --detailed answer would tell the model to write the tasks.
+    fail "round $st_round is not closed on NEXT: fix, NEXT: detail or NEXT: exit-plan - run start --fresh"
   fi
 
   errfile="$statedir/review-round.err.$$"
@@ -561,12 +568,11 @@ do_start() {
     round=$((st_round + 1))
     previous="no"
     stage="full"
-  elif [ "$st_answer" = "exit-plan" ]; then
+  else
+    # NEXT: exit-plan: every other answer was refused above.
     round=$((st_round + 1))
     previous="yes"
     stage="full"
-  else
-    fail "round $st_round is not closed on NEXT: fix, NEXT: detail or NEXT: exit-plan - run start --fresh"
   fi
 
   cfg="$(bash "$plugin_root/scripts/config.sh" 2>/dev/null)" || fail "config.sh failed - build.memory unknown"
@@ -679,6 +685,7 @@ do_start() {
 
   answer="review"
   if [ -z "$awaiting" ]; then
+    rm -f "$statedir/fixes.md"
     if [ "$stage" = "skeleton" ]; then
       answer="detail"
       add_line "NEXT: detail"
@@ -878,6 +885,11 @@ do_returned() {
       fi
       k=$((k + 1))
     done
+    # The round is closed and its members have read the fix lines: plan-build.sh
+    # apply adds to that file, so the lines of this round must not reach the next.
+    if [ "$denied" -eq 0 ]; then
+      rm -f "$statedir/fixes.md"
+    fi
     if [ "$denied" -eq 1 ]; then
       answer="ask"
       add_line "ASK: retry -> retry-denied | stop -> stop"
