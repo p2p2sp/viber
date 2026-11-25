@@ -77,12 +77,12 @@ export const rules: RuleInstance[] = [
     { path: "viber/references/plan-rules.md" },
     { path: TEST_STRATEGY, sections: ["Layers", "Proves", "Ports"] },
   ], `${BUDGET}; the cap carries the room of the two plan rules a restructuring task and a mechanical change add to plan-rules.md`),
-  bytes("task-coder", 26312, [
+  bytes("task-coder", 26670, [
     { path: "viber/agents/task-coder.md" },
     { path: "viber/references/tdd.md" },
     { path: TEST_STRATEGY },
   ], BUDGET),
-  bytes("task-reviewer", 18535, [
+  bytes("task-reviewer", 18780, [
     { path: "viber/agents/task-reviewer.md" },
     { path: TEST_STRATEGY, sections: ["Layers", "Proves", "Writing"] },
   ], `${BUDGET}; the cap carries the room of the red check verdicts a review receives`),

@@ -138,8 +138,8 @@ test("task-reviewer on red-check FAIL-AS-EXPECTED reads the control run instead 
   assert.ok(has(REVIEWER, "run only what the log does not prove. A `recheck:` command always runs."));
 });
 
-test("task-reviewer checks the failing tests are the task's new tests, an unrelated one not counting", () => {
-  assert.ok(has(REVIEWER, "check in the log that the failing tests are the task's new tests (an unrelated failing test does not count)"));
+test("task-reviewer checks the failing tests are the task's new or extended tests, an unrelated one not counting", () => {
+  assert.ok(has(REVIEWER, "check in the log that the failing tests are the task's new or extended tests (an unrelated failing test does not count)"));
 });
 
 test("task-reviewer on red-check UNRUNNABLE holds a test that would pass on HEAD as Blocking", () => {

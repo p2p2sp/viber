@@ -392,7 +392,7 @@ const KEPT_ROWS: [string, string, string][] = [
   ["Requested, the end-to-end rule", "Writing", "- Requested: An end-to-end test - a browser, or the running application driven from outside - is written only by a task whose acceptance criterion states that the user asked for one in their own words, and run only by a task whose acceptance criterion states that the user asked for it to be run. A coder updates, without the user's request, an existing end-to-end spec its task lists in `Files`, and a reviewer raises no finding for it. (blocking)"],
   ["Marked, the layer marker rule", "Writing", "- Marked: Every test written or edited carries its layer's marker in the host's declared layer marker convention, or in the one the plan's harness task designed."],
   ["Single, the one regression rule", "Writing", "- Single: One regression, one test: a test whose deletion leaves every regression still caught is a duplicate, and variants of one input belong in the framework's parameterised form, one row each. (blocking)"],
-  ["Act, the one act rule", "Writing", "- Act: Every test can fail on a regression, asserts something and carries one act: several actions in one body means several tests. (blocking)"],
+  ["Act, the one act and never repeated arrangement rule", "Writing", "- Act: Every test can fail on a regression, asserts something and carries one act: several actions in one body means several tests. A unit test proves one behaviour, with every assertion its outcome needs; a component or integration test asserts every outcome of its act together. Never repeat one arrangement and act per assertion, in any layer. (blocking)"],
   ["Isolated, the isolation rule", "Writing", "- Isolated: no sleep, no fixture or other mutable state shared across tests, no dependence on execution order, no fixed port or other machine-wide resource, no database shared with another task's run."],
   ["Flat, the control flow rule", "Writing", "- Flat: No control flow in a test body - no branch, no loop, no switch. Cases go in the parameterised form. (blocking)"],
   ["Built, the construct rule", "Writing", "- Built: Construct whatever can be constructed. A double for a value, a record or a config lookup hides the real shape."],
@@ -429,10 +429,10 @@ function bytes(text: string): number {
 }
 
 const SIZE_ROWS: [string, number, string][] = [
-  ["the whole file", 6950, STRATEGY],
+  ["the whole file", 7170, STRATEGY],
   ["Proves", 2000, PROVES],
   ["Layers, Proves and Ports together", 4200, LAYERS + PROVES + PORTS],
-  ["Layers, Proves and Writing together", 6150, LAYERS + PROVES + WRITING],
+  ["Layers, Proves and Writing together", 6370, LAYERS + PROVES + WRITING],
 ];
 
 for (const [label, limit, text] of SIZE_ROWS) {
