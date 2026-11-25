@@ -5,7 +5,7 @@
  *     which is the command itself) is listed in plugin.json `agents[]` with an
  *     existing file;
  *   - no tracked file outside `docs/`, other than a `CLAUDE.md` node, mentions a
- *     script, agent or reference the skill no longer ships.
+ *     script, agent or reference the plugin no longer ships.
  *
  * The forbidden tokens are assembled from fragments, so this file holds none of
  * them whole and the sweep passes over itself. Every rule is a pure function,
@@ -48,6 +48,10 @@ const FORBIDDEN: string[] = [
   join("intent/references/", "prove.md"),
   join("--", "prove"),
   join("commit-", "selfcheck.sh"),
+  join("plan-", "writer"),
+  join("impact-", "mapper"),
+  join("reach", ".sh"),
+  join("planner/scripts/", "reach.ts"),
 ];
 
 const BINARY_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2"];

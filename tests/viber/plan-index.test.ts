@@ -1591,6 +1591,15 @@ test("integration check: a Verification naming the file itself validates", async
   });
 });
 
+test("integration check: a Verification that is the word PENDING alone validates (a skeleton task, whose Verification the plan-build merge fills later)", async () => {
+  await withTempDir("p2p2-viber-", async (dir) => {
+    seed(dir, integrationPlan(STORE_TEST, "PENDING"));
+
+    const result = await run(dir, {}, [PLAN_REL]);
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+});
+
 test("integration check: a Verification naming the test directory itself validates", async () => {
   await withTempDir("p2p2-viber-", async (dir) => {
     seed(dir, integrationPlan(STORE_TEST, "dotnet test backend/A.IntegrationTests/ --list-tests -> lists them"));

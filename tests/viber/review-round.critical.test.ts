@@ -1,8 +1,9 @@
 /*
  * review-round.critical.test.ts - the critical tier of
  * viber/skills/planner/scripts/review-round.sh: start on a small plan prints
- * the planner-review block, and the refs lines keep the drive-letter spelling
- * of the invoked path on Windows.
+ * the planner-review block, down to the sum: line the plan gate reads and the
+ * out: file under the repository, and the refs lines keep the drive-letter
+ * spelling of the invoked path on Windows.
  *
  * A case lives here when its failure means lost user work, an open gate, a
  * break only one platform shows or a script that no longer starts; the rest
@@ -18,11 +19,10 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 
 import { runScript } from "../harness/run.ts";
-import { slash } from "../harness/paths.ts";
 import { withGitRepo } from "../harness/tmp.ts";
-import { SUT, REFS, PLAN_REL, write, litePlan, start } from "./review-round-fixture.ts";
+import { SUT, REFS, PLAN_REL, write, litePlan, start, shaped } from "./review-round-fixture.ts";
 
-test("start on a plan of 12 tasks or fewer prints one planner-review block with the plan, refs, memory and input addition lines", async () => {
+test("start on a plan of 12 tasks or fewer prints one planner-review block with the plan, refs, memory, sum and out lines and the input addition", async () => {
   await withGitRepo(async (repo) => {
     write(repo.dir, PLAN_REL, litePlan(2));
     write(repo.dir, ".claude/viber.yml", "build:\n  memory: true\n");
@@ -31,12 +31,14 @@ test("start on a plan of 12 tasks or fewer prints one planner-review block with 
 
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.equal(
-      slash(result.stdout),
+      shaped(repo, result.stdout),
       [
         "NEXT: review | member: 1 | agent: viber:planner-review | round: 1 | add: input | add: answered",
         `plan: ${PLAN_REL}`,
         `refs: ${REFS}`,
         "memory: true",
+        "sum: <sum>",
+        "out: <dir>/review-1.md",
         "",
       ].join("\n"),
     );

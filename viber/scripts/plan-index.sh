@@ -409,7 +409,8 @@
 #       that test directory, or a file inside such a directory (stderr: "FIX:
 #       task <id>: Files writes <path> under an integration test directory, which
 #       no Verification command names - list or type-check that file or its test
-#       project there (Layered)"), or a git grep: a command of its "Verification:"
+#       project there (Layered)"; a "Verification:" that is the word PENDING alone,
+#       a skeleton task plan-build.sh merge fills later, is not checked), or a git grep: a command of its "Verification:"
 #       text before the first " -> " (cut at ";", "&&", "||" and "|") that runs
 #       git grep with no --untracked and names, as a token, a "Files:" path the
 #       tree does not hold (stderr: "FIX: task <id>: Verification runs git grep
@@ -1522,8 +1523,10 @@ END {
     # Layered: an integration test is written in its own task and never run there,
     # so the Verification of a task writing one names it, or a directory of it at
     # or below its test directory, in a command that is no grep. Skipped under
-    # --split, like the other checks added after plans were frozen.
-    if (mode != "--split" && verif[i] != "")
+    # --split, like the other checks added after plans were frozen, and for a
+    # Verification that is the word PENDING alone: a skeleton task, whose
+    # Verification the plan-build merge fills before the plan is reviewed.
+    if (mode != "--split" && verif[i] != "" && verif[i] !~ /^PENDING[[:space:]]*$/)
       for (k = 1; k <= nf[i]; k++) {
         ifloor = integfloor(fpath[i, k])
         if (ifloor != "" && !namesinteg(verifycmd(verif[i]), fpath[i, k], ifloor))

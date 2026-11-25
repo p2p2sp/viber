@@ -1,1 +1,1 @@
-After a `NEXT: fix` fix that changes the plan's title, issue reference or a task's `Repro:` line, run the branch step's last `plan-path.sh --branch` command again before dispatching and act on its answer as the branch step does: `next: kept` leaves the recorded `work:` and `branch:` keys and shows nothing.
+After a `NEXT: fix` fix is applied, run the branch step's last `plan-path.sh --branch` command again before dispatching and act on its answer as the branch step does: `next: kept` leaves the recorded `work:` and `branch:` keys and shows nothing.

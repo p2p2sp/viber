@@ -3,8 +3,10 @@
  * viber/hooks/scripts/plan-gate.sh: the gate fails open on broken input,
  * denies ExitPlanMode until a current review verdict PASS exists for planner,
  * plain outside-plan-review and large review-set plans, rejects stale or
- * tampered plans, keeps a PASS across a fix write only for the members that
- * did not fail, and arms on Windows backslash paths.
+ * tampered plans, reads a plan-build.sh write as a plan write, keeps a PASS
+ * across a fix write only for the members that did not fail, keeps a PASS on a
+ * `sum:` line only while its part of the plan is unchanged, and arms on Windows
+ * backslash paths.
  *
  * A case lives here when its failure means lost user work, an open gate, a
  * break only one platform shows or a script that no longer starts; the rest
@@ -27,6 +29,7 @@ import {
   runCase,
   skillUse,
   planWrite,
+  scriptWrite,
   dispatch,
   verdict,
   realPlan,
@@ -42,6 +45,7 @@ import {
   reviewSetRound,
   memberRound,
   ALL_PASS,
+  memberSums,
 } from "./plan-gate-fixture.ts";
 
 test("empty stdin -> allow (a broken gate must never trap the user in plan mode)", async () => {
@@ -81,6 +85,18 @@ test("a review that ran BEFORE the last plan write does not count -> deny (the c
     const { decision, reason } = await runCase(f);
     assert.equal(decision, "deny");
     assert.match(reason ?? "", /has not run on this version/);
+  });
+});
+
+test("a plan-build.sh apply call after the PASS -> deny, a Windows plan path on its call line included (the planner writes its plan through that script, so a PASS before it reviewed another text)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const win = "C:\\Users\\dariu\\repo\\docs\\plans\\2026-09-20_feat-x\\plan.md";
+    for (const plan of [undefined, win]) {
+      const f = writeTranscript(dir, plan ? "win.jsonl" : "t.jsonl", [skillUse(), planWrite(plan), dispatch(), PASS, scriptWrite("apply", plan)]);
+      const { decision, reason } = await runCase(f);
+      assert.equal(decision, "deny", plan ?? "posix");
+      assert.match(reason ?? "", /has not run on this version/);
+    }
   });
 });
 
@@ -137,6 +153,20 @@ test("review set: every member's latest verdict PASS with the passed slices cove
     const plan = taskPlan(dir, 20);
     const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS)]);
     assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: a PASS on a sum: line survives a later script write only while that sum is still the sum of its part of the plan -> matching sums allow, a member whose part changed is missing", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const sums = await memberSums(dir, plan);
+    const same = writeTranscript(dir, "same.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS, { sums }), scriptWrite("apply", plan)]);
+    assert.equal((await runCase(same)).decision, "allow");
+    const changed = writeTranscript(dir, "changed.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS, { sums: { ...sums, b: "1-1" } }), scriptWrite("apply", plan)]);
+    const { decision, reason } = await runCase(changed);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: review the plan/);
+    assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(uncovered tasks T9-T16\\)`));
   });
 });
 

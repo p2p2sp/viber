@@ -59,8 +59,9 @@ function clearScratch(top: string, ids: Iterable<string>, fs: Fs): void {
     "final-fix",
     ...matching("", /^(repair|extension)-/),
     ...matching("/intent", /^summary-.*\.md$/s),
-    ...matching("/planner", /^reach-.*\.md$/s),
+    ...matching("/planner", /^(reach-.*|slice-.*|findings-.*|review-.*|tasks-.*|outline|decisions|fixes|gaps|survey|architect|fix)\.md$/s),
     "planner/review-round",
+    "planner/plan-build",
     "fixer/tree-record",
   ];
   for (const name of gone) fs.removeTree(`${temp}/${name}`);

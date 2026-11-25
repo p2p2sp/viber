@@ -1,8 +1,8 @@
 /*
  * review-round-fixture.ts - the helpers review-round.test.ts and
- * review-round.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/planner/scripts/review-round.sh. It holds no case of its
- * own.
+ * review-round.critical.test.ts share: what both tiers need to seed a case,
+ * run viber/skills/planner/scripts/review-round.sh and compare what it prints.
+ * It holds no case of its own.
  */
 
 import fs from "node:fs";
@@ -16,6 +16,8 @@ export const SUT = path.resolve(import.meta.dirname, "../../viber/skills/planner
 export const REFS = slash(path.resolve(import.meta.dirname, "../../viber/references"));
 
 export const PLAN_REL = "docs/_specs/2026-09-20-10-00-00_add-login/plan.md";
+/** The directory of the state file and of every work file the script names, under the repository root. */
+export const DIR_REL = ".temp/viber/planner";
 
 export function write(root: string, rel: string, content: string): void {
   const file = path.join(root, rel);
@@ -80,4 +82,16 @@ export function review(repo: GitRepo, args: string[]) {
 
 export function start(repo: GitRepo, plan: string, ...flags: string[]) {
   return review(repo, [plan, "start", ...flags]);
+}
+
+/**
+ * The stdout of a run with what differs from one repository and one plan text to the next put
+ * out of the way: the absolute path of DIR_REL reads `<dir>` and the checksum of a `sum:` line
+ * `<sum>`, so a case states a whole block as text.
+ */
+export function shaped(repo: GitRepo, stdout: string): string {
+  return slash(stdout)
+    .split(`${slash(repo.dir)}/${DIR_REL}`)
+    .join("<dir>")
+    .replace(/^sum: \d+-\d+$/gm, "sum: <sum>");
 }

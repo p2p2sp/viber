@@ -20,11 +20,17 @@
 # cannot re-arm the gate, while the user switching plan mode off and on by hand
 # closes nothing.
 #
+# A plan write is one of two transcript lines: a Write/Edit of a plans/*.md file,
+# or a Bash tool_use whose command runs plan-build.sh with `skeleton`, `merge` or
+# `apply` and names a plans/*.md path (the planner writes its plan through that
+# script). Only a Write/Edit arms the gate and names the plan file; where the
+# order of the writes counts, the later line of either kind is the last write.
+#
 # When armed, ExitPlanMode is allowed only if the chosen agent was dispatched
 # AFTER the last plan write and returned "VERDICT: PASS", and the plan file has
 # not been touched since that verdict (file mtime vs. the transcript timestamp
 # on the verdict line - that catches an edit through any channel, not just
-# Write/Edit). A verdict of the other reviewer never counts. A "VERDICT: DENIED"
+# the two above). A verdict of the other reviewer never counts. A "VERDICT: DENIED"
 # (the reviewer's tool call was refused) denies with its own next step: grant the
 # permission, then review again.
 #
@@ -44,6 +50,10 @@
 # member, DENIED, FAIL, plan touched after the earliest deciding verdict that
 # followed its last write. A PASS survives a plan write made while another member
 # holds a FAIL (the fix of a finding), so only the failed members need a new PASS.
+# A dispatch whose prompt carries a `sum: <crc>-<bytes>` line is bound to the text
+# it reviewed instead: no plan write voids its verdict, which counts only while
+# that sum is the sum of its part of the plan file (scripts/plan-parts.sh) and
+# stays out of the mtime check.
 #
 # Every transcript scan skips the "api-request-blob" records: each replays a whole
 # earlier message on one line, so its tool_use blocks look like live events.
@@ -59,7 +69,11 @@
 #            config.sh output for the session's cwd (outside plan only), and,
 #            once the plan write line resolves a path, the plan file itself:
 #            its frontmatter (planner ownership), the task blocks of a planner
-#            plan, then existence and mtime (the tamper guard below).
+#            plan, then existence and mtime (the tamper guard below). For a
+#            review set dispatch carrying a `sum:` line, ../../scripts/plan-parts.sh
+#            (relative to this script), sourced for plan_part_sum, which reads
+#            the plan file again; a library that cannot be sourced or a sum that
+#            cannot be computed lets that verdict count unchecked.
 #   stdin  : PreToolUse JSON with at least { "transcript_path": "<abs path>" }
 #   stdout : {"hookSpecificOutput":{"hookEventName":"PreToolUse",
 #             "permissionDecision":"allow"|"deny","permissionDecisionReason":"..."}}
@@ -145,6 +159,28 @@ plan_write_line=$(
     | cut -d: -f1
 )
 [ -n "$plan_write_line" ] && [ "$plan_write_line" -gt "$episode_start" ] || emit_allow
+
+# The plan writes a script made, as line numbers: a Bash tool_use whose command
+# runs plan-build.sh with a subcommand that writes the plan file (skeleton,
+# merge, apply) and names a plans/*.md path. The command is a JSON string, so its
+# own quotes arrive escaped (plan-build.sh\" apply \"/x/plans/p.md\"); a single
+# quote or none is matched too, and both separators as above. The tool name must
+# stand unescaped on the line, so the same text quoted in a prompt or typed by the
+# user is no write. Such a line never arms the gate and never names the plan
+# file: it only moves the last write, and in the review set it closes and voids
+# as a Write/Edit does.
+script_writes="$(
+  grep -nE 'plan-build\.sh[[:punct:]]{0,2}[[:space:]]+(skeleton|merge|apply)[[:space:]]+(\\")?[^"]*[\\/]+plans[\\/]+[^"]*\.md' "$transcript_path" 2>/dev/null \
+    | grep -vE '"type":"api-request-blob"' \
+    | grep -E '"(tool_name|name)":"Bash"' \
+    | cut -d: -f1
+)"
+last_write_line="$plan_write_line"
+script_last="$(printf '%s\n' "$script_writes" | tail -n1)"
+case "$script_last" in
+  ''|*[!0-9]*) ;;
+  *) [ "$script_last" -gt "$last_write_line" ] && last_write_line="$script_last" ;;
+esac
 
 plan_path=$(
   awk -v ln="$plan_write_line" 'NR==ln' "$transcript_path" 2>/dev/null \
@@ -244,13 +280,24 @@ fi
 # the pair_raw awk and the verdict_value awk further down: the three must stay
 # identical.
 #
-# A plan write (a Write/Edit of a plans/*.md file) closes every open dispatch: its
-# reviewer read the text before the write. A write made while no member holds a
-# FAIL voids every verdict before it, so a plan changed after its PASS, or one
-# never reviewed, needs the whole set. A write made while a member holds a FAIL
-# is the fix of its findings: the PASS of the other members stays, and the gate
-# takes it on trust that the fix left their part of the plan alone (review-round.sh
-# sends again every member whose part changed).
+# A plan write (either kind) closes every open dispatch: its reviewer read the
+# text before the write. A write made while no member holds a FAIL voids every
+# verdict before it, so a plan changed after its PASS, or one never reviewed,
+# needs the whole set. A write made while a member holds a FAIL is the fix of its
+# findings: the PASS of the other members stays, and the gate takes it on trust
+# that the fix left their part of the plan alone (review-round.sh sends again
+# every member whose part changed).
+#
+# A dispatch whose prompt holds a line `sum: <crc>-<bytes>` (review-round.sh
+# prints it: the checksum of the part of the plan that member gates) takes none of
+# that on trust. No plan write voids its verdict; at the end the verdict counts
+# only while its sum equals what plan_part_sum (scripts/plan-parts.sh) gives now
+# for the same part of the plan file - the spec part, the graph part, or the
+# slice of the dispatch own `tasks:` line - and one that differs reads as no
+# verdict at all, its member or its tasks missing. Its line stays out of the mtime
+# check: the sum already says whether the text is the reviewed one. A library
+# that cannot be sourced, or a sum that cannot be computed, leaves that verdict
+# counting unchecked: a broken read never denies.
 task_count=0
 if [ "$planner_owns" = "1" ] && [ -n "$plan_path" ] && [ -f "$plan_path" ] && [ -r "$plan_path" ]; then
   task_count="$(grep -cE '^[[:space:]]*<!-- TASK -->[[:space:]]*$' "$plan_path" 2>/dev/null)"
@@ -258,20 +305,73 @@ if [ "$planner_owns" = "1" ] && [ -n "$plan_path" ] && [ -f "$plan_path" ] && [ 
 fi
 
 if [ "$task_count" -gt 12 ]; then
-  # Every plan write of the transcript, as line numbers: the awk below reads the
-  # ones inside the episode.
+  # Every plan write of the transcript, of either kind, as line numbers: the awk
+  # below reads the ones inside the episode.
   plan_writes="$(
-    grep -nE '"file_path":"[^"]*[\\/]+plans[\\/]+[^"]*\.md"' "$transcript_path" 2>/dev/null \
-      | grep -vE '"type":"api-request-blob"' \
-      | grep -E '"(tool_name|name)":"(Write|Edit)"' \
-      | cut -d: -f1 \
-      | tr '\n' ' '
+    {
+      grep -nE '"file_path":"[^"]*[\\/]+plans[\\/]+[^"]*\.md"' "$transcript_path" 2>/dev/null \
+        | grep -vE '"type":"api-request-blob"' \
+        | grep -E '"(tool_name|name)":"(Write|Edit)"' \
+        | cut -d: -f1
+      printf '%s\n' "$script_writes"
+    } | tr '\n' ' '
   )"
+  # The parts of the plan a sum-bearing dispatch of the episode names, one key
+  # each: spec, graph, or the T<a>-T<b> of a task reviewer. Only the dispatch
+  # lines reach the awk, each behind its "<line number>:" from grep.
+  sum_keys="$(
+    grep -nE '"subagent_type":"([a-zA-Z0-9_.-]+:)?planner-(spec|graph|task)-review"' "$transcript_path" 2>/dev/null \
+      | grep -vE '"type":"api-request-blob"' \
+      | awk -v start="$((episode_start + 1))" '
+          {
+            ln = $0
+            sub(/:.*$/, "", ln)
+            if (ln + 0 < start) next
+            if (!match($0, /(\\n|"prompt":")[[:space:]]*sum: [0-9]+-[0-9]+/)) next
+            if ($0 ~ /planner-spec-review"/) key = "spec"
+            else if ($0 ~ /planner-graph-review"/) key = "graph"
+            else {
+              if (!match($0, /(\\n|"prompt":")[[:space:]]*tasks: T[0-9]+-T[0-9]+/)) next
+              t = substr($0, RSTART, RLENGTH)
+              sub(/^.*tasks: T/, "", t)
+              split(t, ab, "-T")
+              key = "T" (ab[1] + 0) "-T" (ab[2] + 0)
+            }
+            if (!(key in seen)) { seen[key] = 1; print key }
+          }
+        ' 2>/dev/null
+  )"
+  # The sum each of those parts has in the plan file now, as "<key>=<sum>" words.
+  # A key with no well-formed sum gets no word, and its verdicts then count.
+  part_sums=""
+  if [ -n "$sum_keys" ]; then
+    parts_lib="$(dirname "$0")/../../scripts/plan-parts.sh"
+    [ -r "$parts_lib" ] && . "$parts_lib" 2>/dev/null
+    if type plan_part_sum >/dev/null 2>&1; then
+      for key in $sum_keys; do
+        case "$key" in
+          spec) part_now="$(plan_part_sum "$plan_path" planner-spec-review 2>/dev/null)" ;;
+          graph) part_now="$(plan_part_sum "$plan_path" planner-graph-review 2>/dev/null)" ;;
+          T[0-9]*-T[0-9]*) part_now="$(plan_part_sum "$plan_path" planner-task-review "$key" 2>/dev/null)" ;;
+          *) part_now="" ;;
+        esac
+        case "$part_now" in
+          ''|*[!0-9-]*|-*|*-|*-*-*) ;;
+          *-*) part_sums="${part_sums:+$part_sums }${key}=${part_now}" ;;
+        esac
+      done
+    fi
+  fi
   set_raw="$(
-    PLAN_WRITES="$plan_writes" awk -v start="$((episode_start + 1))" -v n="$task_count" '
+    PLAN_WRITES="$plan_writes" PART_SUMS="$part_sums" awk -v start="$((episode_start + 1))" -v n="$task_count" '
       BEGIN {
         nw = split(ENVIRON["PLAN_WRITES"], w, " ")
         for (i = 1; i <= nw; i++) pw[w[i] + 0] = 1
+        ns = split(ENVIRON["PART_SUMS"], w, " ")
+        for (i = 1; i <= ns; i++) {
+          eq = index(w[i], "=")
+          if (eq > 1) cur[substr(w[i], 1, eq - 1)] = substr(w[i], eq + 1)
+        }
       }
       function pick(k, kind) {
         if (kind == "all") return 1
@@ -318,9 +418,12 @@ if [ "$task_count" -gt 12 ]; then
       NR in pw {
         failing = (sv == "FAIL" || gv == "FAIL")
         for (k = 1; k <= n && !failing; k++) if (tval[k] == "FAIL") failing = 1
+        # A verdict of a sum-bearing dispatch is never voided here: END checks it
+        # against the plan as it stands.
         if (!failing) {
-          sv = ""; gv = ""; sl = 0; gl = 0
-          for (k = 1; k <= n; k++) { tval[k] = ""; tln[k] = 0 }
+          if (ss == "") { sv = ""; sl = 0 }
+          if (gs == "") { gv = ""; gl = 0 }
+          for (k = 1; k <= n; k++) if (tsum[k] == "") { tval[k] = ""; tln[k] = 0 }
         }
         for (i = 1; i <= nd; i++) opn[i] = 0
         lastw = NR
@@ -331,8 +434,13 @@ if [ "$task_count" -gt 12 ]; then
         if ($0 ~ /planner-spec-review"/) m = "spec"
         else if ($0 ~ /planner-graph-review"/) m = "graph"
         nd++
-        dag[nd] = m; did[nd] = ""; dlo[nd] = 1; dhi[nd] = 0; opn[nd] = 1
+        dag[nd] = m; did[nd] = ""; dlo[nd] = 1; dhi[nd] = 0; opn[nd] = 1; dsum[nd] = ""
         if (match($0, /"id":"toolu_[A-Za-z0-9_-]+"/)) did[nd] = substr($0, RSTART + 6, RLENGTH - 7)
+        if (match($0, /(\\n|"prompt":")[[:space:]]*sum: [0-9]+-[0-9]+/)) {
+          t = substr($0, RSTART, RLENGTH)
+          sub(/^.*sum: /, "", t)
+          dsum[nd] = t
+        }
         if (match($0, /(\\n|"prompt":")[[:space:]]*tasks: T[0-9]+-T[0-9]+/)) {
           t = substr($0, RSTART, RLENGTH)
           sub(/^.*tasks: T/, "", t)
@@ -352,11 +460,16 @@ if [ "$task_count" -gt 12 ]; then
         match(v, /PASS|FAIL|DENIED/)
         v = substr(v, RSTART, RLENGTH)
         opn[tgt] = 0
-        if (dag[tgt] == "spec") { sv = v; sl = NR }
-        else if (dag[tgt] == "graph") { gv = v; gl = NR }
-        else for (k = dlo[tgt]; k <= dhi[tgt] && k <= n; k++) if (k >= 1) { tval[k] = v; tln[k] = NR }
+        if (dag[tgt] == "spec") { sv = v; sl = NR; ss = dsum[tgt] }
+        else if (dag[tgt] == "graph") { gv = v; gl = NR; gs = dsum[tgt] }
+        else for (k = dlo[tgt]; k <= dhi[tgt] && k <= n; k++) if (k >= 1) { tval[k] = v; tln[k] = NR; tsum[k] = dsum[tgt]; tkey[k] = "T" dlo[tgt] "-T" dhi[tgt] }
       }
       END {
+        # A sum-bearing verdict whose part of the plan now has another sum is no
+        # verdict; a part with no sum handed in was not computed, and counts.
+        if (ss != "" && ("spec" in cur) && cur["spec"] != ss) sv = ""
+        if (gs != "" && ("graph" in cur) && cur["graph"] != gs) gv = ""
+        for (k = 1; k <= n; k++) if (tsum[k] != "" && (tkey[k] in cur) && cur[tkey[k]] != tsum[k]) tval[k] = ""
         print "spec", (sv == "" ? "-" : sv)
         print "graph", (gv == "" ? "-" : gv)
         print "uncovered", runs("none", 0)
@@ -365,9 +478,9 @@ if [ "$task_count" -gt 12 ]; then
         print "denied", runs("DENIED", 0)
         print "allslices", runs("all", 2)
         out = "lines"
-        if (sl > lastw && !(sl in seen)) { seen[sl] = 1; out = out " " sl }
-        if (gl > lastw && !(gl in seen)) { seen[gl] = 1; out = out " " gl }
-        for (k = 1; k <= n; k++) if (tln[k] > lastw && !(tln[k] in seen)) { seen[tln[k]] = 1; out = out " " tln[k] }
+        if (ss == "" && sl > lastw && !(sl in seen)) { seen[sl] = 1; out = out " " sl }
+        if (gs == "" && gl > lastw && !(gl in seen)) { seen[gl] = 1; out = out " " gl }
+        for (k = 1; k <= n; k++) if (tsum[k] == "" && tln[k] > lastw && !(tln[k] in seen)) { seen[tln[k]] = 1; out = out " " tln[k] }
         print out
       }
     ' "$transcript_path" 2>/dev/null
@@ -405,7 +518,7 @@ if [ "$task_count" -gt 12 ]; then
       names="${names:+$names, }viber:planner-task-review (uncovered tasks ${uncovered})"
       todo="${todo:+$todo; }$d_task ${uslices}"
     fi
-    emit_deny "Next step: review the plan. ${plan_name} holds ${task_count} tasks, past 12, so a planner-review PASS alone does not open ExitPlanMode: every member of the review set must hold a 'VERDICT: PASS' for it - a write of the plan made while no member holds a FAIL voids every earlier verdict - and these still miss a dispatch or a verdict: ${names}. Dispatch ${todo} - all in one message - wait for every 'VERDICT: PASS', then retry ExitPlanMode without writing the plan again: Minor findings stay unapplied, except one showing the plan changes a behaviour today's code has that the request never asked for - fix that one and dispatch again, since any write after the PASS voids it. (This is ${gate}, not an error.)"
+    emit_deny "Next step: review the plan. ${plan_name} holds ${task_count} tasks, past 12, so a planner-review PASS alone does not open ExitPlanMode: every member of the review set must hold a 'VERDICT: PASS' for it - a write of the plan made while no member holds a FAIL voids every earlier verdict of a dispatch that carried no \`sum:\` line, and a verdict of one that did counts only while that sum is still the sum of its part of the plan - and these still miss a dispatch or a verdict: ${names}. Dispatch ${todo} - all in one message - wait for every 'VERDICT: PASS', then retry ExitPlanMode without writing the plan again: Minor findings stay unapplied, except one showing the plan changes a behaviour today's code has that the request never asked for - fix that one and dispatch again, since any write after the PASS voids it. (This is ${gate}, not an error.)"
   fi
 
   whole_set="${d_spec}; ${d_graph}; ${d_task} ${allslices}"
@@ -453,7 +566,8 @@ if [ "$task_count" -gt 12 ]; then
   emit_allow
 fi
 
-# The review of THIS plan version: only dispatches after the last plan write count.
+# The review of THIS plan version: only dispatches after the last plan write
+# count, a write by plan-build.sh as much as a Write/Edit.
 #
 # Dispatch line: an Agent tool_use carrying "subagent_type":"<agent>" - or
 # "viber:<agent>", the prefixed form a plugin-shipped agent gets - plus its
@@ -473,7 +587,7 @@ fi
 # A background agent's launch record ("status":"async_launched") carries the
 # dispatch id AND echoes the whole prompt, so it is never read as a verdict.
 pair_raw="$(
-  awk -v start="$((plan_write_line + 1))" -v agent="$agent" '
+  awk -v start="$((last_write_line + 1))" -v agent="$agent" '
     NR < start { next }
     /"type":"api-request-blob"/ { next }
     $0 ~("\"subagent_type\":\"([a-zA-Z0-9_.-]+:)?" agent "\"") {
@@ -517,7 +631,7 @@ if [ "$last_dispatch" = "0" ]; then
 fi
 
 if [ "$verdict_line" = "0" ]; then
-  emit_deny "Next step: let the review finish. The viber:${agent} agent was dispatched (transcript line ${last_dispatch}, after the last write of ${plan_name} on line ${plan_write_line}) but returned no 'VERDICT:' line - dispatch it again and read its verdict, then retry ExitPlanMode. (This is ${gate}, not an error.)"
+  emit_deny "Next step: let the review finish. The viber:${agent} agent was dispatched (transcript line ${last_dispatch}, after the last write of ${plan_name} on line ${last_write_line}) but returned no 'VERDICT:' line - dispatch it again and read its verdict, then retry ExitPlanMode. (This is ${gate}, not an error.)"
 fi
 
 # The SAME pattern that selected the line above, trailing delimiter included:

@@ -8,7 +8,12 @@
  * the only form it can take, plus a Write/Edit of a `plans/*.md` file), then allow
  * ExitPlanMode only for a `viber:planner-review` dispatch that FOLLOWED the last
  * plan write, returned `VERDICT: PASS`, and whose plan file has not been touched
- * since (mtime vs. the verdict's transcript timestamp). A plain plan-mode plan
+ * since (mtime vs. the verdict's transcript timestamp). A Bash call of
+ * plan-build.sh skeleton, merge or apply is a plan write too, though it never
+ * arms the gate; and in the review set of a plan past 12 tasks a dispatch
+ * carrying a `sum:` line is bound to the text it reviewed: its verdict survives
+ * a plan write and counts only while that sum is the sum of its part of the
+ * plan file. A plain plan-mode plan
  * (a plan write with no planner skill) is gated the same way by
  * `viber:outside-plan-review`, but only when the session cwd's `.claude/viber.yml`
  * turns `outside-plan-review` on. Everything else - outside-plan-review off, an episode that
@@ -45,6 +50,7 @@ import {
   PLAN,
   skillUse,
   planWrite,
+  scriptWrite,
   dispatch,
   verdict,
   realPlan,
@@ -63,6 +69,7 @@ import {
   memberRound,
   reviewSetRound,
   ALL_PASS,
+  memberSums,
 } from "./plan-gate-fixture.ts";
 
 // --- fixture builders -------------------------------------------------
@@ -647,6 +654,112 @@ test("the last of several plan writes is the one that must be reviewed", async (
   });
 });
 
+// --- a plan write made by plan-build.sh ---------------------------------
+
+/** A Bash call of any command line, as the transcript records it. */
+function bashCall(command: string): string {
+  return line({ type: "assistant", message: { content: [{ type: "tool_use", name: "Bash", input: { command } }] } });
+}
+
+test("a plan-build.sh apply call after the planner-review PASS -> deny until the plan is reviewed again (a script write is a plan write, though no Write/Edit follows the PASS)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const reviewed = [skillUse(), planWrite(), dispatch(), PASS];
+    const f = writeTranscript(dir, "t.jsonl", [...reviewed, scriptWrite("apply")]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /planner-review agent has not run on this version/);
+
+    const again = writeTranscript(dir, "again.jsonl", [...reviewed, scriptWrite("apply"), dispatch(), PASS]);
+    assert.equal((await runCase(again)).decision, "allow");
+  });
+});
+
+test("a plan-build.sh merge or skeleton call counts as a plan write the same way, a subcommand that leaves the plan file alone does not", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const reviewed = [skillUse(), planWrite(), dispatch(), PASS];
+    for (const sub of ["merge", "skeleton"]) {
+      const f = writeTranscript(dir, `${sub}.jsonl`, [...reviewed, scriptWrite(sub)]);
+      const { decision, reason } = await runCase(f);
+      assert.equal(decision, "deny", sub);
+      assert.match(reason ?? "", /has not run on this version/, sub);
+    }
+    for (const sub of ["slices", "fix", "outline", "survey"]) {
+      const f = writeTranscript(dir, `${sub}.jsonl`, [...reviewed, scriptWrite(sub)]);
+      assert.equal((await runCase(f)).decision, "allow", sub);
+    }
+  });
+});
+
+test("the plan-build.sh call is read whatever quotes its call line carries: double, single, none, or behind an interpreter", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const reviewed = [skillUse(), planWrite(), dispatch(), PASS];
+    const spellings: Record<string, string> = {
+      single: `'/plugin/skills/planner/scripts/plan-build.sh' apply '${PLAN}' '/repo/.temp/viber/planner/fix.md'`,
+      bare: `/plugin/skills/planner/scripts/plan-build.sh apply ${PLAN} /repo/.temp/viber/planner/fix.md`,
+      interpreter: `bash "/plugin/skills/planner/scripts/plan-build.sh"  merge  "${PLAN}" T1-T8=/repo/.temp/viber/planner/t.md`,
+    };
+    for (const [name, command] of Object.entries(spellings)) {
+      const f = writeTranscript(dir, `${name}.jsonl`, [...reviewed, bashCall(command)]);
+      assert.equal((await runCase(f)).decision, "deny", name);
+    }
+    // No plans/*.md path on the call line: not the write of a plan.
+    const elsewhere = writeTranscript(dir, "elsewhere.jsonl", [...reviewed, bashCall(`"/plugin/skills/planner/scripts/plan-build.sh" apply "/repo/notes/plan.md" "/repo/fix.md"`)]);
+    assert.equal((await runCase(elsewhere)).decision, "allow");
+  });
+});
+
+test("a plan-build.sh write with no Write/Edit of the plan in the episode does not arm the gate -> allow (the stub the session writes is what arms it)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), scriptWrite("skeleton")]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("the plan-build.sh apply call quoted in a prompt, typed by the user or echoed in a tool result is no plan write -> allow (only a Bash tool_use writes)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const reviewed = [skillUse(), planWrite(), dispatch(), PASS];
+    const command = `"/plugin/skills/planner/scripts/plan-build.sh" apply "${PLAN}" "/repo/.temp/viber/planner/fix.md"`;
+    const mentions: Record<string, string> = {
+      // The tool name is there, one escape level down: \"name\":\"Bash\".
+      typed: userPrompt(`why did {"name":"Bash","input":{"command":"x"}} run ${command}?`),
+      prompt: line({ type: "assistant", message: { content: [{ type: "tool_use", name: "Agent", input: { subagent_type: "viber:plan-fixer", prompt: `The session then runs {"name":"Bash"} with ${command}` } }] } }),
+      result: line({ type: "user", message: { content: [{ type: "tool_result", content: `Next: ${command}` }] } }),
+    };
+    for (const [name, mention] of Object.entries(mentions)) {
+      const f = writeTranscript(dir, `${name}.jsonl`, [...reviewed, mention]);
+      assert.equal((await runCase(f)).decision, "allow", name);
+    }
+  });
+});
+
+test("a blob line replaying the plan-build.sh call is no plan write -> allow", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const command = `"/plugin/skills/planner/scripts/plan-build.sh" apply "${PLAN}" "/repo/.temp/viber/planner/fix.md"`;
+    const replay = blob([{ type: "tool_use", id: "toolu_01Bash", name: "Bash", input: { command } }]);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(), scriptWrite("skeleton"), dispatch(), PASS, replay]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("a review still running after a script write names that write as the last one, and the plan path still comes from the Write/Edit", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(), scriptWrite("skeleton", "/repo/.claude/plans/other/draft.md"), dispatch()]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /after the last write of plan\.md on line 3/);
+  });
+});
+
+test("an outside plan answers to a plan-build.sh write the same way -> deny until outside-plan-review runs again", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const cwd = sessionWithConfig(dir, GROUPED_ON);
+    const f = writeTranscript(dir, "t.jsonl", [planWrite(), dispatch(undefined, PLAIN), PASS, scriptWrite("apply")]);
+    const { decision, reason } = await runCase(f, cwd);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /outside-plan-review agent has not run on this version/);
+  });
+});
+
 // --- plain plan mode: outside-plan-review, behind the outside-plan-review switch --
 const GROUPED_OFF = "planning:\n  outside-plan-review: false\n";
 
@@ -1221,6 +1334,167 @@ test("review set: a plan no newer than every deciding verdict -> allow (no false
     const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS, { timestamp: FRESH() })]);
     assert.equal((await runCase(f)).decision, "allow");
   });
+});
+
+// --- the review set: verdicts bound to the text they reviewed (a sum: line) ---
+
+test("review set: every member PASS on a sum: line that is still the sum of its part, then a script write with no member at FAIL -> allow, while the same verdicts with no sum: line are voided (a late change sends only the members whose part changed)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const sums = await memberSums(dir, plan);
+    const opening = [skillUse(), planWrite(plan), scriptWrite("skeleton", plan)];
+    const bound = writeTranscript(dir, "bound.jsonl", [...opening, ...reviewSetRound(ALL_PASS, { sums }), scriptWrite("apply", plan), planWrite(plan, "Edit")]);
+    assert.equal((await runCase(bound)).decision, "allow");
+
+    const loose = writeTranscript(dir, "loose.jsonl", [...opening, ...reviewSetRound(ALL_PASS), scriptWrite("apply", plan)]);
+    const { decision, reason } = await runCase(loose);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", /^Next step: review the plan/);
+    assert.match(reason ?? "", new RegExp(`${SET_TASK} \\(uncovered tasks T1-T20\\)`));
+  });
+});
+
+test("review set: a member whose sum: is no longer the sum of its part of the plan reads as missing, the others keeping their PASS", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const sums = await memberSums(dir, plan);
+    const graph = writeTranscript(dir, "graph.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS, { sums: { ...sums, graph: "1-1" } })]);
+    const stale = await runCase(graph);
+    assert.equal(stale.decision, "deny");
+    assert.match(stale.reason ?? "", /^Next step: review the plan/);
+    assert.match(stale.reason ?? "", new RegExp(`still miss a dispatch or a verdict: ${SET_GRAPH}\\. `));
+
+    const slice = writeTranscript(dir, "slice.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS, { sums: { ...sums, spec: "1-1", b: "1-1" } })]);
+    const two = await runCase(slice);
+    assert.equal(two.decision, "deny");
+    assert.match(two.reason ?? "", new RegExp(`still miss a dispatch or a verdict: ${SET_SPEC}, ${SET_TASK} \\(uncovered tasks T9-T16\\)\\. `));
+    assert.match(two.reason ?? "", /one dispatch per slice: T9-T16 /);
+  });
+});
+
+test("review set: a member reviewed again on the sum of its changed part -> allow (its latest dispatch is the one compared)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const sums = await memberSums(dir, plan);
+    const f = writeTranscript(dir, "t.jsonl", [
+      skillUse(),
+      planWrite(plan),
+      ...reviewSetRound(ALL_PASS, { sums: { ...sums, spec: "1-1" } }),
+      scriptWrite("apply", plan),
+      ...memberRound("spec", "PASS", { round: 2, sums }),
+    ]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: a task slice whose sum: still matches covers only the tasks of its own range -> a task past it stays uncovered", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 21);
+    const sums = await memberSums(dir, plan);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS, { sums })]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", new RegExp(`still miss a dispatch or a verdict: ${SET_TASK} \\(uncovered tasks T21\\)\\. `));
+  });
+});
+
+test("review set: a PASS older than the plan file still counts on a matching sum: line, while one with no sum: line is refused with the re-review next step (the sum says the text is the reviewed one, the mtime only guesses)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const sums = await memberSums(dir, plan);
+    const bound = writeTranscript(dir, "bound.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS, { sums, timestamp: STALE() })]);
+    assert.equal((await runCase(bound)).decision, "allow");
+
+    const loose = writeTranscript(dir, "loose.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS, { timestamp: STALE() })]);
+    const refused = await runCase(loose);
+    assert.equal(refused.decision, "deny");
+    assert.match(refused.reason ?? "", /^Next step: re-review/);
+
+    // One member with no sum: line among bound ones is still dated against the plan.
+    const others: Partial<Record<Member, string>> = { ...sums };
+    delete others.graph;
+    const mixed = writeTranscript(dir, "mixed.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS, { sums: others, timestamp: STALE() })]);
+    const dated = await runCase(mixed);
+    assert.equal(dated.decision, "deny");
+    assert.match(dated.reason ?? "", /^Next step: re-review/);
+  });
+});
+
+test("review set: a FAIL or a DENIED on a matching sum: line still denies with its own next step", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const sums = await memberSums(dir, plan);
+    const failed = writeTranscript(dir, "fail.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ ...ALL_PASS, b: "FAIL" }, { sums })]);
+    const fail = await runCase(failed);
+    assert.equal(fail.decision, "deny");
+    assert.match(fail.reason ?? "", /^Next step: fix the findings/);
+    assert.match(fail.reason ?? "", new RegExp(`${SET_TASK} \\(tasks T9-T16\\) returned 'VERDICT: FAIL'`));
+
+    const refused = writeTranscript(dir, "denied.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ ...ALL_PASS, graph: "DENIED" }, { sums })]);
+    const denied = await runCase(refused);
+    assert.equal(denied.decision, "deny");
+    assert.match(denied.reason ?? "", /^Next step: grant the permission/);
+    assert.match(denied.reason ?? "", new RegExp(`${SET_GRAPH} returned 'VERDICT: DENIED'`));
+  });
+});
+
+test("review set: a script write closes an open dispatch that carries a sum: line too -> its late verdict never counts, the member stays missing (its reviewer may have read either text)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const sums = await memberSums(dir, plan);
+    const [early, late] = memberRound("spec", "PASS", { sums });
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ graph: "PASS", a: "PASS", b: "PASS", c: "PASS" }, { sums }), early, scriptWrite("merge", plan), late]);
+    const { decision, reason } = await runCase(f);
+    assert.equal(decision, "deny");
+    assert.match(reason ?? "", new RegExp(`still miss a dispatch or a verdict: ${SET_SPEC}\\. `));
+  });
+});
+
+test("review set: a script write made while a member holds a FAIL is the fix of its findings -> the PASS of the others stays with no sum: line, and the failed member alone passing again allows", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound({ ...ALL_PASS, b: "FAIL" }), scriptWrite("apply", plan), ...memberRound("b", "PASS", { round: 2 })]);
+    assert.equal((await runCase(f)).decision, "allow");
+  });
+});
+
+test("review set: 'sum:' inside a prompt line is no sum: line -> the dispatch keeps the rules of one without it (only a line that opens on it binds the verdict)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const members = Object.keys(MEMBERS) as Member[];
+    const round = members.flatMap((m) => {
+      const { agent, tasks } = MEMBERS[m];
+      const prompt = `review ${PLAN} (its sum: 1-1 is stale)${tasks ? `\ntasks: ${tasks}` : ""}`;
+      const id = `toolu_${m}_inline`;
+      return [line({ type: "assistant", message: { content: [{ type: "tool_use", id, name: "Agent", input: { subagent_type: agent, prompt } }] } }), verdict("PASS", { id })];
+    });
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...round]);
+    assert.equal((await runCase(f)).decision, "allow");
+    const written = writeTranscript(dir, "written.jsonl", [skillUse(), planWrite(plan), ...round, scriptWrite("apply", plan)]);
+    assert.equal((await runCase(written)).decision, "deny");
+  });
+});
+
+test("review set: with scripts/plan-parts.sh missing beside the hook, a verdict on a sum: line counts unchecked -> allow (a broken read never traps the user in plan mode)", async () => {
+  await withTempDir("p2p2-plan-gate-", async (dir) => {
+    const plan = taskPlan(dir, 20);
+    const wrong: Record<Member, string> = { spec: "1-1", graph: "1-1", a: "1-1", b: "1-1", c: "1-1" };
+    const f = writeTranscript(dir, "t.jsonl", [skillUse(), planWrite(plan), ...reviewSetRound(ALL_PASS, { sums: wrong })]);
+    assert.equal((await runCase(f)).decision, "deny", "control: the shipped hook reads these sums as stale");
+
+    const alone = path.join(dir, "viber", "hooks", "scripts", "plan-gate.sh");
+    fs.mkdirSync(path.dirname(alone), { recursive: true });
+    fs.copyFileSync(SUT, alone);
+    const result = await runScript(alone, [], { shell: "bash", input: JSON.stringify({ transcript_path: f, tool_name: "ExitPlanMode" }) });
+    assert.equal(result.status, 0, `expected exit 0, got ${result.status}; stderr: ${result.stderr}`);
+    assert.equal(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, "allow");
+  });
+});
+
+test("review set: the hooks.json description states the script write and the sum: rule", () => {
+  const manifest = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/hooks/hooks.json"), "utf8"));
+  assert.match(manifest.description, /plan-build\.sh/);
+  assert.match(manifest.description, /sum: <crc>-<bytes>/);
 });
 
 test("review set: the hooks.json description states the set rule", () => {

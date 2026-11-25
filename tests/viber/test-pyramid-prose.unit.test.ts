@@ -36,7 +36,8 @@ const CODER = read("agents/task-coder.md");
 const REVIEWER = read("agents/task-reviewer.md");
 const TEST_RUNNER = read("agents/test-runner.md");
 const FIXER = read("skills/fixer/SKILL.md");
-const WRITER = read("agents/plan-writer.md");
+const ARCHITECT = read("agents/plan-architect.md");
+const DETAILER = read("agents/plan-detailer.md");
 const PLAN_REVIEW = read("agents/planner-review.md");
 const TASK_REVIEW = read("agents/planner-task-review.md");
 
@@ -476,8 +477,12 @@ test("test-strategy keeps no bullet of the old component rule outside Layers", (
   assert.ok(!has(STRATEGY, "A component test drives the whole application through its own entry point inside the test process"));
 });
 
-test("plan-writer reads Layers, Proves and Ports of test-strategy by range before a task is written", () => {
-  assert.ok(has(section(WRITER, "Write"), "Before a task is written, read `## Layers`, `## Proves` and `## Ports` of `<refs>/test-strategy.md` by range: `Grep` the file for its `## ` lines, then `Read` each of the three sections."));
+test("plan-architect reads Layers, Proves and Ports of test-strategy by range before a task is written", () => {
+  assert.ok(has(section(ARCHITECT, "Read"), "Before a task is written, read `## Layers`, `## Proves` and `## Ports` of `<refs>/test-strategy.md` by range: `Grep` the file for its `## ` lines, then `Read` each of the three sections."));
+});
+
+test("plan-detailer reads Layers, Proves and Ports of test-strategy alone, by range (it writes the proof of every task of a skeleton)", () => {
+  assert.ok(has(section(DETAILER, "Read"), "`<refs>/test-strategy.md` in `## Layers`, `## Proves` and `## Ports` only, the same way."));
 });
 
 const REVIEWER_ROWS: [string, string][] = [
@@ -496,7 +501,8 @@ for (const [name, text] of REVIEWER_ROWS) {
 }
 
 const DEFINITION_ROWS: [string, string][] = [
-  ["plan-writer", WRITER],
+  ["plan-architect", ARCHITECT],
+  ["plan-detailer", DETAILER],
   ["planner-review", PLAN_REVIEW],
   ["planner-task-review", TASK_REVIEW],
 ];
@@ -531,7 +537,8 @@ test("task-coder reads the test rules before its first edit reaching an external
 });
 
 const ADAPTER_READ_ROWS: [string, string, string][] = [
-  ["plan-writer", WRITER, "A plan carrying an integration test or creating or changing an adapter also reads"],
+  ["plan-architect", section(ARCHITECT, "Read"), "A plan carrying an integration test or creating or changing an adapter also reads `<refs>/integration-tests.md`"],
+  ["plan-detailer", section(DETAILER, "Read"), "A range with a task writing an integration test or creating or changing an adapter also reads `<refs>/integration-tests.md`"],
   ["planner-review", PLAN_REVIEW, "when the plan carries an integration test or creates or changes an adapter, read `<refs>/integration-tests.md`"],
   ["planner-task-review", TASK_REVIEW, "when the plan carries an integration test or creates or changes an adapter, read `<refs>/integration-tests.md`"],
 ];

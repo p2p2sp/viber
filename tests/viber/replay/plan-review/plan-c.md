@@ -8,15 +8,14 @@ To build this plan you must invoke skill `viber:implementor` with `source:` path
 
 ## Goal
 
-Plans should pass their review in fewer rounds and builds should waste fewer coder attempts. The planner sees the code its change reaches, `plan-index.sh` rejects two mechanical plan mistakes, coders learn the test rules earlier tasks of the same run broke, a reviewer flags a whole class of a test-rule breach at once, a coder stalled on a contradiction gets the arbiter's ruling and continues, and the archive records the numbers that show whether it worked.
+Plans should pass their review in fewer rounds and builds should waste fewer coder attempts. `plan-index.sh` rejects two mechanical plan mistakes, coders learn the test rules earlier tasks of the same run broke, a reviewer flags a whole class of a test-rule breach at once, a coder stalled on a contradiction gets the arbiter's ruling and continues, and the archive records the numbers that show whether it worked.
 
 ## Problem
 
-A measurement over 5 plans and 35 blocking plan-review findings shows every plan failing its first review round. About a third of the findings are code reach the planner never saw: a test counting the solution's projects, a test double implementing an interface that gains a member, a project file listing linked sources, the callers of a constructor gaining a parameter. Four findings were an integration test written without any build or listing step in `Verification`, three were a `git grep` that can never see the files its own task creates. In one build (geodis.pricelister) later coders broke the same test rules (`Act`, `Single`) that earlier tasks had already been failed for, because each coder starts fresh and the failure trail is written only at the close. A reviewer fixing one duplicate test pointed at another duplicate as the one to keep, costing a second round. A coder returning `DECIDE:` on its first attempt is never sent to the arbiter: a fresh coder one tier up re-reads everything and usually hits the same contradiction. Nothing in the archive records review rounds, attempts or rulings counted, so none of this can be followed across machines.
+A measurement over 5 plans and 35 blocking plan-review findings shows every plan failing its first review round. Four findings were an integration test written without any build or listing step in `Verification`, three were a `git grep` that can never see the files its own task creates. In one build (geodis.pricelister) later coders broke the same test rules (`Act`, `Single`) that earlier tasks had already been failed for, because each coder starts fresh and the failure trail is written only at the close. A reviewer fixing one duplicate test pointed at another duplicate as the one to keep, costing a second round. A coder returning `DECIDE:` on its first attempt is never sent to the arbiter: a fresh coder one tier up re-reads everything and usually hits the same contradiction. Nothing in the archive records review rounds, attempts or rulings counted, so none of this can be followed across machines.
 
 ## Current behaviour
 
-- `viber/skills/planner/SKILL.md` skips the reach map when the change only adds files, and `viber/agents/impact-mapper.md` searches imports, calls, tests, mocks, fixtures, strings and documents of the files and symbols a change modifies, moves or deletes.
 - `viber/scripts/plan-index.sh` checks task fields but nothing about integration test files or `git grep`.
 - `viber/scripts/run-failures.sh` writes `failures.md` at the close only; no coder hears of earlier review failures of the run.
 - `viber/agents/task-reviewer.md` raises a blocking `test-strategy.md` rule "naming the rule", in no fixed spelling, one test at a time.
@@ -32,43 +31,31 @@ A measurement over 5 plans and 35 blocking plan-review findings shows every plan
 
 ## Behaviour
 
-### S1 - Reach mapped for a change that adds files [CHANGED - was: no map when nothing existing changes]
-
-Given a plan adding a new project to a solution whose test counts the solution's projects
-When the planner maps the reach
-Then `impact-mapper` returns the solution file and the counting test, and both land in a task's `Files`.
-
-### S2 - Reach includes implementers and constructor callers [CHANGED - was: imports, calls, tests, mocks, fixtures, strings, documents only]
-
-Given a plan adding a member to an interface or a parameter to a constructor
-When `impact-mapper` maps that symbol
-Then every class implementing or deriving from it, test doubles included, and every place constructing it come back as `REF:` lines.
-
-### S3 - plan-index rejects two Verification mistakes [NEW]
+### S1 - plan-index rejects two Verification mistakes [NEW]
 
 Given a task writing a file under an integration test directory whose `Verification` names neither that file nor its project directory, or a task whose `Verification` runs `git grep` without `--untracked` over a file the task creates
 When `plan-index.sh` validates the plan
 Then it rejects the plan with one error naming the task, the path and the fix.
 
-### S4 - Coders hear the run's broken test rules [NEW]
+### S2 - Coders hear the run's broken test rules [NEW]
 
 Given task reviews of this run already failed on test-strategy `Act` twice and `Single` once
 When the next coder is dispatched
 Then its dispatch carries `run-lessons: Act x2, Single x1` and it checks its tests against those rules before returning PASS; reviewers get no such line.
 
-### S5 - A reviewer flags the whole class [CHANGED - was: one test per finding]
+### S3 - A reviewer flags the whole class [CHANGED - was: one test per finding]
 
 Given a task whose tests break test-strategy `Single` in two places
 When the reviewer fails it
 Then one finding names every test of the task breaking `Single`, and a test the fix keeps breaks none of the rules raised.
 
-### S6 - A stalled coder continues after the ruling [CHANGED - was: arbiter from attempt 2 on, then a fresh coder]
+### S4 - A stalled coder continues after the ruling [CHANGED - was: arbiter from attempt 2 on, then a fresh coder]
 
 Given a coder returning `DECIDE:` on any attempt from 1 to 4, having finished every clause the dispute does not touch
 When the arbiter rules
 Then the ruling is recorded as today and the same coder is resumed with the `decision:` line, in the same attempt and at the same tier.
 
-### S7 - The archive records the build's effort [NEW]
+### S5 - The archive records the build's effort [NEW]
 
 Given a finished build
 When the close writes its summary
@@ -94,12 +81,11 @@ Then it carries the plan review rounds, the attempts of every task needing more 
 
 ## Acceptance criteria
 
-1. The planner maps the reach also of a change that only adds files, and `impact-mapper` returns implementers and subclasses of a changed type, the places constructing it, and the existing files that enumerate, count or link the set a new file joins.
-2. `plan-index.sh` rejects a task writing a file under an integration test directory whose `Verification` has no build or listing step for it - no command other than a `grep`, `git grep` or `rg` naming the file or a directory of it at or below that test directory - and a task whose `Verification` runs `git grep` without `--untracked` over a file the task creates.
-3. Every coder dispatched after a failed task review that named test-strategy rules, the final-review fix coder and the repair coder included, carries a `run-lessons:` line with those rules and their counts, printed by `run-failures.sh --lessons`; reviewers carry none.
-4. `task-reviewer` names a test-strategy rule as test-strategy `` `<Name>` ``, lists in one finding every test the task wrote or changed that breaks that rule, and never keeps a test that breaks a rule it raised.
-5. A `DECIDE:` on attempts 1 to 4 goes to the arbiter at once and the same coder is resumed with the ruling in the same attempt; the coder finishes every clause the dispute does not touch before returning `DECIDE:`.
-6. The final summary, and so `outcome.md`, carries the plan review rounds, the attempts of every task needing more than one, and the number of rulings.
+1. `plan-index.sh` rejects a task writing a file under an integration test directory whose `Verification` has no build or listing step for it - no command other than a `grep`, `git grep` or `rg` naming the file or a directory of it at or below that test directory - and a task whose `Verification` runs `git grep` without `--untracked` over a file the task creates.
+2. Every coder dispatched after a failed task review that named test-strategy rules, the final-review fix coder and the repair coder included, carries a `run-lessons:` line with those rules and their counts, printed by `run-failures.sh --lessons`; reviewers carry none.
+3. `task-reviewer` names a test-strategy rule as test-strategy `` `<Name>` ``, lists in one finding every test the task wrote or changed that breaks that rule, and never keeps a test that breaks a rule it raised.
+4. A `DECIDE:` on attempts 1 to 4 goes to the arbiter at once and the same coder is resumed with the ruling in the same attempt; the coder finishes every clause the dispute does not touch before returning `DECIDE:`.
+5. The final summary, and so `outcome.md`, carries the plan review rounds, the attempts of every task needing more than one, and the number of rulings.
 
 ## Scope
 
@@ -110,9 +96,6 @@ Then it carries the plan review rounds, the attempts of every task needing more 
 - modify - viber/references/plan-rules.md - the `(script)` halves naming both checks
 - modify - tests/viber/test-pyramid-prose.unit.test.ts - the plan-rules size cap and the reviewer's new pins
 - modify - tests/viber/rule-budget.unit.test.ts - the read-set caps the change outgrows
-- modify - viber/agents/impact-mapper.md - new-file targets, implementations, constructors, collections
-- modify - viber/skills/planner/SKILL.md - the reach step also for added files
-- add - tests/viber/impact-mapper-prose.unit.test.ts - pins of the reach contract
 - modify - viber/scripts/run-failures.sh - the `--lessons` mode
 - modify - tests/viber/run-failures.test.ts - cases for `--lessons`
 - modify - viber/agents/task-reviewer.md - rule spelling and whole-class findings
@@ -127,7 +110,7 @@ Then it carries the plan review rounds, the attempts of every task needing more 
 - modify - tests/viber/run-tokens.test.ts - cases for the rounds line
 - modify - viber/skills/implementor/parts/close.md - attempts and rulings lines
 - modify - tests/viber/close-part-prose.unit.test.ts - pins of those lines
-- modify - viber/README.md, viber/skills/setup/assets/help.html - the reach map, whole-class review findings, run lessons, the effort lines of the summary and the arbiter flow, for users
+- modify - viber/README.md, viber/skills/setup/assets/help.html - whole-class review findings, run lessons, the effort lines of the summary and the arbiter flow, for users
 
 ### Out of scope
 
@@ -149,7 +132,7 @@ Then it carries the plan review rounds, the attempts of every task needing more 
 <!-- TASK -->
 ### T1 - Reject an unnamed integration test in Verification
 - TDD: required
-- Covers: AC2
+- Covers: AC1
 - Uses: C1
 - Depends-on: none
 - Files: viber/scripts/plan-index.sh, tests/viber/plan-index.test.ts, viber/references/plan-rules.md, tests/viber/test-pyramid-prose.unit.test.ts, tests/viber/rule-budget.unit.test.ts
@@ -161,7 +144,7 @@ Then it carries the plan review rounds, the attempts of every task needing more 
 <!-- TASK -->
 ### T2 - Reject git grep blind to a new file
 - TDD: required
-- Covers: AC2
+- Covers: AC1
 - Uses: C1
 - Depends-on: T1
 - Files: viber/scripts/plan-index.sh, tests/viber/plan-index.test.ts, viber/references/plan-rules.md, tests/viber/test-pyramid-prose.unit.test.ts, tests/viber/rule-budget.unit.test.ts
@@ -171,35 +154,23 @@ Then it carries the plan review rounds, the attempts of every task needing more 
 <!-- /TASK -->
 
 <!-- TASK -->
-### T3 - Map the reach of added files, implementers and constructors
+### T3 - Print the run lessons from failed reviews
 - TDD: required
-- Covers: AC1
+- Covers: AC2
 - Uses: C2
-- Depends-on: T2
-- Files: viber/agents/impact-mapper.md, viber/skills/planner/SKILL.md, tests/viber/impact-mapper-prose.unit.test.ts, tests/viber/rule-budget.unit.test.ts, viber/README.md, viber/skills/setup/assets/help.html
-- Delivers: the reach step mapping a change that adds files, `impact-mapper` taking `| new` targets and returning `implementation` and `collection` references, the planner cap raised to the new size, and the user guides saying so in both languages
-- Verification: node --test tests/viber/impact-mapper-prose.unit.test.ts tests/viber/rule-budget.unit.test.ts tests/viber/help.unit.test.ts tests/viber/test-pyramid-prose.unit.test.ts tests/viber/nudge-prose.unit.test.ts tests/viber/e2e-prose.unit.test.ts -> every case passes
-- DoD: `planner/SKILL.md` skips the reach map only when the change adds, modifies, moves or deletes no file or symbol, and writes each added file as a C2 `| new` target; `impact-mapper.md` searches, for a `| new` target, the existing files enumerating, counting, globbing or linking the set the new file joins and the tests asserting a count or a list over such a file, reported with kind `collection`; `impact-mapper.md` searches, for a type symbol, every class implementing or deriving from it, test doubles included, with kind `implementation`, and every place constructing it, with kind `call`; the frontmatter `description` of `impact-mapper.md` names the files a plan adds beside those it modifies, moves or deletes; `README.md` and both languages of `help.html` say the map also covers what the change adds; the planner read set stays within its cap, raised to the new size
-<!-- /TASK -->
-
-<!-- TASK -->
-### T4 - Print the run lessons from failed reviews
-- TDD: required
-- Covers: AC3
-- Uses: C3
 - Depends-on: none
 - Files: viber/scripts/run-failures.sh, tests/viber/run-failures.test.ts
-- Delivers: the `--lessons <run-dir>` mode of `run-failures.sh` printing the C3 line and writing nothing
+- Delivers: the `--lessons <run-dir>` mode of `run-failures.sh` printing the C2 line and writing nothing
 - Verification: node --test tests/viber/run-failures.test.ts tests/portability.unit.test.ts -> every case passes
 - DoD: a run whose `work/` holds two failed reviews naming test-strategy `` `Act` `` and one naming `` `Single` `` prints `lessons: Act x2, Single x1`; an item copied verbatim from round 1 into round 2 of the same task counts once; a run with no review report, or none naming a rule, prints `lessons: none`; the mode writes no file and exits 0, and a missing run directory exits 2 with one `error:` line
 <!-- /TASK -->
 
 <!-- TASK -->
-### T5 - Name the rule and flag its whole class in task review
+### T4 - Name the rule and flag its whole class in task review
 - TDD: required
-- Covers: AC3, AC4
-- Uses: C3
-- Depends-on: T3, T4
+- Covers: AC2, AC3
+- Uses: C2
+- Depends-on: T2, T3
 - Files: viber/agents/task-reviewer.md, tests/viber/test-pyramid-prose.unit.test.ts, tests/viber/rule-budget.unit.test.ts, viber/README.md, viber/skills/setup/assets/help.html
 - Delivers: `task-reviewer` spelling a blocking test-strategy rule as test-strategy `` `<Name>` `` and listing every test of the task breaking it in one finding, and the guides saying so in both languages
 - Verification: node --test tests/viber/test-pyramid-prose.unit.test.ts tests/viber/rule-budget.unit.test.ts tests/viber/failure-trail-prose.unit.test.ts tests/viber/previous-review-prose.unit.test.ts tests/viber/help.unit.test.ts tests/viber/repair-prose.unit.test.ts tests/viber/extras-prose.unit.test.ts tests/viber/guard-prose.unit.test.ts tests/viber/red-evidence-prose.unit.test.ts tests/viber/ui-tells.unit.test.ts -> every case passes
@@ -207,47 +178,47 @@ Then it carries the plan review rounds, the attempts of every task needing more 
 <!-- /TASK -->
 
 <!-- TASK -->
-### T6 - Keep the plan-mode path in the landed plan
+### T5 - Keep the plan-mode path in the landed plan
 - TDD: required
-- Covers: AC6
-- Uses: C6
+- Covers: AC5
+- Uses: C5
 - Depends-on: none
 - Files: viber/scripts/plan-path.sh, tests/viber/plan-path.test.ts
-- Delivers: `plan-path.sh --land` writing the C6 `planned:` line into the landed copy's frontmatter beside the rewritten `source:` line
+- Delivers: `plan-path.sh --land` writing the C5 `planned:` line into the landed copy's frontmatter beside the rewritten `source:` line
 - Verification: node --test tests/viber/plan-path.test.ts tests/portability.unit.test.ts -> every case passes
 - DoD: landing a plan-mode file `C:/plans/p.md` whose frontmatter names `source: C:/plans/p.md` leaves the copy's `source:` pointing at the copy, as today, and adds `planned: C:/plans/p.md` right after it, the value being the `--land` source argument resolved to an absolute path the way the copy's own `source:` is resolved (the mixed `C:/` form where `cygpath` exists); a plan whose frontmatter already holds a `planned:` line keeps that line unchanged on a later landing; a frontmatter with no `source:` line gets no `planned:` line either, and a plan without frontmatter is left as it is
 <!-- /TASK -->
 
 <!-- TASK -->
-### T7 - Count the plan review rounds in the token report
+### T6 - Count the plan review rounds in the token report
 - TDD: required
-- Covers: AC6
-- Uses: C5
+- Covers: AC5
+- Uses: C4
 - Depends-on: none
 - Files: viber/scripts/run-tokens.sh, tests/viber/run-tokens.test.ts
-- Delivers: `run-tokens.sh` printing the C5 rounds line after its token lines, read from the `planned:` line of the run's `plan.md`
+- Delivers: `run-tokens.sh` printing the C4 rounds line after its token lines, read from the `planned:` line of the run's `plan.md`
 - Verification: node --test tests/viber/run-tokens.test.ts tests/portability.unit.test.ts -> every case passes
 - DoD: a run whose `plan.md` names `planned: C:/plans/p.md`, with three transcripts of an agent type ending in `:planner-review` and one ending in `:planner-graph-review` whose first line names that path, the backslash form included, prints `rounds: plan review 4`, a review transcript last written before the day of the run key counting too, and every such transcript counting once, a retried dispatch included; transcripts of other agent types or naming another path do not count; a `plan.md` with no `planned:` line prints `rounds: plan review unavailable - no planned line in plan.md`; no matching transcript prints `rounds: plan review unavailable - no review transcript names the plan`; each `tokens: unavailable - <reason>` line, for every one of its three reasons, is followed by the rounds line, `rounds: plan review unavailable - no projects directory` when the projects directory is missing; the token lines stay byte for byte as today
 <!-- /TASK -->
 
 <!-- TASK -->
-### T8 - Record attempts and rulings in the final summary
+### T7 - Record attempts and rulings in the final summary
 - TDD: required
-- Covers: AC6
-- Uses: C5
-- Depends-on: T5, T7
+- Covers: AC5
+- Uses: C4
+- Depends-on: T4, T6
 - Files: viber/skills/implementor/parts/close.md, tests/viber/close-part-prose.unit.test.ts, viber/README.md, viber/skills/setup/assets/help.html
-- Delivers: the final summary carrying the C5 attempts and arbiter lines outside its 7 lines, in both forms, and the guides naming the three effort lines in both languages
+- Delivers: the final summary carrying the C4 attempts and arbiter lines outside its 7 lines, in both forms, and the guides naming the three effort lines in both languages
 - Verification: node --test tests/viber/close-part-prose.unit.test.ts tests/viber/roadmap-prose.unit.test.ts tests/viber/repair-prose.unit.test.ts tests/viber/help.unit.test.ts -> every case passes
-- DoD: right after the token lines, in both forms and outside the 7 lines, `close.md` prints the C5 `attempts:` line listing every task needing more than one attempt this session with its count, `attempts: none` otherwise; it then prints the C5 `arbiter:` line counting the index `ruling:` lines plus every ruling this session recorded that is not already one; both lines reach `closeout`'s `summary:` and so `outcome.md`; `README.md` and both languages of `help.html` name the `rounds:`, `attempts:` and `arbiter:` lines of the summary
+- DoD: right after the token lines, in both forms and outside the 7 lines, `close.md` prints the C4 `attempts:` line listing every task needing more than one attempt this session with its count, `attempts: none` otherwise; it then prints the C4 `arbiter:` line counting the index `ruling:` lines plus every ruling this session recorded that is not already one; both lines reach `closeout`'s `summary:` and so `outcome.md`; `README.md` and both languages of `help.html` name the `rounds:`, `attempts:` and `arbiter:` lines of the summary
 <!-- /TASK -->
 
 <!-- TASK -->
-### T9 - Hand the run lessons to every later coder
+### T8 - Hand the run lessons to every later coder
 - TDD: required
-- Covers: AC3
-- Uses: C3
-- Depends-on: T8
+- Covers: AC2
+- Uses: C2
+- Depends-on: T7
 - Files: viber/skills/implementor/SKILL.md, viber/skills/implementor/fragments/final-review.true.md, viber/skills/implementor/parts/close.md, viber/agents/task-coder.md, tests/viber/lessons-prose.unit.test.ts, tests/viber/rule-budget.unit.test.ts, viber/README.md, viber/skills/setup/assets/help.html
 - Delivers: `implementor` calling `run-failures.sh --lessons` before its first coder dispatch and after each failed task review and passing `run-lessons:` to every coder dispatch, the final-review fix and step 5 repair coders included, `task-coder` checking those rules first, and the guides saying so in both languages
 - Verification: node --test tests/viber/lessons-prose.unit.test.ts tests/viber/rule-budget.unit.test.ts tests/viber/extras-prose.unit.test.ts tests/viber/ruling-prose.unit.test.ts tests/viber/repair-prose.unit.test.ts tests/viber/test-pyramid-prose.unit.test.ts tests/viber/red-evidence-prose.unit.test.ts tests/viber/previous-review-prose.unit.test.ts tests/viber/close-part-prose.unit.test.ts tests/viber/resume-prose.unit.test.ts tests/viber/guard-prose.unit.test.ts tests/viber/final-review-prose.unit.test.ts tests/viber/ui-tells.unit.test.ts tests/viber/help.unit.test.ts tests/portability.unit.test.ts -> every case passes; grep -c -- "--lessons" viber/scripts/run-failures.sh viber/skills/implementor/SKILL.md -> both counts above 0
@@ -255,15 +226,15 @@ Then it carries the plan review rounds, the attempts of every task needing more 
 <!-- /TASK -->
 
 <!-- TASK -->
-### T10 - Resume the stalled coder with the arbiter's ruling
+### T9 - Resume the stalled coder with the arbiter's ruling
 - TDD: required
-- Covers: AC5
-- Uses: C4
-- Depends-on: T9
+- Covers: AC4
+- Uses: C3
+- Depends-on: T8
 - Files: viber/skills/implementor/SKILL.md, viber/agents/task-coder.md, viber/agents/arbiter.md, tests/viber/ruling-prose.unit.test.ts, tests/viber/rule-budget.unit.test.ts, viber/README.md, viber/skills/setup/assets/help.html
-- Delivers: the arbiter called on a `DECIDE:` of attempts 1 to 4, the same coder resumed with the C4 message in the same attempt, the coder finishing undisputed work before `DECIDE:`, and the guides saying so in both languages
+- Delivers: the arbiter called on a `DECIDE:` of attempts 1 to 4, the same coder resumed with the C3 message in the same attempt, the coder finishing undisputed work before `DECIDE:`, and the guides saying so in both languages
 - Verification: node --test tests/viber/ruling-prose.unit.test.ts tests/viber/repair-prose.unit.test.ts tests/viber/nudge-prose.unit.test.ts tests/viber/rule-budget.unit.test.ts tests/viber/help.unit.test.ts tests/viber/extras-prose.unit.test.ts tests/viber/test-pyramid-prose.unit.test.ts tests/viber/red-evidence-prose.unit.test.ts tests/viber/previous-review-prose.unit.test.ts tests/viber/close-part-prose.unit.test.ts tests/viber/resume-prose.unit.test.ts tests/viber/guard-prose.unit.test.ts tests/viber/final-review-prose.unit.test.ts tests/viber/ui-tells.unit.test.ts tests/viber/lessons-prose.unit.test.ts -> every case passes
-- DoD: the `Coder failure on attempt 1 to 4` bullet sends any `DECIDE:` to the arbiter, records the ruling and decision as today, then sends that coder the C4 message, the attempt count and tier unchanged; a refused `SendMessage` or a failure of the resumed coder leads to the next attempt with every `decision:` line, and a second `DECIDE:` of the resumed coder goes to the arbiter again; `task-coder.md` finishes every `DoD` clause the dispute does not touch before returning `DECIDE:`, and on a C4 message applies the `decision:` line and returns its output lines again; `arbiter.md` states an option is work the continuing coder or a later attempt does; `README.md` and both languages of `help.html` describe the arbiter ruling on the first `DECIDE:` and the same coder continuing
+- DoD: the `Coder failure on attempt 1 to 4` bullet sends any `DECIDE:` to the arbiter, records the ruling and decision as today, then sends that coder the C3 message, the attempt count and tier unchanged; a refused `SendMessage` or a failure of the resumed coder leads to the next attempt with every `decision:` line, and a second `DECIDE:` of the resumed coder goes to the arbiter again; `task-coder.md` finishes every `DoD` clause the dispute does not touch before returning `DECIDE:`, and on a C3 message applies the `decision:` line and returns its output lines again; `arbiter.md` states an option is work the continuing coder or a later attempt does; `README.md` and both languages of `help.html` describe the arbiter ruling on the first `DECIDE:` and the same coder continuing
 <!-- /TASK -->
 
 ## Contracts
@@ -277,21 +248,7 @@ error: task <id>: Files writes <path> under an integration test directory, which
 error: task <id>: Verification runs git grep without --untracked over <path>, which this task creates and git grep never reads - add --untracked or use grep (Provable)
 ```
 
-### C2 - impact-mapper targets and references
-
-File: viber/agents/impact-mapper.md, viber/skills/planner/SKILL.md
-
-```
-targets:
-<repo-relative path>                     a whole file the change modifies, moves or deletes
-<repo-relative path> | <symbol>          one symbol of it
-<repo-relative path> | new               a file the change adds
-
-REF: <repo-relative path>:<line>[,<line>...] | <kind> | <target as written>
-<kind>: call | string | test | mock | fixture | documentation | rule | implementation | collection
-```
-
-### C3 - Run lessons
+### C2 - Run lessons
 
 File: viber/scripts/run-failures.sh, viber/agents/task-reviewer.md, viber/skills/implementor/SKILL.md, viber/agents/task-coder.md
 
@@ -309,7 +266,7 @@ run-failures.sh --lessons <run-dir>
 Coder dispatch line:  run-lessons: <Name> x<n>[, <Name> x<n>...]
 ```
 
-### C4 - Coder resume message
+### C3 - Coder resume message
 
 File: viber/skills/implementor/SKILL.md, viber/agents/task-coder.md
 
@@ -319,7 +276,7 @@ decision: <task-id>: <text>
 Continue the task under these decisions, then return your output lines again.
 ```
 
-### C5 - Effort lines of the final summary
+### C4 - Effort lines of the final summary
 
 File: viber/scripts/run-tokens.sh, viber/skills/implementor/parts/close.md
 
@@ -332,7 +289,7 @@ attempts: none
 arbiter: <n>
 ```
 
-### C6 - Landed plan's planned line
+### C5 - Landed plan's planned line
 
 File: viber/scripts/plan-path.sh
 

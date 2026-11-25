@@ -2519,42 +2519,57 @@ z nich mówi, jak nim sterować.</p>
   <p lang="en">Reads the interview's summary file, or takes a <a href="#skill-fixer"><code>fixer</code></a> diagnosis,
   chooses the shape of the specification itself and turns the input into a plan,
   inside Claude Code's plan mode: acceptance criteria, a file map, then tasks with their dependencies,
-  contracts, verification and definition of done. Its <a href="#agent-plan-writer"><code>plan-writer</code></a>
-  agent reads your code and writes the plan text, so the code it reads stays out of your session's context.
+  contracts, verification and definition of done. Its agents read your code and write the plan, each into a
+  file of its own that a script puts together, so neither the code nor the plan text passes through your
+  session's context. The <a href="#agent-plan-surveyor"><code>plan-surveyor</code></a> agent maps the change
+  first: the files it touches and an estimate of the tasks. When that map passes 30 tasks or 60 files, the
+  planner asks whether to split the change through the interview or keep one plan, and it asks every
+  decision its exploration finds that the interview left open. The
+  <a href="#agent-plan-architect"><code>plan-architect</code></a> agent then writes the plan; for a change
+  past 8 tasks it writes a skeleton, and <a href="#agent-plan-detailer"><code>plan-detailer</code></a> agents
+  fill in how each task is verified and when it is done, in parallel on slices of at most 8 tasks.
   The <a href="#agent-planner-review"><code>planner-review</code></a>
   agent reviews the plan against your code, and plan mode can be left only after it passes; a plan past 12 tasks
   goes to the <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
   <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> and
   <a href="#agent-planner-task-review"><code>planner-task-review</code></a> reviewers at once, and all of them
-  must pass. When the plan
-  grows past 30 tasks it asks whether to split through the interview or keep one plan, and it asks every
-  decision its exploration finds that the interview left open. Before it writes tasks, the
-  <a href="#agent-impact-mapper"><code>impact-mapper</code></a> agent finds every reference to what the change
+  must pass. After each review round you see one line per reviewer: its verdict and the number of its
+  findings. The <a href="#agent-plan-fixer"><code>plan-fixer</code></a> agent writes the fixes, and only the
+  reviewers that failed and those whose part of the plan changed read it again. Before the plan is written,
+  the planner searches your code for every reference to what the change
   modifies, moves or deletes, and every file that lists, counts or links a file it adds; the plan adds
   nothing the interview left unsettled. A review finding showing the plan changes a behaviour your code
   has today, unasked, gets fixed even when it is only Minor.</p>
   <p lang="pl">Czyta plik z podsumowaniem wywiadu albo przyjmuje diagnozę z <a href="#skill-fixer"><code>fixer</code></a>,
   sam wybiera kształt specyfikacji i zamienia dane wejściowe w plan,
   w trybie planowania Claude Code: kryteria akceptacji, mapę plików, a potem zadania z zależnościami,
-  kontraktami, weryfikacją i definicją ukończenia. Agent <a href="#agent-plan-writer"><code>plan-writer</code></a>
-  czyta twój kod i pisze treść planu, więc przeczytany kod nie zajmuje kontekstu twojej sesji.
+  kontraktami, weryfikacją i definicją ukończenia. Jego agenci czytają twój kod i piszą plan, każdy do
+  własnego pliku, a skrypt składa te pliki w całość, więc ani kod, ani treść planu nie przechodzą przez
+  kontekst twojej sesji. Agent <a href="#agent-plan-surveyor"><code>plan-surveyor</code></a> najpierw mapuje
+  zmianę: pliki, których ona dotyka, i szacunkową liczbę zadań. Gdy ta mapa przekroczy 30 zadań lub 60 plików,
+  planner pyta, czy podzielić zmianę przez wywiad, czy zostawić jeden plan, i pyta o każdą
+  decyzję, którą znajdzie w swoim badaniu, a której wywiad nie rozstrzygnął. Potem agent
+  <a href="#agent-plan-architect"><code>plan-architect</code></a> pisze plan; przy zmianie powyżej 8 zadań
+  pisze szkielet, a agenci <a href="#agent-plan-detailer"><code>plan-detailer</code></a> uzupełniają, jak
+  każde zadanie jest weryfikowane i kiedy jest ukończone, równolegle, w porcjach po najwyżej 8 zadań.
   Agent <a href="#agent-planner-review"><code>planner-review</code></a>
   sprawdza plan na twoim kodzie, a wyjść z trybu planowania można dopiero po jego akceptacji; plan powyżej
   12 zadań trafia jednocześnie do recenzentów <a href="#agent-planner-spec-review"><code>planner-spec-review</code></a>,
   <a href="#agent-planner-graph-review"><code>planner-graph-review</code></a> i
-  <a href="#agent-planner-task-review"><code>planner-task-review</code></a>, a przejść muszą wszyscy. Gdy plan
-  przekroczy 30 zadań, pyta, czy podzielić zmianę przez wywiad, czy zostawić jeden plan, i pyta o każdą
-  decyzję, którą znajdzie w swoim badaniu, a której wywiad nie rozstrzygnął. Zanim napisze zadania, agent
-  <a href="#agent-impact-mapper"><code>impact-mapper</code></a> znajduje każde odwołanie do tego, co zmiana
+  <a href="#agent-planner-task-review"><code>planner-task-review</code></a>, a przejść muszą wszyscy. Po każdej
+  rundzie recenzji widzisz po jednym wierszu na recenzenta: jego werdykt i liczbę jego uwag. Agent
+  <a href="#agent-plan-fixer"><code>plan-fixer</code></a> pisze poprawki, a plan czytają ponownie tylko ci
+  recenzenci, którzy go odrzucili, oraz ci, których część planu się zmieniła. Zanim plan powstanie, planner
+  znajduje w twoim kodzie każde odwołanie do tego, co zmiana
   zmienia, przenosi lub usuwa, oraz każdy plik, który wylicza, zlicza lub linkuje plik dodawany przez
   zmianę; plan nie dodaje niczego, czego wywiad nie rozstrzygnął. Uwagę z przeglądu, która pokazuje, że plan bez prośby zmienia dzisiejsze zachowanie kodu, planner poprawia nawet jako Minor.</p>
   <dl>
     <div>
       <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
       <dd><span lang="en">It starts when the interview or the diagnosis hands off; asked for a plan with neither,
-      it suggests the interview. You steer it by answering its questions (a split past 30 tasks, a decision the interview left open) and by approving or rejecting the plan when plan mode ends.</span><span lang="pl">Startuje,
+      it suggests the interview. You steer it by answering its questions (a split past 30 tasks or 60 files, a decision the interview left open) and by approving or rejecting the plan when plan mode ends.</span><span lang="pl">Startuje,
       gdy wywiad albo diagnoza przekaże mu pracę; poproszony o plan bez żadnego z nich proponuje wywiad.
-      Sterujesz nim, odpowiadając na jego pytania (podział po przekroczeniu 30 zadań, decyzja pominięta w wywiadzie) oraz akceptując albo odrzucając plan na wyjściu z trybu planowania.</span></dd>
+      Sterujesz nim, odpowiadając na jego pytania (podział po przekroczeniu 30 zadań lub 60 plików, decyzja pominięta w wywiadzie) oraz akceptując albo odrzucając plan na wyjściu z trybu planowania.</span></dd>
     </div>
     <div>
       <dt><span lang="en">Arguments</span><span lang="pl">Argumenty</span></dt>
@@ -2582,8 +2597,10 @@ z nich mówi, jak nim sterować.</p>
     </div>
     <div>
       <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
-      <dd><span lang="en">The plan file plan mode gives it.</span><span lang="pl">Plik
-      planu wskazany przez tryb planowania.</span></dd>
+      <dd><span lang="en">The plan file plan mode gives it, and its work files in
+      <code>.temp/viber/planner/</code>. Its agents write their own files beside the plan
+      file.</span><span lang="pl">Plik planu wskazany przez tryb planowania oraz pliki robocze
+      w <code>.temp/viber/planner/</code>. Jego agenci zapisują własne pliki obok pliku planu.</span></dd>
     </div>
   </dl>
 </article>
@@ -3356,19 +3373,27 @@ kontekście. Żadnego nie uruchamiasz sam.</p>
   planner, with no file limit, when <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> is
   on.</span><span lang="pl">recenzuje plan napisany poza planistą, bez limitu plików, gdy
   <a href="#key-planning-outside-plan-review"><code>planning.outside-plan-review</code></a> jest włączony.</span></li>
-  <li id="agent-plan-writer"><code>plan-writer</code> <span lang="en">reads the code a change reaches and
-  returns the plan as text: the file map and task estimate first, then the plan, then the edits its checks
-  and reviews ask for.</span><span lang="pl">czyta kod, którego dotyczy zmiana, i zwraca plan jako tekst:
-  najpierw mapę plików i szacunek liczby zadań, potem plan, a potem poprawki, o które proszą kontrole
-  i recenzje.</span></li>
+  <li id="agent-plan-surveyor"><code>plan-surveyor</code> <span lang="en">maps a change before its plan is
+  written: the files it touches, an estimate of the tasks, the decisions that belong to you and, for a change
+  past 30 tasks or 60 files, the phases to split it into.</span><span lang="pl">mapuje zmianę, zanim powstanie
+  jej plan: pliki, których zmiana dotyka, szacunkową liczbę zadań, decyzje należące do ciebie, a przy zmianie
+  powyżej 30 zadań lub 60 plików także fazy, na które można ją podzielić.</span></li>
+  <li id="agent-plan-architect"><code>plan-architect</code> <span lang="en">writes the plan from that map and the
+  code the change reaches: the whole plan, or for a change past 8 tasks its skeleton, together with a log of
+  the decisions the plan rests on.</span><span lang="pl">pisze plan na podstawie tej mapy i kodu, którego
+  dotyczy zmiana: cały plan albo, przy zmianie powyżej 8 zadań, jego szkielet, razem z dziennikiem decyzji,
+  na których plan się opiera.</span></li>
+  <li id="agent-plan-detailer"><code>plan-detailer</code> <span lang="en">fills in one slice of at most 8 tasks
+  of a plan skeleton: how each task is verified and when it is done. One agent per slice, working in
+  parallel.</span><span lang="pl">uzupełnia jedną porcję, najwyżej 8 zadań, szkieletu planu: jak każde zadanie
+  jest weryfikowane i kiedy jest ukończone. Po jednym agencie na porcję, równolegle.</span></li>
+  <li id="agent-plan-fixer"><code>plan-fixer</code> <span lang="en">writes the edits a plan needs after its
+  scripted check, a review, an accepted decision record or your own change; a script applies them to the
+  plan.</span><span lang="pl">pisze poprawki, których plan wymaga po kontroli skryptu, po recenzji, po przyjęciu
+  rekordu decyzji albo po twojej własnej zmianie; skrypt nanosi je na plan.</span></li>
   <li id="agent-adr-screener"><code>adr-screener</code> <span lang="en">screens the decisions of a plan against a
   strict admission test and names the architecture decision records worth writing.</span><span lang="pl">sprawdza decyzje planu względem ścisłego testu przyjęcia i wskazuje rekordy
   decyzji architektonicznych warte zapisania.</span></li>
-  <li id="agent-impact-mapper"><code>impact-mapper</code> <span lang="en">maps the reach of a planned change: every
-  file that refers to the files and symbols the plan modifies, moves or deletes, and every file that lists,
-  counts or links a file it adds.</span><span lang="pl">mapuje zasięg planowanej zmiany: każdy plik
-  odwołujący się do plików i symboli, które plan zmienia, przenosi lub usuwa, oraz każdy plik, który
-  wylicza, zlicza lub linkuje plik dodawany przez zmianę.</span></li>
 </ul>
 
 <h4><span lang="en">Build</span><span lang="pl">Build</span></h4>

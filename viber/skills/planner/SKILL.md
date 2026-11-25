@@ -1,7 +1,7 @@
 ---
 name: planner
 description: Only for a viber:intent summary file path or a confirmed intent summary as text, or a viber:fixer diagnosis already in context - never the entry point. Without one, suggest the viber:intent interview and let the user decide. Turns that input into a reviewed implementation plan.
-allowed-tools: Read, Write, Edit, Agent, SendMessage, Skill, EnterPlanMode, ExitPlanMode, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(${CLAUDE_SKILL_DIR}/scripts/reach.sh:*), Bash(${CLAUDE_SKILL_DIR}/scripts/review-round.sh:*), Bash(date:*)
+allowed-tools: Read, Write, Edit, Agent, SendMessage, Skill, EnterPlanMode, ExitPlanMode, Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/plan-path.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/config.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh:*), Bash(${CLAUDE_SKILL_DIR}/scripts/plan-build.sh:*), Bash(${CLAUDE_SKILL_DIR}/scripts/review-round.sh:*), Bash(date:*)
 user-invocable: false
 ---
 
@@ -13,70 +13,48 @@ user-invocable: false
 
 Input: an understood change, as one of three: the path of an intent summary file (`.temp/viber/intent/summary-<stamp>.md`, your only argument), a confirmed `viber:intent` summary as text in context, or a `viber:fixer` diagnosis. Anything else is unresolved input however clear it reads: suggest the `viber:intent` interview in one line and stop here, never entering plan mode. Never cut or widen the scope by judgment: only the threshold check below can propose a split.
 
-A summary file path is read first: its content is the input everywhere below. On valid input call `EnterPlanMode` first unless plan mode is already active.
+On valid input call `EnterPlanMode` first unless plan mode is already active. `Read` a summary file once, for its hand-off lines. The calls below show `--input "<summary file>"` for a summary file input: drop the flag and its value on a text input.
 
-You read no code and compose no plan text: `viber:plan-writer` reads the code and returns the plan as text, and you write it down unchanged.
+You read no code and compose no plan text, and you relay no content: agents write files, scripts move them, you pass paths, verdict words and the user's answers. Never `Read` the plan or a file an agent wrote unless a step says so. Work the steps through in one go: pause only where a rule asks the user or says stop.
 
-- Dispatch the writer once through `Agent`; every later message goes to that same writer through `SendMessage`.
-- A refused `SendMessage`, or a writer that no longer answers: one new `Agent` dispatch carrying the lines of step 1, then the message.
-- A reply with no `VERDICT:` line is handled as `VERDICT: DENIED` with `REASON: no verdict returned`.
-- `VERDICT: DENIED`: one `AskUserQuestion` quoting its `REASON:` and `REFUSAL:` lines: the same message again, or stop with no plan.
-- `VERDICT: DECIDE`: ask each `DECIDE: <decision> | <option> | <option> | <option>` line through its own `AskUserQuestion` with those 3 options, the first as your recommendation, one at a time; keep each answer as an `Answered: <decision> -> <option>` line and send the same message again with those lines added.
+Every bundled-script run below is one literal Bash line, every argument double-quoted: no interpreter word, variable, `cd` or `;`, `&&`, `||` chain. `<plan-path>` is the absolute path of the plan file plan mode names in its system message. The scripts keep their work files under `.temp/viber/planner/`: expected in plan mode.
 
-Every bundled-script run below is one literal Bash line, every argument double-quoted: no interpreter word, variable, `cd` or `;`, `&&`, `||` chain.
+## Rules
 
-## 1. Map the files first
+- Dispatch: one `Agent` call per block a script printed, the agent named on its `agent:` field. The prompt is the block's lines below its `NEXT:` line, never that line, then the text of each `add:` field:
+  - `add: input`: `input:` then the confirmed summary or fixer diagnosis, verbatim.
+  - `add: answered`: one `Answered: <decision> -> <option>` line per user answer so far.
+  - `add: lines`: what the fixer is to fix, named by the step.
+- A writing agent replies `OUT: <path>` above its verdict: the surveyor `VERDICT: MAPPED`, the architect and the detailer `VERDICT: WRITTEN`, the fixer `VERDICT: FIXED`. Pass that path to the next script as `<OUT path>`. A reviewer's reply goes to `returned` in step 4 instead.
+  - A reply with no `VERDICT:` line, or with one of those verdicts and no `OUT:` line, is handled as `VERDICT: DENIED` with `REASON: no verdict returned`.
+  - `VERDICT: DENIED`: one `AskUserQuestion` quoting its `REASON:` and `REFUSAL:` lines: the same dispatch again, or stop with no plan.
+  - `VERDICT: DECIDE`: ask each `DECIDE: <decision> | <option> | <option> | <option>` line through its own `AskUserQuestion` with those 3 options, the first as your recommendation, one at a time; keep each answer as an `Answered:` line. Then send the architect those lines through `SendMessage` (refused, or no answer: its block dispatched again); the fixer gets its block dispatched again.
+- A `plan-build.sh` exit 4 refused the agent's file and wrote nothing: dispatch that agent's block again with the stderr `FIX:` lines appended (the fixer's below a `rejected:` line), then run the same command on the new `OUT:` path. A second exit 4 in a row: one `AskUserQuestion`, retry or stop with no plan.
+- A `plan-build.sh` exit 5 outside step 2: show its `error:` line and stop, no hand-off.
+- A fix: run `"${CLAUDE_SKILL_DIR}/scripts/plan-build.sh" fix "<plan-path>"` unless a script already printed the `viber:plan-fixer` block, dispatch that block, run `"${CLAUDE_SKILL_DIR}/scripts/plan-build.sh" apply "<plan-path>" "<OUT path>"`, then `plan-index.sh` as in step 2.
 
-Dispatch `viber:plan-writer` with these lines, `input:` last:
+## 1. Survey
 
-```
-plan: <absolute path of the plan file plan mode names>
-refs: ${CLAUDE_PLUGIN_ROOT}/references
-templates: ${CLAUDE_SKILL_DIR}/templates
-memory: <the build.memory value of the config above>
-input:
-<the summary file path alone on its line, or the summary or diagnosis verbatim>
-```
+`Write` the plan file as three lines, `---`, `source: <plan-path>`, `---`, unless it already opens with them. From here on the plan changes only through `plan-build.sh` and the branch step.
 
-Its `VERDICT: MAPPED` reply carries a `TASKS:` count, the `TARGET:` lines, the `DECIDE:` lines and, past the threshold, the `PHASE:` lines.
+Run `"${CLAUDE_SKILL_DIR}/scripts/plan-build.sh" survey "<plan-path>" --input "<summary file>"`, dispatch its block, then run `"${CLAUDE_SKILL_DIR}/scripts/plan-build.sh" outline "<plan-path>" "<OUT path>"`.
 
-Close the step on the threshold check before anything else: on a `TASKS:` count of more than 30, ask through one `AskUserQuestion`: split the change into phases, or keep one plan of that many tasks.
+Close the step on the threshold check before anything else: on a `threshold:` line, ask through one `AskUserQuestion`: split the change into phases, or keep one plan of that size. With no `Split proposal:` block in the output the options are keep or stop: you compose no phase.
 
-- Split: invoke `viber:intent` through the `Skill` tool with the summary file path, else the summary text or fixer diagnosis verbatim, followed by a `Split proposal:` block in this shape, and write no plan. Its phases are the `PHASE:` lines as returned; `Open decisions:` lists the decision of each `DECIDE:` line, never asked here, and is left out when there are none.
+- Split: invoke `viber:intent` through the `Skill` tool with the summary file path, else the summary text or fixer diagnosis verbatim, followed by the `Split proposal:` block as printed, from that line to the one above `NEXT:`, and write no plan.
+- Keep: record the `TASKS:` count as the accepted count and go on.
 
-  ```
-  Split proposal:
-  <n>. <phase> - owns: <what it delivers>; consumes: <what earlier phases produce, or nothing>; files: <repo-relative paths>; tasks: <estimated count>
-  Open decisions:
-  - <decision owed to the user, one per line>
-  ```
-
-- Keep: record the count as the accepted count and go on.
-
-Then, only on a plan that goes on, map the reach of the change:
-
-- No `TARGET:` line: skip it.
-- Run `"${CLAUDE_SKILL_DIR}/scripts/reach.sh" --plan "<absolute path of the plan file>" "<target>" "<target>"` as one literal line, one double-quoted argument per target, the text of each `TARGET:` line as returned. Its one write under `.temp/viber/planner/` is expected in plan mode.
-- Then dispatch `viber:impact-mapper` with the lines below the `NEXT: dispatch` line as printed.
-- `VERDICT: NONE` adds nothing.
-- `VERDICT: DENIED` or no `VERDICT:` line: one `AskUserQuestion` quoting its `REASON:` and `REFUSAL:` lines (`no verdict returned` without them): retry, or go on without the map.
-
-Ask each `DECIDE:` line of the reply as above while the map runs.
+Then, only on a plan that goes on, ask each `DECIDE:` line `outline` printed as the `VERDICT: DECIDE` rule does.
 
 ## 2. Write the plan
 
-Send the writer `write:`, then every `Answered:` line, then every `REF:` line the map returned, verbatim.
+Dispatch the architect block `outline` printed. On `VERDICT: WRITTEN` run `"${CLAUDE_SKILL_DIR}/scripts/plan-build.sh" skeleton "<plan-path>" "<OUT path>"` and keep the `mode:` line it prints.
 
-Its `VERDICT: WRITTEN` reply is the whole text of the plan above that last line: write it unchanged into the plan file plan mode names in its system message, the only file you may write while planning besides the candidates file `reach.sh` wrote and the state file `review-round.sh` writes, both under `.temp/viber/planner/` (expected in plan mode).
+- Exit 5, the script cannot write the plan file: `Read` the `<OUT path>` file, `Write` its lines above `<!-- DECISIONS -->` into the plan file unchanged, and take `mode:` from the architect block.
 
-Then run `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh" "<plan-path>"`, adding `--input "<summary file>"` on a summary file input. It must exit 0, each stderr line one defect: send the writer `fix:` and those lines, so that it can fix every `FIX:` line and split every task a `SPLIT:` line names, apply its reply, then re-run.
+Then run `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh" "<plan-path>" --input "<summary file>"`. It must exit 0, each stderr line one defect: make a fix with those lines as its `add: lines`, so that the fixer can fix every `FIX:` line and split every task a `SPLIT:` line names, then re-run.
 
-Apply a `VERDICT: FIXED` reply as written, nothing added:
-
-- One `Edit` of the plan file per `@@ EDIT` block: the lines up to `@@ WITH` are the text to replace, the lines up to `@@ END` the text replacing it.
-- Keep its `fix: <where> - <change>` lines for the next review round.
-
-`plan-index.sh` prints a `threshold:` line only past 30 tasks. Once the user kept a plan, add `--accepted "<accepted count>"` to every `plan-index.sh` call. Ask the step 1 question again on every `threshold:` line of that output, a keep recording that line's count as the accepted one. Count no row yourself. A split chosen there first sends the writer `split:` for its `PHASE:` lines.
+Once the user kept a plan, add `--accepted "<accepted count>"` to every `plan-index.sh` call. Ask the step 1 question again on every `threshold:` line of that output, a keep recording that line's count as the accepted one. Count no row yourself.
 
 ```!
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" planning.adr "${CLAUDE_SKILL_DIR}" adr
@@ -88,35 +66,40 @@ Show the user the full path of the written plan.
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" branching.""mode "${CLAUDE_SKILL_DIR}" branching
 ```
 
-## 3. Review gate
+## 3. Tasks
 
-Run `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" start`, adding `--input "<summary file>"` on a summary file input, `--answered` after an answer to a finding, and `--fresh` after any plan write following `NEXT: exit-plan` except an `override`'s fix, which runs plain `start`. Each block it prints opens on a `NEXT: review` line.
+Only on `mode: skeleton`; `mode: whole` goes to step 4.
 
-Dispatch every block in one message, one `Agent` call per block, the agent named on its `agent:` field. The prompt is the block's lines below its `NEXT:` line, never that line, then the text of each `add:` field:
+1. Run `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" start --fresh --skeleton --input "<summary file>"` and work the round as step 4 does until it prints `NEXT: detail`.
+2. Run `"${CLAUDE_SKILL_DIR}/scripts/plan-build.sh" slices "<plan-path>"` and dispatch every block in one message.
+3. Run `"${CLAUDE_SKILL_DIR}/scripts/plan-build.sh" merge "<plan-path>" "<tasks>=<OUT path>" "<tasks>=<OUT path>"`, one pair per block, `<tasks>` the block's `tasks:` value.
+   - Exit 4: dispatch again only the blocks whose range a `FIX:` line names, each with its own lines, then run `merge` with every pair.
+   - A `pending:` line: a block has no pair yet, run `merge` with its pair.
+   - A `gaps:` line: the fixer block below it is a fix.
+4. Run `plan-index.sh` as in step 2.
 
-- `add: input`: `input:` then the confirmed summary or fixer diagnosis, verbatim.
-- `add: answered`: one `Answered: <decision> -> <option>` line per user answer (step 1 or a finding).
-- `add: previous`: `previous findings:`, that member's own previous Blocking findings verbatim, then one `fix: <where> - <change>` per fix applied, as the writer returned them.
+## 4. Review gate
 
-Every round and retry is a new `Agent` dispatch, never a `SendMessage` to an earlier reviewer: the plan gate pairs a verdict only with a dispatch.
+Run `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" start --input "<summary file>"`, adding `--fresh` on the first run for a `mode: whole` plan and `--answered` after an answer to a finding. Each block it prints opens on a `NEXT: review` line.
 
-Report the replies with `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" returned <k>=<word> <k>=<word>`: `<k>` the block's `member:`, `<word>` the `VERDICT:` word of its reply (`PASS`, `FAIL`, `DENIED`) or `none` without one. Act on what it prints:
+Dispatch every block in one message. Every round and retry is a new `Agent` dispatch, never a `SendMessage` to an earlier reviewer: the plan gate pairs a verdict only with a dispatch.
+
+Report the replies with `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" returned <k>=<word> <k>=<word> --out "<k>=<OUT path>"`: `<k>` the block's `member:`, `<word>` the `VERDICT:` word of its reply (`PASS`, `FAIL`, `DENIED`) or `none` without one or for a `FAIL` with no `OUT:` line, one `--out "<k>=<OUT path>"` per reply carrying an `OUT:` line. Show the user the `member:` lines it prints, then act on the directive either call printed:
 
 - `NEXT: redispatch`: dispatch the blocks under it, then report those replies the same way.
-- `NEXT: fix`: show all findings. Send the writer `fix:`, then `findings:` and every member's findings verbatim, apply its reply as in step 2, re-run `plan-index.sh` after every fix as in step 2, then `start` again. After a `VERDICT: DECIDE` reply to it, a finding needing a decision only the user can make, run `start --answered` instead.
-- `NEXT: exit-plan`: go to step 4 without writing the plan again; its Minor findings stay unapplied, except one showing a change of a behaviour today's code has that neither the input nor an `Answered:` line asks for: report it first with `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" override <k>` and act on the `NEXT: fix` it prints.
-- `ASK:`: one `AskUserQuestion` quoting the `REASON:` and `REFUSAL:` lines of the `DENIED` reply: retry runs its `retry-denied` event, stop its `stop` event; act on what they print.
+- `NEXT: fix`: the fixer block below it is a fix, then `start` again; with no block below it there is nothing to fix, only `start` runs. After a `VERDICT: DECIDE` reply to it, a finding needing a decision only the user can make, run `start --answered` instead.
+- `NEXT: detail`: step 3 goes on from its item 2.
+- `NEXT: exit-plan`: go to step 5; its `MINOR:` lines stay unapplied.
+- `ASK:`: one `AskUserQuestion` quoting the `REASON:` and `REFUSAL:` lines of the `DENIED` reply: retry runs `"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>" retry-denied`, stop runs the same line ending in `stop`; act on what they print.
 - `STOP:`: the plan stays unreviewed, no hand-off.
 
 ```!
 "${CLAUDE_PLUGIN_ROOT}/scripts/switch-text.sh" branching.""mode "${CLAUDE_SKILL_DIR}" branching-fix
 ```
 
-## 4. Hand off
+## 5. Hand off
 
-Call `ExitPlanMode` only on a `NEXT: exit-plan` of a round started after your last write to the plan file. Every later change voids it (the user's remark, an answer, a Minor finding): send the writer `fix:`, then `change:` and what to change, apply its reply and re-run `plan-index.sh` as in step 2, then step 3 from `start --fresh` (with `--input "<summary file>"` on a summary file input; plain `start` after an `override`'s fix) before the next `ExitPlanMode`.
-
-Before `ExitPlanMode`, show the user one list of the Minor findings ending in `(inferred)` or `(untouched)` that no fix applied.
+Call `ExitPlanMode` only on a `NEXT: exit-plan`, after showing the user its `MINOR:` lines as one list. Every later change voids it (the user's remark, an answer): make a fix whose `add: lines` is `change:` then what to change, then step 4 from plain `start` (it sends only the members whose part changed) before the next `ExitPlanMode`.
 
 Then name `viber:implementor` as the next step, the path shown in step 2 being the whole handover. Nothing runs here.
 

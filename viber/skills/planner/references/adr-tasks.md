@@ -28,10 +28,9 @@ One `AskUserQuestion` call, one question per line of the result, each offering a
 
 ## 3. Apply what was accepted
 
-With nothing accepted, go back to the skill. Otherwise run `date +%Y%m%d%H%M%S` and `date +%Y-%m-%d`, send the writer the lines below, apply its reply as the skill's step 2 does, then run `plan-index.sh` again; it must exit 0.
+With nothing accepted, go back to the skill. Otherwise run `date +%Y%m%d%H%M%S` and `date +%Y-%m-%d`, then make a fix as the skill's rules define it, the lines below being its `add: lines`; `plan-index.sh` must exit 0 after it.
 
 ```
-fix:
 records:
 <each accepted line, verbatim>
 rules: <absolute path of this file>

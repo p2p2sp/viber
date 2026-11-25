@@ -31,8 +31,8 @@
  *
  * After the build rows come the planning rows: one `tokens:` line per role and model
  * of the planner-review, planner-spec-review, planner-graph-review, planner-task-review,
- * impact-mapper and adr-screener transcripts naming the same `planned:` path, whenever
- * written, each transcript counted once.
+ * adr-screener, plan-surveyor, plan-architect, plan-detailer and plan-fixer transcripts
+ * naming the same `planned:` path, whenever written, each transcript counted once.
  *
  * The run key opens with a date long past, so every fixture written now is newer
  * than it on any machine clock.
@@ -520,7 +520,7 @@ test("with no transcript naming the run the unavailable token line is followed b
 
 const OLD = new Date("2019-06-01T00:00:00Z");
 
-test("a transcript of each of the six planning roles naming the planned path adds a row for its role with the summed usage, one older than the run day and one retried dispatch included", async () => {
+test("a transcript of each of the nine planning roles naming the planned path adds a row for its role with the summed usage, one older than the run day and one retried dispatch included", async () => {
   await withTempDir("p2p2-viber-", async (tmp) => {
     const fx = seed(tmp);
     writePlan(fx, PLANNED);
@@ -539,11 +539,20 @@ test("a transcript of each of the six planning roles naming the planned path add
     review(fx, "p5", "viber:planner-task-review", PLANNED, [
       assistant("m5", SONNET, { in: 13, out: 14, cacheRead: 15, cacheWrite: 16 }),
     ]);
-    review(fx, "p6", "viber:impact-mapper", PLANNED, [
+    review(fx, "p6", "viber:plan-surveyor", PLANNED, [
       assistant("m6", SONNET, { in: 17, out: 18, cacheRead: 19, cacheWrite: 20 }),
     ]);
     review(fx, "p7", "viber:adr-screener", PLANNED, [
       assistant("m7", SONNET, { in: 21, out: 22, cacheRead: 23, cacheWrite: 24 }),
+    ]);
+    review(fx, "p8", "viber:plan-architect", PLANNED, [
+      assistant("m9", SONNET, { in: 25, out: 26, cacheRead: 27, cacheWrite: 28 }),
+    ]);
+    review(fx, "p9", "viber:plan-detailer", PLANNED, [
+      assistant("m10", SONNET, { in: 29, out: 30, cacheRead: 31, cacheWrite: 32 }),
+    ]);
+    review(fx, "p10", "viber:plan-fixer", PLANNED, [
+      assistant("m11", SONNET, { in: 33, out: 34, cacheRead: 35, cacheWrite: 36 }),
     ]);
     fs.utimesSync(path.join(fx.config, "projects", "proj", "plan", "subagents", "agent-p7.jsonl"), OLD, OLD);
     transcript(fx, "s1", "a1", "viber:task-coder", [
@@ -555,7 +564,10 @@ test("a transcript of each of the six planning roles naming the planned path add
     assert.deepEqual(tokenLines(result.stdout), [
       "tokens: viber:task-coder claude-sonnet-4 in 100 out 200 cache-read 300 cache-write 400",
       "tokens: viber:adr-screener claude-sonnet-4 in 21 out 22 cache-read 23 cache-write 24",
-      "tokens: viber:impact-mapper claude-sonnet-4 in 17 out 18 cache-read 19 cache-write 20",
+      "tokens: viber:plan-architect claude-sonnet-4 in 25 out 26 cache-read 27 cache-write 28",
+      "tokens: viber:plan-detailer claude-sonnet-4 in 29 out 30 cache-read 31 cache-write 32",
+      "tokens: viber:plan-fixer claude-sonnet-4 in 33 out 34 cache-read 35 cache-write 36",
+      "tokens: viber:plan-surveyor claude-sonnet-4 in 17 out 18 cache-read 19 cache-write 20",
       "tokens: viber:planner-graph-review claude-sonnet-4 in 9 out 10 cache-read 11 cache-write 12",
       "tokens: viber:planner-review claude-sonnet-4 in 11 out 22 cache-read 33 cache-write 44",
       "tokens: viber:planner-spec-review claude-sonnet-4 in 5 out 6 cache-read 7 cache-write 8",

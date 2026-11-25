@@ -1,13 +1,13 @@
 # Expected results of the plan review replay
 
 Each plan section holds the `input:` summary its `planner-review` dispatch carries, the planted defects a
-reviewer must report, and the reach references `impact-mapper` must return. A run passes only when every
-defect and every reference of its plan is reported; extra findings and extra `REF:` lines never fail it.
+reviewer must report, and the reach references the reach search must list. A run passes only when every
+defect and every reference of its plan is reported; extra findings and extra reach lines never fail it.
 Line numbers are those of the plan's tree (`README.md` pins it) and may drift by a line or two.
-After the release, the `candidates:` file `reach.sh` writes for a plan's targets lists the file of each reference below as a candidate line, so `impact-mapper` keeps it from there.
+The reach search writes the file of each reference below as a `<path> | <hit count>` line under its target in `reach-paths.md`, and its lines as `<path>:<line>: <text>` lines of the candidates file.
 
 Defect format: `<id> | <rule a reviewer reports it under> | <where> | <what is missing>`.
-Reference format: `REF: <path>:<line> | <kind> | <target as written>`, the kind being any that fits.
+Reference format: `<path>:<line>[,<line>]`, listed under its target as written.
 
 ## plan-a.md
 
@@ -47,12 +47,12 @@ Defects:
 Reach targets:
 
 - Target `viber/skills/fixer/SKILL.md | viber:fixer`:
-  - REF: viber/skills/planner/SKILL.md:15,21,57 | string | viber/skills/fixer/SKILL.md | viber:fixer
-  - REF: viber/skills/intent/SKILL.md:3 | string | viber/skills/fixer/SKILL.md | viber:fixer
-  - REF: viber/hooks/scripts/plan-hints.sh:11,37,79 | string | viber/skills/fixer/SKILL.md | viber:fixer
-  - REF: viber/agents/planner-review.md:19 | documentation | viber/skills/fixer/SKILL.md | viber:fixer
-  - REF: viber/agents/planner-spec-review.md:19 | documentation | viber/skills/fixer/SKILL.md | viber:fixer
-  - REF: viber/agents/adr-screener.md:22 | documentation | viber/skills/fixer/SKILL.md | viber:fixer
+  - viber/skills/planner/SKILL.md:15,21,57
+  - viber/skills/intent/SKILL.md:3
+  - viber/hooks/scripts/plan-hints.sh:11,37,79
+  - viber/agents/planner-review.md:19
+  - viber/agents/planner-spec-review.md:19
+  - viber/agents/adr-screener.md:22
 
 ## plan-b.md
 
@@ -85,12 +85,12 @@ Defects:
 Reach targets:
 
 - Target `viber/agents/task-reviewer.md`:
-  - REF: .claude/rules/review-findings.md:3,13 | rule | viber/agents/task-reviewer.md
-  - REF: .claude/rules/viber/agent-review-color.md:10 | rule | viber/agents/task-reviewer.md
-  - REF: docs/viber-functions.html:486 | documentation | viber/agents/task-reviewer.md
+  - .claude/rules/review-findings.md:3,13
+  - .claude/rules/viber/agent-review-color.md:10
+  - docs/viber-functions.html:486
 - Target `viber/skills/implementor/SKILL.md`:
-  - REF: .claude/rules/shell-preload-contract.md:10 | rule | viber/skills/implementor/SKILL.md
-  - REF: .claude/rules/viber/switch-fragments.md:11 | rule | viber/skills/implementor/SKILL.md
+  - .claude/rules/shell-preload-contract.md:10
+  - .claude/rules/viber/switch-fragments.md:11
 
 ## plan-c.md
 
@@ -100,15 +100,14 @@ input:
 ```
 # Sharper plans and fewer wasted build attempts
 
-Goal: Plans should pass their review in fewer rounds and builds should waste fewer coder attempts. The planner sees the code its change reaches, `plan-index.sh` rejects two mechanical plan mistakes, coders learn the test rules earlier tasks of the same run broke, a reviewer flags a whole class of a test-rule breach at once, a coder stalled on a contradiction gets the arbiter's ruling and continues, and the archive records the numbers that show whether it worked.
+Goal: Plans should pass their review in fewer rounds and builds should waste fewer coder attempts. `plan-index.sh` rejects two mechanical plan mistakes, coders learn the test rules earlier tasks of the same run broke, a reviewer flags a whole class of a test-rule breach at once, a coder stalled on a contradiction gets the arbiter's ruling and continues, and the archive records the numbers that show whether it worked.
 
 Acceptance criteria:
-1. The planner maps the reach also of a change that only adds files, and `impact-mapper` returns implementers and subclasses of a changed type, the places constructing it, and the existing files that enumerate, count or link the set a new file joins.
-2. `plan-index.sh` rejects a task writing a file under an integration test directory whose `Verification` has no build or listing step for it - no command other than a `grep`, `git grep` or `rg` naming the file or a directory of it at or below that test directory - and a task whose `Verification` runs `git grep` without `--untracked` over a file the task creates.
-3. Every coder dispatched after a failed task review that named test-strategy rules, the final-review fix coder and the repair coder included, carries a `run-lessons:` line with those rules and their counts, printed by `run-failures.sh --lessons`; reviewers carry none.
-4. `task-reviewer` names a test-strategy rule as test-strategy `<Name>`, lists in one finding every test the task wrote or changed that breaks that rule, and never keeps a test that breaks a rule it raised.
-5. A `DECIDE:` on attempts 1 to 4 goes to the arbiter at once and the same coder is resumed with the ruling in the same attempt; the coder finishes every clause the dispute does not touch before returning `DECIDE:`.
-6. The final summary, and so `outcome.md`, carries the plan review rounds, the attempts of every task needing more than one, and the number of rulings.
+1. `plan-index.sh` rejects a task writing a file under an integration test directory whose `Verification` has no build or listing step for it - no command other than a `grep`, `git grep` or `rg` naming the file or a directory of it at or below that test directory - and a task whose `Verification` runs `git grep` without `--untracked` over a file the task creates.
+2. Every coder dispatched after a failed task review that named test-strategy rules, the final-review fix coder and the repair coder included, carries a `run-lessons:` line with those rules and their counts, printed by `run-failures.sh --lessons`; reviewers carry none.
+3. `task-reviewer` names a test-strategy rule as test-strategy `<Name>`, lists in one finding every test the task wrote or changed that breaks that rule, and never keeps a test that breaks a rule it raised.
+4. A `DECIDE:` on attempts 1 to 4 goes to the arbiter at once and the same coder is resumed with the ruling in the same attempt; the coder finishes every clause the dispute does not touch before returning `DECIDE:`.
+5. The final summary, and so `outcome.md`, carries the plan review rounds, the attempts of every task needing more than one, and the number of rulings.
 
 Must not change:
 - The `- Blocking [<cause>] <path>:<line> - <what is wrong>` item line and its four causes, and the `failures.md` trail and its `failures:` line.
@@ -119,19 +118,19 @@ Must not change:
 
 Defects:
 
-- C1 | Reach | `### Out of scope` and the `Files` of T1, T2 and T6 | `.claude/rules/shell-path-strip.md` and `.claude/rules/shell-awk-quoting.md` name `viber/scripts/plan-index.sh` (and `shell-awk-quoting.md` names `viber/scripts/plan-path.sh`), both scripts changed by T1, T2 and T6; the rules files sit in neither a task's `Files` nor `### Out of scope`.
-- C2 | Reach | `### Out of scope` and every task `Files` | callers and users of `plan-path.sh`, changed by T6 to write a `planned:` line into the landed copy: `viber/scripts/archive-run.sh`, `viber/scripts/red-check.sh`, `viber/scripts/run-branch.sh`, `tests/viber/commit-task.test.ts` and `tests/viber/plan-gate.test.ts` sit in neither a task's `Files` nor `### Out of scope`.
-- C3 | Ordered | T7 `Depends-on` | T7 reads the `planned:` line of `plan.md` that T6 writes, and its `Depends-on` is `none`; it needs T6 among its dependencies.
+- C1 | Reach | `### Out of scope` and the `Files` of T1, T2 and T5 | `.claude/rules/shell-path-strip.md` and `.claude/rules/shell-awk-quoting.md` name `viber/scripts/plan-index.sh` (and `shell-awk-quoting.md` names `viber/scripts/plan-path.sh`), both scripts changed by T1, T2 and T5; the rules files sit in neither a task's `Files` nor `### Out of scope`.
+- C2 | Reach | `### Out of scope` and every task `Files` | callers and users of `plan-path.sh`, changed by T5 to write a `planned:` line into the landed copy: `viber/scripts/archive-run.sh`, `viber/scripts/red-check.sh`, `viber/scripts/run-branch.sh`, `tests/viber/commit-task.test.ts` and `tests/viber/plan-gate.test.ts` sit in neither a task's `Files` nor `### Out of scope`.
+- C3 | Ordered | T6 `Depends-on` | T6 reads the `planned:` line of `plan.md` that T5 writes, and its `Depends-on` is `none`; it needs T5 among its dependencies.
 
 Reach targets:
 
 - Target `viber/scripts/plan-index.sh`:
-  - REF: .claude/rules/shell-path-strip.md:15 | rule | viber/scripts/plan-index.sh
-  - REF: .claude/rules/shell-awk-quoting.md:13 | rule | viber/scripts/plan-index.sh
+  - .claude/rules/shell-path-strip.md:15
+  - .claude/rules/shell-awk-quoting.md:13
 - Target `viber/scripts/plan-path.sh`:
-  - REF: .claude/rules/shell-awk-quoting.md:16 | rule | viber/scripts/plan-path.sh
-  - REF: viber/scripts/archive-run.sh:33 | documentation | viber/scripts/plan-path.sh
-  - REF: viber/scripts/red-check.sh:28 | documentation | viber/scripts/plan-path.sh
-  - REF: viber/scripts/run-branch.sh:3 | documentation | viber/scripts/plan-path.sh
-  - REF: tests/viber/commit-task.test.ts:85 | test | viber/scripts/plan-path.sh
-  - REF: tests/viber/plan-gate.test.ts:83 | test | viber/scripts/plan-path.sh
+  - .claude/rules/shell-awk-quoting.md:16
+  - viber/scripts/archive-run.sh:33
+  - viber/scripts/red-check.sh:28
+  - viber/scripts/run-branch.sh:3
+  - tests/viber/commit-task.test.ts:85
+  - tests/viber/plan-gate.test.ts:83

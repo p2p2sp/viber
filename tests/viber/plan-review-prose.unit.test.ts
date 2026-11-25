@@ -1,14 +1,24 @@
 /*
- * plan-review-prose.unit.test.ts - pins where the scripted plan rules live: every rule `plan-index.sh`
- * rejects, tagged `(script)`, sits in `references/plan-rules-script.md`, which `plan-writer` reads
+ * plan-review-prose.unit.test.ts - pins where the scripted plan rules live and what the planner and
+ * its reviewers keep of a review: every rule `plan-index.sh` rejects, tagged `(script)`, sits in
+ * `references/plan-rules-script.md`, which `plan-architect`, `plan-detailer` and `plan-fixer` read
  * beside `plan-rules.md` and no planner reviewer reads. `plan-rules.md` keeps the `(review)` rules in
  * its four sections and says where the scripted ones went. The planner reviewers also carry no
  * check `plan-index.sh` decides (attachment names, template slots outside fences, whole-path
  * reads) and keep the part no script can make. Three of them search the code only where the plan
  * changes something callers see, the graph reviewer keeps its exploration, and all four narrow a
- * re-review to the text the fixes changed. The files read here are shipped prompts,
- * whose text is the behaviour. Nothing is spawned. Each check is a pure function proven on a
- * synthetic bad sample before it is held to the tree.
+ * re-review to the text the fixes changed. The planner skill runs `plan-index.sh` and
+ * `review-round.sh` and acts on their directives as printed, and shares each reply verdict with the
+ * planning agent that gives it; the edit block markers are shared by `plan-fixer` and the header of
+ * `plan-build.ts`, which applies them.
+ *
+ * Nothing here binds a message label, a read-only writer or a re-review prompt composed by the
+ * planner: the planner sends no label, every planning agent writes its own file, and
+ * `review-round.sh` hands a reviewer its `previous:` and `fixes:` files, with no `override` event.
+ *
+ * The files read here are shipped prompts and script headers, whose text is the behaviour. Nothing
+ * is spawned. Each check is a pure function proven on a synthetic bad sample before it is held to
+ * the tree.
  *
  * Run directly by Node's type stripping:
  *   node --test tests/viber/plan-review-prose.unit.test.ts
@@ -29,7 +39,12 @@ function read(relative: string): string {
 const PLAN_RULES = read("references/plan-rules.md");
 const SCRIPT_RULES = read("references/plan-rules-script.md");
 const PLANNER = read("skills/planner/SKILL.md");
-const WRITER = read("agents/plan-writer.md");
+const ARCHITECT = read("agents/plan-architect.md");
+const DETAILER = read("agents/plan-detailer.md");
+const FIXER = read("agents/plan-fixer.md");
+const SURVEYOR = read("agents/plan-surveyor.md");
+// The header of the entry as one line of text, so a rewrapped comment breaks no case.
+const PLAN_BUILD = read("skills/planner/scripts/plan-build.ts").replace(/\r?\n \*/g, " ").replace(/\s+/g, " ");
 const REVIEWERS = ["planner-review", "planner-spec-review", "planner-graph-review", "planner-task-review"];
 
 function allowedToolsLine(text: string): string {
@@ -48,8 +63,8 @@ function namesScriptRules(text: string): boolean {
   return text.includes("plan-rules-script.md") || text.includes("(script)");
 }
 
-function plannerReadsBoth(text: string): boolean {
-  const step = section(text, "Map");
+function readsBoth(text: string): boolean {
+  const step = section(text, "Read");
   return step.includes("/plan-rules.md") && step.includes("/plan-rules-script.md");
 }
 
@@ -57,7 +72,7 @@ function ruleName(line: string): string {
   return line.slice(2, line.indexOf(":"));
 }
 
-const SAMPLE_PLANNER = "## Map\n\nRead `<refs>/plan-rules.md` and `<refs>/plan-rules-script.md` first.\n";
+const SAMPLE_READER = "## Read\n\nRead `<refs>/plan-rules.md` and `<refs>/plan-rules-script.md` first.\n";
 
 test("a line ending in (script) is found and a (review) line is not", () => {
   assert.deepEqual(scriptLines("- A: x. (script)\n- B: y. (review)\n"), ["- A: x. (script)"]);
@@ -75,14 +90,14 @@ for (const [label, sample, caught] of REVIEWER_SAMPLES) {
   });
 }
 
-const PLANNER_SAMPLES: [string, string, boolean][] = [
-  ["reads both rule files", SAMPLE_PLANNER, true],
-  ["stops reading the script rule file", SAMPLE_PLANNER.replace("plan-rules-script.md", "other.md"), false],
+const READER_SAMPLES: [string, string, boolean][] = [
+  ["reads both rule files", SAMPLE_READER, true],
+  ["stops reading the script rule file", SAMPLE_READER.replace("plan-rules-script.md", "other.md"), false],
 ];
 
-for (const [label, sample, passes] of PLANNER_SAMPLES) {
-  test(`a writer step that ${label} is${passes ? "passed" : "caught"}`, () => {
-    assert.equal(plannerReadsBoth(sample), passes);
+for (const [label, sample, passes] of READER_SAMPLES) {
+  test(`a Read section that ${label} is ${passes ? "passed" : "caught"}`, () => {
+    assert.equal(readsBoth(sample), passes);
   });
 }
 
@@ -167,12 +182,28 @@ test("the Ordered rule of plan-rules.md asks a Depends-on for each route, symbol
   assert.ok(rule.includes("a file named by its whole repo-relative path is left to `Read after`, and a file named any other way (a bare file name, a file read without its path) stays yours."));
 });
 
-test("plan-writer reads plan-rules.md together with plan-rules-script.md before it maps", () => {
-  assert.ok(plannerReadsBoth(WRITER));
+test("plan-architect reads plan-rules.md together with plan-rules-script.md before it writes", () => {
+  assert.ok(readsBoth(ARCHITECT));
 });
 
-test("plan-writer holds the plan to every rule in both rule files", () => {
-  assert.ok(section(WRITER, "Map").includes("hold the plan to every rule in both"));
+test("plan-architect holds the plan to every rule in both rule files", () => {
+  assert.ok(section(ARCHITECT, "Read").includes("Read `<refs>/plan-rules.md` and `<refs>/plan-rules-script.md` first and hold the plan to every rule in both."));
+});
+
+test("plan-detailer reads both rule files in their Task section alone and holds its two lines to them", () => {
+  const step = section(DETAILER, "Read");
+  assert.ok(step.includes("`<refs>/plan-rules.md` and `<refs>/plan-rules-script.md` in the section `## Task` only"));
+  assert.ok(step.includes("Hold both lines of every task to each rule there that reads `Verification` or `DoD`."));
+});
+
+test("plan-fixer reads both rule files and holds every line it writes to both (a fix breaking a scripted rule costs one more plan-index.sh round)", () => {
+  assert.ok(section(FIXER, "Fix").includes("Read `<refs>/plan-rules.md` and `<refs>/plan-rules-script.md` and hold every line you write to both."));
+});
+
+test("plan-surveyor reads plan-rules.md alone, for the rules that decide the file map and the task count", () => {
+  const step = section(SURVEYOR, "Map");
+  assert.ok(step.includes("Read `<refs>/plan-rules.md` first: its `Reach`, `Owned` and `Lean` rules decide the file map, `Size` the task count."));
+  assert.ok(!namesScriptRules(SURVEYOR));
 });
 
 for (const name of REVIEWERS) {
@@ -286,11 +317,19 @@ test("planner step 2 passes --accepted once the user kept a plan and asks the th
 
 const INPUT_FLAG = '--input "<summary file>"';
 
-for (const step of ["2. Write the plan", "3. Review gate", "4. Hand off"]) {
-  test(`planner step ${step.slice(0, 1)} runs plan-index.sh with ${INPUT_FLAG} on a summary file input`, () => {
+for (const step of ["1. Survey", "2. Write the plan", "3. Tasks", "4. Review gate"]) {
+  test(`planner step ${step.slice(0, 1)} shows its script call with ${INPUT_FLAG}`, () => {
     assert.ok(section(PLANNER, step).includes(INPUT_FLAG));
   });
 }
+
+test("the planner drops the --input flag and its value on a text input, stated once above the steps", () => {
+  assert.ok(PLANNER.slice(0, PLANNER.indexOf("## Rules")).includes(`The calls below show \`${INPUT_FLAG}\` for a summary file input: drop the flag and its value on a text input.`));
+});
+
+test("planner step 2 runs plan-index.sh on the plan with the summary file", () => {
+  assert.ok(section(PLANNER, "2. Write the plan").includes(`"\${CLAUDE_PLUGIN_ROOT}/scripts/plan-index.sh" "<plan-path>" ${INPUT_FLAG}`));
+});
 
 const STEP_TWO_PHRASES = [
   "fix every `FIX:` line",
@@ -301,30 +340,54 @@ for (const phrase of STEP_TWO_PHRASES) {
   test(`planner step 2 acts on the defect lines of plan-index.sh: ${phrase}`, () => {
     assert.ok(section(PLANNER, "2. Write the plan").includes(phrase));
   });
+
+  test(`plan-fixer acts on the defect lines of plan-index.sh: ${phrase}`, () => {
+    assert.ok(section(FIXER, "Fix").includes(phrase));
+  });
 }
 
 const REVIEW_ROUND_CALL = '"${CLAUDE_SKILL_DIR}/scripts/review-round.sh" "<plan-path>"';
 
-const STEP_THREE_PHRASES = [
+const GATE_PHRASES = [
   `${REVIEW_ROUND_CALL} start`,
-  "`--answered` after an answer to a finding, and `--fresh` after any plan write following `NEXT: exit-plan` except an `override`'s fix, which runs plain `start`",
+  "adding `--fresh` on the first run for a `mode: whole` plan and `--answered` after an answer to a finding",
   "run `start --answered`",
-  "one `fix: <where> - <change>` per fix applied",
   "Dispatch every block in one message",
-  "then the text of each `add:` field",
   `${REVIEW_ROUND_CALL} returned <k>=<word>`,
+  '--out "<k>=<OUT path>"',
+  "Show the user the `member:` lines it prints",
   "`NEXT: redispatch`",
   "`NEXT: fix`",
+  "`NEXT: detail`",
   "`NEXT: exit-plan`",
   "`ASK:`",
   "`STOP:`",
-  `${REVIEW_ROUND_CALL} override <k>`,
+  `${REVIEW_ROUND_CALL} retry-denied`,
   "never a `SendMessage` to an earlier reviewer",
 ];
 
-for (const phrase of STEP_THREE_PHRASES) {
-  test(`planner step 3 runs review-round.sh and follows its directives as written: ${phrase}`, () => {
-    assert.ok(section(PLANNER, "3. Review gate").includes(phrase));
+for (const phrase of GATE_PHRASES) {
+  test(`planner step 4 runs review-round.sh and follows its directives as written: ${phrase}`, () => {
+    assert.ok(section(PLANNER, "4. Review gate").includes(phrase));
+  });
+}
+
+test("the planner Rules build a dispatch prompt from the block lines below NEXT: and then the text of each add: field", () => {
+  const rule = section(PLANNER, "Rules");
+  assert.ok(rule.includes("The prompt is the block's lines below its `NEXT:` line, never that line, then the text of each `add:` field"));
+});
+
+for (const field of ["add: input", "add: answered", "add: lines"]) {
+  test(`the planner Rules and the header of plan-build.ts both name the ${field} text`, () => {
+    assert.deepEqual([section(PLANNER, "Rules").includes(`\`${field}\``), PLAN_BUILD.includes(`"${field}"`)], [true, true]);
+  });
+}
+
+const SCRIPT_OWNED = ["override", "add: previous", "previous findings", "fix: <where>", "@@ EDIT"];
+
+for (const phrase of SCRIPT_OWNED) {
+  test(`the planner names nothing the scripts keep between a fixer and a reviewer: ${phrase}`, () => {
+    assert.ok(!PLANNER.includes(phrase));
   });
 }
 
@@ -337,13 +400,17 @@ const OWN_ROUND_RULES = [
 ];
 
 for (const phrase of OWN_ROUND_RULES) {
-  test(`planner step 3 keeps no verdict ranking, retry count or round prompt rule of its own: ${phrase}`, () => {
-    assert.ok(!section(PLANNER, "3. Review gate").includes(phrase));
+  test(`planner step 4 keeps no verdict ranking, retry count or round prompt rule of its own: ${phrase}`, () => {
+    assert.ok(!section(PLANNER, "4. Review gate").includes(phrase));
   });
 }
 
-test("planner step 4 re-reviews after a later write with start --fresh", () => {
-  assert.ok(section(PLANNER, "4. Hand off").includes("start --fresh"));
+test("planner step 5 re-reviews a later change from plain start, which sends only the members whose part changed", () => {
+  assert.ok(section(PLANNER, "5. Hand off").includes("then step 4 from plain `start` (it sends only the members whose part changed) before the next `ExitPlanMode`"));
+});
+
+test("planner step 3 opens the skeleton stage with start --fresh --skeleton and works the round as step 4 does", () => {
+  assert.ok(section(PLANNER, "3. Tasks").includes(`${REVIEW_ROUND_CALL} start --fresh --skeleton ${INPUT_FLAG}\` and work the round as step 4 does until it prints \`NEXT: detail\``));
 });
 
 test("planner allows its review-round.sh call through the skill directory", () => {
@@ -358,7 +425,9 @@ for (const name of ["allowed", "required"]) {
 
 const SCOPED_SEARCH = "grep callers only of the symbols whose signature or observable behaviour the plan changes (a moved or deleted file changing all of its symbols), and the documents and `.claude/rules/` files naming a path the plan modifies, moves or deletes";
 const CONFIRM_ONLY = "Read a file only to confirm a hit or to check a task's change against the code it modifies.";
-const SCOPED_READERS = ["planner-review", "planner-spec-review", "planner-task-review"];
+const SCOPED_READERS = ["planner-review", "planner-spec-review"];
+const SCOPED_TO_BRIEF = "search the codebase yourself only for a symbol whose signature or observable behaviour your tasks change, or a path they modify, move or delete, that it lacks";
+const NAMES_UNNAMED_FILES = /files? the plan does not name|ones the plan does not name/;
 
 function readsScoped(text: string): boolean {
   return text.includes(SCOPED_SEARCH) && text.includes(CONFIRM_ONLY) && !text.includes("explore the codebase broadly");
@@ -377,9 +446,18 @@ for (const name of SCOPED_READERS) {
   });
 
   test(`${name} never tells to read files the plan does not name`, () => {
-    assert.equal(/files? the plan does not name|ones the plan does not name/.test(read(`agents/${name}.md`)), false);
+    assert.equal(NAMES_UNNAMED_FILES.test(read(`agents/${name}.md`)), false);
   });
 }
+
+test("planner-task-review searches the code only for a changed symbol or path its brief lacks, reads a file only to confirm, and never says to explore the codebase broadly", () => {
+  const text = read("agents/planner-task-review.md");
+  assert.deepEqual([text.includes(SCOPED_TO_BRIEF), text.includes(CONFIRM_ONLY), text.includes("explore the codebase broadly")], [true, true, false]);
+});
+
+test("planner-task-review never tells to read files the plan does not name", () => {
+  assert.equal(NAMES_UNNAMED_FILES.test(read("agents/planner-task-review.md")), false);
+});
 
 const END_TO_END_SEARCH = "the one search past it is the end-to-end spec search of `Grounded`";
 const OUTSIDE_FINDING = "A reference the search reaches that sits in neither the `### File map`, a task's `Files` nor `### Out of scope` is a finding";
@@ -402,7 +480,7 @@ for (const name of ["planner-review", "planner-spec-review"]) {
 }
 
 test("planner-task-review checks a reference against the File map and Out of scope alone", () => {
-  assert.ok(read("agents/planner-task-review.md").includes("A reference the search reaches is checked against the `### File map` and `### Out of scope` alone"));
+  assert.ok(read("agents/planner-task-review.md").includes("A reference `## Reach` or your search names is checked against the `### File map` and `### Out of scope` alone: one in neither is a finding."));
 });
 
 test("planner-graph-review keeps its exploration sentence and states no scoped search", () => {
@@ -419,34 +497,63 @@ test("planner reads no code and composes no plan text (the code a plan reaches s
   assert.ok(PLANNER.includes("You read no code and compose no plan text"));
 });
 
-test("plan-writer holds the read tools alone, so the plan leaves it as text and the planner's own write stays in the transcript the plan gate reads", () => {
-  assert.ok(lines(WRITER).includes("tools: Read, Grep, Glob"));
+test("planner relays no content: agents write files, scripts move them, the session passes paths, verdict words and answers", () => {
+  assert.ok(PLANNER.includes("and you relay no content: agents write files, scripts move them, you pass paths, verdict words and the user's answers. Never `Read` the plan or a file an agent wrote unless a step says so."));
 });
 
-for (const label of ["`write:`", "`fix:`", "`split:`"]) {
-  test(`the planner sends the message label ${label} and plan-writer answers it`, () => {
-    assert.deepEqual([PLANNER.includes(label), section(WRITER, "Input").includes(label)], [true, true]);
+// [verdict, the planning agents that reply it]: the planner acts on each by its word.
+const REPLY_VERDICTS: [string, [string, string][]][] = [
+  ["VERDICT: MAPPED", [["plan-surveyor", SURVEYOR]]],
+  ["VERDICT: WRITTEN", [["plan-architect", ARCHITECT], ["plan-detailer", DETAILER]]],
+  ["VERDICT: FIXED", [["plan-fixer", FIXER]]],
+  ["VERDICT: DECIDE", [["plan-architect", ARCHITECT], ["plan-fixer", FIXER]]],
+  ["VERDICT: DENIED", [["plan-surveyor", SURVEYOR], ["plan-architect", ARCHITECT], ["plan-detailer", DETAILER], ["plan-fixer", FIXER]]],
+];
+
+for (const [verdict, agents] of REPLY_VERDICTS) {
+  for (const [name, text] of agents) {
+    test(`${name} names the reply ${verdict} in its Output and the planner acts on it`, () => {
+      assert.deepEqual([section(text, "Output").includes(verdict), PLANNER.includes(verdict)], [true, true]);
+    });
+  }
+}
+
+test("the planner Rules name which writing agent replies which verdict above its OUT: line", () => {
+  assert.ok(section(PLANNER, "Rules").includes("A writing agent replies `OUT: <path>` above its verdict: the surveyor `VERDICT: MAPPED`, the architect and the detailer `VERDICT: WRITTEN`, the fixer `VERDICT: FIXED`."));
+});
+
+for (const [name, text] of [["plan-surveyor", SURVEYOR], ["plan-detailer", DETAILER]] as [string, string][]) {
+  test(`${name} never replies VERDICT: DECIDE (the planner continues only the architect and dispatches only the fixer again on it)`, () => {
+    assert.ok(!text.includes("VERDICT: DECIDE"));
   });
 }
 
-for (const verdict of ["VERDICT: MAPPED", "VERDICT: WRITTEN", "VERDICT: FIXED", "VERDICT: DECIDE", "VERDICT: DENIED"]) {
-  test(`plan-writer names the reply ${verdict} and the planner acts on it`, () => {
-    assert.deepEqual([WRITER.includes(verdict), PLANNER.includes(verdict)], [true, true]);
-  });
-}
+test("the planner continues the architect through SendMessage after a VERDICT: DECIDE and dispatches the fixer block again", () => {
+  assert.ok(section(PLANNER, "Rules").includes("Then send the architect those lines through `SendMessage` (refused, or no answer: its block dispatched again); the fixer gets its block dispatched again."));
+});
 
 for (const marker of ["@@ EDIT", "@@ WITH", "@@ END"]) {
-  test(`the planner and plan-writer share the edit block marker ${marker}`, () => {
-    assert.deepEqual([section(WRITER, "Fix").includes(marker), section(PLANNER, "2. Write the plan").includes(marker)], [true, true]);
+  test(`plan-fixer writes and the header of plan-build.ts applies the edit block marker ${marker}`, () => {
+    assert.deepEqual([section(FIXER, "Output").includes(`\n${marker}\n`), PLAN_BUILD.includes(`"${marker}"`)], [true, true]);
   });
 }
 
-test("planner step 3 sends a reviewer its own previous Blocking findings alone (every member's findings in every prompt cost a full copy per reviewer)", () => {
-  assert.ok(section(PLANNER, "3. Review gate").includes("that member's own previous Blocking findings verbatim"));
+test("plan-fixer writes one fix: line per fix applied and the header of plan-build.ts saves the fix: lines for the next review round", () => {
+  assert.ok(section(FIXER, "Output").includes("\nfix: <where> - <change>\n"));
+  assert.ok(PLAN_BUILD.includes('Writes the "fix: " lines outside the'));
 });
 
-for (const name of ["planner-spec-review", "planner-graph-review", "planner-task-review"]) {
-  test(`${name} expects its own previous Blocking findings on a re-review`, () => {
-    assert.ok(section(read(`agents/${name}.md`), "Input").includes("your previous Blocking findings plus one line per fix applied since"));
+test("plan-fixer and the header of plan-build.ts agree that the text of an edit occurs exactly once in the plan and the blocks apply in order, all or none", () => {
+  const output = section(FIXER, "Output");
+  assert.ok(output.includes("<lines of the plan file as they stand, enough of them to occur exactly once>"));
+  assert.ok(output.includes("The blocks apply in order, all or none"));
+  assert.ok(PLAN_BUILD.includes("in order, all or none: the lines up to \"@@ WITH\" must occur exactly once in the plan"));
+});
+
+const RE_REVIEW_INPUT = "`previous:` and `fixes:` (a re-review): your previous findings, and one `fix: <where> - <change>` line per fix applied since.";
+
+for (const name of REVIEWERS) {
+  test(`${name} expects its own previous findings and the fix lines applied since as the files of a re-review`, () => {
+    assert.ok(section(read(`agents/${name}.md`), "Input").includes(RE_REVIEW_INPUT));
   });
 }

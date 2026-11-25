@@ -23,7 +23,7 @@ export const rules: RuleInstance[] = [
         "viber/skills/fixer/scripts/tree-record.ts",
         "viber/skills/code-auditor/scripts/diff-files.ts",
         "viber/skills/code-auditor/scripts/synthesize.ts",
-        "viber/skills/planner/scripts/reach.ts",
+        "viber/skills/planner/scripts/plan-build.ts",
         "viber/skills/extension/scripts/extension.ts",
         "viber/skills/code-auditor/scripts/frame.ts",
         "viber/skills/skill-designer/scripts/lint_skill.ts",

@@ -66,6 +66,14 @@ export function planWrite(filePath = PLAN, name: "Write" | "Edit" = "Write"): st
   return line({ type: "assistant", message: { content: [{ type: "tool_use", name, input: { file_path: filePath, content: "# Plan" } }] } });
 }
 
+/** The other kind of plan write: the planner's Bash call of plan-build.sh with a
+ *  subcommand that writes the plan file. The call line quotes the script and its
+ *  arguments, as the planner skill writes it. */
+export function scriptWrite(sub = "apply", plan = PLAN): string {
+  const command = `"/plugin/skills/planner/scripts/plan-build.sh" ${sub} "${plan}" "/repo/.temp/viber/planner/in.md"`;
+  return line({ type: "assistant", message: { content: [{ type: "tool_use", name: "Bash", input: { command, description: "Write the plan" } }] } });
+}
+
 export function dispatch(id?: string, agent = "viber:planner-review"): string {
   const use: Record<string, unknown> = {
     type: "tool_use",
@@ -144,24 +152,77 @@ export function taskPlan(dir: string, tasks: number, opts: { eol?: string; inden
   return realPlan(dir, ".claude/plans/2026-10-21-12-00-00_big/plan.md", head + blocks + (opts.extra ?? ""));
 }
 
-/** One review-set dispatch, its prompt carrying the `tasks:` line of a task slice. */
-export function setDispatch(member: Member, id?: string, withTasks = true): string {
+/** One review-set dispatch, its prompt carrying the `tasks:` line of a task slice
+ *  and, with `sum`, the `sum:` line review-round.sh prints below it, an `out:`
+ *  line after it as in the printed block. */
+export function setDispatch(member: Member, id?: string, withTasks = true, sum?: string): string {
   const { agent, tasks } = MEMBERS[member];
-  const prompt = `review ${PLAN}\nrefs: /refs${tasks && withTasks ? `\ntasks: ${tasks}` : ""}`;
+  const prompt = `review ${PLAN}\nrefs: /refs${tasks && withTasks ? `\ntasks: ${tasks}` : ""}${sum ? `\nsum: ${sum}\nout: /repo/.temp/viber/planner/review.md` : ""}`;
   const use: Record<string, unknown> = { type: "tool_use", name: "Agent", input: { subagent_type: agent, prompt } };
   if (id) use.id = id;
   return line({ type: "assistant", message: { content: [use] } });
 }
 
+export interface RoundOpts {
+  round?: number;
+  timestamp?: string;
+  /** The `sum:` line of each member's dispatch; a member left out carries none. */
+  sums?: Partial<Record<Member, string>>;
+}
+
 /** A member's dispatch and its verdict, paired by a tool-use id of the member's own. */
-export function memberRound(member: Member, value: Verdict, opts: { round?: number; timestamp?: string } = {}): [string, string] {
+export function memberRound(member: Member, value: Verdict, opts: RoundOpts = {}): [string, string] {
   const id = `toolu_${member}_r${opts.round ?? 1}`;
-  return [setDispatch(member, id), verdict(value, { id, timestamp: opts.timestamp })];
+  return [setDispatch(member, id, true, opts.sums?.[member]), verdict(value, { id, timestamp: opts.timestamp })];
 }
 
 /** Every member of the 20-task plan, dispatched and answered in order. */
-export function reviewSetRound(values: Partial<Record<Member, Verdict>>, opts: { round?: number; timestamp?: string } = {}): string[] {
+export function reviewSetRound(values: Partial<Record<Member, Verdict>>, opts: RoundOpts = {}): string[] {
   return (Object.keys(MEMBERS) as Member[]).flatMap((m) => (values[m] ? memberRound(m, values[m], opts) : []));
 }
 
 export const ALL_PASS: Record<Member, Verdict> = { spec: "PASS", graph: "PASS", a: "PASS", b: "PASS", c: "PASS" };
+
+const PARTS_LIB = path.resolve(import.meta.dirname, "../../viber/scripts/plan-parts.sh");
+
+// Sources the library the gate sources and prints one sum per part named, so an
+// expected sum is cut and summed by the same code review-round.sh uses to print it.
+const PART_SUMS_SCRIPT = [
+  '. "$1"',
+  'plan="$2"',
+  "shift 2",
+  'for part in "$@"; do',
+  '  case "$part" in',
+  '    spec) plan_part_sum "$plan" planner-spec-review ;;',
+  '    graph) plan_part_sum "$plan" planner-graph-review ;;',
+  '    *) plan_part_sum "$plan" planner-task-review "$part" ;;',
+  "  esac",
+  "  printf '\\n'",
+  "done",
+  "",
+].join("\n");
+
+/** The sum plan_part_sum gives each named part of `plan` as it stands on disk:
+ *  `spec`, `graph` or a task slice `T<a>-T<b>`. One bash process for all of them;
+ *  `dir` is the case's temp directory, where the helper script is written. */
+export async function partSums(dir: string, plan: string, parts: string[]): Promise<Record<string, string>> {
+  const helper = path.join(dir, "part-sums.sh");
+  fs.writeFileSync(helper, PART_SUMS_SCRIPT);
+  const slashed = (p: string) => p.replace(/\\/g, "/");
+  const result = await runScript(helper, [slashed(PARTS_LIB), slashed(plan), ...parts], { shell: "bash" });
+  assert.equal(result.status, 0, `part sums: expected exit 0, got ${result.status}; stderr: ${result.stderr}`);
+  const sums = result.stdout.split("\n").slice(0, parts.length);
+  const out: Record<string, string> = {};
+  parts.forEach((part, i) => {
+    assert.match(sums[i] ?? "", /^[0-9]+-[0-9]+$/, `part sums: no sum for ${part}`);
+    out[part] = sums[i];
+  });
+  return out;
+}
+
+/** The sum of every member's part of the 20-task plan, keyed by member. */
+export async function memberSums(dir: string, plan: string): Promise<Record<Member, string>> {
+  const members = Object.keys(MEMBERS) as Member[];
+  const sums = await partSums(dir, plan, members.map((m) => MEMBERS[m].tasks ?? m));
+  return Object.fromEntries(members.map((m) => [m, sums[MEMBERS[m].tasks ?? m]])) as Record<Member, string>;
+}

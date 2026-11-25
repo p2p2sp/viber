@@ -181,16 +181,28 @@ build. A finished build names the next phase, which resumes from the decisions a
 nothing is stubbed in between. With GitHub issues on, each phase gets its own sub-issue under
 one parent issue, and a phase that resumes is tied to its sub-issue.
 
-The planner checks the size too. When its plan grows past 30 tasks, it stops and asks through the
-interview whether to split the change into phases or keep one plan of that many tasks; a split
-resumes the interview from the planner's own proposal. The planner also asks, one decision per question,
+The planner checks the size too. Before any plan text exists, its `plan-surveyor` agent maps the
+change: the files it touches and an estimate of the tasks. When that map passes 30 tasks or 60
+files, the planner stops and asks whether to split the change into phases or keep one plan of that
+size; a split resumes the interview from the planner's own proposal. The planner also asks, one decision per question,
 every decision its exploration of the code finds that the interview left open and that belongs to you,
-such as a behaviour, a scope or a product choice. Implementation choices stay with it. Its `plan-writer`
-agent reads your code and writes the plan text, so the code it reads stays out of your session's
-context. Before it writes tasks, its `impact-mapper` agent finds every reference to what the change modifies, moves or deletes,
+such as a behaviour, a scope or a product choice. Implementation choices stay with it.
+
+Its agents read your code and write the plan, so neither the code nor the plan text passes through
+your session's context: each agent writes a file, a script puts the files together, and the session
+only passes their paths on. The `plan-architect` agent writes the plan. For a change past 8 tasks
+it writes a skeleton first, every task complete except how it is verified and when it is done, and
+`plan-detailer` agents then fill in those two lines, working in parallel on slices of at most 8
+tasks; in a plan past 12 tasks the spec and graph reviewers check the skeleton before the details
+are written. Before the plan is written, the planner searches your code for every reference to what the change modifies, moves or deletes,
 and every file that lists, counts or links a file it adds; the plan adds nothing the interview left
-unsettled. A review finding showing the plan changes a behaviour your code has today, unasked, gets
-fixed even when it is only Minor.
+unsettled.
+
+After each review round you see one line per reviewer: its verdict and how many blocking and minor
+findings it wrote. The `plan-fixer` agent writes the fixes, a script applies them, and only the
+reviewers that failed and those whose part of the plan changed read it again. A review finding showing the plan changes a behaviour your code has today, unasked, gets
+fixed even when it is only Minor. A Minor finding a reviewer could not verify, or raised outside
+the fixed text, is left unapplied and shown to you in one list before you approve the plan.
 
 ### When it decides for you
 

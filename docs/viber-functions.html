@@ -355,7 +355,7 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>Enters only with a confirmed interview or diagnosis.</li>
         <li>Never reopens decisions the interview took.</li>
         <li>File map first: what is created, modified, deleted.</li>
-        <li>Before the tasks, the <code>impact-mapper</code> agent finds every reference to what the change modifies, moves or deletes.</li>
+        <li>Before the plan is written, a script searches the code for every reference to what the change modifies, moves or deletes.</li>
         <li>Adds nothing the interview left unsettled.</li>
         <li>Fixes a review finding, even a Minor one, that shows an unasked change of today's behaviour.</li>
         <li>One responsibility per file; an unwieldy file may be split.</li>
@@ -384,7 +384,7 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li>Script validation: the rules tagged <code>(script)</code>.</li>
         <li>Review by the <code>planner-review</code> agent: the rules tagged <code>(review)</code>, rounds until PASS.</li>
         <li>Findings that need a decision reach you as a question.</li>
-        <li>Every write after a PASS voids it.</li>
+        <li>A write to the part of the plan a reviewer passed voids that PASS.</li>
         <li>Shows the plan's full path and names the next step.</li>
         <li>The plan survives a cleared context through its <code>source:</code> line.</li>
       </ul>

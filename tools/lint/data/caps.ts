@@ -22,6 +22,8 @@ const IMPLEMENTOR = "the file is read on every start and re-read through the who
 const MEMORY = "the file is read on every /viber:memory or /viber:rules run; the mechanical steps live in scripts, so it sits below its count before them (memory skill 2053, memory-auditor 736, rules skill 1848, rules-auditor 1463)";
 const PLANNER = "the file is read on every plan and review round; the cap sits below the 2100 words before the scripted review rounds and the 1800 before the scripted steps of intent, fixer and e2e";
 const REVIEWER = "a plan reviewer reads its whole file on every review round; the cap sits below its count before the scripted plan checks";
+const PLAN_REVIEW = "a plan reviewer reads its whole file on every review round; the cap carries the findings file it writes, its reach, previous and fixes inputs and the (behaviour) marker, and is raised only on purpose";
+const PLAN_AGENT = "a planning agent reads its whole file on every dispatch, and its words count against the user's usage limits; raised only on purpose";
 const SKILL = "a skill reads its whole file on every run; the cap sits below its count before the scripted steps";
 const AUDITOR = "the file is read on every audit run; the cap sits below its count before the scripted pipeline";
 const BUDGET = "the text a role reads on a dispatch counts against the user's usage limits; raised only on purpose";
@@ -37,12 +39,15 @@ export const rules: RuleInstance[] = [
   words("rules-skill", "skills/rules/SKILL.md", 1700, MEMORY),
   words("rules-auditor", "agents/rules-auditor.md", 1467, MEMORY),
 
-  words("planner-skill", "skills/planner/SKILL.md", 1490, `${PLANNER}; the code reading and the plan text live in plan-writer (1775 before)`),
-  words("plan-writer", "agents/plan-writer.md", 1520, "the plan writer reads its whole file on every plan, and its words count against the user's usage limits; raised only on purpose"),
-  words("planner-review", "agents/planner-review.md", 1033, `${REVIEWER} (1056 before)`),
-  words("planner-spec-review", "agents/planner-spec-review.md", 790, `${REVIEWER} (797 before)`),
-  words("planner-graph-review", "agents/planner-graph-review.md", 616, `${REVIEWER} (618 before)`),
-  words("planner-task-review", "agents/planner-task-review.md", 733, `${REVIEWER} (735 before)`),
+  words("planner-skill", "skills/planner/SKILL.md", 1490, `${PLANNER}; the code reading and the plan text live in the planning agents (1775 before)`),
+  words("plan-surveyor", "agents/plan-surveyor.md", 798, PLAN_AGENT),
+  words("plan-architect", "agents/plan-architect.md", 1140, PLAN_AGENT),
+  words("plan-detailer", "agents/plan-detailer.md", 640, `${PLAN_AGENT}; it is dispatched once per slice of 8 tasks`),
+  words("plan-fixer", "agents/plan-fixer.md", 890, `${PLAN_AGENT}; it is dispatched once per fix`),
+  words("planner-review", "agents/planner-review.md", 1172, PLAN_REVIEW),
+  words("planner-spec-review", "agents/planner-spec-review.md", 940, PLAN_REVIEW),
+  words("planner-graph-review", "agents/planner-graph-review.md", 765, PLAN_REVIEW),
+  words("planner-task-review", "agents/planner-task-review.md", 880, PLAN_REVIEW),
   words("outside-plan-review", "agents/outside-plan-review.md", 470, `${REVIEWER} (490 before)`),
 
   words("fixer-skill", "skills/fixer/SKILL.md", 1180, `${SKILL} (1191 before)`),
@@ -64,14 +69,20 @@ export const rules: RuleInstance[] = [
   words("hunter", "agents/hunter.md", 854, `${AUDITOR} (877 before)`),
   words("mapper", "agents/mapper.md", 760, `${AUDITOR} (882 before)`),
 
-  bytes("planner", 44420, [
-    { path: "viber/agents/plan-writer.md" },
+  bytes("plan-architect", 42330, [
+    { path: "viber/agents/plan-architect.md" },
     { path: "viber/references/plan-rules.md" },
     { path: "viber/references/plan-rules-script.md" },
     { path: "viber/skills/planner/templates/spec-full.md" },
     { path: "viber/skills/planner/templates/tasks.md" },
     { path: TEST_STRATEGY, sections: ["Layers", "Proves", "Ports"] },
   ], BUDGET),
+  bytes("plan-detailer", 22450, [
+    { path: "viber/agents/plan-detailer.md" },
+    { path: "viber/references/plan-rules.md", sections: ["Task"] },
+    { path: "viber/references/plan-rules-script.md", sections: ["Task"] },
+    { path: TEST_STRATEGY, sections: ["Layers", "Proves", "Ports"] },
+  ], `${BUDGET}; the set is read once per slice of 8 tasks`),
   bytes("planner-review", 31223, [
     { path: "viber/agents/planner-review.md" },
     { path: "viber/references/plan-rules.md" },

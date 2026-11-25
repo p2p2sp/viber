@@ -13,9 +13,10 @@ Every file viber creates or changes in your project. Back to the [viber guide](.
 | `.claude/viber.yml` | The config, see [Configuring viber](configuration.md) |
 | `.claude/settings.json` | The settings viber recommends |
 | `.gitignore` | `.temp/` and `.claude/viber.local.yml`, when no rule ignores them yet |
-| `.temp/viber/` | Scratch files, `/viber:prototype`'s mockups in `.temp/viber/prototype/`, `/viber:idea-validator`'s working files in `.temp/viber/idea-validator/`, `/viber:code-auditor`'s `findings.md` files in `.temp/viber/code-auditor/`, the planner's reach candidates files (`reach-<stamp>.md`) and its review round state (`review-round`, the round number and each reviewer's verdict) in `.temp/viber/planner/`, `/viber:fixer`'s working tree record (`tree-record`, the changed paths before its first edit) in `.temp/viber/fixer/` and `/viber:pr-feedback`'s threads file (review threads and remarks), `review.md` and reply files in `.temp/viber/pr-feedback/`, and the comments `/viber:pr-feedback-reply` posts, kept as `posted/<key>.md` there |
+| `.temp/viber/` | Scratch files, `/viber:prototype`'s mockups in `.temp/viber/prototype/`, `/viber:idea-validator`'s working files in `.temp/viber/idea-validator/`, `/viber:code-auditor`'s `findings.md` files in `.temp/viber/code-auditor/`, the planner's work files in `.temp/viber/planner/` (the outline of the change, the reach files `reach-<stamp>.md` and `reach-paths.md`, the decision log, one brief per slice of tasks, the reviewers' findings, the fixes applied, an agent's own file when plan mode names it none, and the state files `plan-build` and `review-round`, the round number and each reviewer's verdict), `/viber:fixer`'s working tree record (`tree-record`, the changed paths before its first edit) in `.temp/viber/fixer/` and `/viber:pr-feedback`'s threads file (review threads and remarks), `review.md` and reply files in `.temp/viber/pr-feedback/`, and the comments `/viber:pr-feedback-reply` posts, kept as `posted/<key>.md` there |
 | `.temp/viber/<task id>/` | `state` (`.temp/viber/<task id>/state`), the step state of the task that `task-step.sh` keeps between the returns of a session; for a `TDD: required` task also `red.log`, the coder's first test run that fails, and `red-check.log`, the run of `build.red-check` |
 | `.temp/viber/lessons` | The session's lessons list (the test-strategy rules failed reviews raised), written by `task-step.sh` and read into each coder and reviewer dispatch |
+| Claude Code's plans directory, beside the plan file | While a plan is written, one file per planning agent, which Claude Code names after the plan file: the outline, the plan text, the task details, the fixes and each reviewer's findings. viber's scripts read them and write the plan file itself |
 | a git worktree in the system temp directory | The checkout `build.red-check` runs a task's tests in, removed after each check |
 | your e2e directory | Playwright tests from `/viber:e2e` |
 
@@ -55,7 +56,7 @@ With `build.cleanup` on, the build ends by moving what is worth keeping to `docs
 It drops the plan, the progress file and the working notes. They stay in git, so nothing is lost.
 It also deletes the scratch the build and its planning left under `.temp/viber/`: each task's
 directory, `lessons`, `test-runner/`, `final-fix/`, `repair-*/`, `extension-*/`, the intent
-summaries, the planner's reach and review round files and the fixer's tree record. The files of
+summaries, the planner's work files and the fixer's tree record. The files of
 other skills there (mockups, audit findings, pull request feedback) stay.
 The archive is the half you would want to read a year later.
 
