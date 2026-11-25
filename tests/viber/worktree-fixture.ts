@@ -1,6 +1,5 @@
 /*
- * worktree-fixture.ts - the helpers worktree.test.ts and
- * worktree.critical.test.ts share: what both tiers need to seed a case and run
+ * worktree-fixture.ts - what worktree.critical.test.ts uses to seed a case and run
  * viber/skills/code-auditor/scripts/worktree.sh. It holds no case of its own.
  */
 

@@ -1,8 +1,6 @@
 /*
- * commit-context-fixture.ts - the helpers commit-context.test.ts and
- * commit-context.critical.test.ts share: what both tiers need to seed a case
- * and run viber/skills/commit/scripts/commit-context.sh. It holds no case of
- * its own.
+ * commit-context-fixture.ts - what commit-context.critical.test.ts uses to seed a case and run
+ * viber/skills/commit/scripts/commit-context.sh. It holds no case of its own.
  */
 
 import assert from "node:assert/strict";

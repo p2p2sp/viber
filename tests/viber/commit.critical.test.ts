@@ -1,14 +1,15 @@
 /*
  * commit.critical.test.ts - the critical tier of
- * viber/skills/commit/scripts/commit.sh: each selector stages exactly its own
+ * viber/skills/commit/scripts/commit.sh, the wrapper of the commit.ts entry: each selector stages exactly its own
  * paths (all, a path, git rm removals, ignored parents, bracket literals,
  * subdirectory spellings), a missing path commits nothing, and work staged
  * outside the selector stays staged.
  *
  * A case lives here when its failure means lost user work, an open gate, a
  * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by commit.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * of the contract is proven in process by
+ * tests/viber/lib/commit.unit.test.ts. This file runs on every operating system,
+ * under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:
@@ -23,16 +24,17 @@ import path from "node:path";
 import { runScript } from "../harness/run.ts";
 import { withGitRepo, type GitRepo } from "../harness/tmp.ts";
 import { slash } from "../harness/paths.ts";
+import { shellUtilsPath } from "../harness/stub.ts";
 import { SUT, runCommit, assertBash, commitFile } from "./commit-fixture.ts";
 
 test("mode 'all' (no selector): stages and commits every pending change, including untracked", async () => {
   await assertBash(async (bash) => {
     await withGitRepo(async (repo) => {
       fs.writeFileSync(path.join(repo.dir, "a.txt"), "content\n");
-      const result = await runCommit(bash, repo, ["commit all"]);
+      const result = await runCommit(bash, repo, ["feat: commit all\n\nthe body"]);
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      const subject = await repo.git("log", "-1", "--format=%s");
-      assert.equal(subject.stdout.trim(), "commit all");
+      const message = await repo.git("log", "-1", "--format=%B");
+      assert.equal(message.stdout.trimEnd(), "feat: commit all\n\nthe body");
       const status = await repo.git("status", "--porcelain");
       assert.equal(status.stdout.trim(), "");
     });
@@ -207,5 +209,17 @@ test("run from a subdirectory: every path spelling commits exactly the selected 
         assert.equal((await repo.git("diff", "--cached", "--name-only")).stdout.trim(), "pkg/src/d/g.txt", form);
       });
     }
+  });
+});
+
+test("with no node on PATH the call exits non-zero and commits nothing", async () => {
+  await assertBash(async (bash) => {
+    await withGitRepo(async (repo) => {
+      fs.writeFileSync(path.join(repo.dir, "a.txt"), "content\n");
+      const result = await runScript(SUT, ["m"], { shell: bash, cwd: repo.dir, env: { ...repo.env, PATH: shellUtilsPath() } });
+      assert.notEqual(result.status, 0);
+      assert.equal(result.stdout, "");
+      assert.notEqual((await repo.git("rev-parse", "-q", "--verify", "HEAD")).status, 0);
+    });
   });
 });

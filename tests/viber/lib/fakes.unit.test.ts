@@ -1,12 +1,12 @@
 /*
- * fakes.unit.test.ts - the in-memory Fs, Git and Clock of
+ * fakes.unit.test.ts - the in-memory Fs, Git, GitWrite and Clock of
  * tests/harness/fakes.ts pass the port contract cases, and hold the state they
  * are seeded with.
  */
 
 import assert from "node:assert/strict";
-import { fakeClock, fakeFs, fakeGit, fakeScene } from "../../harness/fakes.ts";
-import { clockContract, fsContract, gitContract } from "../../harness/ports-contract.ts";
+import { fakeClock, fakeFs, fakeGit, fakeScene, fakeThrowaway } from "../../harness/fakes.ts";
+import { clockContract, fsContract, gitContract, gitWriteContract } from "../../harness/ports-contract.ts";
 import { test } from "../../harness/test.ts";
 
 fsContract("fake fs", () => fakeScene());
@@ -15,6 +15,8 @@ gitContract("fake git", () => {
   const scene = fakeScene();
   return { git: scene.git, root: scene.root, outside: scene.outside, history: scene.history };
 });
+
+gitWriteContract("fake git write", fakeThrowaway);
 
 clockContract("fake clock", () => fakeClock(new Date(2020, 0, 1)));
 

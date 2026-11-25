@@ -1,6 +1,5 @@
 /*
- * commit-fixture.ts - the helpers commit.test.ts and commit.critical.test.ts
- * share: what both tiers need to seed a case and run
+ * commit-fixture.ts - what commit.critical.test.ts uses to seed a case and run
  * viber/skills/commit/scripts/commit.sh. It holds no case of its own.
  */
 

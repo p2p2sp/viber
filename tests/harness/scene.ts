@@ -6,14 +6,19 @@
  * is the one place a contract case writes, each under a directory of its own
  * name. The repository has no commit, so its HEAD stands on an unborn branch; a
  * second repository beside it, read-only by the same contract, holds
- * HISTORY_STATE: three commits, a detached HEAD and a changed work tree.
+ * HISTORY_STATE: three commits, a detached HEAD and a changed work tree. A case
+ * that writes through git takes a throwaway repository of WRITE_STATE, copied from
+ * a template built once per process.
  */
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { HISTORY_STATE, SCENE_STATE } from "./ports-contract.ts";
+import { gitCommand } from "../../viber/lib/adapters/git.ts";
+import { gitWriteCommand } from "../../viber/lib/adapters/git-write.ts";
+import { nodeFs } from "../../viber/lib/adapters/fs.ts";
+import { HISTORY_STATE, SCENE_STATE, WRITE_STATE, type Throwaway, type ThrowawayOpts } from "./ports-contract.ts";
 
 interface Scene {
   root: string;
@@ -109,4 +114,54 @@ export function sharedScene(): Scene {
   process.once("exit", () => fs.rmSync(base, { recursive: true, force: true, maxRetries: 5 }));
   scene = { root, outside, scratch, history, linked, execBits };
   return scene;
+}
+
+let template: string | null = null;
+
+/** One commit of WRITE_STATE, its hooks gone, the keys the cases depend on pinned against the developer's config. */
+function throwawayTemplate(base: string): string {
+  if (template !== null) return template;
+  const root = `${base}/template`;
+  fs.mkdirSync(root);
+  git(root, ["init", "-q", "-b", "main"]);
+  fs.rmSync(`${root}/.git/hooks`, { recursive: true, force: true });
+  fs.appendFileSync(
+    `${root}/.git/config`,
+    "[core]\n\tautocrlf = false\n\texcludesFile = \n[user]\n\tname = scene\n\temail = scene@p2p2.invalid\n[commit]\n\tgpgsign = false\n[gc]\n\tauto = 0\n[maintenance]\n\tauto = false\n",
+  );
+  apply(root, WRITE_STATE.files);
+  git(root, ["add", "-f", "--", ...Object.keys(WRITE_STATE.files).filter((path) => path !== WRITE_STATE.untracked)]);
+  git(root, ["commit", "-q", "-m", "seed"]);
+  template = root;
+  return root;
+}
+
+let copies = 0;
+
+/** A fresh copy of the template, below the base directory of the scene. */
+export function throwaway(opts: ThrowawayOpts = {}): Throwaway {
+  const { scratch, execBits } = sharedScene();
+  const base = path.posix.dirname(scratch);
+  const root = `${base}/throwaway-${++copies}`;
+  fs.cpSync(throwawayTemplate(base), root, { recursive: true });
+  const hooks = `${root}/.git/hooks`;
+  fs.mkdirSync(hooks);
+  // An absolute hooks path: a global one of the developer never runs, and a linked worktree finds it too.
+  fs.appendFileSync(`${root}/.git/config`, `[core]\n\tfileMode = ${opts.fileMode ?? execBits}\n\thooksPath = ${hooks}\n`);
+  const fails = (name: string): void => fs.writeFileSync(`${hooks}/${name}`, "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+  if (opts.refuse) fails("pre-commit");
+  if (opts.checkout) fails("post-checkout");
+  if (opts.detached) git(root, ["checkout", "-q", "--detach"]);
+  if (opts.unborn) {
+    fs.rmSync(`${root}/.git/refs/heads/main`);
+    fs.rmSync(`${root}/.git/index`);
+  }
+  return {
+    fs: nodeFs,
+    git: gitCommand,
+    write: gitWriteCommand,
+    root,
+    execBits,
+    stageMode: (file, mode) => git(root, ["update-index", mode === "100755" ? "--chmod=+x" : "--chmod=-x", "--", file]),
+  };
 }

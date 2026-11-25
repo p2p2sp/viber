@@ -1,14 +1,15 @@
 /*
  * worktree.critical.test.ts - the critical tier of
- * viber/skills/code-auditor/scripts/worktree.sh: add creates a verified
+ * viber/skills/code-auditor/scripts/worktree.sh, the wrapper of the worktree.ts entry: add creates a verified
  * worktree, remove clears one holding untracked files, and a filesystem root,
  * the target root itself or its parent as the path is refused before anything
  * is deleted.
  *
  * A case lives here when its failure means lost user work, an open gate, a
  * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by worktree.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * of the contract is proven in process by
+ * tests/viber/lib/worktree.unit.test.ts. This file runs on every operating system,
+ * under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:

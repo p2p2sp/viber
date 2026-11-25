@@ -1,13 +1,14 @@
 /*
  * archive-run.critical.test.ts - the critical tier of
- * viber/scripts/archive-run.sh: a finished run moves to the archive in one
+ * viber/scripts/archive-run.sh, the wrapper of the archive-run.ts entry: a finished run moves to the archive in one
  * commit with nothing lost, an unfinished or out-of-contract one is refused
  * with the tree untouched, and a failed git step leaves nothing committed.
  *
  * A case lives here when its failure means lost user work, an open gate, a
  * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by archive-run.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * of the contract is proven in process by
+ * tests/viber/lib/archive-run.unit.test.ts. This file runs on every operating
+ * system, under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:
@@ -18,12 +19,9 @@ import { test } from "../harness/test.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 
-import { runScript } from "../harness/run.ts";
 import { slash } from "../harness/paths.ts";
-import { withStub } from "../harness/stub.ts";
-import { SUT, KEY, run, withSeededRepo, filesUnder } from "./archive-run-fixture.ts";
+import { KEY, run, withSeededRepo, filesUnder } from "./archive-run-fixture.ts";
 
 test("a path outside docs/<runs>/ is refused, an absolute one inside the repository included, and nothing is touched", async () => {
   await withSeededRepo(async (repo, runDir) => {
@@ -135,25 +133,21 @@ test("an existing destination is exit 3, and the run is left exactly where it wa
   });
 });
 
-test("a failing 'git rm' on the scaffold removal exits 5, leaving the mv done and nothing committed", async () => {
+test("a commit a pre-commit hook refuses exits 5, leaving the move done, nothing committed and the scratch untouched", async () => {
   await withSeededRepo(async (repo, runDir) => {
-    const realGit = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf-8" }).stdout.trim();
-    assert.ok(realGit.length > 0, "a real git must be resolvable on PATH to build the passthrough stub");
+    const hooks = path.join(repo.dir, ".git", "hooks");
+    fs.mkdirSync(hooks, { recursive: true });
+    fs.writeFileSync(path.join(hooks, "pre-commit"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+    const state = path.join(repo.dir, ".temp", "viber", "T1", "state");
+    fs.mkdirSync(path.dirname(state), { recursive: true });
+    fs.writeFileSync(state, "x\n");
 
-    await withStub(
-      "git",
-      `if [ "$1" = "rm" ]; then exit 1; fi\nexec "${realGit}" "$@"`,
-      async (stubDir) => {
-        const result = await runScript(SUT, [runDir], { cwd: repo.dir, env: repo.env, shell: "bash", stubDirs: [stubDir] });
-        assert.equal(result.status, 5);
-        assert.equal(result.stdout, "");
-
-        // git mv already ran through the passthrough, so the directory sits at
-        // its new name with the scaffolding not yet stripped and no commit made
-        assert.ok(!fs.existsSync(path.join(repo.dir, runDir)));
-        assert.ok(fs.existsSync(path.join(repo.dir, "docs", "specs", KEY, "plan.md")));
-        assert.equal((await repo.git("log", "--format=%s", "-1")).stdout.trim(), "docs(viber): decomposition");
-      },
-    );
+    const result = await run(repo.dir, [runDir], repo.env);
+    assert.equal(result.status, 5);
+    assert.equal(result.stdout, "");
+    assert.ok(!fs.existsSync(path.join(repo.dir, runDir)));
+    assert.deepEqual(filesUnder(repo.dir, `docs/specs/${KEY}`), ["qa.e2e.md", "qa.md", "spec.md"]);
+    assert.equal((await repo.git("log", "--format=%s", "-1")).stdout.trim(), "docs(viber): decomposition");
+    assert.ok(fs.existsSync(state));
   });
 });

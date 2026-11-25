@@ -1,14 +1,15 @@
 /*
- * ports-contract.ts - the contract cases of the Fs, Git and Clock ports,
+ * ports-contract.ts - the contract cases of the Fs, Git, GitWrite and Clock ports,
  * written against the ports alone. The fake passes them as a unit file, each
- * real adapter as an integration file, over the arranged states SCENE_STATE
- * and HISTORY_STATE.
- * A case that writes does it under a directory of its own name below the
- * scratch directory, never in the repository.
+ * real adapter as an integration file, over the arranged states SCENE_STATE,
+ * HISTORY_STATE and WRITE_STATE.
+ * A case that writes files does it under a directory of its own name below the
+ * scratch directory, never in the two read-only repositories; a case that writes
+ * through git has a throwaway repository of its own.
  */
 
 import assert from "node:assert/strict";
-import type { ChangedFile, Clock, Fs, Git, StatusEntry } from "../../viber/lib/ports.ts";
+import type { ChangedFile, Clock, Fs, Git, GitWrite, StagedFile, StatusEntry } from "../../viber/lib/ports.ts";
 import { test } from "./test.ts";
 
 /** The arranged state the fakes are seeded with and the shared scene writes: repo-relative paths. links: a directory link to the directory it names. */
@@ -32,7 +33,9 @@ export const SCENE_STATE: { files: Record<string, string>; exec: string[]; untra
  * added to the index. The rest is what git answers over that state: status,
  * the files changed against HEAD (head), against the first commit (first) and
  * against no base (none), the untracked files, the tracked files an ignore rule
- * excludes (trackedIgnored) and every path one excludes (ignored).
+ * excludes (trackedIgnored) and every path one excludes (ignored), the files of
+ * HEAD and of the index, what the index holds against HEAD (stagedFiles) and a
+ * line of each report.
  */
 export const HISTORY_STATE: {
   commits: Array<Record<string, string | null>>;
@@ -43,6 +46,10 @@ export const HISTORY_STATE: {
   untracked: string[];
   trackedIgnored: string[];
   ignored: string[];
+  head: string[];
+  index: string[];
+  stagedFiles: StagedFile[];
+  reports: Record<"log" | "status" | "stat" | "diff", string>;
 } = {
   commits: [
     {
@@ -105,7 +112,61 @@ export const HISTORY_STATE: {
   untracked: ["untracked dir/za\u017c\u00f3\u0142\u0107.txt"],
   trackedIgnored: ["noted.log"],
   ignored: ["ignored.log", "noted.log", "b1 za\u017c.log", "absent dir/ignored.log"],
+  head: [".gitignore", "docs/run/plan.md", "edited.txt", "gone.txt", "kept.txt", "late.txt", "noted.log", "old name.txt", "staged.txt"],
+  index: [".gitignore", "docs/run/plan.md", "edited.txt", "gone.txt", "kept.txt", "late.txt", "new name.txt", "noted.log", "staged.txt"],
+  stagedFiles: [
+    { path: "new name.txt", from: "000000", mode: "100644" },
+    { path: "old name.txt", from: "100644", mode: "000000" },
+    { path: "staged.txt", from: "100644", mode: "100644" },
+  ],
+  reports: {
+    log: "3333333 commit 3\n2222222 commit 2\n1111111 commit 1\n",
+    status: " M edited.txt\n",
+    stat: " edited.txt | 2 +-\n",
+    diff: "--- a/edited.txt\n+++ b/edited.txt\n@@ -1 +1 @@\n-one\n+two\n",
+  },
 };
+
+/** The throwaway repository a case that writes through git starts from. files: the work tree, all of it committed but the file untracked names; ignored: what its .gitignore excludes. */
+export const WRITE_STATE = {
+  files: {
+    ".gitignore": "ign/\n",
+    "app/[id]/page.tsx": "id\n",
+    "app/i/page.tsx": "i\n",
+    "kept.txt": "kept\n",
+    "other.txt": "other\n",
+    "ign/tracked.txt": "tracked\n",
+    "run/plan.md": "plan\n",
+    "run/spec.md": "spec\n",
+    "tool.sh": "#!/bin/sh\n",
+    "new.txt": "new\n",
+  } as Record<string, string>,
+  untracked: "new.txt",
+  ignored: ["ign"],
+};
+
+export interface ThrowawayOpts {
+  /** core.fileMode, true when left out. */
+  fileMode?: boolean;
+  /** A pre-commit hook that refuses every commit. */
+  refuse?: boolean;
+  /** A post-checkout hook that fails. */
+  checkout?: boolean;
+  /** No commit yet, an empty index. */
+  unborn?: boolean;
+  /** A detached HEAD. */
+  detached?: boolean;
+}
+
+/** execBits: whether the file system keeps an exec bit. */
+export interface Throwaway {
+  fs: Fs;
+  git: Git;
+  write: GitWrite;
+  root: string;
+  execBits: boolean;
+  stageMode(path: string, mode: string): void;
+}
 
 /** scratch: an existing directory the cases may write into. linked: whether the scene holds its directory link. execBits: whether the system refuses to run a file given no exec bit. */
 export function fsContract(label: string, make: () => { fs: Fs; root: string; scratch: string; linked: boolean; execBits: boolean }): void {
@@ -283,6 +344,97 @@ export function fsContract(label: string, make: () => { fs: Fs; root: string; sc
     assert.deepEqual([fs.listDir(dir), fs.listDir(`${dir}/sub`), fs.readText(`${dir}/f.txt`)], [["f.txt", "sub"], [], "x"]);
   });
 
+  for (const path of ["src", "README.md", "nope"]) {
+    test(`${label}: isLink is false for ${path}, a directory, a file or nothing at all`, () => {
+      const { fs, root } = make();
+      assert.equal(fs.isLink(`${root}/${path}`), false);
+    });
+  }
+
+  test(`${label}: isLink is true for a directory link, and false for a file reached through it`, (t) => {
+    const { fs, root, linked } = make();
+    if (!linked) {
+      t.skip("this account cannot create a directory link");
+      return;
+    }
+    assert.deepEqual([fs.isLink(`${root}/link`), fs.isLink(`${root}/link/a.txt`)], [true, false]);
+  });
+
+  for (const on of [true, false]) {
+    test(`${label}: setExecutable ${on} leaves a file ${on ? "carrying" : "without"} its exec bit, its content kept`, (t) => {
+      const { fs, scratch, execBits } = make();
+      if (!execBits) {
+        t.skip("this system keeps no exec bit");
+        return;
+      }
+      const file = `${scratch}/set-executable-${on}/f.sh`;
+      fs.makeDir(`${scratch}/set-executable-${on}`);
+      fs.writeBytes(file, Uint8Array.of(0x78));
+      fs.setExecutable(file, !on);
+      assert.equal(fs.setExecutable(file, on), true);
+      assert.equal(fs.executable(file), on);
+      assert.equal(fs.readText(file), "x");
+    });
+  }
+
+  test(`${label}: setExecutable is false for an absent path`, () => {
+    const { fs, root } = make();
+    assert.equal(fs.setExecutable(`${root}/nope`, true), false);
+  });
+
+  test(`${label}: move takes a directory with all it holds, an empty one included`, () => {
+    const { fs, scratch } = make();
+    const dir = `${scratch}/move-dir`;
+    fs.makeDir(`${dir}/from/empty`);
+    fs.writeBytes(`${dir}/from/f.txt`, Uint8Array.of(0x78));
+    assert.equal(fs.move(`${dir}/from`, `${dir}/to`), true);
+    assert.deepEqual(fs.listDir(dir), ["to"]);
+    assert.deepEqual(fs.listDir(`${dir}/to`), ["empty", "f.txt"]);
+    assert.equal(fs.readText(`${dir}/to/f.txt`), "x");
+  });
+
+  for (const row of [
+    { name: "from an absent path", from: "nope", to: "c" },
+    { name: "onto an empty directory", from: "a", to: "b" },
+    { name: "onto a file", from: "a", to: "f.txt" },
+    { name: "into an absent directory", from: "a", to: "absent/a" },
+  ]) {
+    test(`${label}: move ${row.name} is false, everything left as it was`, () => {
+      const { fs, scratch } = make();
+      const dir = `${scratch}/move-${row.name.replaceAll(" ", "-")}`;
+      fs.makeDir(`${dir}/a`);
+      fs.makeDir(`${dir}/b`);
+      fs.writeBytes(`${dir}/f.txt`, Uint8Array.of(0x78));
+      assert.equal(fs.move(`${dir}/${row.from}`, `${dir}/${row.to}`), false);
+      assert.deepEqual(fs.listDir(dir), ["a", "b", "f.txt"]);
+      assert.equal(fs.readText(`${dir}/f.txt`), "x");
+    });
+  }
+
+  test(`${label}: removeTree deletes a directory with everything below it, a name outside ASCII included, and leaves its sibling`, () => {
+    const { fs, scratch } = make();
+    const dir = `${scratch}/remove-tree`;
+    fs.makeDir(`${dir}/gone/żółw/deep`);
+    fs.writeBytes(`${dir}/gone/żółw/deep/f.txt`, Uint8Array.of(0x78));
+    fs.writeBytes(`${dir}/f.txt`, Uint8Array.of(0x78));
+    assert.equal(fs.removeTree(`${dir}/gone`), true);
+    assert.deepEqual(fs.listDir(dir), ["f.txt"]);
+  });
+
+  test(`${label}: removeTree deletes a file`, () => {
+    const { fs, scratch } = make();
+    const dir = `${scratch}/remove-tree-file`;
+    fs.makeDir(dir);
+    fs.writeBytes(`${dir}/f.txt`, Uint8Array.of(0x78));
+    assert.equal(fs.removeTree(`${dir}/f.txt`), true);
+    assert.deepEqual(fs.listDir(dir), []);
+  });
+
+  test(`${label}: removeTree is true for an absent path`, () => {
+    const { fs, scratch } = make();
+    assert.equal(fs.removeTree(`${scratch}/remove-tree-absent`), true);
+  });
+
   test(`${label}: removeEmptyDir deletes a directory whose last file was removed, its parent left, and is false for the path then absent`, () => {
     const { fs, scratch } = make();
     const dir = `${scratch}/remove-empty-dir`;
@@ -308,6 +460,286 @@ export function fsContract(label: string, make: () => { fs: Fs; root: string; sc
       return;
     }
     assert.deepEqual([fs.removeEmptyDir(`${root}/link`), fs.kind(`${root}/link`), fs.listDir(`${root}/src`)], [false, "dir", ["a.txt", "b.txt"]]);
+  });
+}
+
+/** make: a fresh repository of WRITE_STATE for each case. */
+export function gitWriteContract(label: string, make: (opts?: ThrowawayOpts) => Throwaway): void {
+  const put = (repo: Throwaway, path: string, text: string): void => {
+    const file = `${repo.root}/${path}`;
+    repo.fs.makeDir(file.slice(0, file.lastIndexOf("/")));
+    repo.fs.writeBytes(file, new TextEncoder().encode(text));
+  };
+  const staged = (repo: Throwaway): string[] | undefined => repo.git.stagedFiles(repo.root, null)?.map((file) => file.path);
+  const mode = (repo: Throwaway, path: string): string | undefined => repo.git.trackedFiles(repo.root).find((file) => file.path === path)?.mode;
+  const held = (repo: Throwaway, ...paths: string[]): boolean[] => paths.map((path) => repo.git.headHolds(repo.root, path));
+  const privateIndexes = (repo: Throwaway): string[] => repo.fs.listDir(`${repo.root}/.git`).filter((name) => name.startsWith("index."));
+
+  test(`${label}: stageTracked stages an edit and a deletion at and below the path and no new file`, () => {
+    const repo = make();
+    put(repo, "run/spec.md", "edited\n");
+    put(repo, "run/more.md", "new\n");
+    repo.fs.remove(`${repo.root}/run/plan.md`);
+    assert.equal(repo.write.stageTracked(repo.root, "run"), 0);
+    assert.deepEqual(repo.git.stagedFiles(repo.root, null), [
+      { path: "run/plan.md", from: "100644", mode: "000000" },
+      { path: "run/spec.md", from: "100644", mode: "100644" },
+    ]);
+  });
+
+  test(`${label}: stageTracked stages a tracked file under an ignored directory and leaves the new one beside it (git add of that directory is refused)`, () => {
+    const repo = make();
+    put(repo, "ign/tracked.txt", "edited\n");
+    put(repo, "ign/new.txt", "new\n");
+    assert.equal(repo.write.stageTracked(repo.root, "ign"), 0);
+    assert.deepEqual(staged(repo), ["ign/tracked.txt"]);
+  });
+
+  test(`${label}: stageTracked reads a path as a literal one (a bracket expanded as a glob would stage app/i too)`, () => {
+    const repo = make();
+    put(repo, "app/[id]/page.tsx", "id, edited\n");
+    put(repo, "app/i/page.tsx", "i, edited\n");
+    assert.equal(repo.write.stageTracked(repo.root, "app/[id]"), 0);
+    assert.deepEqual(staged(repo), ["app/[id]/page.tsx"]);
+  });
+
+  test(`${label}: stageTracked fails on a path git tracks nothing at`, () => {
+    const repo = make();
+    assert.notEqual(repo.write.stageTracked(repo.root, "new.txt"), 0);
+    assert.deepEqual(staged(repo), []);
+  });
+
+  test(`${label}: stage adds the named files alone, a list longer than one command line of Windows holds included`, () => {
+    const repo = make();
+    const names = Array.from({ length: 300 }, (_, i) => `many/${String(i).padStart(3, "0")}${"x".repeat(90)}.txt`);
+    for (const name of names) put(repo, name, "x\n");
+    assert.equal(repo.write.stage(repo.root, names), 0);
+    assert.deepEqual(staged(repo), names);
+  });
+
+  for (const row of [
+    { name: "a path nothing stands at, the file beside it not staged", paths: ["new.txt", "nope.txt"] },
+    { name: "a new file an ignore rule covers", paths: ["ign/new.txt"] },
+  ]) {
+    test(`${label}: stage fails on ${row.name}`, () => {
+      const repo = make();
+      put(repo, "ign/new.txt", "new\n");
+      assert.notEqual(repo.write.stage(repo.root, row.paths), 0);
+      assert.deepEqual(staged(repo), []);
+    });
+  }
+
+  for (const row of [
+    { name: "every edit, deletion and new file but an ignored one", path: null, want: ["kept.txt", "new.txt", "other.txt", "run/more.md"] },
+    { name: "with a path those at and below it alone", path: "run", want: ["run/more.md"] },
+  ]) {
+    test(`${label}: stageAll stages ${row.name}`, () => {
+      const repo = make();
+      put(repo, "kept.txt", "edited\n");
+      put(repo, "run/more.md", "new\n");
+      put(repo, "ign/new.txt", "new\n");
+      repo.fs.remove(`${repo.root}/other.txt`);
+      assert.equal(repo.write.stageAll(repo.root, row.path), 0);
+      assert.deepEqual(staged(repo), row.want);
+    });
+  }
+
+  for (const row of [
+    { name: "under core.fileMode=true loses an exec bit staged over a plain file", disk: false, fileMode: true, want: "100644" },
+    { name: "under core.fileMode=true keeps a staged exec bit the file on disk carries", disk: true, fileMode: true, want: "100755" },
+    { name: "under core.fileMode=false keeps an exec bit staged over a plain file", disk: false, fileMode: false, want: "100755" },
+  ]) {
+    test(`${label}: staging ${row.name}`, (t) => {
+      const repo = make({ fileMode: row.fileMode });
+      if (row.fileMode && !repo.execBits) {
+        t.skip("this system keeps no exec bit");
+        return;
+      }
+      repo.stageMode("tool.sh", "100755");
+      put(repo, "tool.sh", "#!/bin/sh\nedited\n");
+      repo.fs.setExecutable(`${repo.root}/tool.sh`, row.disk);
+      assert.equal(repo.write.stageTracked(repo.root, "tool.sh"), 0);
+      assert.equal(mode(repo, "tool.sh"), row.want);
+    });
+  }
+
+  test(`${label}: commit of the index moves HEAD, leaves nothing staged and an unstaged edit as it was, its message verbatim though it opens on a dash`, () => {
+    const repo = make();
+    const before = repo.git.commit(repo.root, "HEAD");
+    put(repo, "kept.txt", "edited\n");
+    put(repo, "other.txt", "edited\n");
+    repo.write.stageTracked(repo.root, "kept.txt");
+    assert.equal(repo.write.commit(repo.root, "-fix: dash-led\n\nbody", null, true), 0);
+    assert.notEqual(repo.git.commit(repo.root, "HEAD"), before);
+    assert.deepEqual(staged(repo), []);
+    assert.deepEqual(repo.git.changedFiles(repo.root, "HEAD"), [{ status: "M", path: "other.txt" }]);
+    assert.match(repo.git.report(repo.root, "log", null), /^[0-9a-f]+ -fix: dash-led\n/);
+  });
+
+  test(`${label}: commit of named paths takes an edit, a new file and a staged deletion, a bracket literally, and whatever else is staged stays staged`, () => {
+    const repo = make();
+    put(repo, "app/[id]/page.tsx", "id, edited\n");
+    put(repo, "app/i/page.tsx", "i, edited\n");
+    put(repo, "other.txt", "edited\n");
+    repo.write.stageAll(repo.root, null);
+    repo.write.removeTracked(repo.root, "run/plan.md");
+    assert.equal(repo.write.commit(repo.root, "named", ["app/[id]", "new.txt", "run"], true), 0);
+    assert.deepEqual(staged(repo), ["app/i/page.tsx", "other.txt"]);
+    assert.deepEqual(held(repo, "new.txt", "run/plan.md", "run/spec.md"), [true, false, true]);
+    assert.deepEqual(privateIndexes(repo), []);
+  });
+
+  test(`${label}: commit of a named path under core.fileMode=false holds an exec bit staged over a plain file (git commit -- <path> took the mode from HEAD)`, () => {
+    const repo = make({ fileMode: false });
+    repo.stageMode("tool.sh", "100755");
+    assert.equal(repo.write.commit(repo.root, "exec", ["tool.sh"], true), 0);
+    assert.deepEqual(staged(repo), []);
+    assert.equal(mode(repo, "tool.sh"), "100755");
+  });
+
+  for (const row of [
+    { name: "the index", paths: null },
+    { name: "named paths", paths: ["kept.txt"] },
+  ]) {
+    test(`${label}: a commit of ${row.name} a hook refuses fails, HEAD and the index as they were, no private index left`, () => {
+      const repo = make({ refuse: true });
+      const before = repo.git.commit(repo.root, "HEAD");
+      put(repo, "kept.txt", "edited\n");
+      repo.write.stageTracked(repo.root, "kept.txt");
+      assert.notEqual(repo.write.commit(repo.root, "refused", row.paths, true), 0);
+      assert.equal(repo.git.commit(repo.root, "HEAD"), before);
+      assert.deepEqual(staged(repo), ["kept.txt"]);
+      assert.deepEqual(privateIndexes(repo), []);
+    });
+
+    test(`${label}: a commit of ${row.name} holding nothing staged fails and HEAD stays`, () => {
+      const repo = make();
+      const before = repo.git.commit(repo.root, "HEAD");
+      put(repo, "kept.txt", "edited\n");
+      assert.notEqual(repo.write.commit(repo.root, "nothing", row.paths, true), 0);
+      assert.equal(repo.git.commit(repo.root, "HEAD"), before);
+    });
+  }
+
+  test(`${label}: a commit on a detached HEAD moves it and leaves it detached`, () => {
+    const repo = make({ detached: true });
+    const before = repo.git.commit(repo.root, "HEAD");
+    repo.write.stageAll(repo.root, null);
+    assert.equal(repo.write.commit(repo.root, "detached", null, true), 0);
+    assert.notEqual(repo.git.commit(repo.root, "HEAD"), before);
+    assert.equal(repo.git.branch(repo.root), null);
+  });
+
+  test(`${label}: on a branch with no commit yet a commit of named paths is the first one, the rest left staged as new`, () => {
+    const repo = make({ unborn: true });
+    repo.write.stage(repo.root, ["kept.txt", "other.txt"]);
+    assert.equal(repo.write.commit(repo.root, "first", ["kept.txt"], true), 0);
+    assert.deepEqual(held(repo, "kept.txt", "other.txt"), [true, false]);
+    assert.deepEqual(repo.git.stagedFiles(repo.root, null), [{ path: "other.txt", from: "000000", mode: "100644" }]);
+  });
+
+  test(`${label}: move takes a directory on disk and in the index, an edit not staged and an untracked file with it`, () => {
+    const repo = make();
+    put(repo, "run/spec.md", "edited\n");
+    put(repo, "run/more.md", "new\n");
+    repo.fs.makeDir(`${repo.root}/docs`);
+    assert.equal(repo.write.move(repo.root, "run", "docs/run"), 0);
+    assert.equal(repo.fs.exists(`${repo.root}/run`), false);
+    assert.equal(repo.fs.readText(`${repo.root}/docs/run/spec.md`), "edited\n");
+    assert.deepEqual(repo.fs.listDir(`${repo.root}/docs/run`), ["more.md", "plan.md", "spec.md"]);
+    assert.deepEqual(staged(repo), ["docs/run/plan.md", "docs/run/spec.md", "run/plan.md", "run/spec.md"]);
+  });
+
+  test(`${label}: move of a path git tracks nothing at fails and moves nothing`, () => {
+    const repo = make();
+    put(repo, "loose/x.md", "x\n");
+    assert.notEqual(repo.write.move(repo.root, "loose", "moved"), 0);
+    assert.deepEqual([repo.fs.exists(`${repo.root}/loose/x.md`), repo.fs.exists(`${repo.root}/moved`)], [true, false]);
+  });
+
+  test(`${label}: removeTracked deletes a changed tracked file from disk and index, its directory with the last one`, () => {
+    const repo = make();
+    put(repo, "run/plan.md", "edited\n");
+    assert.equal(repo.write.removeTracked(repo.root, "run"), 0);
+    assert.equal(repo.fs.exists(`${repo.root}/run`), false);
+    assert.deepEqual(staged(repo), ["run/plan.md", "run/spec.md"]);
+  });
+
+  test(`${label}: removeTracked leaves an untracked file`, () => {
+    const repo = make();
+    put(repo, "run/loose.txt", "loose\n");
+    assert.equal(repo.write.removeTracked(repo.root, "run"), 0);
+    assert.deepEqual(repo.fs.listDir(`${repo.root}/run`), ["loose.txt"]);
+  });
+
+  test(`${label}: removeTracked is 0 where git tracks nothing`, () => {
+    const repo = make();
+    assert.equal(repo.write.removeTracked(repo.root, "nope"), 0);
+  });
+
+  test(`${label}: addWorktree checks HEAD out, never the work tree, at a path that is then a work tree of its own`, () => {
+    const repo = make();
+    const wt = `${repo.root}-wt`;
+    put(repo, "kept.txt", "edited\n");
+    assert.equal(repo.write.addWorktree(repo.root, wt).exit, 0);
+    assert.equal(repo.git.repoRoot(wt), wt);
+    assert.equal(repo.fs.kind(`${wt}/.git`), "file");
+    assert.equal(repo.fs.readText(`${wt}/kept.txt`), "kept\n");
+    assert.equal(repo.fs.exists(`${wt}/new.txt`), false);
+  });
+
+  test(`${label}: addWorktree fails, naming why, on a worktree already there`, () => {
+    const repo = make();
+    const wt = `${repo.root}-wt`;
+    repo.write.addWorktree(repo.root, wt);
+    const again = repo.write.addWorktree(repo.root, wt);
+    assert.notEqual(again.exit, 0);
+    assert.notEqual(again.output, "");
+  });
+
+  test(`${label}: addWorktree fails on a path whose worktree was deleted by hand`, () => {
+    const repo = make();
+    const wt = `${repo.root}-wt`;
+    repo.write.addWorktree(repo.root, wt);
+    repo.fs.removeTree(wt);
+    assert.notEqual(repo.write.addWorktree(repo.root, wt).exit, 0);
+  });
+
+  test(`${label}: pruneWorktrees forgets a worktree deleted by hand, so its path can be added again`, () => {
+    const repo = make();
+    const wt = `${repo.root}-wt`;
+    repo.write.addWorktree(repo.root, wt);
+    repo.fs.removeTree(wt);
+    repo.write.pruneWorktrees(repo.root);
+    assert.equal(repo.write.addWorktree(repo.root, wt).exit, 0);
+  });
+
+  test(`${label}: addWorktree makes the worktree yet carries the status of a failing post-checkout hook`, () => {
+    const repo = make({ checkout: true });
+    const wt = `${repo.root}-wt`;
+    assert.notEqual(repo.write.addWorktree(repo.root, wt).exit, 0);
+    assert.equal(repo.git.repoRoot(wt), wt);
+  });
+
+  test(`${label}: addWorktree makes nothing on a branch with no commit yet`, () => {
+    const repo = make({ unborn: true });
+    assert.notEqual(repo.write.addWorktree(repo.root, `${repo.root}-wt`).exit, 0);
+    assert.equal(repo.fs.exists(`${repo.root}-wt`), false);
+  });
+
+  test(`${label}: removeWorktree takes a worktree with the untracked file it holds`, () => {
+    const repo = make();
+    const wt = `${repo.root}-wt`;
+    repo.write.addWorktree(repo.root, wt);
+    repo.fs.writeBytes(`${wt}/poc.py`, Uint8Array.of(0x78));
+    assert.equal(repo.write.removeWorktree(repo.root, wt).exit, 0);
+    assert.equal(repo.fs.exists(wt), false);
+  });
+
+  test(`${label}: removeWorktree fails on a directory that is no worktree and leaves it`, () => {
+    const repo = make();
+    assert.notEqual(repo.write.removeWorktree(repo.root, `${repo.root}/run`).exit, 0);
+    assert.equal(repo.fs.exists(`${repo.root}/run/plan.md`), true);
   });
 }
 
@@ -439,6 +871,98 @@ export function gitContract(label: string, make: () => { git: Git; root: string;
     const { git, outside, history } = make();
     assert.deepEqual([git.status(history), git.status(outside)], [HISTORY_STATE.status, []]);
   });
+
+  for (const row of [
+    { name: "the root", at: "", want: true },
+    { name: "a directory below it", at: "/src", want: true },
+    { name: "the .git directory, which is no work tree", at: "/.git", want: true },
+  ]) {
+    test(`${label}: isRepository is true for ${row.name}`, () => {
+      const { git, root } = make();
+      assert.equal(git.isRepository(`${root}${row.at}`), row.want);
+    });
+  }
+
+  test(`${label}: isRepository is false outside a repository`, () => {
+    const { git, outside } = make();
+    assert.equal(git.isRepository(outside), false);
+  });
+
+  test(`${label}: shortCommit is the front of the sha of HEAD`, () => {
+    const { git, history } = make();
+    const short = git.shortCommit(history, "HEAD") ?? "";
+    assert.match(short, /^[0-9a-f]{4,39}$/);
+    assert.ok((git.commit(history, "HEAD") ?? "").startsWith(short), short);
+  });
+
+  test(`${label}: shortCommit is null on a branch with no commit yet`, () => {
+    const { git, root } = make();
+    assert.equal(git.shortCommit(root, "HEAD"), null);
+  });
+
+  for (const row of [
+    { name: "a file", path: "kept.txt", want: [true, true] },
+    { name: "a directory above one", path: "docs", want: [true, true] },
+    { name: "a tracked file deleted from disk", path: "gone.txt", want: [true, true] },
+    { name: "the new path of a staged rename", path: "new name.txt", want: [true, false] },
+    { name: "the old path of a staged rename", path: "old name.txt", want: [false, true] },
+    { name: "an untracked directory", path: "untracked dir", want: [false, false] },
+    { name: "a glob that would match (the path is literal)", path: "*.txt", want: [false, false] },
+  ]) {
+    test(`${label}: indexHolds and headHolds of ${row.name} are ${row.want.join(" and ")}`, () => {
+      const { git, history } = make();
+      assert.deepEqual([git.indexHolds(history, row.path), git.headHolds(history, row.path)], row.want);
+    });
+  }
+
+  test(`${label}: indexHolds and headHolds take an absolute path`, () => {
+    const { git, history } = make();
+    assert.deepEqual([git.indexHolds(history, `${history}/kept.txt`), git.headHolds(history, `${history}/kept.txt`)], [true, true]);
+  });
+
+  test(`${label}: on a branch with no commit yet the index holds a file HEAD does not`, () => {
+    const { git, root } = make();
+    assert.deepEqual([git.indexHolds(root, "README.md"), git.headHolds(root, "README.md")], [true, false]);
+  });
+
+  for (const row of [
+    { name: "with both modes, a rename as its two paths", paths: null, want: HISTORY_STATE.stagedFiles },
+    { name: "narrowed to the named paths, one not staged left out", paths: ["staged.txt", "edited.txt"], want: HISTORY_STATE.stagedFiles.slice(2) },
+    { name: "narrowed to a literal path, never a glob", paths: ["*.txt"], want: [] },
+  ]) {
+    test(`${label}: stagedFiles lists what the index holds against HEAD, ${row.name}`, () => {
+      const { git, history } = make();
+      assert.deepEqual(git.stagedFiles(history, row.paths), row.want);
+    });
+  }
+
+  test(`${label}: stagedFiles is null outside a repository`, () => {
+    const { git, outside } = make();
+    assert.equal(git.stagedFiles(outside, null), null);
+  });
+
+  for (const row of [
+    { name: "lists what lies below a directory", path: "untracked dir", want: HISTORY_STATE.untracked },
+    { name: "is empty for a directory holding none", path: "docs", want: [] },
+    { name: "reads the path as a literal one", path: "untracked*", want: [] },
+  ]) {
+    test(`${label}: untrackedFiles with a path ${row.name}`, () => {
+      const { git, history } = make();
+      assert.deepEqual(git.untrackedFiles(history, row.path), row.want);
+    });
+  }
+
+  for (const row of [
+    { kind: "log", want: /^[0-9a-f]+ commit 3\n[0-9a-f]+ commit 2\n[0-9a-f]+ commit 1\n$/ },
+    { kind: "status", want: /^ M edited\.txt\n$/ },
+    { kind: "stat", want: /^ edited\.txt \| 2 \+-\n/ },
+    { kind: "diff", want: /--- a\/edited\.txt\n\+\+\+ b\/edited\.txt\n@@ -1 \+1 @@\n-one\n\+two\n$/ },
+  ] as const) {
+    test(`${label}: report gives the ${row.kind} of a named path as git prints it`, () => {
+      const { git, history } = make();
+      assert.match(git.report(history, row.kind, ["edited.txt"]), row.want);
+    });
+  }
 
   test(`${label}: grep answers the path, the line number and the whole line of each line holding a term, in path order, the work tree read rather than the last commit`, () => {
     const { git, history } = make();

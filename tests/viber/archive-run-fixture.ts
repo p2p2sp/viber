@@ -1,7 +1,6 @@
 /*
- * archive-run-fixture.ts - the helpers archive-run.test.ts and
- * archive-run.critical.test.ts share: what both tiers need to seed a case and
- * run viber/scripts/archive-run.sh. It holds no case of its own.
+ * archive-run-fixture.ts - what archive-run.critical.test.ts uses to seed a case and run
+ * viber/scripts/archive-run.sh. It holds no case of its own.
  */
 
 import assert from "node:assert/strict";

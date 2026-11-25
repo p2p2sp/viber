@@ -62,6 +62,24 @@ export const nodeFs: Fs = {
       return false;
     }
   },
+  isLink(path) {
+    try {
+      return fs.lstatSync(path).isSymbolicLink();
+    } catch {
+      return false;
+    }
+  },
+  setExecutable(path, on) {
+    try {
+      // The bits chmod changes with no "who" named: those the umask lets through.
+      const bits = 0o111 & ~process.umask();
+      const mode = fs.statSync(path).mode & 0o7777;
+      fs.chmodSync(path, on ? mode | bits : mode & ~bits);
+      return true;
+    } catch {
+      return false;
+    }
+  },
   makeDir(path) {
     try {
       fs.mkdirSync(path, { recursive: true });
@@ -92,6 +110,24 @@ export const nodeFs: Fs = {
       if (fs.lstatSync(from).isDirectory()) return false;
       fs.renameSync(from, to);
       return true;
+    } catch {
+      return false;
+    }
+  },
+  move(from, to) {
+    try {
+      // A rename replaces a file, or an empty directory, that stands at the target.
+      if (fs.lstatSync(to, { throwIfNoEntry: false }) !== undefined) return false;
+      fs.renameSync(from, to);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  removeTree(path) {
+    try {
+      fs.rmSync(path, { recursive: true, force: true, maxRetries: 3 });
+      return fs.lstatSync(path, { throwIfNoEntry: false }) === undefined;
     } catch {
       return false;
     }
