@@ -12,4 +12,4 @@ paths:
   `viber/scripts/commit-task.sh`'s `claimants()` needs it on a plan `Files:` entry: spelled
   `./src/a.ts` there and unstripped, it never matched a later `--with src/a.ts` ownership check,
   so an open task's file could be silently claimed into another task's commit instead of being
-  refused. The same single-strip contract runs in `viber/scripts/plan-index.sh:1507`.
+  refused. The same single-strip contract is `bare` of `viber/lib/plan-index/text.ts`.

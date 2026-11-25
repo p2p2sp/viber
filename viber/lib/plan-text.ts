@@ -2,7 +2,7 @@
  * plan-text.ts - reads the text of a plan file for the plan-build core: its task
  * blocks, contract blocks, acceptance criteria and the two sections a slice brief
  * quotes, and cuts the tasks into the slices the review dispatches use. It reads
- * text only and checks nothing: validation stays with scripts/plan-index.sh.
+ * text only and checks nothing: validation stays with plan-index/.
  */
 
 /** One `<!-- TASK -->` block: first and last are line indexes of its two markers. */
@@ -154,8 +154,8 @@ export const rangeOf = (plan: Plan, slice: Slice): string => `${plan.tasks[slice
 
 /**
  * The count tasks cut into ceil(count / 8) runs of consecutive tasks, sizes
- * differing by at most one, the larger first: the cut scripts/plan-index.sh and
- * hooks/scripts/plan-gate.sh make for the task reviewers.
+ * differing by at most one, the larger first: the cut plan-index/listing.ts prints
+ * from here and hooks/scripts/plan-gate.sh makes for the task reviewers.
  */
 export function slicesOf(count: number): Slice[] {
   if (count < 1) return [];

@@ -824,6 +824,36 @@ export function gitContract(label: string, make: () => { git: Git; root: string;
     assert.deepEqual([git.firstAdded(history, "never.txt"), git.firstAdded(history, "docs/run/*.md"), git.firstAdded(root, "README.md")], [null, null, null]);
   });
 
+  test(`${label}: log lists the commits after one with their short sha and subject, oldest first`, () => {
+    const { git, history } = make();
+    const [second, third] = [git.shortCommit(history, "HEAD~1"), git.shortCommit(history, "HEAD")];
+    assert.deepEqual(git.log(history, "HEAD~2"), [
+      { short: second, subject: "commit 2" },
+      { short: third, subject: "commit 3" },
+    ]);
+  });
+
+  test(`${label}: log is empty after HEAD, for a ref naming no commit, in a repository with no commit and outside one`, () => {
+    const { git, root, outside, history } = make();
+    assert.deepEqual([git.log(history, "HEAD"), git.log(history, "no-such-ref"), git.log(root, "HEAD"), git.log(outside, "HEAD")], [[], [], [], []]);
+  });
+
+  test(`${label}: committedFiles lists what a commit changed, a deleted file included, and every file of the first commit`, () => {
+    const { git, history } = make();
+    assert.deepEqual(
+      [git.committedFiles(history, "HEAD~1"), git.committedFiles(history, "HEAD~2")],
+      [
+        [".gitignore", "docs/run/plan.md"],
+        [".gitignore", "docs/run/plan.md", "edited.txt", "gone.txt", "kept.txt", "noted.log", "old name.txt", "staged.txt"],
+      ],
+    );
+  });
+
+  test(`${label}: committedFiles is empty for a ref naming no commit and outside a repository`, () => {
+    const { git, outside, history } = make();
+    assert.deepEqual([git.committedFiles(history, "no-such-ref"), git.committedFiles(outside, "HEAD")], [[], []]);
+  });
+
   test(`${label}: changedFiles against HEAD lists a modified, a deleted, a renamed (as its new path alone) and a staged file with their letters, a path with a blank as it is`, () => {
     const { git, history } = make();
     assert.deepEqual(git.changedFiles(history, "HEAD"), HISTORY_STATE.changed.head);

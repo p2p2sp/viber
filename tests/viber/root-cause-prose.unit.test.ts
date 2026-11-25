@@ -5,7 +5,7 @@
  * A plan built from a `viber:fixer` diagnosis or from code-auditor findings carries the
  * section so the build close can hand the root cause to `memory-writer`; any other plan
  * drops it. The files read here are shipped prompts and templates, whose text is the
- * behaviour. `plan-index.sh` reads four anchor lines from each template, so the new
+ * behaviour. The plan-index core reads four anchor lines from each template, so the new
  * section must leave them in place. `memory-writer.md` turns that section into traps
  * written first and never dropped, and stays dispatched only by the memory fragment.
  * Nothing is spawned.
@@ -69,18 +69,26 @@ test("spec-full.md's Root cause comment names viber:fixer, .temp/viber/code-audi
   assert.ok(body.includes("drop"), body);
 });
 
-test("spec-lite.md keeps the four anchor lines plan-index.sh reads (a missing one breaks the split)", () => {
+test("spec-lite.md keeps the four anchor lines the plan-index core reads and no regression boundary (a missing one breaks the split, a boundary would reach every task file of the small shape)", () => {
   const all = lines(LITE);
   assert.deepEqual(
-    ["## Goal", "## Acceptance criteria", "### File map", "### Out of scope"].filter((a) => !all.includes(a)),
+    ["## Goal", "## Acceptance criteria", "### File map", "### Out of scope", "### Must not change"].filter((a) => !all.includes(a)),
+    ["### Must not change"],
+  );
+});
+
+test("spec-full.md keeps the four anchor lines the plan-index core reads and its regression boundary (a missing one breaks the split)", () => {
+  const all = lines(FULL);
+  assert.deepEqual(
+    ["## Goal", "## Acceptance criteria", "### File map", "### Out of scope", "### Must not change"].filter((a) => !all.includes(a)),
     [],
   );
 });
 
-test("spec-full.md keeps the four anchor lines plan-index.sh reads (a missing one breaks the split)", () => {
-  const all = lines(FULL);
+test("tasks.md carries the Tasks and Contracts headings the plan-index core cuts at, for both shapes", () => {
+  const all = lines(fs.readFileSync(path.join(ROOT, "skills/planner/templates/tasks.md"), "utf8"));
   assert.deepEqual(
-    ["## Goal", "## Acceptance criteria", "### File map", "### Out of scope"].filter((a) => !all.includes(a)),
+    ["## Tasks", "## Contracts"].filter((a) => !all.includes(a)),
     [],
   );
 });

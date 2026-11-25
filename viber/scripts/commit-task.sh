@@ -336,7 +336,7 @@ run_dir() {
 # printed unchanged. Both sides are resolved physically, so a symlinked spelling
 # (macOS /var against /private/var) or a Git Bash drive form (C:/ against /c/)
 # still matches; a path whose parent does not exist stays as it is. The same
-# function is in plan-index.sh, the same rule in lib/archive-run.ts.
+# rule is in lib/root-relative.ts.
 cwd_relative() {
   local p="${1//\\//}" root base leaf="" full
   case "$p" in

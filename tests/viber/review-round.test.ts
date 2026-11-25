@@ -440,34 +440,17 @@ test("returned with no node on PATH prints NEXT: fix with no fixer block after i
   });
 });
 
-const NO_NODE_START: { name: string; reach: string[] }[] = [
-  { name: "the reach line every other member gets when the reach paths file exists", reach: ["reach: <dir>/reach-paths.md"] },
-  { name: "neither line when no reach paths file exists either", reach: [] },
-];
+test("start with no node on PATH exits 2 with an empty stdout: plan-index.sh cannot run", { skip: BARE_PATH.usable ? false : "no PATH holding git and no node can be staged here" }, async () => {
+  await withGitRepo(async (repo) => {
+    write(repo.dir, PLAN_REL, litePlan(2));
 
-for (const row of NO_NODE_START) {
-  test(`start past 12 tasks with no node on PATH writes no brief and gives a task reviewer ${row.name}`, { skip: BARE_PATH.usable ? false : "no PATH holding git and no node can be staged here" }, async () => {
-    await withGitRepo(async (repo) => {
-      write(repo.dir, PLAN_REL, litePlan(13));
-      if (row.reach.length > 0) write(repo.dir, `${DIR_REL}/reach-paths.md`, "## src/t1.ts\n");
+    const result = await runScript(SUT, [PLAN_REL, "start"], { cwd: repo.dir, env: { ...repo.env, PATH: BARE_PATH.value }, shell: "bash" });
 
-      const result = await runScript(SUT, [PLAN_REL, "start"], { cwd: repo.dir, env: { ...repo.env, PATH: BARE_PATH.value }, shell: "bash" });
-
-      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.equal(
-        shaped(repo, result.stdout),
-        [
-          ...spec(1, row.reach),
-          ...graph(1, row.reach),
-          ...block(3, "planner-task-review", 1, { tasks: "T1-T7", rest: row.reach }),
-          ...block(4, "planner-task-review", 1, { tasks: "T8-T13", rest: row.reach }),
-          "",
-        ].join("\n"),
-      );
-      assert.deepEqual(fs.readdirSync(path.join(repo.dir, DIR_REL)).filter((name) => name.startsWith("slice-")), []);
-    });
+    assert.equal(result.status, 2, `stderr: ${result.stderr}`);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^error: plan-index\.sh refused the plan\n/);
   });
-}
+});
 
 test("a redispatch in the round after a fix keeps the round number and the previous findings line on the block", async () => {
   await withGitRepo(async (repo) => {

@@ -1,14 +1,13 @@
 /*
- * plan-index.critical.test.ts - the critical tier of
- * viber/scripts/plan-index.sh: a valid plan prints its index, --split writes
- * spec.md and the task files and commits only the run directory, a rejected or
- * foreign plan leaves nothing written, and Windows separator and drive-letter
- * spellings work.
+ * plan-index.critical.test.ts - runs the wrapper viber/scripts/plan-index.sh as a
+ * process: a valid plan prints its index, --split writes spec.md and the task
+ * files and commits only the run directory, a rejected or foreign plan leaves
+ * nothing written, and Windows separator and drive-letter spellings work. The
+ * rest of the contract is proven in process by tests/viber/lib/plan-index/.
  *
  * A case lives here when its failure means lost user work, an open gate, a
- * break only one platform shows or a script that no longer starts; the rest
- * of the contract is proven by plan-index.test.ts. This file runs on every
- * operating system, under the full shell matrix in CI.
+ * break only one platform shows or a script that no longer starts. It runs
+ * under the full shell matrix in CI.
  *
  * Repo reality: no build, no lint, no npm, no package.json - this file is run
  * directly by Node's native test runner + TypeScript type stripping:
@@ -23,14 +22,11 @@ import path from "node:path";
 import { slash } from "../harness/paths.ts";
 import { runScript } from "../harness/run.ts";
 import { withGitRepo, withTempDir } from "../harness/tmp.ts";
+import { PLAN_DIR, PLAN_REL, planBody, TWO_TASKS } from "./plan-body.ts";
 import {
   SUT,
-  PLAN_DIR,
-  PLAN_REL,
   run,
   write,
-  planBody,
-  TWO_TASKS,
   seed,
   readRun,
   taskFiles,
@@ -278,7 +274,7 @@ test("a backslashed coder-file path of a file a task not yet done claims is left
   });
 });
 
-// The invoked spelling is the contract: a C:\ or C:/ path is printed as C:/, a /c/ path as /c/.
+// Every spelling is printed as C:/: the MSYS runtime hands node that form of a /c/ path.
 // Neither spelling names a file outside Windows, so the cases skip there.
 const WINDOWS_ONLY = process.platform === "win32" ? false : "a C:\\ or /c/ spelling names a file only on Windows";
 const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) => `/${drive.toLowerCase()}`);
@@ -286,11 +282,11 @@ const MSYS = (p: string) => slash(p).replace(/^([A-Za-z]):/, (_, drive: string) 
 const SPELLINGS: Array<{ label: string; invoked: string; root: string }> = [
   { label: "a C:\\ path", invoked: SUT, root: DISPATCH_ROOT },
   { label: "a C:/ path", invoked: slash(SUT), root: DISPATCH_ROOT },
-  { label: "a /c/ path", invoked: MSYS(SUT), root: MSYS(DISPATCH_ROOT) },
+  { label: "a /c/ path", invoked: MSYS(SUT), root: DISPATCH_ROOT },
 ];
 
 for (const row of SPELLINGS) {
-  test(`--dispatch invoked by ${row.label} prints refs and scope under the plugin root in that spelling (AC1)`, { skip: WINDOWS_ONLY }, async () => {
+  test(`--dispatch invoked by ${row.label} prints refs and scope under the plugin root in its C:/ form (AC1)`, { skip: WINDOWS_ONLY }, async () => {
     await withTempDir("p2p2-viber-", async (dir) => {
       seedDispatch(dir);
 

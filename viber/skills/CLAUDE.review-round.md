@@ -47,13 +47,13 @@ Read for a change to `planner/scripts/plan-build.sh` (its entry `plan-build.ts`,
 ## Change together
 
 - The `sum:` line: `review-round.sh` prints it from `plan_part_sum`, and `viber/hooks/scripts/plan-gate.sh` compares it through the same function, so a verdict on it survives a plan write that left its part alone. The round's own choice of who reviews again and the gate's check must agree.
-- The slices: `slicesOf` of `viber/lib/plan-text.ts` (briefs, detailer blocks), the review lines of `viber/scripts/plan-index.sh` and the cut `plan-gate.sh` requires; a brief is found by a task reviewer's `tasks:` value, `slice-<tasks>.md`.
+- The slices: `slicesOf` of `viber/lib/plan-text.ts` (briefs, detailer blocks), the review lines of `viber/lib/plan-index/listing.ts` (from `slicesOf`) and the cut `plan-gate.sh` requires; a brief is found by a task reviewer's `tasks:` value, `slice-<tasks>.md`.
 - The block labels and the `## Input` of the agent each block is sent to (`viber/agents/CLAUDE.md` lists them per label).
 - The directives `planner/SKILL.md` acts on (`NEXT: redispatch`, `fix`, `detail`, `exit-plan`, `ASK:`, `STOP:`, the `threshold:`, `mode:`, `pending:` and `gaps:` lines, exits 4 and 5) and the lines the two scripts print.
 
 ## Traps
 
-- `review-round.sh` runs `plan-build.sh fix` for the fixer block and `plan-build.sh slices` for the briefs: without `node` on `PATH` it prints `NEXT: fix` with no block after it and no block carries `brief:`.
+- `review-round.sh` runs `plan-build.sh fix` for the fixer block and `plan-build.sh slices` for the briefs: without `node` on `PATH` `start` is refused (`plan-index.sh` needs it) and `returned` prints `NEXT: fix` with no block after it.
 - `plan-build.sh survey --phase` compares its `<plan>` argument as text with the path of the last survey: another spelling of the same file reads as another plan and removes the work files. The outline of a phase prints no split proposal, so the survey of the next phase starts from no work file.
 - `review-round.sh` reads the candidates file path from the `plan-build` state file, the one fact it takes from the other script's state.
 - A reviewer in plan mode writes beside the plan file, so `<dir>/review-<k>.md` exists only outside plan mode; a round 1 `start`, a `plan-build.sh survey` without `--phase` and `archive-run.sh` remove it.

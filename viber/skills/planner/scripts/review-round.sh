@@ -46,7 +46,7 @@
 #                                            (scripts/plan-parts.sh), which
 #                                            plan-gate.sh compares with the plan
 #   brief: <dir>/slice-T<a>-T<b>.md          planner-task-review: the brief of its slice,
-#                                            which start writes; none without node
+#                                            which start writes
 #   reach: <dir>/reach-paths.md              every other member, and a task reviewer
 #                                            with no brief, when plan-build.sh wrote it
 #   candidates: <reach candidates file>      when the plan-build state names one
@@ -106,8 +106,8 @@
 #              and exit unread: it writes the brief of every slice again from
 #              the plan as it stands, cut as the dispatch: lines are, so a plan
 #              written whole has briefs too. A task reviewer whose brief is not
-#              there after it (no node) gets the reach: line the other members
-#              get, or neither line.
+#              there after it gets the reach: line the other members get, or
+#              neither line.
 #              --input puts the summary file path on the input: line and drops
 #              add: input.
 #   returned   (an awaited member - one of the last dispatch still without a
@@ -152,9 +152,9 @@
 #   cwd    : any directory inside the repository; a relative <plan> resolves
 #            against it. The script resolves the repository root itself for its
 #            state file.
-#   env    : PATH must resolve `node` for plan-build.sh, which writes the briefs
-#            and prints the fixer block; without it a task reviewer gets no
-#            brief: line and NEXT: fix is printed with no block after it.
+#   env    : PATH must resolve `node`, which runs plan-index.sh, config.sh and
+#            plan-build.sh; without it start is refused as one plan-index.sh
+#            refuses, and NEXT: fix is printed with no block after it.
 #   reads  : <plugin root>/scripts/plan-index.sh and config.sh (build.memory),
 #            where <plugin root> is three directories above this script, spelled
 #            as plugin_root_of (scripts/plugin-root.sh) reads the invoked path:
@@ -619,8 +619,8 @@ do_start() {
 
   # The briefs the task reviewers read in place of the plan: written here from
   # the plan as it stands, so a plan that never went through the skeleton stage
-  # has them and a fixed plan has current ones. With none there afterwards (no
-  # node) the block falls back to the reach file.
+  # has them and a fixed plan has current ones. With none there afterwards
+  # the block falls back to the reach file.
   if [ "$stage" != "skeleton" ]; then
     k=0
     while [ "$k" -lt "$count" ]; do

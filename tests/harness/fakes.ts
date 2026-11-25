@@ -5,7 +5,7 @@
  * cases of ports-contract.ts.
  */
 
-import type { ChangedFile, Clock, Fs, Git, GitWrite, StagedFile, StatusEntry, TrackedFile } from "../../viber/lib/ports.ts";
+import type { ChangedFile, Clock, Fs, Git, GitWrite, LogEntry, StagedFile, StatusEntry, TrackedFile } from "../../viber/lib/ports.ts";
 import { HISTORY_STATE, SCENE_STATE, WRITE_STATE, type Throwaway, type ThrowawayOpts } from "./ports-contract.ts";
 
 export interface FakeFsOpts {
@@ -204,6 +204,10 @@ export interface FakeRepo {
   mergeBases?: Record<string, string>;
   /** The commits that added a path, oldest first, by repo-relative path. */
   added?: Record<string, string[]>;
+  /** The commits after one, oldest first, by the ref as asked. */
+  log?: Record<string, LogEntry[]>;
+  /** The files a commit changed, by the ref as asked. */
+  committed?: Record<string, string[]>;
   /** The files differing from a base, by the base as asked; the key `""` holds the answer for no base. */
   changed?: Record<string, ChangedFile[]>;
   untracked?: string[];
@@ -260,6 +264,12 @@ export function fakeGit(repos: FakeRepo | FakeRepo[] | null): Git {
     firstAdded(root, path) {
       const rel = path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
       return at(root)?.added?.[rel]?.[0] ?? null;
+    },
+    log(root, from) {
+      return at(root)?.log?.[from]?.map((entry) => ({ ...entry })) ?? [];
+    },
+    committedFiles(root, ref) {
+      return [...(at(root)?.committed?.[ref] ?? [])];
     },
     changedFiles(root, base) {
       return at(root)?.changed?.[base ?? ""]?.map((file) => ({ ...file })) ?? [];
@@ -548,6 +558,8 @@ export function fakeScene(root = "/scene/repo"): { fs: Fs; git: Git; root: strin
       commits: Object.fromEntries(shas.map((sha, index) => [index === last ? "HEAD" : `HEAD~${last - index}`, sha])),
       mergeBases: { "HEAD HEAD~2": shas[last - 2] },
       added,
+      log: { "HEAD~2": shas.slice(1).map((sha, index) => ({ short: sha.slice(0, 7), subject: `commit ${index + 2}` })) },
+      committed: Object.fromEntries(HISTORY_STATE.commits.map((commit, index) => [index === last ? "HEAD" : `HEAD~${last - index}`, Object.keys(commit).sort()])),
       changed: { HEAD: HISTORY_STATE.changed.head, "HEAD~2": HISTORY_STATE.changed.first, "": HISTORY_STATE.changed.none },
       untracked: HISTORY_STATE.untracked,
       trackedIgnored: HISTORY_STATE.trackedIgnored,

@@ -7,7 +7,7 @@
  * session to `task-step.sh` as `--with` (the extras files stay the record). `task-coder` records its
  * `EXTRA:` paths in the coder file, `task-reviewer` runs the scope command and
  * records its own in the reviewer file. The file names and the `--extra` mode come
- * from the headers of `plan-index.sh` and `commit-task.sh`. The files read here are
+ * from the headers of `plan-index.ts` and `commit-task.sh`. The files read here are
  * shipped prompts and script headers, whose text is the behaviour. Nothing is spawned.
  *
  * Run directly by Node's type stripping:
@@ -87,7 +87,7 @@ test("implementor builds no resume line: a dirty answer of continue goes to star
 });
 
 test("the scope line names the --extra mode plan-index.sh declares", () => {
-  assert.ok(read("scripts/plan-index.sh").includes("plan-index.sh <plan-file> --extra <task-id>"));
+  assert.ok(read("scripts/plan-index.ts").includes("plan-index.sh <plan-file> --extra <task-id>"));
   assert.ok(SCOPE_LINE.includes(" --extra "));
 });
 

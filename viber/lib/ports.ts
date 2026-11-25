@@ -76,6 +76,12 @@ export interface GrepHit {
   text: string;
 }
 
+/** short: the abbreviated sha, as git shortens it. subject: the first paragraph of the message on one line. */
+export interface LogEntry {
+  short: string;
+  subject: string;
+}
+
 export interface Git {
   /** The top level of the work tree holding cwd, forward slashes; null outside a repository. */
   repoRoot(cwd: string): string | null;
@@ -103,6 +109,10 @@ export interface Git {
   mergeBase(root: string, a: string, b: string): string | null;
   /** The full sha of the oldest commit in the history of HEAD that added the file at path, read as a literal path (never a glob), repo-relative or absolute; null when none did. */
   firstAdded(root: string, path: string): string | null;
+  /** The commits HEAD reaches and the commit from names does not, oldest first; empty when from names no commit. */
+  log(root: string, from: string): LogEntry[];
+  /** The files the commit changed against its parent, the first commit every file it holds, a rename as its deletion and its addition, repo-relative, as they are, never quoted, in git order; empty for a merge and when ref names no commit. */
+  committedFiles(root: string, ref: string): string[];
   /** The files that differ between the commit base names and the work tree at the top level root, staged or not, in git order; base null: every tracked file present in the work tree, as added. Empty when base names no commit. */
   changedFiles(root: string, base: string | null): ChangedFile[];
   /** The files below the top level root that git neither tracks nor ignores, an untracked directory file by file, in git order; with path only those at and below that literal path. */

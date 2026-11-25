@@ -95,6 +95,17 @@ export const gitCommand: Git = {
     // The oldest commit comes first under --reverse; a limit would cut the list before it is reversed.
     return line(root, ["--literal-pathspecs", "log", "--diff-filter=A", "--reverse", "--format=%H", "--", path]);
   },
+  log(root, from) {
+    const out = run(root, ["log", "--reverse", "--format=%h %s", `${from}..HEAD`, "--"]);
+    return (out ?? "").split("\n").flatMap((row) => {
+      const cut = row.indexOf(" ");
+      return cut < 0 ? [] : [{ short: row.slice(0, cut), subject: row.slice(cut + 1) }];
+    });
+  },
+  committedFiles(root, ref) {
+    const out = run(root, ["diff-tree", "-r", "-z", "--no-commit-id", "--no-renames", "--root", "--name-only", ref, "--"]);
+    return out ? out.split("\0").filter((path) => path !== "") : [];
+  },
   changedFiles(root, base) {
     // With no base the work tree is compared to the empty tree, whose name depends on the hash of the repository.
     const from = base ?? line(root, ["hash-object", "-t", "tree", "--stdin"]);

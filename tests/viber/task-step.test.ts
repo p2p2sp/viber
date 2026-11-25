@@ -702,7 +702,7 @@ async function seedChecked(repo: GitRepo, config: string, testBody: string): Pro
 function stubbedCheck(repo: GitRepo, body: string): { sut: string; root: string } {
   const scripts = path.join(repo.dir, "plugin", "scripts");
   fs.mkdirSync(scripts, { recursive: true });
-  for (const name of ["task-step.sh", "plan-index.sh", "config.sh", "config.ts", "run-failures.sh", "run-failures.ts", "plugin-root.sh"]) {
+  for (const name of ["task-step.sh", "plan-index.sh", "plan-index.ts", "config.sh", "config.ts", "run-failures.sh", "run-failures.ts", "plugin-root.sh"]) {
     fs.copyFileSync(path.join(path.dirname(SUT), name), path.join(scripts, name));
   }
   fs.cpSync(path.join(path.dirname(SUT), "..", "lib"), path.join(repo.dir, "plugin", "lib"), { recursive: true });

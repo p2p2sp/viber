@@ -8,7 +8,7 @@ import { directory } from "./config/block.ts";
 import { readChildren } from "./config/lines.ts";
 import { baseOf, type MapAnswer } from "./map-answer.ts";
 import type { Fs, Git, GitWrite } from "./ports.ts";
-import { repoPrefix } from "./repo-prefix.ts";
+import { rootRelative } from "./root-relative.ts";
 
 const SCAFFOLD = ["plan.md", "status.md", "tasks", "work"];
 const OPEN = /^\s*<!--\s*TASK\s*-->\s*$/;
@@ -65,15 +65,6 @@ function clearScratch(top: string, ids: Iterable<string>, fs: Fs): void {
     "fixer/tree-record",
   ];
   for (const name of gone) fs.removeTree(`${temp}/${name}`);
-}
-
-/** An absolute path below root as its relative form, links resolved; any other path as it is. */
-function rootRelative(dir: string, root: string, fs: Fs): string {
-  if (!/^(\/|[A-Za-z]:\/)/.test(dir)) return dir;
-  if (fs.kind(dir) === "dir") return repoPrefix(dir, root, fs).replace(/\/$/, "") || dir;
-  const cut = dir.lastIndexOf("/");
-  const parent = repoPrefix(dir.slice(0, cut), root, fs);
-  return parent === "" ? dir : parent + dir.slice(cut + 1);
 }
 
 /** The stdout, stderr and exit code of one archive-run call. */

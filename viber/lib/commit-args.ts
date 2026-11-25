@@ -5,6 +5,7 @@
  * header of ../skills/commit/scripts/commit.ts.
  */
 
+import { drivePath } from "./drive-path.ts";
 import type { Fs, Git } from "./ports.ts";
 import { repoPrefix } from "./repo-prefix.ts";
 
@@ -48,7 +49,6 @@ export function readSelector(raw: string, cwd: string, { fs, git }: { fs: Fs; gi
   const found = git.repoRoot(here);
   const root = found ?? here;
   const prefix = found === null ? "" : repoPrefix(here, root, fs);
-  const drive = /^[A-Za-z]:/.test(root);
 
   /** On disk, in the index (a deleted tracked file) or in HEAD (a path removed with git rm). */
   const held = (path: string): boolean => path !== "" && (fs.exists(diskPath(path, root)) || git.indexHolds(root, path) || git.headHolds(root, path));
@@ -57,8 +57,7 @@ export function readSelector(raw: string, cwd: string, { fs, git }: { fs: Fs; gi
   const resolve = (token: string): string | null => {
     // Empty, it would name the cwd itself once its prefix stands before it.
     if (token === "") return null;
-    // Node and git read no MSYS path; inside a list the shell hands /c/x on unconverted.
-    const given = drive ? token.replace(/^\/([A-Za-z])\//, (_, letter: string) => `${letter.toUpperCase()}:/`) : token;
+    const given = drivePath(token, root);
     if (/^(\/|\\|[A-Za-z]:[/\\])/.test(given)) return held(given) ? given : null;
     const path = given.replace(/^\.\//, "");
     if (prefix !== "" && held(prefix + path)) return prefix + path;
