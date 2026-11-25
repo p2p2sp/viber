@@ -52,7 +52,10 @@ if [ "$1" = "release" ] && [ "$2" = "view" ]; then
 fi
 if [ "$1" = "release" ] && [ "$2" = "create" ]; then
   log "$@"
+  if [ "\${GH_CREATE_FAULT:-}" = always ]; then echo "HTTP 502: Server Error" >&2; exit 1; fi
+  if [ "\${GH_CREATE_FAULT:-}" = once ] && [ ! -f "$ARGV_FILE.failed" ]; then : > "$ARGV_FILE.failed"; echo "HTTP 502: Server Error" >&2; exit 1; fi
   if [ -n "\${RELEASE_EXISTS_FLAG:-}" ]; then : > "$RELEASE_EXISTS_FLAG"; fi
+  if [ "\${GH_CREATE_FAULT:-}" = lost-reply ]; then echo "HTTP 502: Server Error" >&2; exit 1; fi
   exit 0
 fi
 exit 1
@@ -142,6 +145,9 @@ interface RunReleaseOpts {
   githubRefName?: string | null;
   /** `null` omits GITHUB_OUTPUT entirely (exercises the script's own `:-/dev/null` fallback). */
   githubOutput?: string | null;
+  /** How the stubbed `gh release create` fails: every time, the first time
+   *  only, or after the release was created (the reply is lost). */
+  createFault?: "always" | "once" | "lost-reply";
 }
 
 async function runRelease(bashPath: string, fx: Fixture, part: string, opts: RunReleaseOpts = {}): Promise<RunResult & { outputFile: string | null }> {
@@ -151,7 +157,9 @@ async function runRelease(bashPath: string, fx: Fixture, part: string, opts: Run
     GH_TOKEN: "test-token",
     ARGV_FILE: fx.argvFile,
     RELEASE_EXISTS_FLAG: fx.releaseFlag,
+    RETRY_DELAY: "0",
   };
+  if (opts.createFault) env.GH_CREATE_FAULT = opts.createFault;
   if (opts.githubRefName !== null) env.GITHUB_REF_NAME = opts.githubRefName ?? "main";
   if (outputFile !== null) env.GITHUB_OUTPUT = outputFile;
   const result = await runScript(RELEASE_SH, [part], { shell: bashPath, cwd: fx.repo.dir, env, stubDirs: [fx.ghDir] });
@@ -430,6 +438,39 @@ if (!jqAvailable || !bashPath) {
         1,
         "gh release create must be called once overall - the recovery run finds the release already exists and skips it",
       );
+    });
+  });
+
+  const createCalls = (fx: Fixture): number =>
+    argvCalls(fx.argvFile).filter((c) => c[0] === "release" && c[1] === "create").length;
+
+  test("a gh release create that fails once is retried and the release is published", async () => {
+    await withReleaseFixture(async (fx) => {
+      await fx.repo.git("tag", "1.2.3");
+      const result = await runRelease(bash, fx, "patch", { createFault: "once" });
+      assert.equal(result.status, 0, `release.sh should succeed: ${result.stderr}`);
+      assert.equal(lastStdoutLine(result.stdout), "1.2.4");
+      assert.equal(createCalls(fx), 2);
+      assert.ok(fs.existsSync(fx.releaseFlag), "the release must be published");
+    });
+  });
+
+  test("a gh release create that published the release but lost the reply is not repeated (a second create would fail on the existing release)", async () => {
+    await withReleaseFixture(async (fx) => {
+      await fx.repo.git("tag", "1.2.3");
+      const result = await runRelease(bash, fx, "patch", { createFault: "lost-reply" });
+      assert.equal(result.status, 0, `release.sh should succeed: ${result.stderr}`);
+      assert.equal(createCalls(fx), 1);
+    });
+  });
+
+  test("a gh release create that keeps failing fails the run after five attempts", async () => {
+    await withReleaseFixture(async (fx) => {
+      await fx.repo.git("tag", "1.2.3");
+      const result = await runRelease(bash, fx, "patch", { createFault: "always" });
+      assert.notEqual(result.status, 0);
+      assert.equal(createCalls(fx), 5);
+      assert.equal(readGithubOutput(result.outputFile), "", "no version is reported for an unpublished release");
     });
   });
 

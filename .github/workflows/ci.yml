@@ -31,7 +31,7 @@ jobs:
       - name: actionlint
         run: ./actionlint -color
       - name: shellcheck
-        run: shellcheck .github/scripts/release.sh viber/hooks/scripts/session-start.sh
+        run: shellcheck .github/scripts/release.sh .github/scripts/retry.sh viber/hooks/scripts/session-start.sh
       - name: Skill lint
         run: bash .github/scripts/lint-skills.sh
       - name: Rule lint

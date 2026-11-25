@@ -31,12 +31,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          run_id=$(gh run list --workflow CI --commit "$GITHUB_SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          . .github/scripts/retry.sh
+          run_id=$(retry gh run list --workflow CI --commit "$GITHUB_SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
           if [ -z "$run_id" ]; then
             echo "No CI run found for commit $GITHUB_SHA: the release needs a CI run of its commit." >&2
             exit 1
           fi
-          gh run watch "$run_id" --exit-status
+          # No --exit-status: a red CI run must fail at once, not be retried.
+          retry gh run watch "$run_id"
+          conclusion=$(retry gh run view "$run_id" --json conclusion --jq .conclusion)
+          if [ "$conclusion" != success ]; then
+            echo "CI run $run_id ended with '$conclusion': the release needs a green CI run." >&2
+            exit 1
+          fi
       - name: Bump version + create release
         id: bump
         env:

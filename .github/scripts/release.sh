@@ -22,6 +22,9 @@
 # Outputs:  new version on stdout and as `version=<v>` to $GITHUB_OUTPUT.
 set -euo pipefail
 
+# shellcheck source=/dev/null
+. "$(dirname "${BASH_SOURCE[0]}")/retry.sh"
+
 part="${1:?usage: release.sh <major|minor|patch>}"
 manifests=(viber/.claude-plugin/plugin.json)
 seed="0.1.0"
@@ -65,12 +68,12 @@ if git diff --cached --quiet; then
   echo "release.sh: $new already committed; re-tagging existing release commit" >&2
 else
   git commit -m "chore(bump): bump version to $new"
-  git push origin "HEAD:${GITHUB_REF_NAME:-main}"
+  retry git push origin "HEAD:${GITHUB_REF_NAME:-main}"
 fi
 
 # 3. Only now create + push the release tag, on the committed bump.
 git tag "$new"
-git push origin "refs/tags/$new"
+retry git push origin "refs/tags/$new"
 
 # 4. Build a commit-based changelog: previous version tag → the just-tagged bump
 #    commit. First release (no previous tag) → full history. The bump commit itself
@@ -102,15 +105,20 @@ body=""
 #    buffer (64 KiB on Linux) cannot be handed over in one write, so any gh exit
 #    that does not drain stdin would SIGPIPE the writer and kill this script
 #    (exit 141) under `set -o pipefail` - masking gh's own status.
-if gh release view "$new" >/dev/null 2>&1; then
-  echo "release.sh: GitHub release $new already exists; skipping" >&2
-else
-  notes_file="$(mktemp)"
-  trap 'rm -f "$notes_file"' EXIT
-  printf '%s' "$body" >"$notes_file"
-  gh release create "$new" \
-    --title "$new" --notes-file "$notes_file" --generate-notes
-fi
+#    Every retry looks for the release first: a create answered with a 5xx may
+#    still have published it.
+publish_release() {
+  if gh release view "$new" >/dev/null 2>&1; then
+    echo "release.sh: GitHub release $new already exists; skipping" >&2
+  else
+    gh release create "$new" \
+      --title "$new" --notes-file "$notes_file" --generate-notes
+  fi
+}
+notes_file="$(mktemp)"
+trap 'rm -f "$notes_file"' EXIT
+printf '%s' "$body" >"$notes_file"
+retry publish_release
 
 echo "$new"
 echo "version=$new" >>"${GITHUB_OUTPUT:-/dev/null}"
