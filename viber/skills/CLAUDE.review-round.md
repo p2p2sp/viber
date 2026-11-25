@@ -55,4 +55,4 @@ Read for a change to `planner/scripts/plan-build.sh` (its entry `plan-build.ts`,
 - `review-round.sh` runs `plan-build.sh fix` for the fixer block and `plan-build.sh slices` for the briefs: without `node` on `PATH` it prints `NEXT: fix` with no block after it and no block carries `brief:`.
 - `plan-build.sh survey --phase` compares its `<plan>` argument as text with the path of the last survey: another spelling of the same file reads as another plan and removes the work files.
 - `review-round.sh` reads the candidates file path from the `plan-build` state file, the one fact it takes from the other script's state.
-- A reviewer in plan mode writes beside the plan file, so `<dir>/review-<k>.md` exists only outside plan mode, and only a round 1 `start` removes it: neither a survey of another plan nor the archive does.
+- A reviewer in plan mode writes beside the plan file, so `<dir>/review-<k>.md` exists only outside plan mode; a round 1 `start`, a `plan-build.sh survey` without `--phase` and `archive-run.sh` remove it.
