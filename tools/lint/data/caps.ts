@@ -52,7 +52,6 @@ export const rules: RuleInstance[] = [
   words("pr-feedback-skill", "skills/pr-feedback/SKILL.md", 664, `${SKILL} (667 before)`),
   words("pr-feedback-reply-skill", "skills/pr-feedback-reply/SKILL.md", 363, `${SKILL} (433 before)`),
   words("issue-create-skill", "skills/issue-create/SKILL.md", 180, `${SKILL} (195 before)`),
-  words("factory-skill", "skills/factory/SKILL.md", 777, `${SKILL} (789 before)`),
   words("commit-skill", "skills/commit/SKILL.md", 322, `${SKILL} (397 before)`),
   words("pr-create-skill", "skills/pr-create/SKILL.md", 745, `${SKILL} (824 before)`),
   words("setup-skill", "skills/setup/SKILL.md", 466, `${SKILL} (470 before)`),

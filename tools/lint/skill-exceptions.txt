@@ -5,5 +5,3 @@
 FAIL viber/skills/code-auditor/README.md: markdown table found
 # The table is the literal layout of the ledger the skill prints, not prose.
 FAIL viber/skills/e2e/SKILL.md: markdown table found
-# The dialog reference quotes the host's own dialog symbols verbatim.
-FAIL viber/skills/factory/references/dialogs.md: emoji found

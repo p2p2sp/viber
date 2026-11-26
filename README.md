@@ -103,7 +103,6 @@ Every step from an idea to an archived build, including the optional ones.
 | every viber skill and hook | Node.js 22.18 or newer |
 | `/viber:idea-validator` | web access |
 | `/viber:e2e` | Playwright |
-| `/viber:factory` | Windows with `powershell.exe` |
 
 </details>
 

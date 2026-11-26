@@ -29,9 +29,7 @@
     "./skills/attach/",
     "./skills/pro-designer/",
     "./skills/idea-validator/",
-    "./skills/skill-designer/",
-    "./skills/factory/",
-    "./skills/factoryclient/"
+    "./skills/skill-designer/"
   ],
   "agents": [
     "./agents/plan-judge.md",
