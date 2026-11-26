@@ -9,11 +9,10 @@ Every file viber creates or changes in your project. Back to the [viber guide](.
 | `docs/adr/` | Architecture decision records, with `planning.adr` on |
 | `CLAUDE.md` files, `.claude/rules/` | What builds and `/viber:memory` learned, the rules a build corrected, and the rules `/viber:rules` added |
 | `.claude/agents/`, `.claude/skills/` | Agents and skills `/viber:extension` and `/viber:skill-designer` write with you |
-| `docs/business/<slug>/report.html` | `/viber:idea-validator`'s report, always at this path |
 | `.claude/viber.yml` | The config, see [Configuring viber](configuration.md) |
 | `.claude/settings.json` | The settings viber recommends |
 | `.gitignore` | `.temp/` and `.claude/viber.local.yml`, when no rule ignores them yet |
-| `.temp/viber/` | Scratch files, `/viber:prototype`'s mockups in `.temp/viber/prototype/`, `/viber:idea-validator`'s working files in `.temp/viber/idea-validator/`, `/viber:code-auditor`'s `findings.md` files in `.temp/viber/code-auditor/`, the planner's work files in `.temp/viber/planner/` (the map of the change `outline.md`, its cut into slices `slices.md`, the reach files `reach-<stamp>.md` and `reach-paths.md`, the decision log, one brief `slice-<k>.md` and one notes file `notes-<k>.md` of code facts per slice, the owner of each task and contract block, the gaps the task authors reported, what each owner has to fix, the judge's file of each review round, the text a fix changed, an agent's own file when plan mode names it none, and the state file `plan-build`, which holds the review round), `/viber:fixer`'s working tree record (`tree-record`, the changed paths before its first edit) in `.temp/viber/fixer/` and `/viber:pr-feedback`'s threads file (review threads and remarks), `review.md` and reply files in `.temp/viber/pr-feedback/`, and the comments `/viber:pr-feedback-reply` posts, kept as `posted/<key>.md` there |
+| `.temp/viber/` | Scratch files, `/viber:prototype`'s mockups in `.temp/viber/prototype/`, `/viber:code-auditor`'s `findings.md` files in `.temp/viber/code-auditor/`, the planner's work files in `.temp/viber/planner/` (the map of the change `outline.md`, its cut into slices `slices.md`, the reach files `reach-<stamp>.md` and `reach-paths.md`, the decision log, one brief `slice-<k>.md` and one notes file `notes-<k>.md` of code facts per slice, the owner of each task and contract block, the gaps the task authors reported, what each owner has to fix, the judge's file of each review round, the text a fix changed, an agent's own file when plan mode names it none, and the state file `plan-build`, which holds the review round), `/viber:fixer`'s working tree record (`tree-record`, the changed paths before its first edit) in `.temp/viber/fixer/` and `/viber:pr-feedback`'s threads file (review threads and remarks), `review.md` and reply files in `.temp/viber/pr-feedback/`, and the comments `/viber:pr-feedback-reply` posts, kept as `posted/<key>.md` there |
 | `.temp/viber/<task id>/` | `state` (`.temp/viber/<task id>/state`), the step state of the task that `task-step.sh` keeps between the returns of a session; for a `TDD: required` task also `red.log`, the coder's first test run that fails, and `red-check.log`, the run of `build.red-check` |
 | `.temp/viber/lessons` | The session's lessons list (the test-strategy rules failed reviews raised), written by `task-step.sh` and read into each coder dispatch |
 | `.temp/viber/waits` | Which task of the build waited for which other task and on which file, so the second collision of the same two tasks puts them in sequence and a task waits only once on a changed file no task claims |
@@ -23,8 +22,7 @@ Every file viber creates or changes in your project. Back to the [viber guide](.
 | your e2e directory | Playwright tests from `/viber:e2e` |
 
 The names `_specs` and `specs` under `docs/` are the defaults; `directories:` in `.claude/viber.yml`
-changes only those two (the run and archive directories). `docs/adr/` and `docs/business/` keep their
-names.
+changes only those two (the run and archive directories). `docs/adr/` keeps its name.
 
 ## The run directory
 

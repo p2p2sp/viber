@@ -28,7 +28,6 @@
     "./skills/commit/",
     "./skills/attach/",
     "./skills/pro-designer/",
-    "./skills/idea-validator/",
     "./skills/skill-designer/"
   ],
   "agents": [

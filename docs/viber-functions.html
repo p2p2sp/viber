@@ -195,23 +195,6 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
       </ul>
     </section>
 
-    <section id="idea-validator" data-title="Idea validation">
-      <h2>Idea validation <span class="count"></span></h2>
-      <p><code>/viber:idea-validator</code>: decide whether a business idea is worth turning into a side project.</p>
-      <ul class="f">
-        <li>Starts only when you invoke it, with the idea as text or the path to a file.</li>
-        <li>Asks for missing input once at intake, then proceeds.</li>
-        <li>Web research on the problem, the market and the competition, by three parallel subagents.</li>
-        <li>Scores the idea on 9 dimensions, including Distribution, Side-project fit and Autopilot fit.</li>
-        <li>Every number carries a source URL or is marked as no data found.</li>
-        <li>A council of 7 independent perspectives, in two rounds; <code>--quick</code> skips the second.</li>
-        <li>Disagreement is kept, not averaged; the dissent is part of the report.</li>
-        <li>An experiment plan with Go, Pivot and No-Go thresholds fixed before any result.</li>
-        <li>One self-contained HTML report in the language of the idea.</li>
-        <li>The verdict means worth testing, not worth building.</li>
-      </ul>
-    </section>
-
 
     <section id="issues" data-title="GitHub issues">
       <h2>GitHub issues <span class="count"></span></h2>
@@ -872,8 +855,6 @@ footer { grid-column: 1 / -1; color: var(--muted); font-size: 13px; border-top: 
         <li><code>CLAUDE.md</code> and <code>.claude/rules/</code>: what builds learned.</li>
         <li><code>.claude/agents/</code> and <code>.claude/skills/</code>: extensions.</li>
         <li><code>.temp/viber/</code>: scratch files and mockups, kept out of git.</li>
-        <li><code>docs/business/&lt;slug&gt;/</code>: the idea validation report.</li>
-        <li><code>.temp/viber/idea-validator/</code>: the idea validation working files, kept out of git.</li>
         <li><code>.temp/viber/pr-feedback/</code>: the review threads and remarks, <code>review.md</code>, the reply files and the posted comments, kept out of git.</li>
         <li>The project's E2E directory: Playwright tests.</li>
       </ul>

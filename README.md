@@ -55,7 +55,6 @@ The plan is reviewed before you see it, in at most two rounds that report critic
 | --- | --- |
 | Talk a topic through, checked against trusted sources, before you decide anything | `/viber:talk` |
 | See a UI change as a mockup before anyone builds it | `/viber:prototype` |
-| Find out whether a side-project idea is worth building | `/viber:idea-validator` |
 | Audit code for bugs, security, performance or test quality | `/viber:code-auditor` |
 | Turn pull request review comments into fixes, then post the replies | `/viber:pr-feedback` |
 | Open an issue or a pull request from your own templates | `/viber:issue-create`, `/viber:pr-create` |
@@ -101,7 +100,6 @@ Every step from an idea to an archived build, including the optional ones.
 | --- | --- |
 | GitHub issues and pull requests | the `gh` CLI |
 | every viber skill and hook | Node.js 22.18 or newer |
-| `/viber:idea-validator` | web access |
 | `/viber:e2e` | Playwright |
 
 </details>

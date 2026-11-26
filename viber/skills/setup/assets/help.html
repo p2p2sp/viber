@@ -899,12 +899,6 @@ oknie<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="current
     projektowania. Startuje sam.</span></dd>
   </div>
   <div>
-    <dt><a href="#skill-idea-validator"><code data-copy>/viber:idea-validator</code></a></dt>
-    <dd><span lang="en">Checks whether a side-project idea is worth building, with a Go / Pivot / No-Go
-    report.</span><span lang="pl">Sprawdza, czy pomysł na projekt poboczny jest wart zbudowania, z raportem Go / Pivot /
-    No-Go.</span></dd>
-  </div>
-  <div>
     <dt><a href="#skill-skill-designer"><code data-copy>/viber:skill-designer</code></a></dt>
     <dd><span lang="en">Writes, audits and tunes your own Claude Code skills and agents, for the model they run on.
     Starts on its own.</span><span lang="pl">Pisze, audytuje i stroi twoje własne skille i agenty Claude Code pod
@@ -2383,45 +2377,6 @@ z nich mówi, jak nim sterować.</p>
       <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
       <dd><span lang="en">Only the interface code the task asks for.</span><span lang="pl">Tylko kod interfejsu,
       o który prosi zadanie.</span></dd>
-    </div>
-  </dl>
-</article>
-
-<article class="card" id="skill-idea-validator">
-  <h4><code>/viber:idea-validator</code></h4>
-  <p lang="en">Answers one question: is this idea worth turning into a side project? It researches the problem,
-  market and competition with sources, scores nine dimensions, lets seven advisors argue both sides with a
-  dissenting opinion, and ends with a Go / Pivot / No-Go verdict and three to eight experiments, each with its
-  pass threshold set in advance.</p>
-  <p lang="pl">Odpowiada na jedno pytanie: czy ten pomysł jest wart zamiany w projekt poboczny? Bada problem,
-  rynek i konkurencję ze źródłami, ocenia dziewięć wymiarów, pozwala siedmiu doradcom spierać się o obie strony
-  ze zdaniem odrębnym i kończy werdyktem Go / Pivot / No-Go oraz od trzech do ośmiu eksperymentów, każdy z progiem
-  zaliczenia ustalonym z góry.</p>
-  <dl>
-    <div>
-      <dt><span lang="en">Start</span><span lang="pl">Uruchomienie</span></dt>
-      <dd><span lang="en">Only by typing the command. It first asks one batch of questions; <q>don't know</q> is a
-      valid answer.</span><span lang="pl">Tylko przez wpisanie polecenia. Najpierw zadaje jedną serię pytań;
-      <q>nie wiem</q> to poprawna odpowiedź.</span></dd>
-    </div>
-    <div>
-      <dt><span lang="en">Arguments</span><span lang="pl">Argumenty</span></dt>
-      <dd><span lang="en">The idea as text or a file path, in the language you want the report in, optionally
-      <code>--quick</code> for a shorter run: <code>/viber:idea-validator ./my-idea.md --quick</code>.</span><span lang="pl">Pomysł
-      jako tekst albo ścieżka do pliku, w języku, w którym chcesz raport, opcjonalnie <code>--quick</code> dla
-      krótszego przebiegu: <code>/viber:idea-validator ./moj-pomysl.md --quick</code>.</span></dd>
-    </div>
-    <div>
-      <dt><span lang="en">Switches</span><span lang="pl">Przełączniki</span></dt>
-      <dd><span lang="en">None. It needs web access and Node.js 22.18 or newer.</span><span lang="pl">Brak. Wymaga
-      dostępu do sieci i Node.js 22.18 lub nowszego.</span></dd>
-    </div>
-    <div>
-      <dt><span lang="en">Writes</span><span lang="pl">Zapisuje</span></dt>
-      <dd><span lang="en">Working files under <code>.temp/viber/idea-validator/&lt;slug&gt;-&lt;date&gt;/</code> and
-      the report, one self-contained <code>docs/business/&lt;slug&gt;/report.html</code>.</span><span lang="pl">Pliki
-      robocze w <code>.temp/viber/idea-validator/&lt;slug&gt;-&lt;date&gt;/</code> i raport, jeden samodzielny plik
-      <code>docs/business/&lt;slug&gt;/report.html</code>.</span></dd>
     </div>
   </dl>
 </article>
