@@ -97,7 +97,7 @@
   <text x="1551" y="134" class="badge-t" text-anchor="middle">skill</text>
   <text x="66" y="154" class="mono-t">/viber:setup</text>
   <text x="210" y="142" class="desc">raz na projekt - zakłada .claude/viber.yml (przełączniki poniżej), reguły .gitignore i zalecane uprawnienia,</text>
-  <text x="210" y="164" class="desc">sprawdza gh CLI i czy CLAUDE.md podaje polecenia budowania i testów, a na koniec otwiera przewodnik</text>
+  <text x="210" y="164" class="desc">sprawdza gh CLI i czy CLAUDE.md podaje polecenia budowania i testów</text>
 
   <g transform="translate(0,-124)">
   <!-- ============ ENTRY PILLS ============ -->

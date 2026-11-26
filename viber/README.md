@@ -1,7 +1,7 @@
 # viber guide
 
 How to use viber, command by command. For what viber is and why, see the
-[project page](../README.md). `/viber:help` opens the same guide in your browser.
+[project page](../README.md).
 
 ## Install
 
@@ -70,7 +70,6 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
 | Command | What it does |
 | --- | --- |
 | `/viber:setup` | Once per project, and again after an upgrade: config, ignore rules, permissions, `CLAUDE.md` check. |
-| `/viber:help` | Opens this guide in your browser. |
 | `/viber:handoff` | Saves the conversation as one file, so a fresh session picks up where this one stopped. |
 ### Command details
 

@@ -1,7 +1,7 @@
 ---
 name: setup
-description: Prepares a project for viber - seeds .claude/viber.yml, .gitignore and the recommended .claude/settings.json permissions (asking whether to merge into or reset an existing one that differs from them), checks the gh CLI is installed, checks whether CLAUDE.md names the build and test commands, and opens the usage guide in the browser.
-allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/bootstrap.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/merge-settings.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/open-page.sh:*), Read
+description: Prepares a project for viber - seeds .claude/viber.yml, .gitignore and the recommended .claude/settings.json permissions (asking whether to merge into or reset an existing one that differs from them), checks the gh CLI is installed, checks whether CLAUDE.md names the build and test commands.
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/bootstrap.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/merge-settings.sh:*), Read
 user-invocable: true
 disable-model-invocation: true
 model: haiku
@@ -20,7 +20,7 @@ The settings file is the one choice. On `ASK:`, ask with one `AskUserQuestion` (
 - merge - fill in what is missing: the template's value wins a conflict, lists only gain entries, a template entry in `permissions.ask` leaves the host's `permissions.deny`, a key the template lacks is never touched.
 - reset - replace the file with the template; the old one is kept in `.temp/viber/setup/`.
 
-Run the chosen command once. A `RUN:` line before the last one runs once as printed. With neither, the file matches the template: its `settings.json:` line is the settings line. The command's line is carried into the close literally, never re-verified or retried; a non-zero exit is trusted the same way.
+Run the chosen command once. A `RUN:` line runs once as printed. With neither, the file matches the template: its `settings.json:` line is the settings line. The command's line is carried into the close literally, never re-verified or retried; a non-zero exit is trusted the same way.
 
 Then check the project's `CLAUDE.md` against the preload's `CLAUDE.md:` line:
 
@@ -30,6 +30,4 @@ Then check the project's `CLAUDE.md` against the preload's `CLAUDE.md:` line:
 - Any item not named - the line is `CLAUDE.md: missing <the missing items> - paste this prompt:`, followed by the content of `${CLAUDE_SKILL_DIR}/templates/claude-md-prompt.txt`, read with `Read`, verbatim in a code block.
 - `CLAUDE.md: missing` - read no `CLAUDE.md`; the line is `CLAUDE.md: missing - run /viber:memory, which writes the short root`, with no prompt block.
 
-Then run the last `RUN:` line, which opens the onboarding page, its line trusted like the settings line.
-
-Close with one line per item: the preload's lines except its `settings.json:`, `CLAUDE.md:`, `ASK:` and `RUN:` ones, the settings line (the command's, or the preload's on a match), the `CLAUDE.md:` check line with its prompt block when it has one, and the page line. Never read or restate the page's content in the reply.
+Close with one line per item: the preload's lines except its `settings.json:`, `CLAUDE.md:`, `ASK:` and `RUN:` ones, the settings line (the command's, or the preload's on a match), and the `CLAUDE.md:` check line with its prompt block when it has one.

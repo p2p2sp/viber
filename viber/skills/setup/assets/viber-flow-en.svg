@@ -97,7 +97,7 @@
   <text x="1551" y="134" class="badge-t" text-anchor="middle">skill</text>
   <text x="66" y="154" class="mono-t">/viber:setup</text>
   <text x="210" y="142" class="desc">once per project - seeds .claude/viber.yml (the switches below), the .gitignore rules and the recommended permissions,</text>
-  <text x="210" y="164" class="desc">checks the gh CLI and that CLAUDE.md names your build and test commands, then opens the usage guide</text>
+  <text x="210" y="164" class="desc">checks the gh CLI and that CLAUDE.md names your build and test commands</text>
 
   <g transform="translate(0,-124)">
   <!-- ============ ENTRY PILLS ============ -->

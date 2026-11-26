@@ -8,8 +8,7 @@
  * lessons bookkeeping, and the close runs the call itself right before the final-review fix coder's
  * dispatch (`final-review.true.md`) and the step 5 repair coder's (`parts/close.md`), left out on
  * `lessons: none`, and on no final reviewer dispatch. `task-coder` reads those rules first and checks
- * every test it wrote or changed against them before PASS; the README and both languages of
- * `help.html` say later coders get them. The files read here are shipped prompts and guides,
+ * every test it wrote or changed against them before PASS; the README says later coders get them. The files read here are shipped prompts and guides,
  * whose text is the behaviour. Nothing is spawned.
  *
  * Run directly by Node's type stripping:
@@ -32,7 +31,6 @@ const FINAL_REVIEW = shipped("skills/implementor/fragments/final-review.true.md"
 const CLOSE = shipped("skills/implementor/parts/close.md");
 const CODER = shipped("agents/task-coder.md");
 const README = shipped("README.md");
-const HELP = shipped("skills/setup/assets/help.html");
 
 const STEP_4 = SKILL.slice(SKILL.indexOf("## 4. Run the plan"), SKILL.indexOf("## 5 to 7. Close and archive"));
 const FIX_ROUND = FINAL_REVIEW.slice(FINAL_REVIEW.indexOf("fix round 1"), FINAL_REVIEW.indexOf("- Fix coder `VERDICT: DENIED`"));
@@ -44,7 +42,6 @@ const CODER_PROVE = CODER.slice(CODER.indexOf("\n## Prove it green\n"), CODER.in
 
 const LESSONS_CALL = '"${CLAUDE_PLUGIN_ROOT}/scripts/run-failures.sh" --lessons "<dir>"';
 const GUIDE_SENTENCE_EN = "Later coders of the run get the test rules that earlier reviews of the run raised.";
-const GUIDE_SENTENCE_PL = "Kolejni wykonawcy builda dostają reguły testów, które podniosły wcześniejsze recenzje tego builda.";
 
 test("step 4 holds no run-lessons bookkeeping: a dispatch sends the lines its directive prints plus the add: lines it names", () => {
   assert.ok(!STEP_4.includes("run-lessons"));
@@ -86,12 +83,4 @@ test("task-coder checks every test it wrote or changed against the run-lessons r
 
 test("the README says later coders get the rules earlier reviews of the run raised", () => {
   assert.ok(README.includes(GUIDE_SENTENCE_EN));
-});
-
-test("the English help page says later coders get the rules earlier reviews of the run raised", () => {
-  assert.ok(HELP.includes(`<p lang="en">${GUIDE_SENTENCE_EN}`));
-});
-
-test("the Polish help page says later coders get the rules earlier reviews of the run raised", () => {
-  assert.ok(HELP.includes(`<p lang="pl">${GUIDE_SENTENCE_PL}`));
 });

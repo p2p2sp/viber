@@ -9,7 +9,7 @@ Read for a change to `session-start.sh`, `content/manifest.md` or `content/node-
 
 ## Change together
 
-- The Node requirement: the banner note and `content/node-missing.md` carry the same `Node.js 22.18` as `README.md`, `../README.md` and `help.html` (`tools/lint/data/node-requirement.ts`).
+- The Node requirement: the banner note and `content/node-missing.md` carry the same `Node.js 22.18` as `README.md` and `../README.md` (`tools/lint/data/node-requirement.ts`).
 
 ## Traps
 

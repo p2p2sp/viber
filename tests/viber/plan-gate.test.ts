@@ -1351,12 +1351,6 @@ test("the outside-plan-review agent holds no Reviewed check and no closing-revie
   assert.doesNotMatch(agent, /closing implementation review/);
 });
 
-test("the help page links the outside-plan-review agent line and keeps no anchor to agent-plain-plan-review", () => {
-  const page = fs.readFileSync(path.join(VIBER_DIR, "skills/setup/assets/help.html"), "utf8");
-  assert.match(page, /id="agent-outside-plan-review"/);
-  assert.doesNotMatch(page, /agent-plain-plan-review/);
-});
-
 test("the hooks.json description names outside-plan-review and states no file limit", () => {
   const manifest = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../../viber/hooks/hooks.json"), "utf8"));
   assert.match(manifest.description, /viber:outside-plan-review/);

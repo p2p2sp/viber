@@ -96,9 +96,7 @@
 #            root>/skills/setup/scripts/merge-settings.sh" --reset "<plugin
 #            root>/skills/setup/templates/settings.json"`; for "settings.json:
 #            absent", the merge command alone as `RUN: ...`; none for a settings
-#            file matching the template; always last, `RUN: "<plugin
-#            root>/scripts/open-page.sh" "<plugin
-#            root>/skills/setup/assets/help.html"`.
+#            file matching the template.
 #   exit   : ALWAYS 0. A preload that exits non-zero aborts the whole skill load,
 #            and a project that refuses one of these files is not a broken setup.
 #
@@ -429,6 +427,5 @@ if [ -f "$root/.claude/settings.json" ]; then
 else
   echo "RUN: $merge_cmd $settings_tpl"
 fi
-echo "RUN: \"$plugin_root/scripts/open-page.sh\" \"$plugin_root/skills/setup/assets/help.html\""
 
 exit 0

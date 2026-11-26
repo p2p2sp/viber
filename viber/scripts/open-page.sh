@@ -3,8 +3,7 @@
 # open-page.sh - opens one local HTML file in the user's default browser, so a
 # viber skill hands the user a local page instead of printing its content into
 # the session's context, where it would cost tokens on every later turn.
-# Callers: `setup` and `help` (the onboarding page, `help` as a `!` preload)
-# and `prototype` (the built mockup).
+# Caller: `prototype` (the built mockup).
 #
 # It is a bundled script because the opener differs per platform and a skill
 # may only make one pre-approved literal call: `open` on macOS, the Windows

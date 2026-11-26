@@ -23,7 +23,6 @@
     "./skills/rules/",
     "./skills/extension/",
     "./skills/code-auditor/",
-    "./skills/help/",
     "./skills/handoff/",
     "./skills/commit/",
     "./skills/attach/",

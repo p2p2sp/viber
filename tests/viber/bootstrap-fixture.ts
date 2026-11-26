@@ -21,7 +21,6 @@ export const LOCAL = ".claude/viber.local.yml";
 export const PLUGIN_ROOT = slash(path.resolve(import.meta.dirname, "../../viber"));
 export const MERGE_SETTINGS = `"${PLUGIN_ROOT}/skills/setup/scripts/merge-settings.sh"`;
 export const SETTINGS_TEMPLATE = `"${PLUGIN_ROOT}/skills/setup/templates/settings.json"`;
-export const HELP_RUN = `RUN: "${PLUGIN_ROOT}/scripts/open-page.sh" "${PLUGIN_ROOT}/skills/setup/assets/help.html"`;
 
 export const FLAT_SWITCH =/^(adr|memory|rules|qa|cleanup|red-check|final-review|issues|baseline-tests)[ \t]*:/m;
 

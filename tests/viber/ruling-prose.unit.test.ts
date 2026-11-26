@@ -163,7 +163,6 @@ test("a decide ruling is reported without --options, the options file of the cod
 const C4_CLOSING = "Continue the task under these decisions, then return your output lines again.";
 const FLAT = (text: string): string => text.replace(/\s+/g, " ");
 const README = FLAT(read("README.md"));
-const HELP_FAILING_TASK = FLAT(between(read("skills/setup/assets/help.html"), 'id="ts-task-fails"', 'id="ts-denied"'));
 
 function bullet(opening: string): string {
   return lines(STEP_4).find((line) => line.startsWith(opening)) ?? "";
@@ -202,14 +201,6 @@ test("arbiter states a decide option is work the continuing coder or a later att
 
 test("README says the arbiter rules on a coder's first DECIDE and the same coder continues", () => {
   assert.ok(README.includes("the arbiter rules on a coder's first `DECIDE:` and the same coder continues with the ruling"));
-});
-
-test("the failing-task help entry says in English that the same coder continues with the ruling", () => {
-  assert.ok(HELP_FAILING_TASK.includes("the same coder continues with the ruling"));
-});
-
-test("the failing-task help entry says in Polish that the same coder continues with the ruling", () => {
-  assert.ok(HELP_FAILING_TASK.includes("ten sam wykonawca kontynuuje z orzeczeniem"));
 });
 
 const ANSWERS = between(SKILL, "## Answers", "## 1. Land the plan");

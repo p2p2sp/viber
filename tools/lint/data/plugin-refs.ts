@@ -18,7 +18,6 @@ export const rules: RuleInstance[] = [
         "viber/agents/*.md",
         "viber/hooks/hooks.json",
         "viber/.claude-plugin/plugin.json",
-        "viber/skills/setup/assets/help.html",
       ],
       pluginRoot: "viber",
       manifest: "viber/.claude-plugin/plugin.json",

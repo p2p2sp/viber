@@ -12,7 +12,7 @@ Owns `pro-designer/`: `SKILL.md`, its fifteen on-demand references under `refere
 - `SKILL.md` reaches every reference by `${CLAUDE_SKILL_DIR}/references/<file>.md`; nothing else loads them. A reference no line of `SKILL.md` names is unreachable.
 - The scripts are called only from `SKILL.md`'s Final QA, through an interpreter (`sh`, then the resolved `node` command), pre-approved by `Bash(sh:*)` and `Bash(node:*)` in its `allowed-tools`.
 - `agents/prototype-writer.md` invokes this skill as `viber:pro-designer` when `impeccable` is not in its skill listing; `agents/task-coder.md` and `agents/task-reviewer.md` read the short `viber/references/ui-tells.md` instead of `references/anti-slop.md`. The skill's `description` names work where the interface's look is the goal and carries no "ALWAYS"; it stays model-invoked so that fallback works.
-- Tested by `tests/viber/`: `check_contrast.unit.test.ts` (input validation, exit codes), `check_contrast-import.unit.test.ts` (importing the script runs no CLI), `check_node.test.ts` with `check_node.critical.test.ts` (version matrix, logic and critical tiers); `help.unit.test.ts` imports `contrastRatio` and `parseColor`.
+- Tested by `tests/viber/`: `check_contrast.unit.test.ts` (input validation, exit codes), `check_contrast-import.unit.test.ts` (importing the script runs no CLI), `check_node.test.ts` with `check_node.critical.test.ts` (version matrix, logic and critical tiers).
 
 ## Contracts
 
@@ -24,7 +24,7 @@ Owns `pro-designer/`: `SKILL.md`, its fifteen on-demand references under `refere
 
 ## Change together
 
-- The Node minimum (22.6): `scripts/check_node.sh`, the skip note in `SKILL.md`, `help.html` and the root `README.md` requirements table; a new threshold also goes into the version arrays of `tests/viber/check_node.test.ts`.
+- The Node minimum (22.6): `scripts/check_node.sh`, the skip note in `SKILL.md` and the root `README.md` requirements table; a new threshold also goes into the version arrays of `tests/viber/check_node.test.ts`.
 - The usage text of `check_contrast.ts` sits twice in the file (header comment and the `DOC` string); its TYPE thresholds and exit codes are restated in `SKILL.md` Final QA.
 - A reference added, renamed or removed changes its line in `SKILL.md` Reference routing (and its Design pass step, if any).
 - `references/anti-slop.md` and `viber/references/ui-tells.md` share the same `##` sections, held by `tests/viber/ui-tells.unit.test.ts`: a section added, renamed or removed in one changes the other (the checklist stays within 4096 bytes).

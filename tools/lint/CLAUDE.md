@@ -29,7 +29,7 @@ Owns the engine, the rule types, the rule instances written as data, the tree th
 
 - `globToRegExp` in `rules/forbidden.ts` and `rules/layering.ts`: one copy each.
 - The switch table of `data/invocations.ts` mirrors the keys of `viber/lib/switch-text.ts`.
-- The `Node.js 22.18` token of `data/node-requirement.ts`: `README.md`, `viber/README.md`, `help.html` and `viber/hooks/content/node-missing.md` carry it.
+- The `Node.js 22.18` token of `data/node-requirement.ts`: `README.md`, `viber/README.md` and `viber/hooks/content/node-missing.md` carry it.
 - The test-file budget of `data/tiers.ts` counts `test(` call sites of the legacy critical files.
 
 ## Traps

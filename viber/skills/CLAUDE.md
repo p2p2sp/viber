@@ -1,4 +1,4 @@
-# viber/skills - the twenty-three viber skills and their bundled files
+# viber/skills - the twenty-two viber skills and their bundled files
 
 Owns every `skills/<name>/` directory: its `SKILL.md` and the `fragments/`, `parts/`, `templates/`, `references/`, `assets/` and skill-local `scripts/` beside it. The plugin-level scripts the skills call belong to `viber/scripts/`, the agents they dispatch to `viber/agents/`; a skill's own body is its contract.
 
@@ -10,11 +10,11 @@ Owns every `skills/<name>/` directory: its `SKILL.md` and the `fragments/`, `par
 
 ## Relationships
 
-- Who starts a skill: `planner` and `implementor` carry `user-invocable: false`; `e2e`, `extension`, `handoff`, `help`, `memory`, `pr-feedback`, `pr-feedback-reply`, `rules`, `setup` and `talk` are user-only (`disable-model-invocation: true`); every other skill the model may invoke, `pr-create` only on the user's request or yes.
+- Who starts a skill: `planner` and `implementor` carry `user-invocable: false`; `e2e`, `extension`, `handoff`, `memory`, `pr-feedback`, `pr-feedback-reply`, `rules`, `setup` and `talk` are user-only (`disable-model-invocation: true`); every other skill the model may invoke, `pr-create` only on the user's request or yes.
 - Skill to skill: `prototype` invokes `intent`; `pr-feedback` invokes `intent` with the path of its `review.md` and two requirements (one task per chosen thread or remark, each task's DoD writes its reply file) as text, not a hand-off line; `intent` invokes `prototype` on the user's yes to a screen decision or to `Prototype first`; `intent` and `fixer` invoke `planner`; `planner` invokes `intent` only to split a change past 30 tasks or 60 files, with the `Split proposal:` block `plan-build.sh outline` printed after the confirmed input, and names `implementor` as the next step, never invoking it; `implementor` invokes `pr-create` on the user's yes once a finished build on a pull request branch closes the last phase; `talk` invokes nothing and ends on suggesting `/viber:handoff` or `/viber:issue-create`; `code-auditor` invokes no skill and, with a confirmed finding, ends on the line `/viber:intent <absolute path of findings.md>`; `extension` invokes `skill-designer` once on the files it writes, skipping the step when the skill is not in its listing.
 - Agents each skill dispatches: `implementor` (`task-coder`, `task-reviewer`, `arbiter`, `test-runner`, and through its close fragments `final-reviewer`, `memory-writer`, `rules-writer`, `qa-writer`, `closeout`, plus every `build.extensions` agent by its bare name), `planner` (`plan-surveyor`, then one `plan-author` for a whole plan, or `plan-architect` for the frame and one `plan-author` per slice, then `plan-judge` once per review round; a fix is a new dispatch of the `plan-author` or `plan-architect` owning the text; each sent the block `plan-build.sh` prints; and `adr-screener` through `planner/references/adr-tasks.md`), `intent` (the built-in `Explore` for repository facts), `prototype` (`prototype-writer`), `talk` (`researcher`), `e2e` (`e2e-writer`), `memory` (`memory-auditor`, `memory-node-writer`), `rules` (`rules-auditor`, `rules-writer`), `code-auditor` (`mapper`, `scout`, `hunter`, `critic`). `outside-plan-review` runs only on the plan gate's request.
 - A skill-local `scripts/<name>.sh` with a `<name>.ts` beside it is a wrapper running that entry (contract in the entry header, core in `../lib/`): nineteen, each entry named in `tools/lint/data/layering.ts`. Logic by `tests/viber/lib/<basename>.unit.test.ts`, wrapper by `tests/viber/<basename>.critical.test.ts` (`plan-build.sh` alone has no wrapper test). `handoff-path.sh` and `extension.sh` are preloads: each exits 0 always and prints nothing without `node`. `rules-map.sh` and `memory-map.sh` do so with no argument, their preload; a call with one ends on the exit of its entry. `merge-settings.sh` without `node` creates and resets the settings file by plain copies of its own and prints the recommended block in place of a merge: a change to the create or the reset goes to `../lib/merge-settings.ts` and to it. `commit-context.sh`, a preload, exits 0 always and without `node` prints one `STOP:` line, so the fork commits nothing.
-- Files read across skill directories: `help` and `setup` open `setup/assets/help.html`; `memory` reads `setup/templates/claude-md-prompt.txt`.
+- Files read across skill directories: `memory` reads `setup/templates/claude-md-prompt.txt`.
 - Child nodes: `pro-designer/CLAUDE.md`, `skill-designer/CLAUDE.md`.
 - Tool dependencies: `code-auditor` needs only git and a POSIX shell beside the plugin's Node.js; `e2e` needs `playwright-cli` and `@playwright/test`, reported by `scripts/check-playwright.sh` and installed only on the user's yes; `pro-designer` states its own Node.js needs in its node.
 
@@ -31,11 +31,9 @@ Owns every `skills/<name>/` directory: its `SKILL.md` and the `fragments/`, `par
 ## Commands
 
 - Preload quoting, the exec bit of every bare-invoked script and the fragment calls above: `node tools/lint/run.ts invocations`.
-- The help page: `node --test tests/viber/help.unit.test.ts`.
 
 ## Change together
 
-- A skill added, removed or renamed: `setup/assets/help.html` gains or loses its card `id="skill-<name>"`, which carries `<span class="tag auto">` (one `lang="en"` and one `lang="pl"` element) exactly when the skill is `user-invocable: false`.
 - A hand-off line: the body or fragment writing it (`intent`, `fixer`, `prototype`, `scripts/attach-lines.sh` for `Attachment:`), `planner/SKILL.md` and its `branching*` fragments, and `scripts/plan-path.sh`.
 - The `Same defect elsewhere` field of the `fixer` diagnosis: its `picked` / `not picked` marks, which `planner`'s agents read from the diagnosis text alone, and `fixer`'s step 5 question.
 - The `Split proposal:` block (phases, `Open decisions:`): printed by `plan-build.sh outline` from the `PHASE:` and `DECIDE:` lines of the `plan-surveyor` outline, only beside a `threshold:` line, passed on as printed by `planner/SKILL.md` and read through `intent/references/split.md`, whose `## From a split proposal` keeps the input's hand-off lines and skips the branch start and issue saves for it.

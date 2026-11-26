@@ -541,12 +541,9 @@ test("task-reviewer Tested never has a fix tell the coder to keep a test that br
   assert.ok(has(bullet(REVIEWER, "Tested:"), "A fix never tells the coder to keep a test that breaks a rule the report raises."));
 });
 
-test("README and both languages of help.html say a test-rule finding covers every test of the task breaking that rule", () => {
+test("README says a test-rule finding covers every test of the task breaking that rule", () => {
   const readme = read("README.md");
-  const help = read("skills/setup/assets/help.html");
   assert.ok(has(readme, "A review finding on a test rule names the rule and covers every test of the task that breaks it, so one round of fixes clears the whole class."));
-  assert.ok(has(help, "A review finding on a test rule names the rule and covers every test of the task that breaks it, so one round of fixes clears the whole class.</p>"));
-  assert.ok(has(help, "Uwaga recenzji o regule testów wskazuje regułę i obejmuje każdy test zadania, który ją łamie, więc jedna runda poprawek usuwa całą klasę.</p>"));
 });
 
 test("fixer reads Layers, Proves and Writing by range before writing the reproduction test", () => {

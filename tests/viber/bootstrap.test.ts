@@ -59,7 +59,6 @@ import {
   LOCAL,
   MERGE_SETTINGS,
   SETTINGS_TEMPLATE,
-  HELP_RUN,
   FLAT_SWITCH,
   run,
   read,
@@ -1073,7 +1072,7 @@ test("an existing .claude/settings.json differing from the template only in form
   });
 });
 
-test("an existing settings.json that differs from the template ends the output on the merge-or-reset ASK and the help page RUN, in that order after the gh line", async () => {
+test("an existing settings.json that differs from the template ends the output on the merge-or-reset ASK right after the gh line", async () => {
   await withGitRepo(async ({ dir, env }) => {
     const settings = path.join(dir, ".claude", "settings.json");
     fs.mkdirSync(path.dirname(settings), { recursive: true });
@@ -1082,12 +1081,12 @@ test("an existing settings.json that differs from the template ends the output o
     const result = await run(dir, env);
 
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    assert.deepEqual(result.stdout.split("\n").slice(-4), ["gh: present", SETTINGS_ASK, HELP_RUN, ""]);
+    assert.deepEqual(result.stdout.split("\n").slice(-3), ["gh: present", SETTINGS_ASK, ""]);
     assert.doesNotMatch(result.stdout, /^RUN: .*merge-settings\.sh/m);
   });
 });
 
-test("a settings.json byte-identical to the template prints neither the ASK nor the merge RUN and still ends on the help page RUN", async () => {
+test("a settings.json byte-identical to the template prints neither the ASK nor the merge RUN and ends on the gh line", async () => {
   await withGitRepo(async ({ dir, env }) => {
     const settings = path.join(dir, ".claude", "settings.json");
     fs.mkdirSync(path.dirname(settings), { recursive: true });
@@ -1098,7 +1097,7 @@ test("a settings.json byte-identical to the template prints neither the ASK nor 
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     assert.doesNotMatch(result.stdout, /^ASK:/m);
     assert.doesNotMatch(result.stdout, /merge-settings\.sh/);
-    assert.deepEqual(result.stdout.split("\n").slice(-3), ["gh: present", HELP_RUN, ""]);
+    assert.deepEqual(result.stdout.split("\n").slice(-2), ["gh: present", ""]);
   });
 });
 

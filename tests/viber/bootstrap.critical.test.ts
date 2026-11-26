@@ -32,7 +32,6 @@ import {
   PLUGIN_ROOT,
   MERGE_SETTINGS,
   SETTINGS_TEMPLATE,
-  HELP_RUN,
   FLAT_SWITCH,
   run,
   read,
@@ -57,7 +56,6 @@ test("a fresh repository seeds both files from the bundled ones and prints one l
         "CLAUDE.md: missing",
         "gh: present",
         MERGE_RUN,
-        HELP_RUN,
         "",
       ].join("\n"),
     );
@@ -85,7 +83,6 @@ test("running twice leaves both files byte-identical and reports them as already
         "CLAUDE.md: missing",
         "gh: present",
         MERGE_RUN,
-        HELP_RUN,
         "",
       ].join("\n"),
     );
@@ -212,16 +209,15 @@ const INVOKED_SPELLINGS = [
 ];
 
 for (const spelling of INVOKED_SPELLINGS) {
-  test(`invoked by ${spelling.name}, the merge-settings.sh and open-page.sh RUN: lines name the plugin root in that spelling (AC1)`, { skip: process.platform === "win32" ? false : "the /c/ and C:\\ spellings are a Windows Git Bash matter" }, async () => {
+  test(`invoked by ${spelling.name}, the merge-settings.sh RUN: line names the plugin root in that spelling (AC1)`, { skip: process.platform === "win32" ? false : "the /c/ and C:\\ spellings are a Windows Git Bash matter" }, async () => {
     await withGitRepo(async ({ dir, env }) => {
       const result = await withStub("gh", "exit 0", (stubDir) =>
         runScript(spelling.script, [], { cwd: dir, env, shell: "bash", stubDirs: [stubDir] }),
       );
 
       assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-      assert.deepEqual(result.stdout.split("\n").slice(-3), [
+      assert.deepEqual(result.stdout.split("\n").slice(-2), [
         `RUN: "${spelling.root}/skills/setup/scripts/merge-settings.sh" "${spelling.root}/skills/setup/templates/settings.json"`,
-        `RUN: "${spelling.root}/scripts/open-page.sh" "${spelling.root}/skills/setup/assets/help.html"`,
         "",
       ]);
     });

@@ -14,7 +14,6 @@ export const rules: RuleInstance[] = [
       files: [
         "README.md",
         "viber/README.md",
-        "viber/skills/setup/assets/help.html",
         "viber/hooks/content/node-missing.md",
       ],
     },

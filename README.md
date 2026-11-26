@@ -72,7 +72,7 @@ claude plugin marketplace add https://github.com/p2p2sp/viber --scope user
 claude plugin install viber@p2p2 --scope user
 ```
 
-Then, in your project, run `/viber:setup` once and start your first change with `/viber:intent`. `/viber:help` opens the guide in your browser.
+Then, in your project, run `/viber:setup` once and start your first change with `/viber:intent`.
 
 ## The whole flow
 

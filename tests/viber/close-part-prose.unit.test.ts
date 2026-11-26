@@ -375,19 +375,9 @@ function guide(relative: string): string {
 }
 
 const EFFORT_EN = "the `rounds:` line (the plan review rounds), the `attempts:` line (every task that needed more than one attempt, with its count) and the `arbiter:` line (the number of rulings)";
-const EFFORT_EN_HTML = EFFORT_EN.replace(/`([^`]+)`/g, "<code>$1</code>");
-const EFFORT_PL_HTML = "linię <code>rounds:</code> (rundy recenzji planu), linię <code>attempts:</code> (każde zadanie, które potrzebowało więcej niż jednej próby, z jej liczbą) i linię <code>arbiter:</code> (liczbę rozstrzygnięć)";
 
 test("README names the rounds, attempts and arbiter lines of the summary", () => {
   assert.ok(guide("README.md").includes(EFFORT_EN));
-});
-
-test("help.html names the rounds, attempts and arbiter lines of the summary in English", () => {
-  assert.ok(guide("skills/setup/assets/help.html").includes(EFFORT_EN_HTML));
-});
-
-test("help.html names the rounds, attempts and arbiter lines of the summary in Polish", () => {
-  assert.ok(guide("skills/setup/assets/help.html").includes(EFFORT_PL_HTML));
 });
 
 const EXTENSIONS = fs.readFileSync(path.join(SKILL_DIR, "fragments/extensions.on.md"), "utf8");
