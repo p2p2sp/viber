@@ -37,7 +37,6 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
 
 | Command | What it does |
 | --- | --- |
-| `/viber:talk` | Talks a topic through with you, researches it on the web, checks the claims against trusted sources and ends on conclusions, never on code. |
 | `/viber:intent` | Interviews you about an idea, in rounds, and hands the planner the confirmed summary as a file. |
 | `/viber:fixer` | Traces a bug to its root cause, proves it with a failing test and hands it to the planner. |
 | `/viber:prototype` | Turns a UI change into one HTML mockup in your project's own look, or three to choose from. |
@@ -73,20 +72,6 @@ A typical run is `/viber:setup` once, then `/viber:intent`. Each step names the 
 | `/viber:handoff` | Saves the conversation as one file, so a fresh session picks up where this one stopped. |
 ### Command details
 
-- **`/viber:talk`**: takes a topic or an opening thesis. Claude keeps in mind whether you want the
-  current solution improved or another way, and when you look for another way it ranges over
-  approaches that differ in kind instead of tweaking what exists. Before its first message it reads the
-  code and docs the topic touches, and it asks only what the project leaves open, each question with a
-  recommended answer a plain "yes" accepts. It takes positions and argues them,
-  and it researches open questions on the web itself, splitting a question for in-depth analysis and
-  comparing the approaches against your goal. A claim that carries weight is settled by a passage it read
-  in a primary source, or goes to the `researcher` agent, the vendor's documentation and the
-  standard's own text first, coming back confirmed, refuted, disputed or unverified with links.
-  It reads GitHub read-only through `gh`: give it an issue or pull request (`#12` or a link) and its
-  discussion becomes the topic; mid-talk it searches this repository's issues and pull requests and reads
-  files and releases of other repositories, private ones your `gh` can reach included.
-  The conclusions are yours to act on: `/viber:handoff` keeps them for a later session, and
-  `/viber:issue-create` turns them into a task as an issue.
 - **`/viber:intent`**: if you ask for a plan without an interview, viber suggests the interview
   first, and you decide.
 - **`/viber:prototype`**: takes an issue reference or a plain description, and asks first whether

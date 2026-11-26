@@ -8,7 +8,6 @@
   },
   "skills": [
     "./skills/setup/",
-    "./skills/talk/",
     "./skills/issue-create/",
     "./skills/prototype/",
     "./skills/intent/",
@@ -50,7 +49,6 @@
     "./agents/e2e-writer.md",
     "./agents/closeout.md",
     "./agents/prototype-writer.md",
-    "./agents/researcher.md",
     "./agents/mapper.md",
     "./agents/scout.md",
     "./agents/hunter.md",

@@ -53,7 +53,6 @@ The plan is reviewed before you see it, in at most two rounds that report critic
 
 | When you want to | Run |
 | --- | --- |
-| Talk a topic through, checked against trusted sources, before you decide anything | `/viber:talk` |
 | See a UI change as a mockup before anyone builds it | `/viber:prototype` |
 | Audit code for bugs, security, performance or test quality | `/viber:code-auditor` |
 | Turn pull request review comments into fixes, then post the replies | `/viber:pr-feedback` |

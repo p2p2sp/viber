@@ -60,6 +60,9 @@ const FORBIDDEN: string[] = [
   join("plan-", "fixer"),
   join("review-", "round"),
   join("plan-", "parts"),
+  join("viber:", "researcher"),
+  join("agents/", "researcher.md"),
+  join("gh-", "read.sh"),
 ];
 
 const BINARY_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2"];

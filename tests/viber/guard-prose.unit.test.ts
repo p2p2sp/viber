@@ -219,7 +219,6 @@ const ASKING_SKILLS = [
   "skills/rules/SKILL.md",
   "skills/e2e/SKILL.md",
   "skills/prototype/SKILL.md",
-  "skills/talk/SKILL.md",
 ];
 
 test("the DENIED output is worded in more than twenty agent files (the sweep below reads them all)", () => {
