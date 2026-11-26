@@ -99,7 +99,7 @@ test("the core instance reports the viber core, its entries (the fourteen skill 
     "viber/skills/code-auditor/scripts/keep-units.ts": longEntry,
     "viber/skills/code-auditor/scripts/hunt-return.ts": longEntry,
     "viber/skills/rules/scripts/rules-map.ts": longEntry,
-    "viber/skills/pro-designer/scripts/check_contrast.ts": longEntry,
+    "viber/skills/ui-designer/scripts/check_contrast.ts": longEntry,
     "tools/lint/run.ts": longEntry,
     "tests/viber/config/a.unit.test.ts": imports("node:child_process", "node:net", "../../harness/run.ts"),
     "tests/viber/lib/b.unit.test.ts": imports("node:http", "../../harness/tmp.ts", "../../harness/stub.ts"),

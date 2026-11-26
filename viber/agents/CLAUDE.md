@@ -13,7 +13,7 @@ This directory owns one markdown file per agent registered in `viber/.claude-plu
 ## Relationships
 
 - Reference reads: which agent reads which `<refs>/` file is listed per file in `references/CLAUDE.md`. `hunter` writes to the schema of `skills/code-auditor/references/synthesis.md`; `hunter` and `critic` get a clean checkout only for a lens reading `Worktree: required`, through `skills/code-auditor/scripts/worktree.sh` and, on the diff scope, `diff-overlay.sh`. `mapper`, `scout`, `hunter` and `critic` read the run file and one lens file of `skills/code-auditor/references/lenses/`; `mapper` also reads the `signals.md` that `skills/code-auditor/scripts/map-signals.sh` builds from that lens's `<lens>.signals.md`, and runs no signal command itself.
-- Skill calls from agents: `prototype-writer` invokes `impeccable`, else `viber:pro-designer`, when either is in its skill listing.
+- Skill calls from agents: `prototype-writer` invokes `impeccable`, else `viber:ui-designer`, when either is in its skill listing.
 
 ## Contracts
 

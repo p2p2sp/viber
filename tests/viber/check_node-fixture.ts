@@ -1,7 +1,7 @@
 /*
  * check_node-fixture.ts - the helpers check_node.test.ts and
  * check_node.critical.test.ts share: what both tiers need to seed a case and
- * run viber/skills/pro-designer/scripts/check_node.sh. It holds no case of its
+ * run viber/skills/ui-designer/scripts/check_node.sh. It holds no case of its
  * own.
  */
 
@@ -11,7 +11,7 @@ import path from "node:path";
 import { type RunResult } from "../harness/run.ts";
 import { forEachShell, type Shell } from "../harness/shells.ts";
 
-export const SUT = path.resolve(import.meta.dirname, "../../viber/skills/pro-designer/scripts/check_node.sh");
+export const SUT = path.resolve(import.meta.dirname, "../../viber/skills/ui-designer/scripts/check_node.sh");
 
 export async function assertPosix(fn: (shell: Shell) => void | Promise<void>) {
   const skips = await forEachShell("posix", fn);

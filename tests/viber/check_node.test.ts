@@ -1,5 +1,5 @@
 /*
- * check_node.test.ts - proves viber/skills/pro-designer/scripts/check_node.sh's single-line
+ * check_node.test.ts - proves viber/skills/ui-designer/scripts/check_node.sh's single-line
  * contract across every documented Node version threshold: `NODE_OK <cmd>`
  * (node, or node --experimental-strip-types) below the type-stripping
  * cutover, or `NODE_MISSING` when node is absent, unparsable, or too old -

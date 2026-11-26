@@ -2,8 +2,8 @@
  * ui-tells.unit.test.ts - holds the UI tells checklist the task agents read to its contract.
  *
  * `viber/references/ui-tells.md` is read by `task-coder` and `task-reviewer` instead of
- * `pro-designer`'s `anti-slop.md`. It must carry exactly the `##` headings of `anti-slop.md`,
- * stay within 4096 bytes and never carry a phrase written for pro-designer's context or an em
+ * `ui-designer`'s `anti-slop.md`. It must carry exactly the `##` headings of `anti-slop.md`,
+ * stay within 4096 bytes and never carry a phrase written for ui-designer's context or an em
  * or en dash. The files read here are shipped reference markdown, whose text is the behaviour.
  * Every rule is a pure function with a case on a synthetic sample proving it fires.
  *
@@ -49,7 +49,7 @@ function bannedIn(text: string): string[] {
   return BANNED.filter((phrase) => text.includes(phrase));
 }
 
-const ANTI_SLOP = read("skills/pro-designer/references/anti-slop.md");
+const ANTI_SLOP = read("skills/ui-designer/references/anti-slop.md");
 const CHECKLIST = read("references/ui-tells.md");
 const CODER = read("agents/task-coder.md");
 const REVIEWER = read("agents/task-reviewer.md");

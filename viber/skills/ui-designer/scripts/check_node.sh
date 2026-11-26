@@ -1,6 +1,6 @@
 #!/bin/sh
-# viber - skills/pro-designer/scripts/check_node.sh
-# Node.js runtime preflight for the pro-designer skill, which runs a
+# viber - skills/ui-designer/scripts/check_node.sh
+# Node.js runtime preflight for the ui-designer skill, which runs a
 # bundled .ts step. The bundled scripts are TypeScript executed directly by Node's
 # native type stripping (no build step, no npm install), which needs Node >= 22.6
 # (behind --experimental-strip-types) or >= 23.6 (on by default). Resolves the exact

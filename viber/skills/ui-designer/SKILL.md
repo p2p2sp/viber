@@ -1,5 +1,5 @@
 ---
-name: pro-designer
+name: ui-designer
 description: Professional UI/UX design standards to avoid AI slop. Use when the look of an interface is the goal - a new screen or page, a redesign, a UI review or critique, choosing colors, type, spacing, layout or motion, or a UI that looks generic or AI-generated. Not for a small functional change.
 allowed-tools: Read, Grep, Glob, Bash(sh:*), Bash(node:*)
 ---

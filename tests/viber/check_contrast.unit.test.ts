@@ -15,7 +15,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { parseColor, main } from "../../viber/skills/pro-designer/scripts/check_contrast.ts";
+import { parseColor, main } from "../../viber/skills/ui-designer/scripts/check_contrast.ts";
 
 // ---------------------------------------------------------------------------
 // parseColor - out-of-range rgb() components

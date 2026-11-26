@@ -1,6 +1,6 @@
 /*
  * check_node.critical.test.ts - the critical tier of
- * viber/skills/pro-designer/scripts/check_node.sh: a node new enough to strip
+ * viber/skills/ui-designer/scripts/check_node.sh: a node new enough to strip
  * types prints NODE_OK, and an old node prints NODE_MISSING.
  *
  * A case lives here when its failure means lost user work, an open gate, a

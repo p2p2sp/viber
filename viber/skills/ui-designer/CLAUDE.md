@@ -1,6 +1,6 @@
-# viber/skills/pro-designer - the design-standards skill, its references and scripts
+# viber/skills/ui-designer - the design-standards skill, its references and scripts
 
-Owns `pro-designer/`: `SKILL.md`, its fifteen on-demand references under `references/` and its two bundled scripts under `scripts/`. The skill holds any interface the host builds or reviews to professional UI/UX standards and measures WCAG contrast.
+Owns `ui-designer/`: `SKILL.md`, its fifteen on-demand references under `references/` and its two bundled scripts under `scripts/`. The skill holds any interface the host builds or reviews to professional UI/UX standards and measures WCAG contrast.
 
 ## Terms
 
@@ -11,7 +11,7 @@ Owns `pro-designer/`: `SKILL.md`, its fifteen on-demand references under `refere
 
 - `SKILL.md` reaches every reference by `${CLAUDE_SKILL_DIR}/references/<file>.md`; nothing else loads them. A reference no line of `SKILL.md` names is unreachable.
 - The scripts are called only from `SKILL.md`'s Final QA, through an interpreter (`sh`, then the resolved `node` command), pre-approved by `Bash(sh:*)` and `Bash(node:*)` in its `allowed-tools`.
-- `agents/prototype-writer.md` invokes this skill as `viber:pro-designer` when `impeccable` is not in its skill listing; `agents/task-coder.md` and `agents/task-reviewer.md` read the short `viber/references/ui-tells.md` instead of `references/anti-slop.md`. The skill's `description` names work where the interface's look is the goal and carries no "ALWAYS"; it stays model-invoked so that fallback works.
+- `agents/prototype-writer.md` invokes this skill as `viber:ui-designer` when `impeccable` is not in its skill listing; `agents/task-coder.md` and `agents/task-reviewer.md` read the short `viber/references/ui-tells.md` instead of `references/anti-slop.md`. The skill's `description` names work where the interface's look is the goal and carries no "ALWAYS"; it stays model-invoked so that fallback works.
 - Tested by `tests/viber/`: `check_contrast.unit.test.ts` (input validation, exit codes), `check_contrast-import.unit.test.ts` (importing the script runs no CLI), `check_node.test.ts` with `check_node.critical.test.ts` (version matrix, logic and critical tiers).
 
 ## Contracts
