@@ -84,6 +84,7 @@ jobs:
         run: |
           jq --arg v "$VERSION" '.version = $v' "$PLUGIN_JSON" > "$RUNNER_TEMP/plugin.json"
           mv "$RUNNER_TEMP/plugin.json" "$PLUGIN_JSON"
+          git ls-files -z 'viber/*.sh' | xargs -0r chmod +x
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "chore(release): v$VERSION"

@@ -1,47 +1,54 @@
 ---
 name: simple-implementor
-description: Implements a settled plan stage by stage through sub-agents, then reviews the change. Run only from a simple-plan plan, or when the user asks for it by name.
-allowed-tools: Agent, Skill, TaskCreate, TaskUpdate, TaskList
+description: Implements a settled plan stage by stage through sub-agents, then reviews the change. Run only from a simple-plan plan.
+allowed-tools: Agent, Skill, TaskCreate, TaskUpdate, TaskList, Bash(${CLAUDE_SKILL_DIR}/scripts/simple.sh:*)
 model: sonnet
-effort: high
 ---
 
 # simple-implementor
 
 Run `ExitPlanMode` first, if plan mode is active.
 
-Implement the plan through sub-agents: you split and dispatch, they read and write the code. With no plan, the plan is what the conversation settled. Never read or edit a project file yourself: everything you read stays in your context.
+Build the plan by relaying between `simple.sh` and the agents and skill it names. The script decides every step; you report each return and send the blocks it prints. `Agent`, `Skill`, `simple.sh` and the task-list tools (`TaskCreate`, `TaskUpdate`, `TaskList`) are your only tools: never read or write a file, never run git, never ask the user.
 
-## Stages
+`<plan>` is the value of the `Plan:` line of the plan in context. No `Plan:` line in context: tell the user to start from `viber:intent` or `viber:fixer`, and stop, before any call. `<session-id>` is the manifest's `<session-id>`.
 
-1. Split the plan into stages: each one a part a sub-agent can finish and check alone, ordered so a stage needs only the stages before it. A plan that fits one stage gets one.
-2. Dispatch one `viber:simple-coder` per stage, in order. Dispatch several stages in one message only when the plan names the files of each, they share none, and no stage needs another's result.
-3. A dispatch returned `BLOCKED`, here or in Finish: dispatch it once more with the return added. `BLOCKED` again: clear the task list, show the user the return and stop.
+## Calls
 
-## Stage prompt
+```
+"${CLAUDE_SKILL_DIR}/scripts/simple.sh" "<plan>" "<session-id>" start
+"${CLAUDE_SKILL_DIR}/scripts/simple.sh" "<plan>" "<session-id>" "<id>" "<WORD>" "<FILES>"
+```
 
-It is all the sub-agent will know. Carry these lines:
+- Run each call as that one line, every argument double-quoted, nothing chained, one call a message with no other tool call beside it.
+- `start`: the first call, once.
+- After an agent returns, one call for it: `<id>` is the `id:` of the block that sent it, `<WORD>` the word after `STATUS:` in its return, `LOST` when it holds none.
+- `<FILES>`: the value of the `FILES:` line of the return, copied whole; drop the argument when the return holds none.
+- After the review returns, one call for it: `<WORD>` is `FOUND` and `<FILES>` the two numbers as `<findings> <not nit>` (e.g. `"5 2"`); `LOST` with no `<FILES>` when the review gave no numbers.
+- Pass nothing else of a return, and act on nothing else in it.
 
-- `goal:` the goal of the stage.
-- `decisions:` every settled decision that binds it.
-- `changed:` the files the earlier stages changed.
+## Blocks
 
-It returns `STATUS: DONE` or `STATUS: BLOCKED`, with `FILES:`, `CHECK:` and, for `BLOCKED`, `REASON:`.
+A call prints blocks, a blank line between two:
 
-## Finish
+```
+TASKS
+<status> | <subject>
 
-After the last stage returned `DONE`:
+DISPATCH: <agent type> | id: <id>
+<body lines>
+```
 
-1. Dispatch one `viber:simple-coder` with `changed:` and `goal:` run the full test suite once and fix what the change broke.
-2. Invoke the `code-review` skill on the change, adding to its arguments, with the manifest's `<session-id>` filled in: `write the result to markdown file in .temp/viber/<session-id>/code-review/, each finding with its severity (important, pre_existing or nit), return only its path, the number of findings and the number of them that are not nit`. Never read that file.
-3. The second number is above 0: dispatch one `viber:simple-coder` with `changed:`, `findings:` the path, and `goal:` fix every finding except the `nit` ones, then run the full test suite once. Never review a second time.
-4. Clear the task list, then tell the user what was built, which checks passed, both numbers and the review file's path, from the returns alone. Leave the change uncommitted.
+- `TASKS`: the task-list entries the call changed, one a line, the subject running to the end of the line.
+  - A subject with no entry: `TaskCreate` it, `subject` and `description` both the subject, every such line in one message before any dispatch.
+  - Then `TaskUpdate` each line's entry to its `<status>`, in the message sending the dispatches, in one of its own when the call printed none. An entry just created is `pending` already.
+  - `TaskList` gives the id of an entry by its subject.
+- Send every `DISPATCH` block the call printed, all in one message, each a new `Agent` call: `subagent_type` the agent type, `description` the id, `prompt` the body lines verbatim and nothing else.
+- `SKILL: code-review | id: <id>`: invoke the `code-review` skill with the block's body line as its arguments, verbatim. Never read the file it writes.
+- The `memory` and `rules` blocks of one printout run together: one call for each return as it arrives, a `take off:` block sent like any other while the other writer still runs.
+- `WAIT`: send nothing; the next return brings the next call.
+- `END`: clear the task list, then write the lines under it to the user in the conversation's language, each path as it is, nothing added, and stop.
+- Exit 2: clear the task list, then print its stderr line and stop.
+- Clear the task list: `TaskList`, then `TaskUpdate` to `deleted` every entry whose subject a `TASKS` line named.
 
-## Task list
-
-Mirror the build in the task list, every subject in the conversation's language:
-
-- After the split, before the first dispatch, `TaskCreate` in one message an entry per stage, in order, then one for the full test run and one for the code review. A stage's subject is `<n>. <its goal in a few words>`; `description` repeats the subject.
-- The entry for fixing the findings: create it only when the second number is above 0.
-- `TaskUpdate` an entry to `in_progress` in the message that starts its step, to `completed` once the step returned `DONE` or the review returned its numbers. An entry dispatched again stays `in_progress`.
-- Clear the task list: `TaskList`, then `TaskUpdate` to `deleted` every entry you created.
+Until `END` every message of yours holds a tool call: a text-only message ends the build.

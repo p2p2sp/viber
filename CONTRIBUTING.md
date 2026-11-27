@@ -1,7 +1,6 @@
 # Contributing
 
-These plugins are opinionated and their maintainers set the direction, so pull requests are not
-accepted: a pull request is closed without review.
+Those plugin is opinionated and their maintainers set the direction, so pull requests are not accepted: a pull request is closed without review.
 
 Your feedback is welcome all the same:
 

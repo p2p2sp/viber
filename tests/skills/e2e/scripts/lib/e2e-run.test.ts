@@ -11,6 +11,8 @@ import { removeDir, runEntry, tempDir, writeFiles } from "../../../../temp-repo.
 const ENTRY = "viber/skills/e2e/scripts/e2e.ts";
 let dir = "";
 afterEach(() => removeDir(dir));
+// Changed on purpose: the entry prints every path with `/`, so the expected root does too (Windows).
+const slashed = (path: string) => path.replaceAll("\\", "/");
 
 describe("e2e find", () => {
   it("reads directories from <root>/.claude/viber.yml", () => {
@@ -20,12 +22,12 @@ describe("e2e find", () => {
       "docs/open-runs/20260101-a/qa.e2e.md": "# QA\n",
       "docs/_specs/20260202-b/qa.e2e.md": "# QA\n",
     });
-    assert.equal(runEntry(ENTRY, ["find"], dir)[0], `HANDOFF=${dir}/docs/open-runs/20260101-a/qa.e2e.md`);
+    assert.equal(runEntry(ENTRY, ["find"], dir)[0], `HANDOFF=${slashed(dir)}/docs/open-runs/20260101-a/qa.e2e.md`);
   });
 
   it("no config: the default directories", () => {
     dir = tempDir(true);
     writeFiles(dir, { "docs/open-runs/20260101-a/qa.e2e.md": "# QA\n", "docs/_specs/20260202-b/qa.e2e.md": "# QA\n" });
-    assert.equal(runEntry(ENTRY, ["find"], dir)[0], `HANDOFF=${dir}/docs/_specs/20260202-b/qa.e2e.md`);
+    assert.equal(runEntry(ENTRY, ["find"], dir)[0], `HANDOFF=${slashed(dir)}/docs/_specs/20260202-b/qa.e2e.md`);
   });
 });

@@ -1,6 +1,6 @@
 ---
 name: rules-writer
-description: Corrects the project rules the build made false. Invoked only by the spec-implementor skill.
+description: Corrects the project rules the build made false. Invoked only by the spec-implementor and simple-implementor skills.
 tools: Read, Write, Edit, Grep, Glob
 model: sonnet
 effort: medium

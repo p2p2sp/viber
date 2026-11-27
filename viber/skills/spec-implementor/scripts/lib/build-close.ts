@@ -129,7 +129,7 @@ function commitFiles(ctx: Ctx, label: string, message: string, files: { paths: s
 }
 
 /** Removes each of `paths` of length 0 under VIBER_DIR, then the directory once no entry is left. Runs before the commit, so the removal is committed. */
-function removeEmptied(ctx: Ctx, paths: string[]): void {
+export function removeEmptied(ctx: Ctx, paths: string[]): void {
   for (const path of paths) {
     if (path.startsWith(VIBER_DIR) && ctx.fs.readText(`${ctx.root}/${path}`) === "") ctx.fs.remove(`${ctx.root}/${path}`);
   }

@@ -10,6 +10,9 @@ color: yellow
 
 Deliver the `goal:` of this dispatch. The prompt is all that was settled: `decisions:` bind you, `changed:` lists the files the earlier dispatches changed, `findings:` is the path of the file with the review findings to fix.
 
+- With `plan:` and `stage:`: read the whole plan file, every settled fact in it binds you; deliver only the stage under the heading `## <stage>.`.
+- With `plan:` or `blocked:`, `changed:` is the path of a file listing one changed path a line.
+- With `blocked:`: read that file first when it exists (an earlier try's reason); on `BLOCKED`, write your reason to it.
 - New tests: unit tests only, written after the code, for a decision in the logic this change adds or alters. Never an integration or end-to-end test.
 - Edit an existing test only where this change makes it fail.
 - As the work goes, run the project's typecheck or build, and the test files you touch.

@@ -62,7 +62,7 @@ The full path, step by step:
 
 The plan is reviewed before you see it and reports critical problems only, and a hook refuses to leave plan mode on a plan that did not pass. Each task is checked against its own definition of done before its commit. The run's state is committed as the build goes, so an interrupted build picks up in a new session or on another machine.
 
-A bug goes through `/viber:fixer`, which finds the root cause, proves it with one failing test and never fixes it itself: you choose between a short plan and a direct fix.
+A bug goes through `/viber:fixer`, which finds the root cause, proves it with one failing test and never fixes it itself: the fix is built from a short plan you approve.
 
 ## More than the main loop
 

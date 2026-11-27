@@ -1,7 +1,7 @@
 ---
 name: fixer
 description: Traces a reported bug to its root cause and proves it with a failing test, then hands the diagnosis to the planner - it applies no fix itself. Use whenever the user reports a bug and wants to fix it. Not for a fix the user asked to apply directly, without a plan.
-allowed-tools: Read, Grep, Glob, Bash, Write, Edit, AskUserQuestion, Skill
+allowed-tools: Read, Grep, Glob, Bash, Write, Edit, Skill
 ---
 
 # Fixer
@@ -20,20 +20,4 @@ Delete the test, tell the user what you checked and why the bug is unproven, sto
 
 ## Red
 
-Ask through one `AskUserQuestion` call:
-
-```
-header: "Fixer"
-question: "<the bug and its root cause in one sentence>. Proven by <test path>. How to fix it?"
-multiSelect: false
-options:
-  - label: "Plan -> Build"
-    description: "Approve a short plan, then build from it"
-  - label: "Fix directly -> Build"
-    description: "Skip the plan, build now"
-```
-
-- Plan -> Build: invoke the `viber:simple-plan` skill.
-- Fix directly -> Build: invoke the `viber:simple-implementor` skill.
-
-Both carry as settled: the root cause, the test's path, the fix turns that test green without editing it.
+Tell the user in one sentence the bug, its root cause and the test's path, then invoke the `viber:simple-plan` skill. It carries as settled: the root cause, the test's path, the fix turns that test green without editing it.
