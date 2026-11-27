@@ -40,7 +40,7 @@ describe("runSimple writers", () => {
     const { close } = run({ before: ["mine.ts"] });
     const out = close();
     assert.match(out, /^END\n/);
-    assert.doesNotMatch(out, /writer|Project memory/);
+    assert.doesNotMatch(out, /writer|project memory/);
   });
 
   it("the change list: not in before, or in before and reported in FILES; .temp/ dropped; only the memory writer without a matching rule", () => {
@@ -52,7 +52,9 @@ describe("runSimple writers", () => {
       [
         "TASKS",
         "completed | Code review",
-        "in_progress | Project memory and rules",
+        // Changed on purpose: an entry a writer, the rules one completed when no rule matches.
+        "in_progress | Update project memory",
+        "completed | Update project rules",
         "",
         "DISPATCH: viber:memory-writer | id: memory.4",
         `spec: ${PLAN}`,
@@ -68,7 +70,7 @@ describe("runSimple writers", () => {
     const { close } = run({ files: [RULE], disk: { [`${ROOT}/${RULE}`]: RULE_TEXT, [`${ROOT}/.claude/viber.yml`]: "build:\n  rules: false\n" } });
     const out = close("src/a.ts", ["src/a.ts"]);
     assert.match(out, /memory-writer/);
-    assert.doesNotMatch(out, /rules-writer/);
+    assert.doesNotMatch(out, /rules-writer|Update project rules/);
   });
 
   it("both in one printout; rules first, then memory: WAIT, then END", () => {
@@ -77,14 +79,16 @@ describe("runSimple writers", () => {
     assert.match(out, /DISPATCH: viber:memory-writer \| id: memory\.4\n.*\n.*\n.*\n\nDISPATCH: viber:rules-writer \| id: rules\.5\n/);
     assert.match(out, new RegExp(`id: rules\\.5\\nspec: ${PLAN}\\nchanges: ${DIR}/rules-changes\\.md\\nrules notes: ${DIR}/rules\\.md\\n$`));
     assert.equal(fs.readText(`${DIR}/rules-changes.md`), "A\tsrc/a.ts\n");
-    assert.equal(call("rules.5", "NONE").stdout, "WAIT\n");
+    // Changed on purpose: each writer has its own entry, completed on its return.
+    assert.equal(call("rules.5", "NONE").stdout, "TASKS\ncompleted | Update project rules\n\nWAIT\n");
     assert.match(call("memory.4", "NONE").stdout, /^END\n/);
   });
 
   it("memory first, then rules: WAIT, then END", () => {
     const { call, close } = run(bothRules);
     close("src/a.ts", ["src/a.ts"]);
-    assert.equal(call("memory.4", "NONE").stdout, "WAIT\n");
+    // Changed on purpose: each writer has its own entry, completed on its return.
+    assert.equal(call("memory.4", "NONE").stdout, "TASKS\ncompleted | Update project memory\n\nWAIT\n");
     assert.equal(call("memory.4", "NONE").stdout, "WAIT\n");
     assert.match(call("rules.5", "NONE").stdout, /^END\n/);
   });

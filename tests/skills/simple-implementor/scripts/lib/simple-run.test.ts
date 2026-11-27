@@ -32,6 +32,9 @@ describe("runSimple", () => {
         "pending | 2. Second",
         "pending | Full test run",
         "pending | Code review",
+        // Changed on purpose: the writers' entries are listed from the start.
+        "pending | Update project memory",
+        "pending | Update project rules",
         "",
         "DISPATCH: viber:simple-coder | id: stage1.1",
         `plan: ${PLAN}`,
@@ -61,7 +64,8 @@ describe("runSimple", () => {
     );
     assert.equal(
       call("review.4", "FOUND", "5 2").stdout,
-      `TASKS\ncompleted | Code review\nin_progress | Fix the review findings\n\nDISPATCH: viber:simple-coder | id: fix.5\nchanged: ${DIR}/changed.md\nblocked: ${DIR}/blocked/fix.md\nfindings: ${REVIEW}\ngoal: fix every finding except the nit ones, then run the full test suite once\n`,
+      // Changed on purpose: the fix has no entry of its own, Code review stays in_progress through it.
+      `DISPATCH: viber:simple-coder | id: fix.5\nchanged: ${DIR}/changed.md\nblocked: ${DIR}/blocked/fix.md\nfindings: ${REVIEW}\ngoal: fix every finding except the nit ones, then run the full test suite once\n`,
     );
     assert.equal(
       call("fix.5", "DONE").stdout,

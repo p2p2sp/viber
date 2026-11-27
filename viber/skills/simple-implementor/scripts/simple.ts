@@ -99,9 +99,12 @@
  *            none with `END`. <status> is `pending`, `in_progress` or
  *            `completed`. The entries, in order: one a stage, subject
  *            `<n>. <goal>` (its heading's text); `Full test run`; `Code
- *            review`; `Fix the review findings`, only once that step runs;
- *            `Project memory and rules`, only once at least one writer is
- *            sent. An entry dispatched again stays `in_progress`.
+ *            review`, `in_progress` through the fix of its findings too;
+ *            `Update project memory`; `Update project rules`, unless
+ *            `build.rules` of .claude/viber.yml is `false`. A writer's entry
+ *            is `completed` once the writers step runs and no dispatch of
+ *            its own is awaited, one never sent too. An entry dispatched
+ *            again stays `in_progress`.
  *            Then one of:
  *              DISPATCH: viber:simple-coder | id: <id>
  *              <body lines: the agent's prompt, verbatim>

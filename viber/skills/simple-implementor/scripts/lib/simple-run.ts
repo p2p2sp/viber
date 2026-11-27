@@ -364,7 +364,8 @@ export function runSimple(argv: string[], rawCwd: string, ports: Ports): Result 
 
   const ctx: Ctx = { root, plan, stages, dir, review, state, fs, git, files: () => tree.files(root), out: [] };
   // A start lists every entry: the session holds none of them.
-  const before = starting ? [] : listOf(state, stages);
+  const rules = rulesOn(fs.readText(configPath(root)));
+  const before = starting ? [] : listOf(state, stages, rules);
   if (starting) send(ctx);
   else {
     const id = argv[2].trim();
@@ -373,7 +374,7 @@ export function runSimple(argv: string[], rawCwd: string, ports: Ports): Result 
 
   if (!fs.writeText(stateFile, `${JSON.stringify(state, null, 2)}\n`)) return refuse(`simple.sh: cannot write ${stateFile}`);
   if (state.step === "end") return { stdout: `${["END", ...state.end].join("\n")}\n`, stderr: "", exit: 0 };
-  const list = listOf(state, stages).filter((line) => !before.includes(line));
+  const list = listOf(state, stages, rules).filter((line) => !before.includes(line));
   const tasks = list.length === 0 ? [] : [["TASKS", ...list].join("\n")];
   const blocks = ctx.out.map((block) => [block.head, ...block.lines].join("\n"));
   return { stdout: `${[...tasks, ...(blocks.length === 0 ? ["WAIT"] : blocks)].join("\n\n")}\n`, stderr: "", exit: 0 };
