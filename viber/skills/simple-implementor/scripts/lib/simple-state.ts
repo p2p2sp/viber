@@ -20,7 +20,7 @@ export interface State {
   open: string;
   /** The sequence number of the last id issued. */
   seq: number;
-  /** The returns of the dispatch in flight that were no `DONE`. */
+  /** The returns of the dispatch in flight that were no `DONE`; 0 again after a `resume`. */
   tries: number;
   /** The repo-relative paths that differed from HEAD at `start`: the user's own files. */
   before: string[];
@@ -53,6 +53,8 @@ export interface State {
   head?: string;
   /** The commits' lines under END. */
   committed?: string[];
+  /** The step a `BLOCKED` or a second lost return stopped the run at, until `resume` reopens it. */
+  stopped?: "stage" | "tests" | "fix";
   /** The lines under END. */
   end: string[];
 }

@@ -46,6 +46,8 @@ Format (never more than 3 options):
 - A running exploration is an unsettled prerequisite: hold back only the questions downstream of it and ask the rest of the frontier now, within the round limit.
 - A change that alters or removes existing behaviour: have `Explore` find what relies on that behaviour (callers, tests asserting it, docs stating it). Each one whose own observable behaviour would change is a decision: it changes too, or it must keep working.
 - Decisions are the user's: put each one to them and wait, never settle one yourself.
+- A limit (what stays unchanged, what is left out) is a decision. Before putting it to the user, have `Explore` check that every required behaviour can be built within it: each file the change adds or moves has a home that can reference what it needs.
+- A fact you hold from neither the user, a round nor the code (one carried over from an earlier spec or a pattern): state it in the understanding under `Assumed`, apart from the decisions. It does not bind the build.
 
 ## Done
 

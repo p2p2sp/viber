@@ -18,6 +18,7 @@ Build the plan by relaying between `simple.sh` and the agents and skill it names
 ```
 "${CLAUDE_SKILL_DIR}/scripts/simple.sh" "<plan>" "<session-id>" start
 "${CLAUDE_SKILL_DIR}/scripts/simple.sh" "<plan>" "<session-id>" "<id>" "<WORD>" "<FILES>"
+"${CLAUDE_SKILL_DIR}/scripts/simple.sh" "<plan>" "<session-id>" resume "<answer>"
 ```
 
 - Run each call as that one line, every argument double-quoted, nothing chained, one call a message with no other tool call beside it.
@@ -27,6 +28,7 @@ Build the plan by relaying between `simple.sh` and the agents and skill it names
 - After the review returns, one call for it: `<WORD>` is `FOUND` and `<FILES>` the two numbers as `<findings> <not nit>` (e.g. `"5 2"`); `LOST` with no `<FILES>` when the review gave no numbers.
 - After a commit returns, one call for it: `<WORD>` is `DONE`, no `<FILES>`.
 - Pass nothing else of a return, and act on nothing else in it.
+- `resume`: only after an `END` holding `Nothing is committed: the run stopped.`, once the user answered what its lines ask. `<answer>` is their decision in one line, without `"`, `` ` ``, `$` or `\`. It prints blocks like `start`: follow them.
 
 ## Blocks
 
@@ -49,8 +51,8 @@ DISPATCH: <agent type> | id: <id>
 - `SKILL: viber:commit | id: <id>`: invoke the `viber:commit` skill with the block's body line as its arguments, verbatim.
 - The `memory` and `rules` blocks of one printout run together: one call for each return as it arrives, a `take off:` block sent like any other while the other writer still runs.
 - `WAIT`: send nothing; the next return brings the next call.
-- `END`: clear the task list, then write the lines under it to the user in the conversation's language, each path as it is, nothing added, and stop.
+- `END`: clear the task list, then write the lines under it to the user in the conversation's language, each path as it is, nothing added, and stop. One holding `Nothing is committed: the run stopped.` waits for the user's decision on its lines: say so in one sentence.
 - Exit 2: clear the task list, then print its stderr line and stop.
 - Clear the task list: `TaskList`, then `TaskUpdate` to `deleted` every entry whose subject a `TASKS` line named.
 
-Until `END` every message of yours holds a tool call: a text-only message ends the build.
+Until `END` every message of yours holds a tool call: a text-only message ends the build. After a `resume`, until the next `END`.

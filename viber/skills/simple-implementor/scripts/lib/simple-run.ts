@@ -22,7 +22,7 @@ const CODER = "viber:simple-coder";
 const TESTS_GOAL = "goal: run the full test suite once and fix what the change broke";
 const FIX_GOAL = "goal: fix every finding except the nit ones, then run the full test suite once";
 
-const USAGE = ["usage: simple.sh <plan> <session-id> start", "       simple.sh <plan> <session-id> <id> <WORD> [<FILES>]"].join("\n");
+const USAGE = ["usage: simple.sh <plan> <session-id> start", "       simple.sh <plan> <session-id> resume [<answer>]", "       simple.sh <plan> <session-id> <id> <WORD> [<FILES>]"].join("\n");
 
 export interface Result {
   stdout: string;
@@ -60,9 +60,10 @@ interface Ctx {
 const refuse = (text: string): Result => ({ stdout: "", stderr: `${text}\n`, exit: 2 });
 const isAbsolute = (path: string): boolean => path.startsWith("/") || /^[A-Za-z]:/.test(path);
 const changedFile = (ctx: Ctx): string => `${ctx.dir}/changed.md`;
+const deviationsFile = (ctx: Ctx): string => `${ctx.dir}/deviations.md`;
 const lines = (text: string | null): string[] => (text ?? "").split(/\r?\n/).filter((line) => line.trim() !== "");
 
-/** The blocked file of the step in flight: each dispatch of one step shares it, so a second coder reads the first one's reason. */
+/** The blocked file of the step in flight: each dispatch of one step shares it, so a later coder reads the earlier reason and the user's decision on it. */
 function blockedFile(ctx: Ctx): string {
   const { step, stage } = ctx.state;
   return `${ctx.dir}/blocked/${step === "stage" ? `stage${ctx.stages[stage].num}` : step}.md`;
@@ -81,7 +82,7 @@ function send(ctx: Ctx): void {
     });
     return;
   }
-  const common = [`changed: ${changedFile(ctx)}`, `blocked: ${blockedFile(ctx)}`];
+  const common = [`changed: ${changedFile(ctx)}`, `blocked: ${blockedFile(ctx)}`, `deviations: ${deviationsFile(ctx)}`];
   const body =
     state.step === "stage" ? [`plan: ${ctx.plan}`, `stage: ${stage.num}`, ...common] : state.step === "tests" ? [...common, TESTS_GOAL] : [...common, `findings: ${ctx.review}`, FIX_GOAL];
   ctx.out.push({ head: `DISPATCH: ${CODER} | id: ${state.open}`, lines: body });
@@ -98,6 +99,8 @@ function addChanged(ctx: Ctx, files: string): void {
 function summary(ctx: Ctx): string[] {
   const { state } = ctx;
   const out = [`Stages done: ${state.stage} of ${ctx.stages.length}.`];
+  const broken = lines(ctx.fs.readText(deviationsFile(ctx)));
+  if (broken.length > 0) out.push("Assumed in the plan, broken by the build:", ...broken.map((line) => `  ${line.trim()}`));
   if (state.tested) out.push("The full test suite ran once and what the change broke was fixed.");
   if (state.review === "lost") out.push(`The review gave no numbers, so no finding was fixed. Review file: ${ctx.review}`);
   else if (state.review !== null) {
@@ -110,7 +113,7 @@ function summary(ctx: Ctx): string[] {
   return out;
 }
 
-/** Ends the run: the lines under END, the last ones naming the commits and what still differs from HEAD. `stopped`: a coder's second failed dispatch, nothing committed. */
+/** Ends the run: the lines under END, the last ones naming the commits and what still differs from HEAD. `stopped`: a coder blocked or lost twice, nothing committed. */
 function finish(ctx: Ctx, head: string[], stopped = false): void {
   const { state } = ctx;
   const commits = state.commits ?? [];
@@ -323,12 +326,30 @@ function commitEvent(ctx: Ctx): void {
   sendCommit(ctx);
 }
 
-/** A coder's second return in a row that is no `DONE`: the run ends with the reason its blocked file holds. */
-function stop(ctx: Ctx): void {
+/** A coder's `BLOCKED`, or its second lost return in a row: the run ends with what its blocked file holds and keeps the step, so `resume` reopens it. */
+function stop(ctx: Ctx, blocked: boolean): void {
   const { state } = ctx;
-  const what = state.step === "stage" ? `Stage ${ctx.stages[state.stage].num}` : state.step === "tests" ? "The full test run" : "The fix of the findings";
+  const step = state.step as "stage" | "tests" | "fix";
+  const what = step === "stage" ? `Stage ${ctx.stages[state.stage].num}` : step === "tests" ? "The full test run" : "The fix of the findings";
   const reason = lines(ctx.fs.readText(blockedFile(ctx)));
-  finish(ctx, [`${what} did not finish after a second try.`, ...(reason.length === 0 ? ["No reason was written."] : reason)], true);
+  finish(ctx, [blocked ? `${what} is blocked.` : `${what} did not finish after a second try.`, ...(reason.length === 0 ? ["No reason was written."] : reason)], true);
+  state.stopped = step;
+}
+
+/** Reopens a stopped run at the step that stopped it: the user's answer joins the step's blocked file, the block goes out under a new id. False when the answer could not be written. */
+function resume(ctx: Ctx, answer: string): boolean {
+  const { state } = ctx;
+  state.step = state.stopped ?? "stage";
+  delete state.stopped;
+  state.tries = 0;
+  state.end = [];
+  const decision = answer.replace(/\s+/g, " ").trim();
+  if (decision !== "") {
+    const held = ctx.fs.readText(blockedFile(ctx)) ?? "";
+    if (!ctx.fs.writeText(blockedFile(ctx), `${held}${held === "" || held.endsWith("\n") ? "" : "\n"}Decision: ${decision}\n`)) return false;
+  }
+  send(ctx);
+  return true;
 }
 
 /** The awaited return: its word moves the run on. */
@@ -347,9 +368,10 @@ function event(ctx: Ctx, id: string, word: string, value: string): void {
   }
   addChanged(ctx, value);
   if (word !== "DONE") {
+    // `BLOCKED` waits for a decision, which no second try brings; a lost return is tried once more.
     state.tries += 1;
-    if (state.tries < 2) send(ctx);
-    else stop(ctx);
+    if (word !== "BLOCKED" && state.tries < 2) send(ctx);
+    else stop(ctx, word === "BLOCKED");
     return;
   }
   state.tries = 0;
@@ -372,7 +394,9 @@ function event(ctx: Ctx, id: string, word: string, value: string): void {
 export function runSimple(argv: string[], rawCwd: string, ports: Ports): Result {
   const { fs, git, tree } = ports;
   const starting = argv.length === 3 && argv[2] === "start";
-  if (!starting && argv.length !== 4 && argv.length !== 5) return refuse(USAGE);
+  // No id is `resume`: the word tells its call from a return of four arguments.
+  const resuming = (argv.length === 3 || argv.length === 4) && argv[2] === "resume";
+  if (!starting && !resuming && argv.length !== 4 && argv.length !== 5) return refuse(USAGE);
   const session = argv[1].trim();
   if (!/^[A-Za-z0-9._-]+$/.test(session) || /^\.+$/.test(session)) return refuse(`simple.sh: ${argv[1]} is no session id`);
   const cwd = rawCwd.replaceAll("\\", "/").replace(/\/$/, "");
@@ -408,9 +432,13 @@ export function runSimple(argv: string[], rawCwd: string, ports: Ports): Result 
   const ctx: Ctx = { root, plan, stages, dir, review, state, fs, git, files: () => tree.files(root), out: [] };
   // A start lists every entry: the session holds none of them.
   const rules = rulesOn(fs.readText(configPath(root)));
-  const before = starting ? [] : listOf(state, stages, rules);
+  // A resume too: the END of the stop cleared them.
+  const reopening = resuming && state.step === "end" && state.stopped !== undefined;
+  const before = starting || reopening ? [] : listOf(state, stages, rules);
   if (starting) send(ctx);
-  else {
+  else if (reopening) {
+    if (!resume(ctx, argv[3] ?? "")) return refuse(`simple.sh: cannot write ${blockedFile(ctx)}`);
+  } else if (!resuming) {
     const id = argv[2].trim();
     if (state.step === "writers" ? state.waiting.includes(id) : state.step !== "end" && id === state.open) event(ctx, id, argv[3].trim().toUpperCase(), argv[4] ?? "");
   }

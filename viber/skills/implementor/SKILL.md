@@ -22,9 +22,10 @@ It is all the sub-agent will know. Carry these lines:
 
 - `goal:` the goal of the stage, with the files the conversation named for it.
 - `decisions:` every settled decision that binds it.
+- `assumed:` every fact the understanding lists under `Assumed` that touches it, never among `decisions:`.
 - `changed:` the files the earlier stages changed.
 
-It returns `STATUS: DONE` or `STATUS: BLOCKED`, with `FILES:`, `CHECK:` and, for `BLOCKED`, `REASON:`.
+It returns `STATUS: DONE` or `STATUS: BLOCKED`, with `FILES:`, `CHECK:`, a `DEVIATION:` line for each assumed fact it broke and, for `BLOCKED`, `REASON:`.
 
 ## Finish
 
@@ -32,7 +33,7 @@ After the last stage returned `DONE`:
 
 1. Dispatch one `viber:simple-coder` with `changed:` and `goal:` run the full test suite once and fix what the change broke.
 2. Run the `done` call. It prints `SKILL: viber:commit`: invoke the `viber:commit` skill with the line under it as its arguments, verbatim, then run the `committed` call.
-3. Clear the task list, then tell the user what was built and which checks passed, from the returns alone, then the lines under `END`, each path as it is.
+3. Clear the task list, then tell the user what was built, which checks passed and every `DEVIATION:`, from the returns alone, then the lines under `END`, each path as it is.
 
 ## Calls
 

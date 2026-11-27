@@ -12,6 +12,7 @@
  *
  * Contract:
  *   argv   : <plan> <session-id> start
+ *            <plan> <session-id> resume [<answer>]
  *            <plan> <session-id> <id> <WORD> [<FILES>]
  *            every argument double-quoted by the caller.
  *            <plan>       : the plan file (the plan-mode file, outside the
@@ -26,6 +27,16 @@
  *            start        : opens the run at stage 1, always: no resume, an
  *                           earlier state and work files of the session, and
  *                           its review file, are removed first.
+ *            resume       : reopens a stopped run at the step that stopped
+ *                           it, its tries at 0, and prints that step's block
+ *                           under a new id; the plan is read anew, so a line
+ *                           changed in it since the stop counts. <answer>: the
+ *                           user's decision on the reason, appended to the
+ *                           step's blocked file as one line `Decision:
+ *                           <answer>`, blanks and line breaks each run to one
+ *                           blank; left out or blank, nothing is appended.
+ *                           With no stopped run it changes nothing: it prints
+ *                           `WAIT`, or the END again once the run ended.
  *            <id>         : the `id:` of the block that sent the return.
  *            <WORD>       : a coder's return: the word of its `STATUS:` line
  *                           (`DONE`, `BLOCKED`), `LOST` when it held none.
@@ -59,7 +70,8 @@
  *                      absent from disk then), the change list, the
  *                      writers' overrun counters, the review's numbers, the
  *                      commits with their paths, the one awaited and HEAD
- *                      when it was sent, the END lines.
+ *                      when it was sent, the step a stop left open, the END
+ *                      lines.
  *            <dir>/kept/<path> : the content of each `kept` path present on
  *                      entering the writers step, written on that entry.
  *            <dir>/memory-changes.md, <dir>/rules-changes.md : each writer's
@@ -85,11 +97,14 @@
  *                      every awaited coder return so far, each once, `\`
  *                      turned to `/`, a <root>/ prefix cut, paths under .temp/
  *                      dropped. Written empty on `start`.
- *            <dir>/blocked/<key>.md : not written by the script: the file a
- *                      coder writes its reason to on `BLOCKED`. <key> is
- *                      `stage<n>`, `tests` or `fix`; both dispatches of one
- *                      step share it, so the second coder reads the first
- *                      reason.
+ *            <dir>/blocked/<key>.md : the file a coder appends its reason to
+ *                      on `BLOCKED`; the script only appends the `Decision:`
+ *                      line of a `resume`. <key> is `stage<n>`, `tests` or
+ *                      `fix`; every dispatch of one step shares it, so a
+ *                      later coder reads the earlier reason and the decision.
+ *            <dir>/deviations.md : not written by the script: one line for
+ *                      each assumed fact of the plan (a line `Assumed: ...`)
+ *                      a coder broke to deliver its goal.
  *            <root>/.temp/viber/<session-id>/code-review/review.md : not
  *                      written by the script: the file the review writes to.
  *            git    : the script commits nothing: the commit skill commits the
@@ -98,9 +113,9 @@
  *              TASKS
  *              <status> | <subject>
  *            first, when the call changed the session's task list: one line
- *            for each entry whose status it changed, every entry on `start`,
- *            none with `END`. <status> is `pending`, `in_progress` or
- *            `completed`. The entries, in order: one a stage, subject
+ *            for each entry whose status it changed, every entry on `start`
+ *            and on a `resume` that reopens a run, none with `END`. <status>
+ *            is `pending`, `in_progress` or `completed`. The entries, in order: one a stage, subject
  *            `<n>. <goal>` (its heading's text); `Full test run`; `Code
  *            review`, `in_progress` through the fix of its findings too;
  *            `Update project memory`; `Update project rules`, unless
@@ -117,13 +132,16 @@
  *              stage: <n>
  *              changed: <dir>/changed.md
  *              blocked: <dir>/blocked/stage<n>.md
+ *              deviations: <dir>/deviations.md
  *            the full test run, body:
  *              changed: <dir>/changed.md
  *              blocked: <dir>/blocked/tests.md
+ *              deviations: <dir>/deviations.md
  *              goal: run the full test suite once and fix what the change broke
  *            the fix of the findings, body:
  *              changed: <dir>/changed.md
  *              blocked: <dir>/blocked/fix.md
+ *              deviations: <dir>/deviations.md
  *              findings: <review file>
  *              goal: fix every finding except the nit ones, then run the full test suite once
  *            or the writers, one block each, both in one printout when both
@@ -154,10 +172,14 @@
  *            awaited, or one writer returned and the other is awaited);
  *            or `END` followed by plain lines the caller shows the user, each
  *            path as it is, in this order:
- *              `<Stage <n>|The full test run|The fix of the findings> did not
- *              finish after a second try.`, then each non-blank line of its
+ *              `<Stage <n>|The full test run|The fix of the findings> is
+ *              blocked.` (a `BLOCKED`) or `... did not finish after a second
+ *              try.` (a second lost return), then each non-blank line of its
  *              blocked file or `No reason was written.` (only on a stop);
  *              `Stages done: <k> of <total>.`;
+ *              `Assumed in the plan, broken by the build:` then each
+ *              non-blank line of deviations.md indented by two spaces (only
+ *              when it holds one);
  *              `The full test suite ran once and what the change broke was
  *              fixed.` (once the test run returned DONE);
  *              `Review findings: <n>, not nit: <m>. Review file: <review
@@ -220,18 +242,21 @@
  *                       0 the fix, else the writers; after the fix's `DONE`
  *                       the writers; after the writers the commits. Never a
  *                       second review.
- *              retry  : a coder's first return that is no `DONE` (`BLOCKED`,
- *                       `LOST`) prints the same block once more under a new
- *                       id; the second in a row ends the run (the stop lines).
- *                       Its FILES are added to changed.md either way.
+ *              retry  : a coder's `BLOCKED` ends the run at once (the stop
+ *                       lines): it waits for a decision, which the same block
+ *                       again does not bring. Any other return that is no
+ *                       `DONE` (`LOST`) prints the same block once more under
+ *                       a new id; the second in a row ends the run. Its FILES
+ *                       are added to changed.md either way. A stopped run
+ *                       keeps its state and work files: `resume` reopens it.
  *              review : `FOUND` with two numbers records them; `LOST`, any
  *                       other word or a value that is not two numbers is a
  *                       review that gave no numbers: no fix, the writers.
  *              writers: after the last code-changing step (the fix, or the
  *                       review when no fix runs or it gave no numbers),
- *                       before the commits; a run stopped by a second failed
- *                       dispatch sends none. The memory writer when the
- *                       change list is not empty; the rules writer when
+ *                       before the commits; a stopped run sends none. The
+ *                       memory writer when the change list is not empty; the
+ *                       rules writer when
  *                       `build.rules` of .claude/viber.yml is not `false` and
  *                       a listed path matches a `paths:` glob of a rule under
  *                       .claude/rules/. Neither: the commits. They return in
@@ -261,15 +286,16 @@
  *                       of `before`: a memory file a coder changed too is
  *                       among them). A path holding a blank, a comma or an
  *                       apostrophe is in neither: the commit skill cannot
- *                       read it in a list. A run stopped by a second failed
- *                       dispatch sends none. The script never reads what the
- *                       skill returned: a commit is made when HEAD moved.
+ *                       read it in a list. A stopped run sends none. The
+ *                       script never reads what the skill returned: a commit
+ *                       is made when HEAD moved.
  *   stderr : one line naming the cause when the exit is 2, the usage on a call
- *            that matches neither form.
+ *            that matches no form.
  *   exit   : 0 with blocks on stdout; 2 on bad usage, a bad session id, an
  *            unreadable plan, a plan with no stage heading, a `start` outside a
- *            git repository with a commit, a return before `start`, or a state
- *            that cannot be read or written (stdout empty).
+ *            git repository with a commit, a return or a `resume` before
+ *            `start`, or a state or a `Decision:` line that cannot be read or
+ *            written (stdout empty).
  */
 
 import { projectTree } from "../../planner/scripts/lib/adapters/tree.ts";

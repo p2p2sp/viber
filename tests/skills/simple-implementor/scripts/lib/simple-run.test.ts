@@ -1,7 +1,8 @@
 /*
- * runSimple: the order of the steps, the single retry of a coder, stale ids,
- * the changed file, the review's numbers, the commit of the change and what
- * END names as left uncommitted.
+ * runSimple: the order of the steps, the single retry of a lost coder, the stop
+ * of a blocked one and its resume, stale ids, the changed file, the broken
+ * assumptions, the review's numbers, the commit of the change and what END
+ * names as left uncommitted.
  */
 
 import assert from "node:assert/strict";
@@ -44,6 +45,8 @@ describe("runSimple", () => {
         "stage: 1",
         `changed: ${DIR}/changed.md`,
         `blocked: ${DIR}/blocked/stage1.md`,
+        // Changed on purpose: a coder is handed the file for the assumptions it broke.
+        `deviations: ${DIR}/deviations.md`,
         "",
       ].join("\n"),
     );
@@ -60,7 +63,7 @@ describe("runSimple", () => {
     const { call } = run();
     call("start");
     assert.match(call("stage1.1", "DONE").stdout, /^TASKS\ncompleted \| 1\. First\nin_progress \| 2\. Second\n\nDISPATCH: viber:simple-coder \| id: stage2\.2\n/);
-    assert.match(call("stage2.2", "DONE").stdout, /DISPATCH: viber:simple-coder \| id: tests\.3\nchanged: .*\nblocked: .*\/blocked\/tests\.md\ngoal: run the full test suite once and fix what the change broke\n$/);
+    assert.match(call("stage2.2", "DONE").stdout, /DISPATCH: viber:simple-coder \| id: tests\.3\nchanged: .*\nblocked: .*\/blocked\/tests\.md\ndeviations: .*\ngoal: run the full test suite once and fix what the change broke\n$/);
     assert.equal(
       call("tests.3", "DONE").stdout,
       `TASKS\ncompleted | Full test run\nin_progress | Code review\n\nSKILL: code-review | id: review.4\nwrite the result to one markdown file at ${REVIEW}, each finding with its severity (important, pre_existing or nit), and return only the number of findings and the number of them that are not nit\n`,
@@ -68,7 +71,7 @@ describe("runSimple", () => {
     assert.equal(
       call("review.4", "FOUND", "5 2").stdout,
       // Changed on purpose: the fix has no entry of its own, Code review stays in_progress through it.
-      `DISPATCH: viber:simple-coder | id: fix.5\nchanged: ${DIR}/changed.md\nblocked: ${DIR}/blocked/fix.md\nfindings: ${REVIEW}\ngoal: fix every finding except the nit ones, then run the full test suite once\n`,
+      `DISPATCH: viber:simple-coder | id: fix.5\nchanged: ${DIR}/changed.md\nblocked: ${DIR}/blocked/fix.md\ndeviations: ${DIR}/deviations.md\nfindings: ${REVIEW}\ngoal: fix every finding except the nit ones, then run the full test suite once\n`,
     );
     assert.equal(
       call("fix.5", "DONE").stdout,
@@ -108,10 +111,10 @@ describe("runSimple", () => {
     assert.doesNotMatch(out, /fix\.\d/);
   });
 
-  it("BLOCKED: the same block once more under a new id, then END with the reason", () => {
+  it("LOST: the same block once more under a new id, then END with the reason", () => {
     const { fs, call } = run();
     call("start");
-    assert.match(call("stage1.1", "BLOCKED").stdout, /^DISPATCH: viber:simple-coder \| id: stage1\.2\nplan: .*\nstage: 1\n.*\nblocked: .*\/blocked\/stage1\.md\n$/);
+    assert.match(call("stage1.1", "LOST").stdout, /^DISPATCH: viber:simple-coder \| id: stage1\.2\nplan: .*\nstage: 1\n.*\nblocked: .*\/blocked\/stage1\.md\ndeviations: .*\n$/);
     fs.writeText(`${DIR}/blocked/stage1.md`, "The API is missing.\n\nNo way around it.\n");
     assert.equal(
       call("stage1.2", "LOST").stdout,
@@ -120,10 +123,70 @@ describe("runSimple", () => {
     );
   });
 
+  it("BLOCKED: no second try, END with the reason at once", () => {
+    const { fs, call } = run();
+    call("start");
+    fs.writeText(`${DIR}/blocked/stage1.md`, "The plan forbids the reference the fake needs.\n");
+    // Changed on purpose: a blocked coder waits for a decision, the same block again brings none.
+    assert.equal(call("stage1.1", "BLOCKED").stdout, "END\nStage 1 is blocked.\nThe plan forbids the reference the fake needs.\nStages done: 0 of 2.\nNothing is committed: the run stopped.\n");
+    assert.equal(state(fs).stopped, "stage");
+  });
+
+  it("resume: the stopped step once more, every entry, the answer in its blocked file", () => {
+    const { fs, call } = run();
+    call("start");
+    call("stage1.1", "DONE", "src/a.ts");
+    fs.writeText(`${DIR}/blocked/stage2.md`, "Open: add the reference?");
+    call("stage2.2", "BLOCKED");
+    assert.equal(
+      call("resume", " add it,\nnothing else ").stdout,
+      [
+        "TASKS",
+        "completed | 1. First",
+        "in_progress | 2. Second",
+        "pending | Full test run",
+        "pending | Code review",
+        "pending | Update project memory",
+        "pending | Update project rules",
+        "pending | Commit the change",
+        "",
+        "DISPATCH: viber:simple-coder | id: stage2.3",
+        `plan: ${PLAN}`,
+        "stage: 2",
+        `changed: ${DIR}/changed.md`,
+        `blocked: ${DIR}/blocked/stage2.md`,
+        `deviations: ${DIR}/deviations.md`,
+        "",
+      ].join("\n"),
+    );
+    assert.equal(fs.readText(`${DIR}/blocked/stage2.md`), "Open: add the reference?\nDecision: add it, nothing else\n");
+    assert.equal(fs.readText(`${DIR}/changed.md`), "src/a.ts\n");
+    assert.equal(state(fs).stopped, undefined);
+    assert.match(call("stage2.3", "DONE").stdout, /id: tests\.4\n/);
+  });
+
+  it("resume with no answer writes no decision; with no stopped run it changes nothing", () => {
+    const { fs, call } = run();
+    call("start");
+    const saved = fs.readText(`${DIR}/state.json`);
+    assert.equal(call("resume", "go on").stdout, "WAIT\n");
+    assert.equal(fs.readText(`${DIR}/state.json`), saved);
+    call("stage1.1", "BLOCKED");
+    assert.match(call("resume").stdout, /DISPATCH: viber:simple-coder \| id: stage1\.2\n/);
+    assert.equal(fs.readText(`${DIR}/blocked/stage1.md`), null);
+  });
+
+  it("the assumptions a coder broke are named under END", () => {
+    const { fs, call } = run();
+    call("start");
+    fs.writeText(`${DIR}/deviations.md`, "project files unchanged | added a reference to X.Contracts\n\n");
+    assert.match(call("stage1.1", "BLOCKED").stdout, /\nStages done: 0 of 2\.\nAssumed in the plan, broken by the build:\n  project files unchanged \| added a reference to X\.Contracts\nNothing is committed/);
+  });
+
   it("a return of an id not awaited changes nothing", () => {
     const { fs, call } = run();
     call("start");
-    call("stage1.1", "BLOCKED");
+    call("stage1.1", "LOST");
     const saved = fs.readText(`${DIR}/state.json`);
     assert.equal(call("stage1.1", "DONE", "x.ts").stdout, "WAIT\n");
     assert.equal(fs.readText(`${DIR}/state.json`), saved);
@@ -133,7 +196,7 @@ describe("runSimple", () => {
   it("FILES of every awaited return accumulate in the changed file, .temp/ dropped", () => {
     const { fs, call } = run();
     call("start");
-    call("stage1.1", "BLOCKED", "src\\a.ts, .temp/viber/s1/x.md");
+    call("stage1.1", "LOST", "src\\a.ts, .temp/viber/s1/x.md");
     call("stage1.2", "DONE", `${ROOT}/src/a.ts,./src/b.ts`);
     assert.equal(fs.readText(`${DIR}/changed.md`), "src/a.ts\nsrc/b.ts\n");
   });
@@ -184,10 +247,9 @@ describe("runSimple", () => {
     const { git, call } = run();
     call("start");
     git.dirtyPaths.push("src/a.ts", "stray.log");
-    call("stage1.1", "BLOCKED", "src/a.ts");
     assert.equal(
-      call("stage1.2", "BLOCKED").stdout,
-      "END\nStage 1 did not finish after a second try.\nNo reason was written.\nStages done: 0 of 2.\nNothing is committed: the run stopped.\nLeft uncommitted: src/a.ts\nLeft uncommitted, reported by no coder: stray.log\n",
+      call("stage1.1", "BLOCKED", "src/a.ts").stdout,
+      "END\nStage 1 is blocked.\nNo reason was written.\nStages done: 0 of 2.\nNothing is committed: the run stopped.\nLeft uncommitted: src/a.ts\nLeft uncommitted, reported by no coder: stray.log\n",
     );
   });
 });
