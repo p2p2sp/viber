@@ -32,6 +32,10 @@ Not every change needs a spec. When the interview ends, you pick the path:
 | Short plan > Build | A short plan you approve, a build in a fresh context, a code review | An uncommitted change |
 | Build now | A build in the same session, no plan and no review | An uncommitted change |
 
+### It splits a big change into parts
+
+When the interview settles more than 10 required behaviours, viber proposes splitting the change into parts of at most 10 each. Each part is a vertical slice: once it is built, the project builds, the full test suite passes and at least one new behaviour can be seen. Each part gets its own spec in its own directory, `<stamp>_<slug>-p<n>-of-<N>`, and then its own plan and build. Only the directory name records the split, so the agents never see it. The planner refuses a part until the one before it has been built and archived. A finished part's build ends by naming the spec of the next one, which you start with `/viber:planner <spec>` in a new session. A split change always takes the Spec > Plan > Build path.
+
 ### It runs without you
 
 Approve the plan and walk away. A script decides every step of the build: which task starts, what its coder is handed, whether a review passed, when a task is committed. A task that fails its review gets up to two fix rounds. One that still cannot pass is held, the tasks that depend on it are skipped and the rest of the plan goes on, so you come back to one summary instead of a stopped build.

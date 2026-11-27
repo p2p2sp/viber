@@ -15,6 +15,7 @@ Turn the spec at `$ARGUMENTS` into a checked, reviewed plan. Agents map the code
 ## 1. Map
 
 1. Run `plan.sh paths "<spec>"`. Its `draft:`, `code-map:`, `tests-map:` and `review:` lines are the paths this run hands to its agents.
+   - `OPEN: P<n> is not built`: show the user that line and end the turn.
 2. Dispatch `viber:plan-mapper` twice in one message: `spec: <spec>`, `lens: code`, `map: <the code-map: path>`, and `spec: <spec>`, `lens: tests`, `map: <the tests-map: path>`. Each returns `MAP: <path>`.
    - `paths` printed an `adr:` line: dispatch `viber:adr` in that same message with `spec: <spec>`, `out: <the adr: path>` and `stamp: <the stamp: value>`. Its return changes no step.
 3. Run `plan.sh maps "<code-map>" "<tests-map>"`. On `CONFLICT:` lines ask the Conflict question with those lines, then on `OVER:` lines the Size question with those lines.
@@ -34,7 +35,7 @@ Plan mode starts here at the latest; its own workflow does not apply: explore no
 
 1. Call `EnterPlanMode` unless plan mode is already on. Its notice names the plan file, `<plan>`.
 2. Run `plan.sh land "<draft>" "<spec>" "<code-map>" "<plan>"`. It prints `LANDED: <plan>` and `changed: <value>`.
-   - The conversation names a GitHub issue (`#123`, a number or an issue link, never a pull request): add it as a fifth argument, on every landing.
+   - The conversation names a GitHub issue (`#123`, a number or an issue link, never a pull request): add it as a fifth argument, on every landing. With none, `land` gives a later part the issue of the part before.
    - `FIX:` or `OPEN:` lines: handle them as in step 2 of Draft, then land again.
    - The harness refuses the call: ask the Refused question, never write the plan yourself.
 3. Dispatch `viber:plan-reviewer` with `plan: <plan>`, `spec: <spec>` and `report: <review>`; from the second review on add `changed: <value>`. It returns `VERDICT: PASS` or `VERDICT: FAIL`, and `REVIEW: <path>`.

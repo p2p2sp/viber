@@ -17,7 +17,10 @@
  *                      against the cwd, then the project root. Its `Spec:` line
  *                      names the run, its `ADR:` lines the decision records
  *                      staged for it, its `Issue:` line (`#<n>` or an issue
- *                      link, none on a pull request link) the run's issue.
+ *                      link, none on a pull request link) the run's issue,
+ *                      its `Phase: P<n> of <N>` line (plan.sh land, for a
+ *                      spec directory ending in `-p<n>-of-<N>`) the part of a
+ *                      split change the run builds.
  *            start   : opens the run, or resumes it: a task that is done stays
  *                      done (its commit finished, see git), every other
  *                      starts over, a held one included.
@@ -42,7 +45,10 @@
  *            <spec dir>/plan.md    : the plan as started.
  *            <spec dir>/outcome.md : the state of each task and the notes of
  *                      the run, rewritten on every call until the finalizer
- *                      returned.
+ *                      returned; with a `Phase:` line in the plan, the line
+ *                      `Phase: P<n> of <N>` under its title, then `Issue:
+ *                      <#n or link>` when the run has an issue (plan.sh land
+ *                      gives it to the next part).
  *            <work>/state.json     : the run between two calls: `base` (HEAD
  *                      at the first start), `before` (the files that differed
  *                      from HEAD then), each task's state (todo, coder,
@@ -75,6 +81,8 @@
  *                      qa comment, removed once gh returned.
  *            git    : `chore(viber): start <name>` on the first `start`,
  *                      of <spec dir> whole when it lies in the repository,
+ *                      with a `Phase: P<n> of <N>` line also the existing
+ *                      directories of the later parts beside it,
  *                      once its files are written, before
  *                      the records; a `start` finding <work>/state.json at
  *                      HEAD makes none, and a refusal is noted in the outcome
@@ -155,7 +163,12 @@
  *            <dir> is left uncommitted.` when the `state` or `archive` commit
  *            was refused, `Left uncommitted: <paths>` (the files that differ
  *            from HEAD, those of `before`, of <spec dir> and of .temp/ left
- *            out), `Outcome: <path>`.
+ *            out), `Outcome: <path>`, then, on a run closed in full whose
+ *            plan has `Phase: P<n> of <N>` with n < N, `Next: P<n+1> of <N>:
+ *            docs/<directories.runs>/<stamp>_<slug>-p<n+1>-of-<N>/spec.md`
+ *            (the run's name with its part suffix advanced), ending in ` is
+ *            missing` when that spec is absent; none after the last part. Nothing starts it:
+ *            the user calls the planner on that spec in a new session.
  *            The rules behind the blocks:
  *              start  : a task starts once every task it runs after is done
  *                       (its `Blocked-by`, each lower-numbered task sharing

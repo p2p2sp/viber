@@ -51,7 +51,21 @@ Format (never more than 3 options):
 
 The interview ends when the frontier is empty: every branch of the tree visited, no exploration still running, nothing silently assumed. Then state the shared understanding in prose and ask the user to confirm it through one `AskUserQuestion` call, every field in the conversation's language.
 
+## Parts
+
+More than 10 required behaviours settled (edge cases count): before stating the understanding, propose in one more round a split into parts, each of at most 10 behaviours. 10 or fewer: no question about parts.
+
+- A part is a vertical slice: once it is closed, the project builds, the full test suite is green and at least one new behaviour is observable.
+- Parts are numbered in build order; a part relies only on earlier parts.
+- Every behaviour belongs to exactly one part; every fact shared by parts is marked shared. Nothing later repairs the split.
+- The user rejects the split: there are no parts.
+- With parts, the shared understanding lists each part (number, title, its behaviours) and the shared facts.
+
+## Confirmation
+
 If the interview shows that the change touches the UI and no prototype of it exists yet, propose running the `viber:ui-prototype` skill by adding the Prototype option; otherwise hide that option.
+
+With parts, show only Spec -> Plan -> Build and, if it applies, Prototype.
 
 Format:
 

@@ -8,13 +8,3 @@ build:
 directories:
   runs: _specs
   specifications: specs
-
-branching:
-  mode: off
-  work:
-    main:
-      base: main
-      name: '{type}/{slug}'
-      target: main
-  # issue-type-mappings:
-  #   bug: main

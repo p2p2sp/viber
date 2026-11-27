@@ -7,6 +7,7 @@ import { LARGE_PLAN, checkMap, checkPlan, mapEntries } from "./plan-check.ts";
 import { blockers, isIntegration, modelOf, orderOf, wavesOf } from "./plan-order.ts";
 import { parsePlan, specIds, type Plan, type Task } from "./plan-parse.ts";
 import type { Clock, Fs, Tree } from "./ports.ts";
+import { configPath, directoriesOf } from "../../../spec-implementor/scripts/lib/build-config.ts";
 
 // A map is an index the writer reads whole: past these it fills the context it was meant to spare.
 const MAX_CODE_MAP = 60;
@@ -47,6 +48,38 @@ function workDir(spec: string, root: string): string {
   return `${root}/.temp/viber/${spec.split("/").slice(-2, -1)[0] ?? "plan"}`;
 }
 
+// A part of a split change: its spec's directory ends in `-p<n>-of-<N>`.
+const PART_RE = /^(.+)-p([1-9][0-9]*)-of-([1-9][0-9]*)$/;
+
+/** The part a spec belongs to, read from the name of the directory holding it; null for a spec of an unsplit change. */
+export function phaseOf(spec: string): { n: number; of: number; previous: string | null } | null {
+  const parts = spec.split("/");
+  const match = PART_RE.exec(parts.at(-2) ?? "");
+  if (match === null) return null;
+  const n = Number(match[2]);
+  const of = Number(match[3]);
+  if (n > of) return null;
+  const previous = n > 1 ? [...parts.slice(0, -2), `${match[1]}-p${n - 1}-of-${of}`].join("/") : null;
+  return { n, of, previous };
+}
+
+/**
+ * The outcome of the part before, read where a build closed in full leaves it:
+ * beside the spec (a run left in place) or in docs/<specifications>/. Closed in
+ * full means `outcome.md` stands with no `plan.md` beside it, the copy every
+ * start writes and only the full close removes. Null while that part is not
+ * built, its directory absent included.
+ */
+function builtOutcome(previous: string, root: string, fs: Fs): string | null {
+  const name = previous.slice(previous.lastIndexOf("/") + 1);
+  const { specifications } = directoriesOf(fs.readText(configPath(root)));
+  for (const dir of [previous, `${root}/docs/${specifications}/${name}`]) {
+    const outcome = fs.readText(`${dir}/outcome.md`);
+    if (outcome !== null && fs.readText(`${dir}/plan.md`) === null) return outcome;
+  }
+  return null;
+}
+
 /** The decision records the adr agent staged for a spec, as paths: every `.md` file of the run's `adr` directory. */
 function staged(spec: string, root: string, fs: Fs): string[] {
   const dir = `${workDir(spec, root)}/adr`;
@@ -65,7 +98,8 @@ function written(task: Task): string {
 }
 
 /**
- * The landed plan text: the hand-off line, the title, the spec, the plan's own
+ * The landed plan text: the hand-off line, the title, the spec, its part when
+ * the change is split, the plan's own
  * path, the run's issue when it has one, the staged decision records, the
  * waves, then each task with its model.
  * Accepting a plan clears the context, so its text alone tells the build which
@@ -73,7 +107,8 @@ function written(task: Task): string {
  */
 function landedText(plan: Plan, spec: string, path: string, issue: string | null, records: string[], tree: string[]): string {
   const waves = wavesOf(orderOf(plan.tasks, tree));
-  const out = ["Invoke the viber:spec-implementor skill to implement this plan.", "", `# ${plan.title}`, "", `Spec: ${spec}`, `Plan: ${path}`, ...(issue === null ? [] : [`Issue: ${issue}`]), ...records.map((record) => `ADR: ${record}`), "", "## Order", ""];
+  const phase = phaseOf(spec);
+  const out = ["Invoke the viber:spec-implementor skill to implement this plan.", "", `# ${plan.title}`, "", `Spec: ${spec}`, ...(phase === null ? [] : [`Phase: P${phase.n} of ${phase.of}`]), `Plan: ${path}`, ...(issue === null ? [] : [`Issue: ${issue}`]), ...records.map((record) => `ADR: ${record}`), "", "## Order", ""];
   waves.forEach((wave, index) => out.push(`- Wave ${index + 1}: ${wave.map((num) => `T${num}`).join(", ")}`));
   out.push("", "## Tasks");
   for (const task of plan.tasks) {
@@ -113,6 +148,9 @@ export function runPlan(argv: string[], rawCwd: string, ports: Ports): Result {
   if (command === "paths" && args.length === 1) {
     const spec = ports.fs.readText(args[0]);
     if (spec === null) return refuse(`plan.sh: cannot read ${args[0]}`);
+    // A part builds on the ones before it: only the outcome of a full close proves the part before is built.
+    const phase = phaseOf(args[0]);
+    if (phase !== null && phase.previous !== null && builtOutcome(phase.previous, ports.tree.root(cwd), ports.fs) === null) return ok([`OPEN: P${phase.n - 1} is not built`], 1);
     const dir = workDir(args[0], ports.tree.root(cwd));
     const lines = [`draft: ${dir}/plan-draft.md`, `code-map: ${dir}/map-code.md`, `tests-map: ${dir}/map-tests.md`, `review: ${dir}/plan-review.md`];
     // The records an earlier run of this spec staged would land beside the ones of this run.
@@ -147,8 +185,12 @@ export function runPlan(argv: string[], rawCwd: string, ports: Ports): Result {
 
   if (command === "land" && (args.length === 4 || args.length === 5)) {
     // The issue is no path: taken as given, a bare number written as `#<n>`.
-    const issue = args.length === 5 ? rest[4].trim() : null;
-    if (issue !== null && !ISSUE_RE.test(issue)) return refuse(`plan.sh: ${issue} is no issue number or issue link`);
+    const given = args.length === 5 ? rest[4].trim() : null;
+    if (given !== null && !ISSUE_RE.test(given)) return refuse(`plan.sh: ${given} is no issue number or issue link`);
+    // A later part is planned in a new session that names no issue: it inherits the one the outcome of the part before carries.
+    const phase = phaseOf(args[1]);
+    const inherited = given === null && phase !== null && phase.previous !== null ? /^Issue:[ \t]*(\S+)\s*$/m.exec(builtOutcome(phase.previous, ports.tree.root(cwd), ports.fs) ?? "")?.[1] ?? null : null;
+    const issue = given ?? (inherited !== null && ISSUE_RE.test(inherited) ? inherited : null);
     const result = checked(args[0], args[1], args[2], cwd, ports);
     if ("exit" in result) return result;
     if (result.lines.length > 0) return ok(result.lines, 1);

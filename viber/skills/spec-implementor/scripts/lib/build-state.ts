@@ -83,6 +83,20 @@ export interface Block {
   lines: string[];
 }
 
+/** A part of a split change: part `n` of `of`. */
+export interface Phase {
+  n: number;
+  of: number;
+}
+
+/** The part a plan's `Phase: P<n> of <N>` line names, as plan.sh land writes it; null with none or another form. */
+export function phaseOf(plan: string): Phase | null {
+  const match = /^Phase:[ \t]*P([1-9][0-9]*) of ([1-9][0-9]*)\s*$/m.exec(plan);
+  if (match === null) return null;
+  const [n, of] = [Number(match[1]), Number(match[2])];
+  return n <= of ? { n, of } : null;
+}
+
 export interface Ctx {
   root: string;
   /** The name of the directory holding the spec. */
@@ -95,6 +109,8 @@ export interface Ctx {
   title: string;
   /** The run's issue from the plan's `Issue:` line, as gh takes it (a number or an issue link); null with none. */
   issue: string | null;
+  /** The run's part of a split change from the plan's `Phase:` line (`P<n> of <N>`); null with none. */
+  phase: Phase | null;
   tasks: Task[];
   state: State;
   /** The dispatches this call prints. */
@@ -141,7 +157,9 @@ export function statusOf(run: TaskRun): string {
 export const under = (text: string): string[] => text.split(/\r?\n/).filter((line) => line.trim() !== "").map((line) => `  ${line}`);
 
 export function renderOutcome(ctx: Ctx): string {
-  const out = [`# Outcome: ${ctx.title}`, "", "## Tasks", ""];
+  // A part's issue travels to the next part in the outcome: plan.sh land reads it from there.
+  const issue = ctx.phase === null || ctx.issue === null ? [] : [`Issue: ${/^\d+$/.test(ctx.issue) ? `#${ctx.issue}` : ctx.issue}`];
+  const out = [`# Outcome: ${ctx.title}`, ...(ctx.phase === null ? [] : ["", `Phase: P${ctx.phase.n} of ${ctx.phase.of}`, ...issue]), "", "## Tasks", ""];
   for (const task of ctx.tasks) out.push(`- T${task.num} - ${task.title}: ${statusOf(runOf(ctx, task.num))}`);
   const noted = ctx.tasks.filter((task) => runOf(ctx, task.num).notes.length > 0);
   if (noted.length > 0 || ctx.state.close.notes.length > 0) out.push("", "## Notes");

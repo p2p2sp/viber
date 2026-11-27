@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { runBuild } from "../../../../../viber/skills/spec-implementor/scripts/lib/build-run.ts";
+import { laterParts, runBuild } from "../../../../../viber/skills/spec-implementor/scripts/lib/build-run.ts";
 import { fakeFs, fakeGh, fakeGit, ROOT } from "../../../../fake-ports.ts";
 
 function archived(yaml: string | null, runs: string, specifications: string) {
@@ -27,5 +27,15 @@ describe("runBuild", () => {
   it("no config: the default directories", () => {
     assert.equal(archived(null, "_specs", "specs").stderr, "build.sh: the run is archived at docs/specs/run1, the archive commit did not finish: commit docs/_specs/run1 and docs/specs/run1\n");
     assert.equal(archived(null, "open-runs", "done").stderr, `build.sh: cannot read the spec ${ROOT}/docs/open-runs/run1/spec.md\n`);
+  });
+});
+
+describe("laterParts", () => {
+  it("names the directories of the parts after the run's own", () => {
+    assert.deepEqual(laterParts("docs/_specs/20260101_x-p1-of-3", { n: 1, of: 3 }), ["docs/_specs/20260101_x-p2-of-3", "docs/_specs/20260101_x-p3-of-3"]);
+  });
+
+  it("names none for the last part", () => {
+    assert.deepEqual(laterParts("docs/_specs/20260101_x-p3-of-3", { n: 3, of: 3 }), []);
   });
 });

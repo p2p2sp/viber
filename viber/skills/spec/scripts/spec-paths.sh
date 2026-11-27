@@ -14,7 +14,10 @@
 #            prototype: <root>/docs/<runs>/<stamp>_<slug>/prototype.html
 #              with <mockup> only. lib/build-cut.ts of the spec-implementor skill
 #              looks for the file under that name.
-#   exit   : 0 ok, 1 the copy failed, 2 bad usage or an unreadable <mockup>
+#            spec-parts.sh takes the spec: and intent: paths of a call
+#            without <mockup> and names each part beside them as
+#            <stamp>_<slug>-p<n>-of-<N>; it copies the mockup itself.
+#   exit  : 0 ok, 1 the copy failed, 2 bad usage or an unreadable <mockup>
 # Dependencies: bash 3.2+, date, awk, mkdir, cp; git when the working directory
 # is a repository.
 

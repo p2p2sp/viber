@@ -113,6 +113,7 @@ export function fakeCtx(opts: { fs?: FakeFs; git?: FakeGit; before?: string[]; s
     refs: "/refs",
     title: "Run",
     issue: null,
+    phase: null,
     tasks: [],
     state,
     out: [],

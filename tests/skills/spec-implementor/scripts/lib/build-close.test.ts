@@ -218,3 +218,30 @@ describe("config reads", () => {
     );
   });
 });
+
+describe("the Next line of END", () => {
+  /** A part closed in full once its finalizer returns, the part after it present or not. */
+  function ended(n: number, of: number, next: boolean, partial = false): string[] {
+    const name = `20260101_x-p${n}-of-${of}`;
+    const dir = `${ROOT}/docs/_specs/${name}`;
+    const fs = fakeFs({ [`${dir}/spec.md`]: "spec", ...(next ? { [`${ROOT}/docs/_specs/20260101_x-p${n + 1}-of-${of}/spec.md`]: "spec" } : {}) });
+    const ctx = { ...fakeCtx({ fs, step: "finalize" }), name, specDir: dir, work: `${dir}/work`, phase: { n, of } };
+    ctx.state.close.open = ["finalize.1"];
+    ctx.state.close.partial = partial;
+    closeEvent(ctx, "finalize.1", "DONE", "");
+    return ctx.state.close.end;
+  }
+
+  it("a part before the last, the next one present: names its spec", () => {
+    assert.equal(ended(1, 3, true).at(-1), "Next: P2 of 3: docs/_specs/20260101_x-p2-of-3/spec.md");
+  });
+
+  it("the next part's spec missing: names it as missing", () => {
+    assert.equal(ended(1, 3, false).at(-1), "Next: P2 of 3: docs/_specs/20260101_x-p2-of-3/spec.md is missing");
+  });
+
+  it("the last part or a partial close: no Next line", () => {
+    assert.ok(!ended(3, 3, false).some((line) => line.startsWith("Next:")));
+    assert.ok(!ended(1, 3, true, true).some((line) => line.startsWith("Next:")));
+  });
+});

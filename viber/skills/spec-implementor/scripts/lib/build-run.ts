@@ -12,7 +12,7 @@ import { BaseUnreadable, closeEvent, closeStep } from "./build-close.ts";
 import { configPath, directoriesOf } from "./build-config.ts";
 import { cutTask, MOCKUP, readSpec } from "./build-cut.ts";
 import { listOf } from "./build-list.ts";
-import { commitRun, freshClose, freshTask, inRepo, leftOf, rel, save, under, type Ctx, type State } from "./build-state.ts";
+import { commitRun, freshClose, freshTask, inRepo, leftOf, phaseOf, rel, save, under, type Ctx, type Phase, type State } from "./build-state.ts";
 import { dispatchReady, finishCommits, taskEvent, tasksInFlight } from "./build-tasks.ts";
 import type { Fs, Gh, Git } from "./ports.ts";
 
@@ -39,6 +39,12 @@ interface Ports {
 const refuse = (text: string): Result => ({ stdout: "", stderr: `${text}\n`, exit: 2 });
 const unreadable = (base: string): Result => refuse(`build.sh: cannot read the changes from ${base}: fetch that commit (git fetch --unshallow in a shallow clone), then call again`);
 const isAbsolute = (path: string): boolean => path.startsWith("/") || /^[A-Za-z]:/.test(path);
+/** The directories of the parts after the run's own, beside it: `<stamp>_<slug>-p<k>-of-<N>` for k past n. The run's directory ends in `-p<n>-of-<N>`. */
+export function laterParts(dir: string, phase: Phase): string[] {
+  const base = dir.slice(0, -`-p${phase.n}-of-${phase.of}`.length);
+  return Array.from({ length: phase.of - phase.n }, (_, i) => `${base}-p${phase.n + i + 1}-of-${phase.of}`);
+}
+
 const ended = (lines: string[]): Result => ({ stdout: `${["END", ...lines].join("\n")}\n`, stderr: "", exit: 0 });
 
 /** The blocks of the call: END once the run is closed, else the task-list entries it changed, then its dispatches or WAIT. */
@@ -110,6 +116,7 @@ export function runBuild(argv: string[], rawCwd: string, refs: string, ports: Po
       // A landed plan opens with the hand-off line, so its title is the first `# ` heading, not the first line.
       title: /^# +(\S.*?)\s*$/m.exec(landed)?.[1] ?? name,
       issue,
+      phase: phaseOf(landed),
       tasks: plan.tasks,
       state: state ?? { base: "", tasks: {}, close: freshClose(0) },
       out: [],
@@ -155,7 +162,9 @@ export function runBuild(argv: string[], rawCwd: string, refs: string, ports: Po
       // The run directory is committed once, before the records: a state.json at HEAD means an earlier start committed it.
       const dir = rel(ctx, specDir);
       if (inRepo(ctx) && git.sizeAtHead(root, `${dir}/work/state.json`) === null) {
-        const done = commitRun(ctx, `chore(viber): start ${name}`, [dir], () => true);
+        // The later parts of a split change are committed with it: their specs exist only in this work tree until then.
+        const later = ctx.phase === null || !name.endsWith(`-p${ctx.phase.n}-of-${ctx.phase.of}`) ? [] : laterParts(dir, ctx.phase).filter((part) => fs.exists(`${root}/${part}`));
+        const done = commitRun(ctx, `chore(viber): start ${name}`, [dir, ...later], () => true);
         if (done.kind === "refused") ctx.state.close.notes.push(`- run directory | git refused the commit, ${dir} is left uncommitted`, ...under(done.output).slice(0, REFUSAL_LINES));
       }
       landRecords(ctx, landed);

@@ -20,7 +20,9 @@
  *   cwd    : any directory inside the host project: the tree is the work tree
  *            git reports for it, the cwd itself outside a repository.
  *   reads  : the files named in argv, the tree's file list (tracked and
- *            untracked, ignored left out), and for `land` the names in <work>/adr,
+ *            untracked, ignored left out), for a part n > 1 its part n-1's
+ *            `outcome.md` and `plan.md` and .claude/viber.yml, and for `land`
+ *            the names in <work>/adr,
  *            <work> being <root>/.temp/viber/<the spec's directory name>.
  *   writes : `land` only <plan>, its directories created; `paths` removes
  *            <work>/adr.
@@ -30,7 +32,14 @@
  *             `adr: <work>/adr`, the directory the adr agent stages its
  *             decision records in, and `stamp: <yyyyMMddHHmmss>`, the local
  *             time that names them. Creates nothing; removes <work>/adr, the
- *             records an earlier run of the spec staged.
+ *             records an earlier run of the spec staged. A spec whose
+ *             directory is named `<stamp>_<slug>-p<n>-of-<N>` is part <n> of a
+ *             split change: for n > 1, unless part n-1 is built, only
+ *             `OPEN: P<n-1> is not built`, exit 1, nothing removed. Built:
+ *             the directory `<stamp>_<slug>-p<n-1>-of-<N>`, beside the spec
+ *             or in docs/<directories.specifications>/ (.claude/viber.yml,
+ *             read by the spec-implementor's lib/build-config.ts), holds
+ *             `outcome.md` and no `plan.md` (a build closed in full).
  *     maps  : `PASS`, or one `CONFLICT: <path> | <what the code does> | R<n>`
  *             line per `conflict | ...` entry of the code map (the code
  *             contradicts that R), then one `OVER:` line per map past its
@@ -82,8 +91,11 @@
  *             the tasks whose text differs from the plan <plan> held before,
  *             `all` when it held none. The plan written is the hand-off line
  *             `Invoke the viber:spec-implementor skill to implement this
- *             plan.`, the title, `Spec: <path>` and `Plan: <plan>`, `Issue:
- *             <#n or link>` when an <issue> is given, one
+ *             plan.`, the title, `Spec: <path>`, `Phase: P<n> of <N>` when
+ *             the spec's directory ends in `-p<n>-of-<N>`, `Plan: <plan>`, `Issue:
+ *             <#n or link>` when an <issue> is given (with none, for part n
+ *             > 1, the `Issue:` line of the built part n-1's `outcome.md`),
+ *             one
  *             `ADR: <path>` line per `.md` file of <work>/adr (each path
  *             repo-relative inside the tree; build.ts moves those files to
  *             docs/adr/ at its start), `## Order` with one `- Wave
@@ -109,7 +121,7 @@
  *             the same literal path of an earlier task.
  *   stderr : one line naming the cause when the exit is 2, the usage on a
  *            call that matches no subcommand.
- *   exit   : 0 on PASS, LANDED and for paths and order; 1 with CONFLICT, OVER, OPEN or
+ *   exit   : 0 on PASS, LANDED, for order and for paths without an OPEN line; 1 with CONFLICT, OVER, OPEN or
  *            FIX lines; 2 on bad usage, an <issue> that is none, an unreadable or unwritable file, a
  *            spec with no R item or a plan with no task (stdout empty).
  */

@@ -186,6 +186,19 @@ function end(ctx: Ctx): void {
     if (ctx.git.commit(ctx.root, `chore(viber): archive ${ctx.name}`, paths).kind === "refused") close.end.push(refused());
   }
   close.end.push(`Outcome: ${rel(ctx, dir)}/outcome.md`);
+  const next = nextPart(ctx);
+  if (next !== null) close.end.push(next);
+}
+
+/** The `Next:` line of a part closed in full: the spec of the part after it in docs/<runs>/, marked missing when it is not there; null after the last part. */
+function nextPart(ctx: Ctx): string | null {
+  const phase = ctx.phase;
+  if (phase === null || phase.n >= phase.of) return null;
+  const suffix = `-p${phase.n}-of-${phase.of}`;
+  if (!ctx.name.endsWith(suffix)) return null;
+  const { runs } = directoriesOf(ctx.fs.readText(configPath(ctx.root)));
+  const spec = `docs/${runs}/${ctx.name.slice(0, -suffix.length)}-p${phase.n + 1}-of-${phase.of}/spec.md`;
+  return `Next: P${phase.n + 1} of ${phase.of}: ${spec}${ctx.fs.exists(`${ctx.root}/${spec}`) ? "" : " is missing"}`;
 }
 
 /** Enters a step: sends its agents, or moves on when it has nothing to do. */
