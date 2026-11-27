@@ -1,6 +1,6 @@
 # Claude Sonnet 5.5
 
-Alias `sonnet` (Anthropic API), ID `claude-sonnet-5-5`, released 2026-09-28. Context 1M, output 128K, knowledge through Jun 2026. $2/$10 per MTok. Adaptive thinking; it can skip up-front thinking, only at `high` effort or below; effort default `high`. For the hardest long-horizon work Opus is the better choice.
+Alias `sonnet` (Anthropic API), ID `claude-sonnet-5-5`, output 128K. Adaptive thinking. For the hardest long-horizon work Opus is the better choice.
 
 ## Effort and thinking
 

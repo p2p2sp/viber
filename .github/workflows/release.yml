@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version part to bump
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      PLUGIN_JSON: viber/.claude-plugin/plugin.json
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Run tests
+        run: node --test "tests/**/*.test.ts"
+
+      - name: Compute version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          IFS=. read -r major minor patch <<< "$(jq -r .version "$PLUGIN_JSON")"
+          case "$BUMP" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+          version="$major.$minor.$patch"
+          if git rev-parse -q --verify "refs/tags/v$version" > /dev/null; then
+            echo "::error::Tag v$version already exists"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build release notes
+        run: |
+          prev="$(git describe --tags --abbrev=0 2> /dev/null || true)"
+          range="${prev:+$prev..}HEAD"
+          log="$(git log --no-merges --format='%s (%h)' "$range" | grep -vE '^chore\(release\): v[0-9]' || true)"
+          notes="$RUNNER_TEMP/notes.md"
+          : > "$notes"
+          section() {
+            local items
+            items="$(printf '%s\n' "$log" | grep $3 -E "$2" || true)"
+            if [ -n "$items" ]; then
+              printf '## %s\n\n%s\n\n' "$1" "$(printf '%s\n' "$items" | sed 's/^/- /')" >> "$notes"
+            fi
+          }
+          section Features '^feat(\(.*\))?!?:'
+          section Fixes '^fix(\(.*\))?!?:'
+          section Refactoring '^refactor(\(.*\))?!?:'
+          section Documentation '^docs(\(.*\))?!?:'
+          section Other '^(feat|fix|refactor|docs)(\(.*\))?!?:' -v
+          [ -s "$notes" ] || echo "No changes." > "$notes"
+          cat "$notes"
+
+      - name: Commit and tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          jq --arg v "$VERSION" '.version = $v' "$PLUGIN_JSON" > "$RUNNER_TEMP/plugin.json"
+          mv "$RUNNER_TEMP/plugin.json" "$PLUGIN_JSON"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): v$VERSION"
+          git tag "v$VERSION"
+          git push origin main "v$VERSION"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          url="$(gh release create "v$VERSION" --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md")"
+          echo "## Released [v$VERSION]($url)" >> "$GITHUB_STEP_SUMMARY"

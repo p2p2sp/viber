@@ -1,0 +1,467 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 2850" width="1640" height="2850" role="img" aria-labelledby="svgTitle svgDesc">
+  <title id="svgTitle">viber - from an idea to committed code</title>
+  <desc id="svgDesc">Flow diagram of the viber plugin: one-time setup, the optional UI prototype and the two entries, an idea through the intent interview and a bug through the fixer diagnosis. The interview ends in one of three paths. The full path writes a spec with the spec-writer and spec-reviewer agents, then a plan with two plan-mapper agents, the plan-writer and the plan-reviewer, and stops at the gate where you approve the plan. The short path writes a short plan, stops at its own gate and builds through simple-implementor, which is also where a direct bug fix lands. The direct path builds in the same session through implementor. The short and the direct path leave the change uncommitted. After the full path's gate, spec-implementor relays between a script and the agents: task-coder, task-reviewer and one commit per task, tasks in parallel where they share no file, a task past its fix rounds held while the rest goes on. The build closes with the final review, the full test run, the memory, rules and QA writers together, the project's own extension agents, the finalizer and the archive of the run, followed later by the e2e pass that turns the QA scenarios into Playwright tests.</desc>
+
+  <style>
+    :root {
+      --bg:#ffffff; --panel:#ffffff; --panel2:#f6f8fa; --border:#d1d9e0;
+      --text:#1f2328; --muted:#59636e;
+      --idea:#0969da; --fix:#cf222e; --build:#8250df; --ok:#1a7f37; --amber:#9a6700;
+      --ok-bg:#dafbe1; --build-bg:#fbefff; --amber-bg:#fff8c5; --chip:#f6f8fa;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0d1117; --panel:#161b22; --panel2:#11161d; --border:#30363d;
+        --text:#e6edf3; --muted:#9198a1;
+        --idea:#58a6ff; --fix:#f85149; --build:#a371f7; --ok:#3fb950; --amber:#d29922;
+        --ok-bg:#0f2a17; --build-bg:#21173a; --amber-bg:#2d2410; --chip:#1c2128;
+      }
+    }
+
+    text { font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; fill: var(--text); }
+    .h1 { font-size: 21px; font-weight: 700; }
+    .title { font-size: 14.5px; font-weight: 700; }
+    .pill-t { font-size: 15px; font-weight: 700; }
+    .desc { font-size: 13.5px; fill: var(--muted); }
+    .desc-s { font-size: 12.5px; fill: var(--muted); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 13px; fill: var(--idea); }
+    .mono-t { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 16px; font-weight: 700; fill: var(--text); }
+    .sw { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 12px; font-weight: 600; fill: var(--amber); }
+    .badge-t { font-size: 11.5px; font-weight: 600; fill: var(--muted); }
+    .badge-o { font-size: 11.5px; font-weight: 600; fill: var(--amber); }
+    .lbl { font-size: 12.5px; font-weight: 600; fill: var(--muted); }
+    .hdr-t { font-size: 14.5px; font-weight: 700; fill: var(--build); }
+    .ok-t { font-size: 14.5px; font-weight: 700; fill: var(--ok); }
+    .kicker { font-size: 12.5px; font-weight: 700; fill: var(--muted); letter-spacing: .06em; }
+
+    .node { fill: var(--panel); stroke: var(--border); stroke-width: 1.5; }
+    .agent { stroke-dasharray: 2 3; stroke-width: 2; }
+    .badge { fill: var(--chip); stroke: var(--border); stroke-width: 1; }
+    .badge-opt { fill: var(--amber-bg); stroke: var(--amber); stroke-width: 1; }
+    .pill { fill: var(--chip); stroke: var(--border); stroke-width: 1.5; }
+    .pane { fill: var(--panel2); stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 5 5; }
+    .gate { fill: var(--amber-bg); stroke: var(--amber); stroke-width: 1.5; }
+    .done { fill: var(--ok-bg); stroke: var(--ok); stroke-width: 1.5; }
+
+    .link { fill: none; stroke-width: 1.6; stroke-opacity: .5; }
+    .flow { fill: none; stroke-width: 2; stroke-opacity: .95; stroke-dasharray: 9 7; animation: dash 1.3s linear infinite; }
+    @keyframes dash { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -16; } }
+
+    .l-n { stroke: var(--muted); } .mk-n { fill: var(--muted); }
+    .l-i { stroke: var(--idea); }  .mk-i { fill: var(--idea); }
+    .l-f { stroke: var(--fix); }   .mk-f { fill: var(--fix); }
+    .l-b { stroke: var(--build); } .mk-b { fill: var(--build); }
+    .l-o { stroke: var(--ok); }    .mk-o { fill: var(--ok); }
+    .l-a { stroke: var(--amber); } .mk-a { fill: var(--amber); }
+
+    .ring-a { fill: none; stroke: var(--amber); animation: ring 2.6s ease-in-out infinite; }
+    @keyframes ring {
+      0%, 100% { stroke-width: 1.5; stroke-opacity: .22; }
+      50%      { stroke-width: 5;   stroke-opacity: .5; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .flow { animation: none; }
+      .ring-a { animation: none; stroke-width: 2; stroke-opacity: .35; }
+    }
+  </style>
+
+  <defs>
+    <marker id="ar-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk-n"/></marker>
+    <marker id="ar-i" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk-i"/></marker>
+    <marker id="ar-f" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk-f"/></marker>
+    <marker id="ar-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk-b"/></marker>
+    <marker id="ar-o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk-o"/></marker>
+    <marker id="ar-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk-a"/></marker>
+  </defs>
+
+  <rect x="0" y="0" width="1640" height="2850" fill="var(--bg)"/>
+
+  <!-- ============ HEADER + LEGEND ============ -->
+  <text x="40" y="42" class="kicker">VIBER</text>
+  <text x="40" y="72" class="h1">From an idea to committed code</text>
+
+  <rect x="940" y="26" width="58" height="16" rx="5" class="node"/>
+  <text x="1008" y="39" class="desc">skill - runs in your own session</text>
+  <rect x="940" y="52" width="58" height="16" rx="5" class="node agent"/>
+  <text x="1008" y="65" class="desc">agent - its own fresh context</text>
+  <rect x="940" y="78" width="58" height="16" rx="8" class="gate"/>
+  <text x="1008" y="91" class="desc">gate - waits for your decision</text>
+
+  <rect x="1280" y="26" width="58" height="16" rx="8" class="badge-opt"/>
+  <text x="1309" y="38" class="badge-o" text-anchor="middle">optional</text>
+  <text x="1348" y="39" class="desc">your call, or its switch is on</text>
+  <text x="1280" y="65" class="sw">build.qa</text>
+  <text x="1348" y="65" class="desc">a switch in .claude/viber.yml</text>
+
+  <!-- ============ SETUP ============ -->
+  <rect x="40" y="112" width="1560" height="72" rx="12" class="node"/>
+  <rect x="40" y="112" width="4" height="72" rx="2" fill="var(--muted)"/>
+  <rect x="1522" y="122" width="58" height="16" rx="8" class="badge"/>
+  <text x="1551" y="134" class="badge-t" text-anchor="middle">skill</text>
+  <text x="66" y="154" class="mono-t">/setup</text>
+  <text x="160" y="142" class="desc">once per project - seeds .claude/viber.yml (the switches below) and the .gitignore rules, merges the recommended permissions</text>
+  <text x="160" y="164" class="desc">into .claude/settings.json, checks the gh CLI and that CLAUDE.md names your build and test commands</text>
+
+  <!-- ============ ENTRY PILLS ============ -->
+  <rect x="40" y="212" width="600" height="48" rx="24" class="pill"/>
+  <text x="340" y="242" class="pill-t" text-anchor="middle">New idea · feature · change to something existing</text>
+  <rect x="1170" y="212" width="430" height="48" rx="24" class="pill"/>
+  <text x="1385" y="242" class="pill-t" text-anchor="middle">Bug · regression · wrong behaviour</text>
+
+  <!-- ============ ENTRY: IDEA ============ -->
+  <path d="M395 260 L395 292" class="link l-i" marker-end="url(#ar-i)"/>
+  <path d="M395 260 L395 292" class="flow l-i"/>
+  <text x="407" y="282" class="lbl">a UI change</text>
+
+  <path d="M90 260 L90 426" class="link l-i" marker-end="url(#ar-i)"/>
+  <path d="M90 260 L90 426" class="flow l-i"/>
+  <text x="82" y="345" class="lbl" text-anchor="middle" transform="rotate(-90 82 345)">otherwise</text>
+
+  <rect x="150" y="296" width="490" height="98" rx="10" class="node"/>
+  <rect x="150" y="296" width="4" height="98" rx="2" fill="var(--idea)"/>
+  <rect x="496" y="306" width="58" height="16" rx="8" class="badge-opt"/>
+  <text x="525" y="318" class="badge-o" text-anchor="middle">optional</text>
+  <rect x="562" y="306" width="58" height="16" rx="8" class="badge"/>
+  <text x="591" y="318" class="badge-t" text-anchor="middle">skill</text>
+  <text x="174" y="326" class="mono-t">/ui-prototype</text>
+  <text x="174" y="352" class="desc">An HTML mockup of the UI change in your project's own look,</text>
+  <text x="174" y="372" class="desc">one proposal or three variants, settled in conversation.</text>
+
+  <path d="M395 394 L395 426" class="link l-i" marker-end="url(#ar-i)"/>
+  <path d="M395 394 L395 426" class="flow l-i"/>
+  <text x="407" y="416" class="lbl">its Mockup: line</text>
+
+  <rect x="40" y="430" width="600" height="152" rx="10" class="node"/>
+  <rect x="40" y="430" width="4" height="152" rx="2" fill="var(--idea)"/>
+  <rect x="562" y="440" width="58" height="16" rx="8" class="badge"/>
+  <text x="591" y="452" class="badge-t" text-anchor="middle">skill</text>
+  <text x="64" y="460" class="mono-t">/intent</text>
+  <text x="64" y="486" class="desc">Asks in rounds of at most 5 questions, each with options and a recommendation.</text>
+  <text x="64" y="504" class="desc">Looks the facts up in your code itself; the decisions stay yours.</text>
+  <text x="64" y="522" class="desc">Ends in a shared understanding that you confirm.</text>
+  <text x="64" y="548" class="desc-s">with it you pick the path: the full one, a short plan, or a build right away</text>
+  <text x="64" y="568" class="desc-s">a UI change with no mockup yet: it offers /ui-prototype first</text>
+
+  <!-- ============ ENTRY: BUG ============ -->
+  <path d="M1385 260 L1385 426" class="link l-f" marker-end="url(#ar-f)"/>
+  <path d="M1385 260 L1385 426" class="flow l-f"/>
+
+  <rect x="1170" y="430" width="430" height="130" rx="10" class="node"/>
+  <rect x="1170" y="430" width="4" height="130" rx="2" fill="var(--fix)"/>
+  <rect x="1522" y="440" width="58" height="16" rx="8" class="badge"/>
+  <text x="1551" y="452" class="badge-t" text-anchor="middle">skill</text>
+  <text x="1194" y="460" class="mono-t">/fixer</text>
+  <text x="1194" y="486" class="desc">Traces the bug to its root cause in the code.</text>
+  <text x="1194" y="504" class="desc">Proves it with one failing test, left red in your tree.</text>
+  <text x="1194" y="522" class="desc">Never fixes it itself.</text>
+  <text x="1194" y="546" class="desc-s">then you pick: a short plan first, or the fix right away</text>
+
+  <!-- ============ THE THREE PATHS OUT OF THE INTERVIEW ============ -->
+  <path d="M200 582 L200 672" class="link l-i" marker-end="url(#ar-i)"/>
+  <path d="M200 582 L200 672" class="flow l-i"/>
+  <text x="212" y="650" class="lbl">Spec → Plan → Build</text>
+
+  <path d="M520 582 L520 610 Q520 628 538 628 L897 628 Q915 628 915 646 L915 672" class="link l-b" marker-end="url(#ar-b)"/>
+  <path d="M520 582 L520 610 Q520 628 538 628 L897 628 Q915 628 915 646 L915 672" class="flow l-b"/>
+  <text x="740" y="646" class="lbl" text-anchor="middle">Build now</text>
+
+  <path d="M600 582 L600 588 Q600 606 618 606 L1282 606 Q1300 606 1300 624 L1300 672" class="link l-i" marker-end="url(#ar-i)"/>
+  <path d="M600 582 L600 588 Q600 606 618 606 L1282 606 Q1300 606 1300 624 L1300 672" class="flow l-i"/>
+  <text x="1040" y="598" class="lbl" text-anchor="middle">Short plan → Build</text>
+
+  <path d="M1430 560 L1430 672" class="link l-f" marker-end="url(#ar-f)"/>
+  <path d="M1430 560 L1430 672" class="flow l-f"/>
+  <text x="1442" y="640" class="lbl">Plan → Build</text>
+
+  <path d="M1575 560 L1575 908" class="link l-f" marker-end="url(#ar-f)"/>
+  <path d="M1575 560 L1575 908" class="flow l-f"/>
+  <text x="1595" y="735" class="lbl" text-anchor="middle" transform="rotate(-90 1595 735)">Fix directly → Build</text>
+
+  <!-- ============ FULL PATH: SPEC ============ -->
+  <rect x="40" y="676" width="600" height="152" rx="10" class="node"/>
+  <rect x="40" y="676" width="4" height="152" rx="2" fill="var(--idea)"/>
+  <rect x="562" y="686" width="58" height="16" rx="8" class="badge"/>
+  <text x="591" y="698" class="badge-t" text-anchor="middle">skill</text>
+  <text x="64" y="706" class="mono-t">spec</text>
+  <text x="64" y="732" class="desc">Writes down every fact the interview settled, one numbered line each.</text>
+  <text x="64" y="750" class="desc">The spec-writer agent turns them into the spec; a script checks its sections.</text>
+  <text x="64" y="768" class="desc">The spec-reviewer agent reviews it once against those facts; a FAIL is fixed.</text>
+  <text x="64" y="792" class="desc-s">a gap the interview left comes back to you as a question</text>
+  <text x="64" y="814" class="mono">docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/spec.md</text>
+
+  <path d="M340 828 L340 884" class="link l-a" marker-end="url(#ar-a)"/>
+  <path d="M340 828 L340 884" class="flow l-a"/>
+  <text x="352" y="862" class="lbl">you confirm the spec</text>
+
+  <!-- ============ FULL PATH: PLANNER ============ -->
+  <rect x="40" y="888" width="600" height="152" rx="10" class="node"/>
+  <rect x="40" y="888" width="4" height="152" rx="2" fill="var(--idea)"/>
+  <rect x="562" y="898" width="58" height="16" rx="8" class="badge"/>
+  <text x="591" y="910" class="badge-t" text-anchor="middle">skill</text>
+  <text x="64" y="918" class="mono-t">planner</text>
+  <text x="64" y="944" class="desc">Two plan-mapper agents index where the spec lands: in the code, in the tests.</text>
+  <text x="64" y="962" class="desc">The plan-writer agent writes the tasks; a script checks and lands the plan,</text>
+  <text x="64" y="980" class="desc">then derives each task's wave and model.</text>
+  <text x="64" y="1004" class="desc-s">a spec with a decision: the adr agent stages its record for docs/adr/</text>
+  <text x="64" y="1026" class="mono">one plan · numbered tasks · DoD and Verify per task</text>
+
+  <path d="M340 1040 L340 1076" class="link l-n" marker-end="url(#ar-n)"/>
+  <path d="M340 1040 L340 1076" class="flow l-n"/>
+
+  <rect x="40" y="1080" width="600" height="88" rx="10" class="node agent"/>
+  <rect x="562" y="1090" width="58" height="16" rx="8" class="badge"/>
+  <text x="591" y="1102" class="badge-t" text-anchor="middle">agent</text>
+  <text x="64" y="1110" class="mono-t">plan-reviewer</text>
+  <text x="64" y="1132" class="desc">Reviews the landed plan against the spec, before you see it.</text>
+  <text x="64" y="1152" class="desc-s">critical problems only · a second FAIL comes back to you</text>
+
+  <path d="M640 1124 L662 1124 Q680 1124 680 1106 L680 982 Q680 964 662 964 L644 964" class="link l-i" marker-end="url(#ar-i)"/>
+  <path d="M640 1124 L662 1124 Q680 1124 680 1106 L680 982 Q680 964 662 964 L644 964" class="flow l-i"/>
+  <text x="698" y="1044" class="lbl" text-anchor="middle" transform="rotate(-90 698 1044)">FAIL → fix</text>
+
+  <path d="M340 1168 L340 1204" class="link l-a" marker-end="url(#ar-a)"/>
+  <path d="M340 1168 L340 1204" class="flow l-a"/>
+  <text x="352" y="1192" class="lbl">PASS</text>
+
+  <!-- ============ FULL PATH: GATE ============ -->
+  <rect x="40" y="1208" width="600" height="64" rx="32" class="ring-a"/>
+  <rect x="44" y="1212" width="592" height="56" rx="28" class="gate"/>
+  <text x="340" y="1236" class="title" text-anchor="middle">GATE - you approve the plan</text>
+  <text x="340" y="1256" class="desc-s" text-anchor="middle">a hook refuses to leave plan mode without a PASS on the landed plan</text>
+
+  <!-- ============ DIRECT PATH ============ -->
+  <rect x="700" y="676" width="430" height="130" rx="10" class="node"/>
+  <rect x="700" y="676" width="4" height="130" rx="2" fill="var(--build)"/>
+  <rect x="1052" y="686" width="58" height="16" rx="8" class="badge"/>
+  <text x="1081" y="698" class="badge-t" text-anchor="middle">skill</text>
+  <text x="724" y="706" class="mono-t">implementor</text>
+  <text x="724" y="732" class="desc">Builds in this session, stage by stage,</text>
+  <text x="724" y="750" class="desc">one simple-coder agent per stage.</text>
+  <text x="724" y="768" class="desc">Then one full test run, with repairs.</text>
+  <text x="724" y="792" class="desc-s">no plan, no review: picking this path approves the edits</text>
+
+  <path d="M915 806 L915 1106" class="link l-b" marker-end="url(#ar-b)"/>
+  <path d="M915 806 L915 1106" class="flow l-b"/>
+
+  <!-- ============ SHORT PATH ============ -->
+  <rect x="1170" y="676" width="370" height="100" rx="10" class="node"/>
+  <rect x="1170" y="676" width="4" height="100" rx="2" fill="var(--idea)"/>
+  <rect x="1462" y="686" width="58" height="16" rx="8" class="badge"/>
+  <text x="1491" y="698" class="badge-t" text-anchor="middle">skill</text>
+  <text x="1194" y="706" class="mono-t">simple-plan</text>
+  <text x="1194" y="732" class="desc">Writes what was settled as a short plan,</text>
+  <text x="1194" y="750" class="desc">one fact per line, for a fresh context.</text>
+
+  <path d="M1355 776 L1355 812" class="link l-a" marker-end="url(#ar-a)"/>
+  <path d="M1355 776 L1355 812" class="flow l-a"/>
+
+  <rect x="1170" y="816" width="370" height="56" rx="28" class="ring-a"/>
+  <rect x="1174" y="820" width="362" height="48" rx="24" class="gate"/>
+  <text x="1355" y="841" class="title" text-anchor="middle">GATE - you approve the plan</text>
+  <text x="1355" y="858" class="desc-s" text-anchor="middle">accepting it clears the context</text>
+
+  <path d="M1355 872 L1355 908" class="link l-b" marker-end="url(#ar-b)"/>
+  <path d="M1355 872 L1355 908" class="flow l-b"/>
+
+  <rect x="1170" y="912" width="430" height="150" rx="10" class="node"/>
+  <rect x="1170" y="912" width="4" height="150" rx="2" fill="var(--build)"/>
+  <rect x="1522" y="922" width="58" height="16" rx="8" class="badge"/>
+  <text x="1551" y="934" class="badge-t" text-anchor="middle">skill</text>
+  <text x="1194" y="942" class="mono-t">simple-implementor</text>
+  <text x="1194" y="968" class="desc">Splits the plan into stages, one simple-coder agent</text>
+  <text x="1194" y="986" class="desc">per stage, then one full test run.</text>
+  <text x="1194" y="1004" class="desc">A code review follows, its findings fixed once.</text>
+  <text x="1194" y="1028" class="desc-s">stages that share no file run side by side</text>
+  <text x="1194" y="1046" class="desc-s">a direct bug fix lands here with no plan and no gate</text>
+
+  <path d="M1385 1062 L1385 1106" class="link l-b" marker-end="url(#ar-b)"/>
+  <path d="M1385 1062 L1385 1106" class="flow l-b"/>
+
+  <rect x="700" y="1110" width="900" height="58" rx="10" class="done"/>
+  <text x="1150" y="1134" class="ok-t" text-anchor="middle">the change stays uncommitted in your work tree</text>
+  <text x="1150" y="1154" class="desc-s" text-anchor="middle">you look at it first · /commit commits it when you say so</text>
+
+  <!-- ============ BUILD ============ -->
+  <path d="M340 1272 L340 1296 Q340 1314 358 1314 L802 1314 Q820 1314 820 1332 L820 1352" class="link l-b" marker-end="url(#ar-b)"/>
+  <path d="M340 1272 L340 1296 Q340 1314 358 1314 L802 1314 Q820 1314 820 1332 L820 1352" class="flow l-b"/>
+  <text x="580" y="1306" class="lbl" text-anchor="middle">accepted: the context is cleared, the plan stands alone</text>
+
+  <rect x="550" y="1356" width="540" height="42" rx="21" fill="var(--build-bg)" stroke="var(--build)" stroke-width="1.5"/>
+  <text x="820" y="1382" class="hdr-t" text-anchor="middle">BUILD - the approved plan, task by task</text>
+
+  <path d="M820 1398 L820 1430" class="link l-b" marker-end="url(#ar-b)"/>
+  <path d="M820 1398 L820 1430" class="flow l-b"/>
+
+  <rect x="510" y="1434" width="620" height="150" rx="10" class="node"/>
+  <rect x="510" y="1434" width="4" height="150" rx="2" fill="var(--build)"/>
+  <rect x="1052" y="1444" width="58" height="16" rx="8" class="badge"/>
+  <text x="1081" y="1456" class="badge-t" text-anchor="middle">skill</text>
+  <text x="534" y="1464" class="mono-t">spec-implementor</text>
+  <text x="534" y="1490" class="desc">Only relays: a script decides every step, the skill sends the agents it names.</text>
+  <text x="534" y="1508" class="desc">A task starts once every task it runs after is done.</text>
+  <text x="534" y="1530" class="desc-s">up to 5 agents at once · tasks that share a file run in turn</text>
+  <text x="534" y="1548" class="desc-s">the run's state is committed as it goes: an interrupted build resumes, on any machine</text>
+  <text x="534" y="1570" class="mono">docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/</text>
+
+  <path d="M820 1584 L820 1640" class="link l-b" marker-end="url(#ar-b)"/>
+  <path d="M820 1584 L820 1640" class="flow l-b"/>
+
+  <!-- ============ TASK LOOP ============ -->
+  <rect x="480" y="1616" width="680" height="374" rx="14" class="pane"/>
+  <rect x="496" y="1604" width="300" height="24" rx="12" fill="var(--panel)" stroke="var(--border)" stroke-width="1.5"/>
+  <text x="646" y="1620" class="kicker" text-anchor="middle">FOR EVERY TASK (SOME IN PARALLEL)</text>
+
+  <rect x="560" y="1644" width="520" height="100" rx="10" class="node agent"/>
+  <rect x="1002" y="1654" width="58" height="16" rx="8" class="badge"/>
+  <text x="1031" y="1666" class="badge-t" text-anchor="middle">agent</text>
+  <text x="584" y="1674" class="mono-t">task-coder</text>
+  <text x="584" y="1696" class="desc">Builds one task and proves it with the task's own check.</text>
+  <text x="584" y="1716" class="desc-s">gets only its task file · on the model the plan set: haiku, sonnet or opus</text>
+  <text x="584" y="1734" class="desc-s">a failed check sends it once more, a second one holds the task</text>
+
+  <path d="M820 1744 L820 1772" class="link l-b" marker-end="url(#ar-b)"/>
+  <path d="M820 1744 L820 1772" class="flow l-b"/>
+  <text x="832" y="1763" class="lbl">skipped for a task with no runtime code</text>
+
+  <rect x="560" y="1776" width="520" height="100" rx="10" class="node agent"/>
+  <rect x="1002" y="1786" width="58" height="16" rx="8" class="badge"/>
+  <text x="1031" y="1798" class="badge-t" text-anchor="middle">agent</text>
+  <text x="584" y="1806" class="mono-t">task-reviewer</text>
+  <text x="584" y="1828" class="desc">Gates the task against its task file and its diff.</text>
+  <text x="584" y="1848" class="desc-s">runs the check itself and ties every DoD clause to the code</text>
+  <text x="584" y="1866" class="desc-s">a Critical finding opens a fix round, at most 2 a task</text>
+
+  <path d="M1080 1826 L1112 1826 Q1130 1826 1130 1808 L1130 1712 Q1130 1694 1112 1694 L1084 1694" class="link l-f" marker-end="url(#ar-f)"/>
+  <path d="M1080 1826 L1112 1826 Q1130 1826 1130 1808 L1130 1712 Q1130 1694 1112 1694 L1084 1694" class="flow l-f"/>
+  <text x="1148" y="1760" class="lbl" text-anchor="middle" transform="rotate(-90 1148 1760)">FAIL → fix</text>
+
+  <path d="M820 1876 L820 1904" class="link l-b" marker-end="url(#ar-b)"/>
+  <path d="M820 1876 L820 1904" class="flow l-b"/>
+
+  <rect x="560" y="1908" width="520" height="58" rx="10" class="done"/>
+  <text x="820" y="1932" class="ok-t" text-anchor="middle">commit - one task, one commit</text>
+  <text x="820" y="1952" class="desc-s" text-anchor="middle">T&lt;n&gt; - &lt;title&gt; · only that task's files · your hooks run</text>
+
+  <path d="M560 1937 L546 1937 Q528 1937 528 1919 L528 1712 Q528 1694 546 1694 L556 1694" class="link l-o" marker-end="url(#ar-o)"/>
+  <path d="M560 1937 L546 1937 Q528 1937 528 1919 L528 1712 Q528 1694 546 1694 L556 1694" class="flow l-o"/>
+  <text x="518" y="1816" class="lbl" text-anchor="middle" transform="rotate(-90 518 1816)">next ready task</text>
+
+  <!-- ============ HELD ============ -->
+  <path d="M1160 1846 L1276 1846" class="link l-f" marker-end="url(#ar-f)"/>
+  <path d="M1160 1846 L1276 1846" class="flow l-f"/>
+  <text x="1218" y="1838" class="lbl" text-anchor="middle">past 2 fix rounds</text>
+
+  <rect x="1280" y="1776" width="320" height="140" rx="10" class="node"/>
+  <rect x="1280" y="1776" width="4" height="140" rx="2" fill="var(--fix)"/>
+  <text x="1304" y="1806" class="mono-t">held</text>
+  <text x="1304" y="1830" class="desc">The task stops, its findings go to</text>
+  <text x="1304" y="1848" class="desc">the outcome. Tasks running after it</text>
+  <text x="1304" y="1866" class="desc">are skipped, the rest of the plan goes on.</text>
+  <text x="1304" y="1888" class="desc-s">the run stays open, with no archive:</text>
+  <text x="1304" y="1904" class="desc-s">build the plan again to retry</text>
+
+  <path d="M820 1966 L820 2032" class="link l-n" marker-end="url(#ar-n)"/>
+  <path d="M820 1966 L820 2032" class="flow l-n"/>
+  <text x="836" y="2016" class="lbl">when no task is left to start</text>
+
+  <!-- ============ CLOSE ============ -->
+  <rect x="560" y="2036" width="520" height="104" rx="10" class="node agent"/>
+  <rect x="1002" y="2046" width="58" height="16" rx="8" class="badge"/>
+  <text x="1031" y="2058" class="badge-t" text-anchor="middle">agent</text>
+  <text x="584" y="2066" class="mono-t">final-reviewer</text>
+  <text x="584" y="2088" class="desc">Reviews the whole build for what no single task shows:</text>
+  <text x="584" y="2106" class="desc">a requirement nothing delivers, a consumer left broken.</text>
+  <text x="584" y="2128" class="desc-s">Critical findings are fixed once, in a commit of their own</text>
+
+  <path d="M820 2140 L820 2164" class="link l-n" marker-end="url(#ar-n)"/>
+  <path d="M820 2140 L820 2164" class="flow l-n"/>
+
+  <rect x="560" y="2168" width="520" height="86" rx="10" class="node agent"/>
+  <rect x="1002" y="2178" width="58" height="16" rx="8" class="badge"/>
+  <text x="1031" y="2190" class="badge-t" text-anchor="middle">agent</text>
+  <text x="584" y="2198" class="mono-t">final-tester</text>
+  <text x="584" y="2220" class="desc">Runs your build and the full test suite, without end-to-end tests.</text>
+  <text x="584" y="2240" class="desc-s">a failure goes to a repair coder, at most 2 rounds</text>
+
+  <path d="M820 2254 L820 2280" class="link l-n"/>
+  <path d="M820 2254 L820 2280" class="flow l-n"/>
+  <path d="M300 2280 L1340 2280" class="link l-n"/>
+  <text x="836" y="2272" class="lbl">the three writers run together</text>
+
+  <path d="M300 2280 L300 2306" class="link l-n" marker-end="url(#ar-n)"/>
+  <path d="M820 2280 L820 2306" class="link l-n" marker-end="url(#ar-n)"/>
+  <path d="M1340 2280 L1340 2306" class="link l-n" marker-end="url(#ar-n)"/>
+
+  <rect x="80" y="2310" width="440" height="114" rx="10" class="node agent"/>
+  <rect x="442" y="2320" width="58" height="16" rx="8" class="badge"/>
+  <text x="471" y="2332" class="badge-t" text-anchor="middle">agent</text>
+  <text x="104" y="2340" class="mono-t">memory-writer</text>
+  <text x="104" y="2364" class="desc">Your CLAUDE.md files learn what the build taught.</text>
+  <text x="104" y="2384" class="desc-s">the nodes below the root · the root one gets suggestions</text>
+  <text x="104" y="2406" class="desc-s">at most 600 bytes of net growth a build</text>
+
+  <rect x="600" y="2310" width="440" height="114" rx="10" class="node agent"/>
+  <rect x="962" y="2320" width="58" height="16" rx="8" class="badge"/>
+  <text x="991" y="2332" class="badge-t" text-anchor="middle">agent</text>
+  <text x="624" y="2340" class="mono-t">rules-writer</text>
+  <text x="624" y="2364" class="desc">Corrects the rules the build made false.</text>
+  <text x="624" y="2384" class="desc-s">only in .claude/rules/viber/, at most 200 bytes of growth</text>
+  <text x="624" y="2406" class="desc-s"><tspan class="sw">build.rules</tspan> false: skipped</text>
+
+  <rect x="1120" y="2310" width="440" height="114" rx="10" class="node agent"/>
+  <rect x="1416" y="2320" width="58" height="16" rx="8" class="badge-opt"/>
+  <text x="1445" y="2332" class="badge-o" text-anchor="middle">optional</text>
+  <rect x="1482" y="2320" width="58" height="16" rx="8" class="badge"/>
+  <text x="1511" y="2332" class="badge-t" text-anchor="middle">agent</text>
+  <text x="1144" y="2340" class="mono-t">qa-writer</text>
+  <text x="1144" y="2364" class="desc">Test scenarios for what was actually delivered:</text>
+  <text x="1144" y="2384" class="desc-s">qa.md for a person, qa.e2e.md as the handoff for /e2e</text>
+  <text x="1144" y="2406" class="desc-s"><tspan class="sw">build.qa</tspan> true · posted to the plan's issue as a comment</text>
+
+  <path d="M300 2424 L300 2448 L1340 2448 L1340 2424" class="link l-n"/>
+  <path d="M820 2424 L820 2474" class="link l-n" marker-end="url(#ar-n)"/>
+  <path d="M820 2424 L820 2474" class="flow l-n"/>
+
+  <rect x="560" y="2478" width="520" height="106" rx="10" class="node agent"/>
+  <rect x="936" y="2488" width="58" height="16" rx="8" class="badge-opt"/>
+  <text x="965" y="2500" class="badge-o" text-anchor="middle">optional</text>
+  <rect x="1002" y="2488" width="58" height="16" rx="8" class="badge"/>
+  <text x="1031" y="2500" class="badge-t" text-anchor="middle">agent</text>
+  <text x="584" y="2508" class="mono-t">your extensions</text>
+  <text x="584" y="2532" class="desc">Your own agents from .claude/agents/, run in the listed order.</text>
+  <text x="584" y="2552" class="desc-s">one commit per agent · /extension writes one and registers it</text>
+  <text x="584" y="2572" class="desc-s"><tspan class="sw">build.extensions</tspan> not empty</text>
+
+  <path d="M820 2584 L820 2610" class="link l-n" marker-end="url(#ar-n)"/>
+  <path d="M820 2584 L820 2610" class="flow l-n"/>
+
+  <rect x="560" y="2614" width="520" height="86" rx="10" class="node agent"/>
+  <rect x="1002" y="2624" width="58" height="16" rx="8" class="badge"/>
+  <text x="1031" y="2636" class="badge-t" text-anchor="middle">agent</text>
+  <text x="584" y="2644" class="mono-t">finalizer</text>
+  <text x="584" y="2666" class="desc">Writes the summary on top of the run's outcome:</text>
+  <text x="584" y="2686" class="desc-s">delivered, not delivered, spec drift, what is next for you</text>
+
+  <path d="M820 2700 L820 2726" class="link l-o" marker-end="url(#ar-o)"/>
+  <path d="M820 2700 L820 2726" class="flow l-o"/>
+
+  <rect x="560" y="2730" width="520" height="80" rx="10" class="done"/>
+  <text x="820" y="2754" class="ok-t" text-anchor="middle">archive - the finished run, in one commit</text>
+  <text x="820" y="2774" class="desc-s" text-anchor="middle">keeps the spec, the outcome, the mockup and the QA documents</text>
+  <text x="820" y="2796" class="mono" text-anchor="middle">docs/_specs/&lt;stamp&gt;_&lt;slug&gt;/ → docs/specs/</text>
+
+  <!-- ============ E2E ============ -->
+  <path d="M1560 2367 L1566 2367 Q1584 2367 1584 2385 L1584 2610" class="link l-n" marker-end="url(#ar-n)"/>
+  <path d="M1560 2367 L1566 2367 Q1584 2367 1584 2385 L1584 2610" class="flow l-n"/>
+  <text x="1572" y="2600" class="lbl" text-anchor="end">later, when you want them automated</text>
+
+  <rect x="1160" y="2614" width="440" height="106" rx="10" class="node"/>
+  <rect x="1160" y="2614" width="4" height="106" rx="2" fill="var(--ok)"/>
+  <rect x="1522" y="2624" width="58" height="16" rx="8" class="badge"/>
+  <text x="1551" y="2636" class="badge-t" text-anchor="middle">skill</text>
+  <text x="1184" y="2644" class="mono-t">/e2e</text>
+  <text x="1184" y="2668" class="desc">Turns the QA scenarios into Playwright tests,</text>
+  <text x="1184" y="2686" class="desc">one scenario at a time.</text>
+  <text x="1184" y="2708" class="desc-s">a test counts only once it runs green · left uncommitted</text>
+</svg>

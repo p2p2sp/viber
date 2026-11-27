@@ -1,11 +1,10 @@
 # Claude Haiku 5.5
 
-Alias `haiku` on the Anthropic API only (Bedrock, Vertex, Foundry and Claude Platform on AWS still resolve it to Haiku 4.5, which this skill does not cover: pin `claude-haiku-5-5` there), ID `claude-haiku-5-5`, released 2026-10-07. Context 1M, output 128K, knowledge through Jun 2026. $0.10/$0.50 per MTok for prompts up to 100K tokens, $0.50/$2.50 above. Adaptive thinking, which Claude Code cannot turn off; effort `low` to `max`, default `medium`. Sonnet 5.5 stays the better choice for complex agentic tasks.
+Alias `haiku` on the Anthropic API only (Bedrock, Vertex, Foundry and Claude Platform on AWS still resolve it to Haiku 4.5, which this skill does not cover: pin `claude-haiku-5-5` there), ID `claude-haiku-5-5`, output 128K. Adaptive thinking, which Claude Code cannot turn off; effort `low` to `max`. Sonnet 5.5 stays the better choice for complex agentic tasks.
 
 ## Effort and thinking
 
 - The first Haiku with effort: set `effort:` on an agent pinned to it. `low` for short tool tasks and high-volume scans, `medium` for most work including agentic coding, `high` for strict instruction following and longer agent tasks. `xhigh`/`max` only where a measured gain justifies it, and compare Sonnet 5.5 there: on GDPval `medium` scored 1277 against 1620 at `max` with about a tenth of the output tokens.
-- A prompt telling it to answer directly does not stop it thinking: lower the effort instead.
 
 ## Initiative and scope
 

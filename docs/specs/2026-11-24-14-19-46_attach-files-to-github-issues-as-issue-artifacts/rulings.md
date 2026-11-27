@@ -1,3 +1,0 @@
-# Rulings
-
-- T2: rule that T1's committed artifact-create.sh already delivers every T2 exit, so T2 lands as tests only, proven red by the revert-route log .temp/viber/T2/red-2.log (5 failing) | why: The HEAD artifact-create.sh already has every refusal exit (pull request and lookup exit 2, lookup failure exit 1, missing file exit 2, unknown command exit 3), and red-2.log shows the five DoD tests failing on assertions when those checks are reverted, so the tests are proven and AC6/AC7 stay covered. | cost if wrong: If the revert route did not really isolate these behaviours, T2's tests would be committed without a true red. They would then have to be re-checked against a reverted script, with no change to production code.

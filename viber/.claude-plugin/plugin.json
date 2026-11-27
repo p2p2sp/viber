@@ -1,57 +1,8 @@
 {
   "name": "viber",
-  "version": "0.101.1",
-  "description": "From idea to committed code: interview, reviewed plan, task-by-task build, project memory that grows with every build.",
+  "version": "0.1.16",
+  "description": "From idea to committed code, the light way: interview, spec, reviewed plan, task-by-task build.",
   "author": {
-    "name": "Dariusz Lenartowicz",
-    "email": "dariusz.lenartowicz@p2p2.com.pl"
-  },
-  "skills": [
-    "./skills/setup/",
-    "./skills/issue-create/",
-    "./skills/prototype/",
-    "./skills/intent/",
-    "./skills/planner/",
-    "./skills/implementor/",
-    "./skills/fixer/",
-    "./skills/e2e/",
-    "./skills/pr-create/",
-    "./skills/pr-feedback/",
-    "./skills/pr-feedback-reply/",
-    "./skills/memory/",
-    "./skills/rules/",
-    "./skills/extension/",
-    "./skills/code-auditor/",
-    "./skills/handoff/",
-    "./skills/commit/",
-    "./skills/attach/",
-    "./skills/ui-designer/",
-    "./skills/skill-designer/"
-  ],
-  "agents": [
-    "./agents/plan-judge.md",
-    "./agents/outside-plan-review.md",
-    "./agents/plan-surveyor.md",
-    "./agents/plan-architect.md",
-    "./agents/plan-author.md",
-    "./agents/adr-screener.md",
-    "./agents/task-coder.md",
-    "./agents/task-reviewer.md",
-    "./agents/test-runner.md",
-    "./agents/final-reviewer.md",
-    "./agents/arbiter.md",
-    "./agents/memory-writer.md",
-    "./agents/memory-node-writer.md",
-    "./agents/memory-auditor.md",
-    "./agents/rules-writer.md",
-    "./agents/rules-auditor.md",
-    "./agents/qa-writer.md",
-    "./agents/e2e-writer.md",
-    "./agents/closeout.md",
-    "./agents/prototype-writer.md",
-    "./agents/mapper.md",
-    "./agents/scout.md",
-    "./agents/hunter.md",
-    "./agents/critic.md"
-  ]
+    "name": "Dariusz Lenartowicz"
+  }
 }

@@ -41,14 +41,4 @@ $RECYCLE.BIN/
 # Claude Code and viber
 .temp/
 .claude/settings.local.json
-.claude/viber.local.yml
 CLAUDE.local.md
-.claude/viber.yml.viber-merge.*
-
-# Playwright (viber e2e)
-node_modules/
-test-results/
-playwright-report/
-blob-report/
-playwright/.cache/
-.playwright-cli/

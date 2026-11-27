@@ -1,5 +1,5 @@
 {
-  "description": "viber hooks: injects the viber manifest at session start, and gates ExitPlanMode on a review of the plan. The SessionStart hook writes hooks/content/manifest.md verbatim into the main session's context once per session (source == \"resume\" excluded, since the prior injection reloads with the transcript) and falls back to the version banner alone when that file is empty or unreadable. The banner gains a schema note when the project's .claude/viber.yml schema lags the plugin template's (run /viber:setup) or is ahead of it (update the plugin), and stays plain when the numbers match or no file exists. The plan gate is armed only when the current plan-mode episode shows a Write/Edit of a plans/*.md file; the reviewer is viber:plan-judge when the planner skill ran in the episode (a Skill tool_use, plugin prefix included) and the plan file opens with the planner frontmatter source: line (an unreadable plan keeps viber:plan-judge), otherwise viber:outside-plan-review, and only when .claude/viber.yml turns planning.outside-plan-review on, with no file limit. Anything else - planning.outside-plan-review off, an exit in a session that already built a plan - passes untouched. When armed it asks only for a trace of the review: it reads the verdict of the last completed dispatch and verdict pair of that reviewer inside the episode and denies ExitPlanMode in three cases, each with its own next step: no pair completed (no dispatch, or a dispatch with no verdict yet), a 'VERDICT: DENIED' that no answering call follows, and a 'VERDICT: FAIL' that no answering write follows. What answers is a transcript line after the verdict line: for a DENIED only a Bash call of plan-build.sh judged naming a plans/*.md path with the word DENIED after it (the planner reporting a refused second review round; an outside plan has no such call), for a FAIL a Write/Edit of the plan, a Bash call of plan-build.sh apply or open naming a plans/*.md path, or one of plan-build.sh judged naming such a path with the word none after it (the none call answers no FAIL of review round 1, told by the round: 1 line of the dispatch prompt: there the planner's script stops with the plan unreviewed); a judged call with PASS or FAIL answers nothing, and the subcommand and the verdict word may stand in quotes. Everything else allows: a 'VERDICT: PASS' stays good whatever is written to the plan after it, since the review runs at most two rounds and the approved text is not the reviewed text, but a plan assembled anew after a new plan-build.sh survey needs a verdict of its own: the pairs ahead of that assembly count no more; a verdict of the other reviewer never counts. The UserPromptSubmit hook adds one hint (dispatch outside-plan-review once the plan is written and at most once more after a FAIL, then put what is left under \"## Open items\" and call ExitPlanMode, never asking the user about a finding) to every prompt sent in plan mode, silent once the planner, intent or fixer skill ran in the episode. The PreToolUse hook on Bash (kill-guard.sh) refuses, inside a viber agent (agent_type starting with viber:), a command that stops processes by name - killall, pkill, taskkill with /IM, xargs running kill, kill fed by a command substitution - and tells the agent to stop only the PIDs it started with kill <PID>; it is silent for the main session, other agents and every other command, and never answers allow. The second PreToolUse hook on Bash (shell-guard.sh) refuses, inside viber:task-coder, a chained command (an unquoted ;, && or ||), git stash, checkout, restore or clean, rm, and a file write through Bash (sed -i, perl -pi, a redirect or tee onto a relative path outside .temp/), and inline interpreter code (python -c, node -e, ruby -e, perl -e) or a .temp/ script run through an interpreter, and inside viber:task-reviewer and viber:final-reviewer the four git subcommands only; inside every viber agent it also refuses a cd or pushd whose target holds a glob, a variable or a command substitution, since the permission check refuses a whole call once it cannot resolve the directory it runs in; the guard is silent for every other caller. Both guards open every refusal with \"viber guard:\" and name the fix. The PreToolUse hook on Edit and Write (file-guard.sh) refuses, inside viber:task-coder, the edit of a file that another task of the run neither done nor skipped claims in its Files or in one of its two extras files, unless the coder's own task claims it too; it reads the coder's task from the task: line of the dispatch prompt, the first record of the coder's own transcript, opens its refusal with \"viber guard:\" as well and tells the coder to leave the file, finish what does not need it and return VERDICT: FAIL with a WAIT: line; it is silent for every other caller, for a file no unfinished task claims and whenever it cannot tell the coder's task. The SubagentStop hook (verdict-nudge.sh) blocks the stop of a viber agent other than the scout, mapper and hunter once, with a nudge to return its output lines, when its final message holds no VERDICT: or AUDIT: line, or ends on a VERDICT: value its agent file does not name (the nudge then lists the values that file names, in file order; an agent with no file naming a value keeps the plain nudge); it is silent when stop_hook_active is true, for any other agent and for unreadable input. Every hook fails open: any parse miss or unreadable input allows. The hooks module register.tsx answers one Write refusal: when the harness guard rejects a viber agent's Write of a .md file whose name starts with report, summary, findings or analysis (a host's own domain name, such as reports.pl.md), for a path inside the project root, it writes that file itself and returns the Write result; every other Write passes through unchanged.",
+  "description": "viber hooks. The SessionStart hook shows the user the loaded plugin version, with a schema note when .claude/viber.yml is at another schema than the setup template, and injects hooks/content/manifest.md verbatim into the main session's context (source == \"resume\" excluded, since the prior injection reloads with the transcript). The PreToolUse hook on ExitPlanMode (plan-gate.sh) guards a plan the planner skill built: armed only when the records after the last ExitPlanMode that was not refused hold a Skill call of planner or a call of its plan.sh, and disarmed by a Skill call that was not refused or a typed command of simple-plan after the last of those, it refuses the exit unless a plan.sh land call wrote the plan, viber:plan-reviewer was dispatched after the last such landing, the last such dispatch returned VERDICT: PASS and the plan file was not edited since; every refusal names the next step. Any other plan passes untouched, a pass takes no permission decision, and the gate fails open: unreadable input or no node lets the call through.",
   "hooks": {
     "PreToolUse": [
       {
@@ -8,42 +8,6 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/plan-gate.sh\"",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/kill-guard.sh\"",
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/shell-guard.sh\"",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/file-guard.sh\"",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/plan-hints.sh\"",
             "timeout": 10
           }
         ]
@@ -60,18 +24,6 @@
           }
         ]
       }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/verdict-nudge.sh\"",
-            "timeout": 10
-          }
-        ]
-      }
     ]
-  },
-  "modules": ["./register.tsx"]
+  }
 }

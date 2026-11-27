@@ -2,7 +2,7 @@
  * arg-kind.ts - classifies the first word of a skill's argument as a GitHub
  * issue reference or a pull request reference, by exactly the shapes
  * `issue-facts.sh` (issue) and `pr-threads.sh` (pr) accept. The entry holds no
- * logic: viber/lib/arg-kind.ts classifies, runArgKind returns the answer.
+ * logic: lib/arg-kind.ts classifies, runArgKind returns the answer.
  *
  * It exists because `intent`, `fixer` and `pr-feedback` decided from prose
  * whether their argument was an issue or pull request reference, and a wrong
@@ -36,7 +36,7 @@
  *            under pr, or any further argument.
  */
 
-import { runArgKind } from "../lib/arg-kind.ts";
+import { runArgKind } from "./lib/arg-kind.ts";
 
 const result = runArgKind(process.argv.slice(2));
 process.stdout.write(result.stdout);

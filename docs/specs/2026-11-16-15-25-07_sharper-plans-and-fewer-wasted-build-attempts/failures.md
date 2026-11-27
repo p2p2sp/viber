@@ -1,3 +1,0 @@
-# Failures
-
-- task | review-T3-1 | tests/viber/rule-budget.unit.test.ts:46 - DoD.6 asks for the planner cap "raised to the new size", and the plan rule says a cap "is raised only by the task whose text outgrows it". This change lowers the cap from 44774 to 43130 instead. The measured read set (43130 bytes) is still below the committed cap of 44774, so this task's text outgrew nothing and no cap change was needed. Lowering the cap removes the 1644 bytes of headroom the committed budget carries, so the next byte added to any planner read-set file (planner/SKILL.md, plan-rules.md, the templates, the test-strategy sections) fails the suite. Nothing asked for that change.

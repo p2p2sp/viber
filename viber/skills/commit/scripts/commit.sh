@@ -7,7 +7,7 @@
 # the permission engine rather than an add-then-commit pair the model composes
 # per call, and so a model never decides whether its commit landed. How the
 # selector is read, what is staged and the result line live in commit.ts and
-# viber/lib/commit.ts, never here, so the skill keeps this call line while they
+# lib/commit.ts, never here, so the skill keeps this call line while they
 # are tested in process.
 #
 # Usage:
@@ -19,11 +19,12 @@
 #            the MSYS runtime hands node an argument that is one `/c/...` path as
 #            `C:/...`.
 #   cwd    : any directory inside the repository the commit lands in: the cwd IS
-#            the contract. commit.ts moves to its root.
+#            the contract. commit.ts moves to its root and reads every relative
+#            path from there, never from the cwd.
 #   env    : PATH must resolve `node` (22.18 or newer, which runs a .ts file).
 #   file   : commit.ts beside it, found from the invoked path with either
-#            separator (a C:\ spelling included), and viber/lib/ three
-#            directories up.
+#            separator (a C:\ spelling included), and lib/ beside
+#            it.
 #   writes : what commit.ts writes: the index, the commit and staged exec bits.
 #   stdout : what commit.ts prints: one line, the result, or nothing on a git
 #            failure, whose own output goes to stderr.

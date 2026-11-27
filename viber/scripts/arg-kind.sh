@@ -7,17 +7,14 @@
 # It exists because `intent`, `fixer` and `pr-feedback` decided from prose
 # whether their argument was an issue or pull request reference, and a wrong
 # call sent pasted text to `gh` or dropped a real reference into the free text.
-# The shape rules live in arg-kind.ts and viber/lib/arg-kind.ts, never here, so
+# The shape rules live in arg-kind.ts and lib/arg-kind.ts, never here, so
 # every caller keeps this call line while the classifier is tested in process.
 #
 # Contract:
-#   argv   : `arg-kind.sh issue <first word> [--more]` or
-#            `arg-kind.sh pr <first word>`. Handed to arg-kind.ts as given; the
-#            accepted shapes and every stdout line are defined in the header of
-#            arg-kind.ts.
+#   argv   : handed to arg-kind.ts as given; its header defines the call forms.
 #   cwd    : irrelevant: arg-kind.ts touches no file and runs no other command.
 #   env    : PATH must resolve `node` (22.18 or newer, which runs a .ts file).
-#   file   : arg-kind.ts and viber/lib/ beside it.
+#   file   : arg-kind.ts and lib/ beside it.
 #   stdout : what arg-kind.ts prints: one `NEXT:` or `STOP:` line.
 #   exit   : that of arg-kind.ts: 0 with the line, 2 with one
 #            `error: arg-kind.sh: ...` line on stderr and an empty stdout for a

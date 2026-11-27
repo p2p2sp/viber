@@ -47,7 +47,7 @@
 #              HEAD_BRANCH=<headRefName>
 #              BRANCH=<current branch, empty when HEAD is detached>
 #              PUSHED=yes|no                       (local HEAD equals headRefOid)
-#              THREADS_FILE=<repo-relative path>   (ready only)
+#              THREADS_FILE=<absolute path>        (ready only)
 #              SKIPPED=<count>                     (ready only)
 #              TRUNCATED=yes|no                    (ready only)
 #              THREAD=<k> | <comment-id> | <path>:<line> | <author> | outdated|current
@@ -169,10 +169,10 @@ if [ -n "$local_oid" ] && [ "$local_oid" = "$head_oid" ]; then pushed=yes; fi
 if [ "$branch" = "$head_branch" ]; then status=ready; else status=stop; fi
 
 if [ "$status" = ready ]; then
-  tdir=".temp/viber/pr-feedback/$n"
+  tdir="$root/.temp/viber/pr-feedback/$n"
   tfile="$tdir/threads.md"
   if ! mkdir -p "$tdir" 2>/dev/null || ! printf '' 2>/dev/null >"$tfile"; then
-    echo "ERROR pr-threads.sh: cannot write $root/$tfile" >&2
+    echo "ERROR pr-threads.sh: cannot write $tfile" >&2
     exit 1
   fi
   more=$(printf '%s\n' "$out" | sed -n 's/^MORE=//p' | sed -n 1p)

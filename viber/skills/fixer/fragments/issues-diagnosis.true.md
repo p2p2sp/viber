@@ -1,1 +1,0 @@
-- **Issue** - `Issue: <full issue URL>`, the `URL=` value of `issue-facts.sh` when the report was read through it, or the `ISSUE_URL=` value of `issue-create.sh` when the diagnosis was saved as an issue; never anything else.

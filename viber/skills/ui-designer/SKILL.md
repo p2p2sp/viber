@@ -1,17 +1,17 @@
 ---
 name: ui-designer
 description: Professional UI/UX design standards to avoid AI slop. Use when the look of an interface is the goal - a new screen or page, a redesign, a UI review or critique, choosing colors, type, spacing, layout or motion, or a UI that looks generic or AI-generated. Not for a small functional change.
-allowed-tools: Read, Grep, Glob, Bash(sh:*), Bash(node:*)
+allowed-tools: Read, Grep, Glob, Bash(sh:*), Bash(node:*), Bash(cat:*)
 ---
 
 # Professional UI Design
 
-## Load the AI Slop filter before reasoning about anything
+## Apply the AI Slop filter before reasoning about anything
 
-FIRST ACTION of every invocation, no exceptions: read `${CLAUDE_SKILL_DIR}/references/anti-slop.md` in full. Nothing else in this skill starts until it is in context.
+`anti-slop.md` is preloaded as the last section of this file: never read it again. Only if that section is empty or holds an error instead of the tells, read `${CLAUDE_SKILL_DIR}/references/anti-slop.md` in full before anything else in this skill starts.
 
 - Applies to every job size - a whole page, one component, a color question, a code review, a one-line fix - and applies even when a design system, brief, or token set already exists.
-- Load it before proposing anything. The tells it names are your own statistical defaults; they have to leave the candidate set before the first decision, not get scrubbed out of a finished draft.
+- Apply it before proposing anything. The tells it names are your own statistical defaults; they have to leave the candidate set before the first decision, not get scrubbed out of a finished draft.
 - Keep it active for the rest of the run: every palette, layout family, section sequence, icon, headline and demo value is checked against it at the moment it is chosen, not at the end.
 
 ## The bar
@@ -84,10 +84,13 @@ A token set binds palette, typography, radii and spacing - it is not a compositi
 
 ## Final QA
 
-- **Squint test**: blur your eyes - the primary CTA must be the only element that pops.
-- **Contrast**: resolve the `node` command via `sh "${CLAUDE_SKILL_DIR}/scripts/check_node.sh"` first (`NODE_MISSING` -> skip with a note that Node.js >= 22.6 is required), then run `<resolved node cmd> "${CLAUDE_SKILL_DIR}/scripts/check_contrast.ts" FG BG [TYPE] [FG BG [TYPE] ...]` for every text/background and component/background pair. TYPE = `normal` (default, 4.5:1) | `large` (3:1) | `ui` (borders/icons/focus, 3:1) - exit 1 means a pair failed the AA threshold for its own type; exit 2 means bad input or usage.
+- **Contrast**: resolve the `node` command via `sh "${CLAUDE_SKILL_DIR}/scripts/check_node.sh"` first (`NODE_MISSING` -> skip with a note that Node.js >= 22.18 is required), then run `<resolved node cmd> "${CLAUDE_SKILL_DIR}/scripts/check_contrast.ts" FG BG [TYPE] [FG BG [TYPE] ...]` for every text/background and component/background pair. TYPE = `normal` (default, 4.5:1) | `large` (3:1) | `ui` (borders/icons/focus, 3:1) - exit 1 means a pair failed the AA threshold for its own type; exit 2 means bad input or usage.
 - **States inventory**: hover, focus, disabled, loading, empty, error - all present?
 - **Detail rule**: if a detail is too small or too faint to notice, delete it instead of keeping it faint.
 - **Template test** (new surfaces only): would this exact palette + type + hero combination ship for any similar brief? If yes, it is a default, not a decision - revise the generic part (`${CLAUDE_SKILL_DIR}/references/distinctiveness.md`).
 - **Bounded passes**: verify in batches, not an open loop - build fully, inspect once (desktop and mobile together), fix everything found in one batch, confirm with at most one more round, then stop polishing. Open-ended self-QA burns effort without improving the result.
 - **Screenshot QA** (new Persuade/Experience surfaces only): render the built page and take full-page desktop and mobile screenshots with whatever the host project offers; no way to render -> note the gap and run the same checks on the code instead. On the image: skeleton test (would this section sequence ship for any similar product?), domain-artifact test (point at 3 places showing the product's world, not the template's), signature recurrence (3+ placements), and "would I remember this page tomorrow?". Run the squint test on the screenshot itself, not rhetorically - a full-page screenshot also exposes content hidden by initial `opacity: 0` (-> `${CLAUDE_SKILL_DIR}/references/motion.md`). Stays inside the bounded-passes discipline above.
+
+## AI Slop filter - preloaded `anti-slop.md`
+
+!`cat "${CLAUDE_SKILL_DIR}/references/anti-slop.md" 2>&1`

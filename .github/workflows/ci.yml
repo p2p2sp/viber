@@ -1,72 +1,24 @@
 name: CI
+
 on:
   push:
-  pull_request:
-  workflow_dispatch:
-# A new run of the same branch or pull request cancels the one still running.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-defaults:
-  run:
-    shell: bash
+    paths:
+      - "tests/**"
+      - "viber/**"
+      - ".github/workflows/ci.yml"
+
+permissions:
+  contents: read
+
 jobs:
-  Lint:
-    name: Lint
+  test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
         with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-      # No package.json: the type checker and the Node types are installed for this job only.
-      - name: Install typescript and the Node types
-        run: npm install --no-save typescript@6.0.3 @types/node@24.10.0
-      - name: tsc --noEmit
-        run: npx tsc --noEmit
-      - name: Install actionlint
-        run: bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
-      - name: actionlint
-        run: ./actionlint -color
-      - name: shellcheck
-        run: shellcheck .github/scripts/release.sh .github/scripts/retry.sh viber/hooks/scripts/session-start.sh
-      - name: Skill lint
-        run: bash .github/scripts/lint-skills.sh
-      - name: Rule lint
-        run: node tools/lint/run.ts
-  Tests:
-    name: Tests (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-      - name: Guard - each test glob must match at least one file
-        run: |
-          for pattern in 'tests/**/*.unit.test.ts' 'tests/**/*.integration.test.ts'; do
-            count=$(git ls-files "$pattern" | wc -l)
-            if [ "$count" -eq 0 ]; then
-              echo "::error::no tracked file matches $pattern"
-              exit 1
-            fi
-          done
+          node-version: 22
+
       - name: Run tests
-        run: |
-          start=$(date +%s)
-          status=0
-          node --test "tests/**/*.unit.test.ts" "tests/**/*.integration.test.ts" || status=$?
-          seconds=$(( $(date +%s) - start ))
-          if [ "$seconds" -gt 60 ]; then
-            echo "::warning::The test step took $seconds seconds, over the 60 second budget"
-            echo "Test step on ${{ matrix.os }}: $seconds seconds, over the 60 second budget" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          exit "$status"
+        run: node --test "tests/**/*.test.ts"

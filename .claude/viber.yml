@@ -1,43 +1,14 @@
-# viber switches. Only `true` counts as on. Turn one off with `false`: a key you
-# delete or comment out is restored at its default here the next time
-# `/viber:setup` runs, which is how a new version's switches reach this file.
-# The exception is a child of `tiers:` or `branching:`: the merge only appends
-# a missing group whole, never a missing child of one already present, so
-# deleting a child there is not restored - it resolves to its default in
-# config.sh instead.
+schema: 1
 
-# The layout this file follows. /viber:setup raises it when it brings the file
-# up to a newer layout, and a session start tells you when it lags behind the
-# installed viber. Leave it as it is.
-schema: 6
+build:
+  rules: true
+  qa: false
+  extensions:
 
-# The two directories under docs/: where an open run lives, and where the
-# archive of a finished one lands. Directory NAMES, not paths - a value with a
-# slash in it is ignored and the default stands. Both are read only from inside
-# this group.
 directories:
   runs: _specs
   specifications: specs
 
-# The model range implementor builds with: haiku, sonnet, opus or fable. Every
-# task, review and retry is kept inside it - min: sonnet never runs haiku,
-# max: sonnet never runs opus, and only max: fable lets a retry reach fable.
-tiers:
-  min: sonnet
-  max: opus
-
-# Whether a run works on its own git branch - so its commits land where the
-# project's branching strategy expects them. Nothing is ever fetched, pushed,
-# merged or deleted: a branch is only created, switched to and committed on.
-# mode is off (stay on the branch the run started on, today's behavior),
-# allowed (the run may get its own branch, settled when the interview or
-# diagnosis starts) or required (a run always gets its own branch, never an
-# entry's base). Each child of work names one kind of branch:
-# base it is cut from, name its pattern (quoted since it opens on `{`;
-# {type} and {slug} are filled in from the plan), target where its pull
-# request lands. issue-type-mappings, commented out below, would pick a work
-# entry by the GitHub issue type a run starts from. See viber/BRANCHING.md
-# for the full schema and one example per branching strategy.
 branching:
   mode: off
   work:
@@ -47,73 +18,3 @@ branching:
       target: main
   # issue-type-mappings:
   #   bug: main
-
-# Switches read while a change is planned.
-planning:
-  # planner has the adr-screener agent test the plan's decisions against a
-  # strict admission test, and turns each record you accept into a task with no
-  # dependencies writing docs/adr/.
-  adr: false
-  # A plan written outside the planner must pass a review agent before plan
-  # mode can be left - the same gate the planner's plans get.
-  outside-plan-review: true
-  # The most decisions one round of the /viber:intent interview carries: 1 to 10
-  # or `all` for no cap. A wide change then arrives in several short rounds
-  # instead of one long one.
-  questions-per-round: 5
-
-# Switches read by implementor while it builds a plan.
-build:
-  # implementor runs the test suite once before the first task and records what
-  # already fails, so a build repairs only the failures it caused.
-  baseline-tests: off
-  # implementor runs one fresh review of the whole build after every task is
-  # committed and before the final test run, at the edge of the build's diff
-  # where per-task review and the test suite cannot see; one coder fixes
-  # everything it finds, once, and the suite still runs once.
-  final-review: true
-  # implementor updates the project's CLAUDE.md nodes at the close of a build.
-  memory: true
-  # implementor updates .claude/rules/ at the close of a build.
-  rules: true
-  # implementor writes the build's QA scenarios at the close: an acceptance
-  # document a person performs and a handoff file /viber:e2e turns into tests.
-  qa: false
-  # implementor ends the build by noting on the specification whatever the
-  # build delivered that it does not promise, then moving the run's lasting work
-  # into the archive below and dropping the plan, the state file and the trail -
-  # git keeps them.
-  cleanup: true
-  # The agents of this project's own .claude/agents/ that implementor runs at the
-  # close of a build, just before the run is archived: one entry per agent under
-  # `extensions:`, named after its file, in run order. Empty runs none. An entry
-  # runs alone, one step after the one before it, unless it says `parallel: true`:
-  # consecutive entries that do run together in one message, as one step. An
-  # entry with no `parallel` option, or any other value, is a step of its own.
-  # One entry, indented under `extensions:`:
-  #   help-builder:
-  #     parallel: true
-  extensions:
-  # On a task that must be built test first, implementor checks in a separate
-  # worktree that the task's new tests fail without its production change.
-  # red-check-tests lists the test path patterns (an entry ending in `/` names
-  # a directory), red-check-links the directories linked into that worktree;
-  # both are separated by spaces, and the defaults stand while they are
-  # commented out:
-  # red-check-tests: __tests__/ tests/ test/ *.Tests/ *.UnitTests/ *.IntegrationTests/ *.test.* *.spec.* test_*.py *_test.py *_test.go *Test.java *Test.kt conftest.py testdata/ __mocks__/ __fixtures__/ fixtures/ jest.config.* vitest.config.*
-  # red-check-links: node_modules
-  red-check: true
-
-# GitHub issues and pull requests.
-github:
-  # An interview or a diagnosis can start from a GitHub issue and save its
-  # conclusions as a new one.
-  issues: false
-  # The title of an issue viber files: {template-title} is the issue template's
-  # own title prefix, {type} its issue type, {summary} a one-line statement.
-  # Quoted, since it opens on `{`.
-  issue-title: '{template-title}{summary}'
-  # The title of a pull request /viber:pr-create opens: {type} is feat or fix,
-  # {summary} a one-line statement, {issue-number} the first issue it refers
-  # to, {entry} its branching work entry.
-  pr-title: '{type}: {summary}'

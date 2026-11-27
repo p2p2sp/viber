@@ -1,6 +1,6 @@
 // merge-settings.ts - merges the bundled permissions template into the host
 // project's .claude/settings.json key by key, idempotently. The entry holds no
-// logic: viber/lib/merge-settings.ts does all of it, and the setup skill runs it
+// logic: lib/merge-settings.ts does all of it, and the setup skill runs it
 // through the wrapper merge-settings.sh, which keeps its call line and answers
 // alone when no node is on PATH.
 //
@@ -71,9 +71,9 @@
 //   2 - the target could not be read or parsed, the backup failed, or the
 //       write failed
 
-import { nodeFs } from "../../../lib/adapters/fs.ts";
-import { gitCommand } from "../../../lib/adapters/git.ts";
-import { runMergeSettings } from "../../../lib/merge-settings.ts";
+import { nodeFs } from "./lib/adapters/fs.ts";
+import { gitCommand } from "./lib/adapters/git.ts";
+import { runMergeSettings } from "./lib/merge-settings.ts";
 
 const result = runMergeSettings(process.argv.slice(2), process.cwd(), { fs: nodeFs, git: gitCommand });
 process.stdout.write(result.stdout);

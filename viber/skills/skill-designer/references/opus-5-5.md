@@ -1,6 +1,6 @@
 # Claude Opus 5.5
 
-Alias `opus`, ID `claude-opus-5-5`, released 2026-09-22. Context 1M, output 128K, knowledge through Jun 2026. $4/$20 per MTok. Thinking always on; effort default `medium`, which matches or beats Opus 5 at `high`.
+Alias `opus`, ID `claude-opus-5-5`, output 128K. Its default effort `medium` matches or beats Opus 5 at `high`.
 
 ## Fit and effort
 

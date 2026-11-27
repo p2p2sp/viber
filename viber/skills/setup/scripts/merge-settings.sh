@@ -5,9 +5,9 @@
 # it, and the plain copies that need no node when PATH holds none.
 #
 # The merge rules, the create and the reset live in merge-settings.ts and
-# viber/lib/merge-settings.ts. The part below the node call repeats the create
-# and the reset as plain copies, so a host without node still gets its settings;
-# a change to either goes to both.
+# lib/merge-settings.ts. The part below the node call repeats the create and the
+# reset as plain copies, so a host without node still gets its settings; a
+# change to either goes to both.
 #
 # Contract:
 #   argv   : [--reset] <template> [<target>], handed to merge-settings.ts as
@@ -18,8 +18,7 @@
 #   env    : PATH; a `node` on it (22.18 or newer, which runs a .ts file) does
 #            everything.
 #   file   : merge-settings.ts beside it, found from the invoked path with either
-#            separator (a C:\ spelling included), and viber/lib/ three
-#            directories up.
+#            separator (a C:\ spelling included), and lib/ beside it.
 #   writes : the target; on --reset of an existing one also
 #            <root>/.temp/viber/setup/settings.json.bak.
 #   stdout : what merge-settings.ts prints. Without node the same lines for a

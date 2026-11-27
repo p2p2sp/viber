@@ -8,7 +8,7 @@
 # and the stamp, the repository root and the path forms are a fixed format, not
 # a judgement. It is the skill's `!` preload, so it resolves once, before the
 # model reads a word of the body. The target rules and the four lines live in
-# handoff-path.ts and viber/lib/handoff-path.ts, never here, so the skill keeps
+# handoff-path.ts and lib/handoff-path.ts, never here, so the skill keeps
 # this call line while the path is tested in process.
 #
 # Contract:
@@ -20,7 +20,7 @@
 #            the repository root itself; outside a repository the cwd is the
 #            root.
 #   env    : PATH must resolve `node` (22.18 or newer, which runs a .ts file).
-#   file   : handoff-path.ts beside it and viber/lib/ three directories up.
+#   file   : handoff-path.ts beside it and lib/ beside it.
 #   writes : nothing.
 #   stdout : what handoff-path.ts prints: the four lines FILE=, EXISTS=,
 #            BRANCH= and TARGET=. Nothing when node is absent or fails: a

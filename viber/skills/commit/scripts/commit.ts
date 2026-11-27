@@ -1,7 +1,7 @@
 /*
  * commit.ts - runs the git commit with the message it is handed. The entry
- * holds no logic: viber/lib/commit.ts does all of it over the selector reading
- * of viber/lib/commit-args.ts, and the commit skill runs it through the wrapper
+ * holds no logic: lib/commit.ts does all of it over the selector reading
+ * of lib/commit-args.ts, and the commit skill runs it through the wrapper
  * commit.sh, which keeps its call line.
  *
  * Usage:
@@ -33,8 +33,13 @@
  *                             selector)
  *            A path containing a space works only as the sole selector: inside
  *            a list the split cuts it apart.
- *            A relative token is tried against the caller's directory first,
- *            then against the repository root. An absolute path is handed to git
+ *            A "<segment>/.." is cut from a path as text before it is read. A
+ *            string whose ".." would cut a segment holding a blank is never
+ *            one path: "a.txt x/../b.txt" is the list a.txt, b.txt.
+ *            A relative token is read from the repository root alone: the
+ *            paths of commit-context's RUN: line are root-relative, so the
+ *            caller's directory never stands before them (commit-context tries
+ *            the caller's directory first, then the root). An absolute path is handed to git
  *            as given: POSIX, C:/ and C:\ spellings; on Windows a /c/ one is
  *            read as C:/.
  *            Issue references (a GitHub issue link, a bare "#42" with no letter,
@@ -44,7 +49,7 @@
  *            that is an existing path is never cut. A cut removes only the "#42"
  *            itself, never the characters around it.
  *   cwd    : any directory inside the repository the commit lands in; git runs at
- *            its root.
+ *            its root and every relative path is read from there.
  *   env    : none read. Git's writes run with GIT_LITERAL_PATHSPECS=1, so a "[",
  *            "*" or "?" in a selector is part of a file name, never a glob.
  *   writes : the index and the commit; the exec bit of a file whose staged mode
@@ -66,10 +71,10 @@
  *            own non-zero status.
  */
 
-import { nodeFs } from "../../../lib/adapters/fs.ts";
-import { gitCommand } from "../../../lib/adapters/git.ts";
-import { gitWriteCommand } from "../../../lib/adapters/git-write.ts";
-import { runCommit } from "../../../lib/commit.ts";
+import { nodeFs } from "./lib/adapters/fs.ts";
+import { gitCommand } from "./lib/adapters/git.ts";
+import { gitWriteCommand } from "./lib/adapters/git-write.ts";
+import { runCommit } from "./lib/commit.ts";
 
 const result = runCommit(process.argv.slice(2), process.cwd(), { fs: nodeFs, git: gitCommand, write: gitWriteCommand });
 process.stdout.write(result.stdout);

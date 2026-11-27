@@ -1,7 +1,7 @@
 /*
  * lint_skill.ts - lints a skill directory (one holding SKILL.md) or a single agent or skill .md
  * file against the platform caps and the style rules of skill-designer. The entry holds no logic:
- * viber/lib/lint_skill.ts reads the files and builds the lines.
+ * lib/lint_skill.ts reads the files and builds the lines.
  *
  * It exists because the caps and the style rules of the doctrine are mechanical, and a model that
  * checks them by reading misses some on every pass: one linter reports each break the same way, so
@@ -45,8 +45,8 @@
  *            a missing argument (stdout empty).
  */
 
-import { nodeFs } from "../../../lib/adapters/fs.ts";
-import { runLintSkill } from "../../../lib/lint_skill.ts";
+import { nodeFs } from "./lib/adapters/fs.ts";
+import { runLintSkill } from "./lib/lint_skill.ts";
 
 const result = runLintSkill(process.argv.slice(2), { fs: nodeFs });
 process.stdout.write(result.stdout);

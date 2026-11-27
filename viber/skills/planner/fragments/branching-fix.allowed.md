@@ -1,1 +1,0 @@
-After the fix of `NEXT: fix | round: 1` is applied, run the branch step's last `plan-path.sh --branch` command again before dispatching and act on its answer as the branch step does: `next: kept` leaves the recorded `work:` and `branch:` keys and shows nothing. After a fix of round 2 or of step 5 never run it: the recorded keys stand, and nothing is asked.

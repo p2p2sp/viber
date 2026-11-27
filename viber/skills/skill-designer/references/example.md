@@ -1,6 +1,6 @@
 # Example
 
-Read before writing a skill body from scratch. One body with the recurring failure, then what each flaw becomes. Derive the new body from the rules, never from the shape of this file.
+One body with the recurring flaws, then the fix for each. Derive the new body from the rules, never from the shape of this file.
 
 BAD
 ```

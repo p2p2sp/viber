@@ -1,7 +1,7 @@
 /*
  * handoff-path.ts - resolves where the handoff skill writes its file, and on
  * which branch the conversation stands. The entry holds no logic:
- * viber/lib/handoff-path.ts builds the path, runHandoffPath returns the stdout.
+ * lib/handoff-path.ts builds the path, runHandoffPath returns the stdout.
  *
  * It exists because the model does not know the current time to the second,
  * and the stamp, the repository root and the path forms are a fixed format, not
@@ -48,9 +48,9 @@
  *   exit   : 0. The core never throws.
  */
 
-import { systemClock } from "../../../lib/adapters/clock.ts";
-import { nodeFs } from "../../../lib/adapters/fs.ts";
-import { gitCommand } from "../../../lib/adapters/git.ts";
-import { runHandoffPath } from "../../../lib/handoff-path.ts";
+import { systemClock } from "./lib/adapters/clock.ts";
+import { nodeFs } from "./lib/adapters/fs.ts";
+import { gitCommand } from "./lib/adapters/git.ts";
+import { runHandoffPath } from "./lib/handoff-path.ts";
 
 process.stdout.write(runHandoffPath(process.argv.slice(2), process.cwd(), { fs: nodeFs, git: gitCommand, clock: systemClock }));

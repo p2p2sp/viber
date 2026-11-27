@@ -3,15 +3,17 @@
  * from: the resolved selector, the issue footer, the branch, the recent commit
  * subjects (the repo's type/scope style to match), and the git status and diff of
  * the selected set, the diff capped so it cannot flood the fork's context. The
- * entry holds no logic: viber/lib/commit-context.ts does all of it over the
- * selector reading of viber/lib/commit-args.ts, and the commit skill runs it
+ * entry holds no logic: lib/commit-context.ts does all of it over the
+ * selector reading of lib/commit-args.ts, and the commit skill runs it
  * through the wrapper commit-context.sh, which keeps its call line.
  *
  * Contract:
  *   argv   : $1 selector (optional) - the skill's whole raw argument string,
- *            read as in commit.ts: ""/all -> all, existing paths -> paths (the
- *            context narrowed to them), named paths none of which exists ->
- *            missing.
+ *            ""/all -> all, existing paths -> paths (the context narrowed to
+ *            them), named paths none of which exists -> missing; the rest of
+ *            the grammar as in commit.ts. Unlike commit.ts, a relative token
+ *            is read from the caller's directory first, then from the
+ *            repository root.
  *   cwd    : any directory inside the repository to commit in; git runs at its
  *            root, so every path printed is root-relative.
  *   env    : none read. A "[", "*" or "?" in a selector is part of a file name,
@@ -25,7 +27,7 @@
  *            third argument; mode missing prints only STOP: Nothing committed -
  *            paths not found: <missing>. <message> is the slot the fork
  *            replaces. Then, always, the
- *            "## Issue footer" section whose one line is Refs: #<n>[, #<n>]...
+ *            "## Issue footer" section whose one line is Resolves #<n>[, resolves #<n>]...
  *            (the arguments' references when any, else the branch's single
  *            task.<n> or issue.<n> number, either case) or none; then the
  *            "## Current branch" section. The diff is capped at MAX_LINES with a notice
@@ -38,8 +40,8 @@
  *            empty or holding git's message.
  */
 
-import { nodeFs } from "../../../lib/adapters/fs.ts";
-import { gitCommand } from "../../../lib/adapters/git.ts";
-import { runCommitContext } from "../../../lib/commit-context.ts";
+import { nodeFs } from "./lib/adapters/fs.ts";
+import { gitCommand } from "./lib/adapters/git.ts";
+import { runCommitContext } from "./lib/commit-context.ts";
 
 process.stdout.write(runCommitContext(process.argv.slice(2), process.cwd(), process.argv[1], { fs: nodeFs, git: gitCommand }));

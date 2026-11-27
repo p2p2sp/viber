@@ -1,7 +1,5 @@
-Make sure CLAUDE.md states each of these, the commands as the exact command, taken from this project's own scripts and config. Never guess: ask me about any you cannot find.
+Make sure CLAUDE.md states each of these as the exact command, taken from this project's own scripts and config. Never guess: ask me about any you cannot find.
 - the build command
 - the command that runs the whole test suite
 - how to run a single test file
-- the fast command: a test command that runs every test but the integration and end-to-end ones
-- the layer marker convention: how a test is tagged with its layer (unit, component, integration or e2e), such as a marker, trait, tag, build tag, runner project or file-name pattern
 Add only what is missing and keep the rest of the file as it is.

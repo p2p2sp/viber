@@ -1,5 +1,0 @@
-# Resume a phase list
-
-A `phases.md` or `roadmap.md` the user points at (a named `phases.md` that does not exist: the `roadmap.md` in its directory) is resumed, not interviewed again: its first entry with no `(built)` or `(this plan)` marker is the next phase, and its listed decisions are settled and cost no question. Ask only what the builds since changed and that phase's open unknowns, in the rounds of the skill's `## The interview`. A phase is never a release: nothing is published until the last phase is built, so never ask what works between phases, how to ship this one, or what stands in for a later phase - no stub, mock or temporary alternative. The summary carries that phase's decisions as settled, the later phases as boundaries, and closes on the line `Phases: <repo-relative path of that file>`.
-
-When that entry's first indented line is `Issue: <full issue URL>`, that URL is the run's issue from the start: the branching start step and the summary's `Issue:` line carry it. An entry with no such line ties the run to no issue.

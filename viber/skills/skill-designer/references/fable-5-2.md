@@ -1,6 +1,6 @@
 # Claude Fable 5.2
 
-Alias `fable`, ID `claude-fable-5-2`. Context 1M, output 128K, knowledge through Jun 2026. $8/$40 per MTok (2x Opus 5.5), cache reads $0.20 (2.5 percent of input), so cache-heavy long sessions close much of the gap. Thinking always on; effort default `high`.
+Alias `fable`, ID `claude-fable-5-2`, output 128K. Cache reads cost $0.20 per MTok (2.5 percent of input), so cache-heavy long sessions close much of the price gap to Opus 5.5.
 
 ## Effort
 
@@ -37,11 +37,10 @@ Alias `fable`, ID `claude-fable-5-2`. Context 1M, output 128K, knowledge through
 
 - Goes quiet during long tool runs and may make its first tool call unannounced. Where a human watches add: "Before you start, say in a line what you're about to do; brief updates while you work help the user follow along. Close with a short recap that stands on its own (what you found, what you did, and what's next), so a reader who only sees the last message has the full picture." Where the harness cannot inject reminders, also: "Every few tool calls, give the user a one-line update on where things stand."
 - For final reports and handoffs add under `# Communicating clearly`: "Write for an intelligent but low-context reader. The person reading has not seen your tool calls, your reasoning or the files you opened, and may be switching in from other work. Messages should generally be self-contained: the reader should understand what you mean without having to dig for other context. Put the key points in the first few sentences. Practice progressive disclosure in your sentence order, and do not use undefined references and ideas in line 1 that won't make sense until the reader reaches line 12. Use plain words, and write in clear, understandable full sentences. Do not use a term or abbreviation that you made up during the work. Say what the thing is in a way any reader would understand. Write mostly in the style of ASD-STE100 Simplified Technical English: short sentences, one idea per sentence, active voice, and consistently using the same word for the same thing. Use a paragraph of flowing prose where ideas connect, and keep bullets for lists of separate items. Leave out unnecessary details unless the reader asks and practice concision, but do ensure that your messages have the key context. Aim to make your user-facing text as human-readable and clear as possible."
-- Follows style rules closely: a hard limit ("one instruction per sentence, in 20 words or fewer") makes prose choppy.
 
 ## Refusals
 
-- Classifiers decline as `cyber`, `bio`, `frontier_llm`, `reasoning_extraction` or `general_harms`; benign security and life-science work trips `cyber` and `bio`. Fallback goes to Opus 4.8 or Opus 5 without its thinking: never pick `fable` for security audit work.
+- Classifiers decline as `cyber`, `bio`, `frontier_llm`, `reasoning_extraction` or `general_harms`; benign security and life-science work trips `cyber` and `bio`.
 
 ## Remove from prompts written for older models
 

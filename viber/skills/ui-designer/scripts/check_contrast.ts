@@ -16,8 +16,6 @@
 // Exit 1 if any pair fails the AA threshold FOR ITS OWN TYPE (a 3.2:1 border passes; 3.2:1 body text fails).
 
 import * as fs from "node:fs";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 const DOC = `WCAG 2.2 contrast checker. No dependencies.
 
@@ -248,6 +246,4 @@ export function main(argv: string[]): number {
   return anyFail ? 1 : 0;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  process.exitCode = main(process.argv.slice(2));
-}
+process.exitCode = main(process.argv.slice(2));

@@ -1,7 +1,7 @@
 ---
 name: pr-create
 description: Opens a pull request for the current branch. Only on the user's request.
-allowed-tools: Read, Edit(./.temp/viber/pr-create/**), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/pr-facts.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/pr-create.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/qa-comment.sh:*)
+allowed-tools: Read, Edit(./.temp/viber/pr-create/**), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/pr-facts.sh:*), Bash(${CLAUDE_PLUGIN_ROOT}/scripts/pr-create.sh:*)
 user-invocable: true
 model: sonnet
 ---
@@ -18,27 +18,22 @@ Every later run of a bundled script is one literal Bash line, `"${CLAUDE_PLUGIN_
 
 ## 1. Stop
 
-`STATUS=stop` -> say its `SAY=` line in one line, then end. `REASON=pr-exists` with `QA=` set goes to step 7 instead, asking no question.
+`STATUS=stop` -> say its `SAY=` line in one line, then end.
 
-## 2. Entry and target
+## 2. Target
 
-`STATUS=ready` with `ASK=` printed:
-
-- `ASK=target` -> one `AskUserQuestion` for the target branch, `DEFAULT=` offered first. Run `RERUN=` with `<branch>` replaced by the answer.
-- `ASK=entry` -> one `AskUserQuestion` over the `CANDIDATE=` lines, one option each, labelled by the line's `<key> | target: <branch>` text. Run `RERUN=` with `<key>` replaced by the key before ` | `.
-
-The rerun's block replaces the first one and is read from step 1 again.
+`STATUS=ready` with `ASK=target` -> one `AskUserQuestion` for the target branch, `DEFAULT=` offered first. Run `RERUN=` with `<branch>` replaced by the answer. The rerun's block replaces the first one and is read from step 1 again.
 
 ## 3. Title
 
 - `TITLE=` set -> that title, as printed.
-- Otherwise `TITLE_TEMPLATE=` with `{summary}` replaced by one line stating the change, in the language of `SPEC=`'s file, else of this conversation.
+- Otherwise one line stating the change, in the language of this conversation.
 
 ## 4. Body
 
-Fill from `SPEC=`'s file (`Read`), the `COMMIT=` lines and this conversation, never from anything else: a value none of them states is never invented. No secrets, credentials or file contents: the pull request may be public. No Claude or Claude Code attribution (no "Generated with Claude Code" line, no `Co-Authored-By`).
+Fill from the `COMMIT=` lines and this conversation, never from anything else: a value neither states is never invented. No secrets, credentials or file contents: the pull request may be public. No Claude or Claude Code attribution (no "Generated with Claude Code" line, no `Co-Authored-By`).
 
-- `TEMPLATE=` set -> `Read` it and fill each section in template order. `{type}`, `{issue-number}`, `{entry}` and `{summary}` are replaced wherever they stand, from `TYPE=`, the first `ISSUE=` (empty when none), `ENTRY=` (empty when none) and the summary of step 3. A section none of the three sources answers reads `_No response_`. Every HTML comment of the template is dropped. A checkbox stays unchecked unless a source states it done.
+- `TEMPLATE=` set -> `Read` it and fill each section in template order. `{type}`, `{issue-number}` and `{summary}` are replaced wherever they stand, from `TYPE=`, the first `ISSUE=` (empty when none) and the title of step 3. A section neither source answers reads `_No response_`. Every HTML comment of the template is dropped. A checkbox stays unchecked unless a source states it done.
 - `TEMPLATE=` empty -> the sections `## Summary`, `## Changes` and `## Testing`, filled the same way.
 
 End the body with a blank line, then the `FOOTER=` lines, one each, in order.
@@ -49,7 +44,6 @@ End the body with a blank line, then the `FOOTER=` lines, one each, in order.
 
 - `Title: <title>`
 - `Target: <TARGET=>`
-- when `QA=` is set, one line saying the build's QA document (`QA=`) will be posted as a comment on the run's issue, or on the new pull request when the run has none
 - `Body: <BODY_FILE=>`
 
 Then one `AskUserQuestion`: create, create as draft or cancel. A correction typed as the answer -> rewrite that same file, then preview again. Cancel -> stop, nothing created.
@@ -60,16 +54,8 @@ Run `"${CLAUDE_PLUGIN_ROOT}/scripts/pr-create.sh" "<file>" "<title>" --base "<TA
 
 - Exit 0, `LINK=manual` -> open the answer on one line: issue #<n> needs linking by hand (pull request, Development, issue), because `LINK_REASON=`.
 - Exit 0 with `--issue` and more than one `ISSUE=` -> one line naming the other issues as needing linking by hand.
-- Exit 0 -> report `PR_URL=`, plus one line that the pull request stays unassigned when `ASSIGNEE=dropped` (the script assigns its author itself), then, when `QA=` is set, run `"${CLAUDE_PLUGIN_ROOT}/scripts/qa-comment.sh" "<QA>" --pr "<PR_URL>"` with that `PR_URL=` and report the result as step 7 says. Never retry it.
+- Exit 0 -> report `PR_URL=`, plus one line that the pull request stays unassigned when `ASSIGNEE=dropped` (the script assigns its author itself).
 - Exit 1 -> report its `ERROR` line. Never retry.
 - Exit 2 -> report its `ERROR` line; nothing was pushed.
 
-## 7. QA comment of an existing pull request
-
-Only on a `pr-exists` stop with `QA=` set: run `"${CLAUDE_PLUGIN_ROOT}/scripts/qa-comment.sh" "<QA>" --pr "<PR_URL>"`, the stop's `PR_URL=`. Never retry. Either call posts on the run's issue when it has one, the pull request otherwise. Either call's result:
-
-- Exit 0, `STATUS=posted` -> report `COMMENT_URL=`.
-- Exit 0, `STATUS=skip` -> say its `SAY=` line in one line.
-- Exit 1 or 2 -> report its `ERROR` line.
-
-You run no test and change no code: the pull request and its QA comment are the only output. End on the `COMMENT_URL=` or the `SAY=` of a `pr-exists` stop's call, else on the `PR_URL=` and the comment's result, or on the reason there is none.
+You run no test and change no code: the pull request is the only output. End on its `PR_URL=` or on the reason there is none.

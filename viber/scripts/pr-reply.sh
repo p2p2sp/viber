@@ -75,8 +75,8 @@
 #            2 on bad arguments or a missing reply file.
 #
 #   --list : `pr-reply.sh --list <pull request>` (exactly two arguments, the pull
-#            request spelled as above) reads <cwd>/.temp/viber/pr-feedback/<N>/
-#            review.md, the file `viber:pr-feedback` writes, and calls no gh. A
+#            request spelled as above) reads <repo root>/.temp/viber/pr-feedback/
+#            <N>/review.md, the file `viber:pr-feedback` writes, and calls no gh. A
 #            section is `## <k> - <problem|question> - <where>` with a
 #            `- Comment: <key>` and a `- Reply file: <path>` line; a heading
 #            without a `Comment:` is no item. stdout, exit 0:
@@ -255,8 +255,9 @@ fi
 if [ -n "$all" ]; then
   command -v gh >/dev/null 2>&1 || fail "gh not found on PATH"
 fi
-git rev-parse --show-toplevel >/dev/null 2>&1 || fail "not inside a git repository"
-review=".temp/viber/pr-feedback/$n/review.md"
+root=$(git rev-parse --show-toplevel 2>/dev/null)
+[ -n "$root" ] || fail "not inside a git repository"
+review="$root/.temp/viber/pr-feedback/$n/review.md"
 if [ -n "$all" ]; then
   if [ ! -f "$review" ]; then
     echo "ERROR pr-reply.sh: no review file for pull request $n: $review" >&2
