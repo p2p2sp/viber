@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  A Claude Code plugin that takes a change from an interview to committed code, the light way.
+  A lightweight Claude Code plugin that takes a change from an interview to committed code.
 </p>
 
 <p align="center">
