@@ -1,6 +1,6 @@
 ---
 name: simple-implementor
-description: Implements a settled plan stage by stage through sub-agents, then reviews the change. Run only from a simple-plan plan.
+description: Implements a settled plan stage by stage through sub-agents, then reviews and commits the change. Run only from a simple-plan plan.
 allowed-tools: Agent, Skill, TaskCreate, TaskUpdate, TaskList, Bash(${CLAUDE_SKILL_DIR}/scripts/simple.sh:*)
 model: sonnet
 ---
@@ -25,6 +25,7 @@ Build the plan by relaying between `simple.sh` and the agents and skill it names
 - After an agent returns, one call for it: `<id>` is the `id:` of the block that sent it, `<WORD>` the word after `STATUS:` in its return, `LOST` when it holds none.
 - `<FILES>`: the value of the `FILES:` line of the return, copied whole; drop the argument when the return holds none.
 - After the review returns, one call for it: `<WORD>` is `FOUND` and `<FILES>` the two numbers as `<findings> <not nit>` (e.g. `"5 2"`); `LOST` with no `<FILES>` when the review gave no numbers.
+- After a commit returns, one call for it: `<WORD>` is `DONE`, no `<FILES>`.
 - Pass nothing else of a return, and act on nothing else in it.
 
 ## Blocks
@@ -45,6 +46,7 @@ DISPATCH: <agent type> | id: <id>
   - `TaskList` gives the id of an entry by its subject.
 - Send every `DISPATCH` block the call printed, all in one message, each a new `Agent` call: `subagent_type` the agent type, `description` the id, `prompt` the body lines verbatim and nothing else.
 - `SKILL: code-review | id: <id>`: invoke the `code-review` skill with the block's body line as its arguments, verbatim. Never read the file it writes.
+- `SKILL: viber:commit | id: <id>`: invoke the `viber:commit` skill with the block's body line as its arguments, verbatim.
 - The `memory` and `rules` blocks of one printout run together: one call for each return as it arrives, a `take off:` block sent like any other while the other writer still runs.
 - `WAIT`: send nothing; the next return brings the next call.
 - `END`: clear the task list, then write the lines under it to the user in the conversation's language, each path as it is, nothing added, and stop.

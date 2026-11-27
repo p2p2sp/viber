@@ -1,6 +1,7 @@
 /*
  * runSimple: the order of the steps, the single retry of a coder, stale ids,
- * the changed file and the review's numbers.
+ * the changed file, the review's numbers, the commit of the change and what
+ * END names as left uncommitted.
  */
 
 import assert from "node:assert/strict";
@@ -16,7 +17,7 @@ function run() {
   const fs = fakeFs({ [PLAN]: "Plan: x\nFacts.\n\n## 1. First\nFiles: a.ts\n\n## 2. Second\n" });
   const git = fakeGit(["mine.ts", ".temp/x"]);
   const call = (...args: string[]) => runSimple([PLAN, "s1", ...args], ROOT, { fs, git, tree: { root: () => ROOT, files: () => [] } });
-  return { fs, call };
+  return { fs, git, call };
 }
 
 const state = (fs: FakeFs) => JSON.parse(fs.readText(`${DIR}/state.json`) ?? "null");
@@ -35,6 +36,8 @@ describe("runSimple", () => {
         // Changed on purpose: the writers' entries are listed from the start.
         "pending | Update project memory",
         "pending | Update project rules",
+        // Changed on purpose: the commits have an entry.
+        "pending | Commit the change",
         "",
         "DISPATCH: viber:simple-coder | id: stage1.1",
         `plan: ${PLAN}`,
@@ -75,7 +78,8 @@ describe("runSimple", () => {
         "The full test suite ran once and what the change broke was fixed.",
         `Review findings: 5, not nit: 2. Review file: ${REVIEW}`,
         "The findings were fixed, except the nit ones, and the full test suite ran once more.",
-        "The change is left uncommitted.",
+        // Changed on purpose: no coder reported a file, so no commit is asked for.
+        "Nothing to commit.",
         "",
       ].join("\n"),
     );
@@ -111,7 +115,8 @@ describe("runSimple", () => {
     fs.writeText(`${DIR}/blocked/stage1.md`, "The API is missing.\n\nNo way around it.\n");
     assert.equal(
       call("stage1.2", "LOST").stdout,
-      "END\nStage 1 did not finish after a second try.\nThe API is missing.\nNo way around it.\nStages done: 0 of 2.\nThe change is left uncommitted.\n",
+      // Changed on purpose: a stopped run names that it commits nothing.
+      "END\nStage 1 did not finish after a second try.\nThe API is missing.\nNo way around it.\nStages done: 0 of 2.\nNothing is committed: the run stopped.\n",
     );
   });
 
@@ -131,5 +136,58 @@ describe("runSimple", () => {
     call("stage1.1", "BLOCKED", "src\\a.ts, .temp/viber/s1/x.md");
     call("stage1.2", "DONE", `${ROOT}/src/a.ts,./src/b.ts`);
     assert.equal(fs.readText(`${DIR}/changed.md`), "src/a.ts\nsrc/b.ts\n");
+  });
+
+  /** A run closed up to the review with no finding above nit; `rules: false`, so only the memory writer is sent. */
+  function closed(reported: string, dirty: string[]) {
+    const { fs, git, call } = run();
+    fs.writeText(`${ROOT}/.claude/viber.yml`, "build:\n  rules: false\n");
+    call("start");
+    git.dirtyPaths.push(...dirty);
+    call("stage1.1", "DONE", reported);
+    call("stage2.2", "DONE");
+    call("tests.3", "DONE");
+    call("review.4", "FOUND", "0 0");
+    return { git, call };
+  }
+
+  it("the commit: the reported files alone, none changed before the run; END names the commit and the rest", () => {
+    const { git, call } = closed("src/a.ts, mine.ts, my file.ts", ["src/a.ts", "my file.ts", "stray.log"]);
+    assert.equal(call("memory.5", "NONE").stdout, "TASKS\ncompleted | Update project memory\nin_progress | Commit the change\n\nSKILL: viber:commit | id: commit.6\nsrc/a.ts\n");
+    git.dirtyPaths = ["mine.ts", ".temp/x", "my file.ts", "stray.log"];
+    git.head = () => "1111111aaaa";
+    assert.equal(
+      call("commit.6", "DONE").stdout,
+      [
+        "END",
+        "Stages done: 2 of 2.",
+        "The full test suite ran once and what the change broke was fixed.",
+        `Review findings: 0, not nit: 0. Review file: ${REVIEW}`,
+        "No finding needed a fix.",
+        "- memory | nothing to update",
+        "The change is committed: 1111111.",
+        "Left uncommitted: my file.ts",
+        "Left uncommitted, changed before the run too: mine.ts",
+        "Left uncommitted, reported by no coder: stray.log",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("a commit that did not move HEAD: not committed, its files named", () => {
+    const { call } = closed("src/a.ts", ["src/a.ts"]);
+    call("memory.5", "NONE");
+    assert.match(call("commit.6", "LOST").stdout, /\nThe change is not committed\.\nLeft uncommitted: src\/a\.ts\n$/);
+  });
+
+  it("a stopped run: no commit, the reported and the unreported files named", () => {
+    const { git, call } = run();
+    call("start");
+    git.dirtyPaths.push("src/a.ts", "stray.log");
+    call("stage1.1", "BLOCKED", "src/a.ts");
+    assert.equal(
+      call("stage1.2", "BLOCKED").stdout,
+      "END\nStage 1 did not finish after a second try.\nNo reason was written.\nStages done: 0 of 2.\nNothing is committed: the run stopped.\nLeft uncommitted: src/a.ts\nLeft uncommitted, reported by no coder: stray.log\n",
+    );
   });
 });

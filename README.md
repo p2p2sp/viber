@@ -29,8 +29,8 @@ Not every change needs a spec. When the interview ends, you pick the path:
 | Path | What happens | Ends with |
 | --- | --- | --- |
 | Spec > Plan > Build | A reviewed spec, a reviewed plan of numbered tasks, a build with one commit per task | Committed code and an archived run |
-| Short plan > Build | A short plan you approve, a build in a fresh context, a code review | An uncommitted change |
-| Build now | A build in the same session, no plan and no review | An uncommitted change |
+| Short plan > Build | A short plan you approve, a build in a fresh context, a code review | A committed change |
+| Build now | A build in the same session, no plan and no review | A committed change |
 
 ### It splits a big change into parts
 
@@ -111,7 +111,7 @@ Every step from an idea to an archived build, the short and the direct path incl
 - viber runs in Claude Code only, and its issue and pull request steps work with GitHub through the `gh` CLI.
 - It takes your build and test commands from your own `CLAUDE.md`, whatever language you work in.
 - It builds on the branch you are on and never creates one.
-- The full path commits as it goes. The short and the direct path leave the change in your work tree, and so do `/viber:memory`, `/viber:rules`, `/viber:extension` and `/viber:e2e`.
+- The full path commits as it goes. The short and the direct path commit once the tests pass, and name every file they left uncommitted: one you had changed before the build, or one no agent reported. `/viber:memory`, `/viber:rules`, `/viber:extension` and `/viber:e2e` leave their result in your work tree.
 - Its few switches live in `.claude/viber.yml`: `build.qa` (QA scenarios at the close of a build), `build.rules` (the rules step), `build.extensions` (your own agents) and `directories` (where runs and archives live under `docs/`).
 - `--scope user` makes the plugin available in all your projects. Drop it to install for the current repository only.
 - viber 1.0 is a lighter rewrite of the 0.x line: the same flow with much shorter instructions for its skills and agents, fewer switches and no guard hooks.

@@ -1,7 +1,7 @@
 /*
  * runSimple at its close: the gates of the memory and rules writers, the change
  * list they are handed, their returns in either order, the limits with their
- * send-back and restore, the protected files and the END lines.
+ * send-back and restore, the protected files, the two commits and the END lines.
  */
 
 import assert from "node:assert/strict";
@@ -30,7 +30,12 @@ function run(opts: { before?: string[]; files?: string[]; disk?: Record<string, 
     call("tests.2", "DONE");
     return call("review.3", "FOUND", "1 0").stdout;
   };
-  return { fs, git, call, write, close };
+  /** Answers every commit block of `out` and the ones that follow, up to END; no commit is made, HEAD staying where it was. */
+  const end = (out: string): string => {
+    for (let id = /id: (commit\.\d+)/.exec(out); id !== null; id = /id: (commit\.\d+)/.exec(out)) out = call(id[1], "DONE").stdout;
+    return out;
+  };
+  return { fs, git, call, write, close, end };
 }
 
 const bothRules = { files: [RULE], disk: { [`${ROOT}/${RULE}`]: RULE_TEXT } };
@@ -73,28 +78,34 @@ describe("runSimple writers", () => {
     assert.doesNotMatch(out, /rules-writer|Update project rules/);
   });
 
-  it("both in one printout; rules first, then memory: WAIT, then END", () => {
-    const { fs, call, close } = run(bothRules);
+  it("both in one printout; rules first, then memory: WAIT, then the commit of the change, then END", () => {
+    const { fs, git, call, close } = run(bothRules);
     const out = close("src/a.ts", ["src/a.ts"]);
     assert.match(out, /DISPATCH: viber:memory-writer \| id: memory\.4\n.*\n.*\n.*\n\nDISPATCH: viber:rules-writer \| id: rules\.5\n/);
     assert.match(out, new RegExp(`id: rules\\.5\\nspec: ${PLAN}\\nchanges: ${DIR}/rules-changes\\.md\\nrules notes: ${DIR}/rules\\.md\\n$`));
     assert.equal(fs.readText(`${DIR}/rules-changes.md`), "A\tsrc/a.ts\n");
     // Changed on purpose: each writer has its own entry, completed on its return.
     assert.equal(call("rules.5", "NONE").stdout, "TASKS\ncompleted | Update project rules\n\nWAIT\n");
-    assert.match(call("memory.4", "NONE").stdout, /^END\n/);
+    // Changed on purpose: the change is committed through the commit skill before END.
+    assert.equal(call("memory.4", "NONE").stdout, "TASKS\ncompleted | Update project memory\nin_progress | Commit the change\n\nSKILL: viber:commit | id: commit.6\nsrc/a.ts\n");
+    assert.equal(call("commit.5", "DONE").stdout, "WAIT\n");
+    git.dirtyPaths = [];
+    git.head = () => "1111111aaaa";
+    assert.match(call("commit.6", "DONE").stdout, /^END\n(.*\n)*The change is committed: 1111111\.\n$/);
   });
 
-  it("memory first, then rules: WAIT, then END", () => {
+  it("memory first, then rules: WAIT, then the commit", () => {
     const { call, close } = run(bothRules);
     close("src/a.ts", ["src/a.ts"]);
     // Changed on purpose: each writer has its own entry, completed on its return.
     assert.equal(call("memory.4", "NONE").stdout, "TASKS\ncompleted | Update project memory\n\nWAIT\n");
     assert.equal(call("memory.4", "NONE").stdout, "WAIT\n");
-    assert.match(call("rules.5", "NONE").stdout, /^END\n/);
+    // Changed on purpose: the change is committed through the commit skill before END.
+    assert.match(call("rules.5", "NONE").stdout, /\n\nSKILL: viber:commit \| id: commit\.6\nsrc\/a\.ts\n$/);
   });
 
   it("an overrun sends the writer once more with take off and W lines; a second restores its own files only", () => {
-    const { fs, git, call, write, close } = run({ before: ["docs/CLAUDE.md"] });
+    const { fs, git, call, write, close, end } = run({ before: ["docs/CLAUDE.md"] });
     fs.writeText(`${ROOT}/docs/CLAUDE.md`, "u".repeat(900));
     close("lib/CLAUDE.md", ["lib/CLAUDE.md"]);
     // Changed on purpose: a coder's memory file is now measured from its entry, so the writer leaves it alone here.
@@ -103,28 +114,38 @@ describe("runSimple writers", () => {
     assert.match(back, /^DISPATCH: viber:memory-writer \| id: memory\.5\n.*\n.*\n.*\ntake off: 100 bytes\n$/);
     assert.equal(fs.readText(`${DIR}/memory-changes.md`), "A\tlib/CLAUDE.md\nW\tsrc/CLAUDE.md\n");
     write("src/CLAUDE.md", "m".repeat(650));
-    const out = call("memory.5", "UPDATED", "src/CLAUDE.md").stdout;
+    const out = end(call("memory.5", "UPDATED", "src/CLAUDE.md").stdout);
     assert.deepEqual(git.restores, [["src/CLAUDE.md"]]);
-    assert.match(out, /\n- memory \| 100 bytes over the limit, the writer dispatched once more\n- memory \| 50 bytes over the limit after the retry, the nodes are restored to HEAD, any changed before the writers ran left as they are\nThe change is left uncommitted\.\n$/);
+    // Changed on purpose: the commits' lines follow the writers' ones.
+    assert.match(out, /\n- memory \| 100 bytes over the limit, the writer dispatched once more\n- memory \| 50 bytes over the limit after the retry, the nodes are restored to HEAD, any changed before the writers ran left as they are\nThe change is not committed\.\n/);
   });
 
   // Changed on purpose: only `before` is protected; a coder's file the writer did not touch counts nothing, but is the writer's to report.
   it("the user's files are never measured nor reported as the writer's; an untouched coder's file counts nothing", () => {
-    const { fs, git, call, write, close } = run({ before: ["docs/CLAUDE.md"] });
+    const { fs, git, call, write, close, end } = run({ before: ["docs/CLAUDE.md"] });
     fs.writeText(`${ROOT}/docs/CLAUDE.md`, "u".repeat(900));
     close("lib/CLAUDE.md", ["lib/CLAUDE.md"], "c".repeat(900));
     write("src/CLAUDE.md", "m".repeat(100));
-    const out = call("memory.4", "UPDATED", "src/CLAUDE.md, lib/CLAUDE.md, docs/CLAUDE.md").stdout;
+    const sent = call("memory.4", "UPDATED", "src/CLAUDE.md, lib/CLAUDE.md, docs/CLAUDE.md").stdout;
     assert.deepEqual(git.restores, []);
-    assert.match(out, /\n- memory \| updated \| src\/CLAUDE\.md, lib\/CLAUDE\.md\nThe change is left uncommitted\.\n$/);
+    // Changed on purpose: the coder's untouched node goes with the change, the writer's node with the writers' files, the user's with neither.
+    assert.match(sent, /\nSKILL: viber:commit \| id: commit\.5\nlib\/CLAUDE\.md\n$/);
+    const next = call("commit.5", "DONE").stdout;
+    assert.equal(next, "SKILL: viber:commit | id: commit.6\nsrc/CLAUDE.md\n");
+    const out = end(next);
+    assert.match(
+      out,
+      /\n- memory \| updated \| src\/CLAUDE\.md, lib\/CLAUDE\.md\nThe change is not committed\.\nThe writers' files are not committed\.\nLeft uncommitted: lib\/CLAUDE\.md, src\/CLAUDE\.md\n$/,
+    );
   });
 
   it("a coder's memory file grows from its size on entering the writers step, not from HEAD", () => {
-    const { call, write, close } = run();
+    const { call, write, close, end } = run();
     close("lib/CLAUDE.md", ["lib/CLAUDE.md"], "k".repeat(900));
     write("lib/CLAUDE.md", "k".repeat(1400));
-    const out = call("memory.4", "UPDATED", "lib/CLAUDE.md").stdout;
-    assert.match(out, /\n- memory \| updated \| lib\/CLAUDE\.md\nThe change is left uncommitted\.\n$/);
+    const out = end(call("memory.4", "UPDATED", "lib/CLAUDE.md").stdout);
+    // Changed on purpose: a node both a coder and the writer changed is the writers' commit.
+    assert.match(out, /\n- memory \| updated \| lib\/CLAUDE\.md\nThe writers' files are not committed\.\nLeft uncommitted: lib\/CLAUDE\.md\n$/);
   });
 
   it("over the limit only through a coder's file: sent back with take off and that file as W", () => {
@@ -137,20 +158,20 @@ describe("runSimple writers", () => {
   });
 
   it("a second overrun puts a coder's file back to its entry content and the others back to HEAD; before untouched", () => {
-    const { fs, git, call, write, close } = run({ before: ["docs/CLAUDE.md"] });
+    const { fs, git, call, write, close, end } = run({ before: ["docs/CLAUDE.md"] });
     fs.writeText(`${ROOT}/docs/CLAUDE.md`, "u".repeat(900));
     close("lib/CLAUDE.md", ["lib/CLAUDE.md"], "k".repeat(900));
     write("lib/CLAUDE.md", "k".repeat(1300));
     write("src/CLAUDE.md", "m".repeat(300));
     call("memory.4", "UPDATED", "lib/CLAUDE.md, src/CLAUDE.md");
-    const out = call("memory.5", "UPDATED", "lib/CLAUDE.md, src/CLAUDE.md").stdout;
+    const out = end(call("memory.5", "UPDATED", "lib/CLAUDE.md, src/CLAUDE.md").stdout);
     assert.deepEqual(git.restores, [["src/CLAUDE.md"]]);
     assert.equal(fs.readText(`${ROOT}/lib/CLAUDE.md`), "k".repeat(900));
     assert.equal(fs.readText(`${ROOT}/docs/CLAUDE.md`), "u".repeat(900));
     assert.ok(!fs.removed.includes(`${ROOT}/docs/CLAUDE.md`));
     assert.match(
       out,
-      /\n- memory \| 100 bytes over the limit after the retry, the nodes are restored to HEAD, those a coder of this run changed to their state before the writers, any changed before the run left as they are\nThe change is left uncommitted\.\n$/,
+      /\n- memory \| 100 bytes over the limit after the retry, the nodes are restored to HEAD, those a coder of this run changed to their state before the writers, any changed before the run left as they are\nThe change is not committed\.\n/,
     );
   });
 
@@ -170,7 +191,7 @@ describe("runSimple writers", () => {
     assert.ok(fs.removed.includes(`${ROOT}/lib/CLAUDE.md`));
   });
 
-  it("END: suggestions and rule notes under their headers, a path outside what the writer may write noted, an emptied rule removed", () => {
+  it("END: suggestions and rule notes under their headers, a path outside what the writer may write noted, an emptied rule removed, both commits", () => {
     const { fs, git, call, write, close } = run(bothRules);
     git.heads.set(RULE, RULE_TEXT.length);
     close("src/a.ts", ["src/a.ts"]);
@@ -179,10 +200,16 @@ describe("runSimple writers", () => {
     call("memory.4", "UPDATED", "src/CLAUDE.md, src/a.ts");
     fs.writeText(`${DIR}/rules.md`, `- ${RULE} | stale\n`);
     write(RULE, "");
-    const out = call("rules.5", "UPDATED", RULE).stdout;
+    // Changed on purpose: two commits before END, the change and the writers' files, the removed rule among them.
+    assert.equal(call("rules.5", "UPDATED", RULE).stdout, "TASKS\ncompleted | Update project rules\nin_progress | Commit the change\n\nSKILL: viber:commit | id: commit.6\nsrc/a.ts\n");
     assert.ok(fs.removed.includes(`${ROOT}/${RULE}`));
+    git.dirtyPaths = ["src/CLAUDE.md", RULE];
+    git.head = () => "1111111aaaa";
+    assert.equal(call("commit.6", "DONE").stdout, `SKILL: viber:commit | id: commit.7\nsrc/CLAUDE.md ${RULE}\n`);
+    git.dirtyPaths = [];
+    git.head = () => "2222222bbbb";
     assert.equal(
-      out,
+      call("commit.7", "DONE").stdout,
       [
         "END",
         "Stages done: 1 of 1.",
@@ -196,7 +223,8 @@ describe("runSimple writers", () => {
         "- rules | notes:",
         `  - ${RULE} | stale`,
         `- rules | updated | ${RULE}`,
-        "The change is left uncommitted.",
+        "The change is committed: 1111111.",
+        "The writers' files are committed: 2222222.",
         "",
       ].join("\n"),
     );

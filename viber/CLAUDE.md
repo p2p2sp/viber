@@ -18,7 +18,7 @@
 
 ## Cross-skill code
 
-- Beyond `build.ts`: `extension.ts` imports `AGENT_NAME`, `configPath`, `extensionMap` and `e2e-run.ts` and the planner's `plan-run.ts` import `configPath`, `directoriesOf` from spec-implementor's `build-config.ts`; `rules-run.ts` imports `build-rules.ts`, the `Ctx` of `build-state.ts` and the planner's `globRegex`; `simple-run.ts` imports `removeEmptied`, `configPath`, `rulesOn`, the growth limits of `build-growth.ts`, `matchingRules`, `under`, `readFiles` and the ports of spec-implementor, the planner's `Tree` and the memory skill's `isMemoryFile`.
+- Beyond `build.ts`: `extension.ts` imports `AGENT_NAME`, `configPath`, `extensionMap` and `e2e-run.ts` and the planner's `plan-run.ts` import `configPath`, `directoriesOf` from spec-implementor's `build-config.ts`; `rules-run.ts` imports `build-rules.ts`, the `Ctx` of `build-state.ts` and the planner's `globRegex`; `simple-run.ts` imports `removeEmptied`, `configPath`, `rulesOn`, the growth limits of `build-growth.ts`, `matchingRules`, `under`, `readFiles` and the ports of spec-implementor, the planner's `Tree` and the memory skill's `isMemoryFile`; the implementor's `direct-run.ts` imports simple-implementor's `simple-commit.ts`, the ports of spec-implementor and the planner's `Tree`.
 - `globRegex` (`planner/scripts/lib/plan-order.ts`) matches both plan `Files` globs and rule `paths:` globs: a change moves task order and rule matching together.
 
 ## Pull request feedback

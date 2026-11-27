@@ -13,9 +13,10 @@ import { VIBER_DIR, matchingRules } from "../../../spec-implementor/scripts/lib/
 import { under, type Ctx as BuildCtx } from "../../../spec-implementor/scripts/lib/build-state.ts";
 import { readFiles } from "../../../spec-implementor/scripts/lib/build-tasks.ts";
 import type { Fs, Git } from "../../../spec-implementor/scripts/lib/ports.ts";
+import { changePaths, commitLine, leftLines, listable, pathsOf, runDirty } from "./simple-commit.ts";
 import { listOf } from "./simple-list.ts";
 import { parseStages, type Stage } from "./simple-stages.ts";
-import { freshState, type State } from "./simple-state.ts";
+import { freshState, type Commit, type State } from "./simple-state.ts";
 
 const CODER = "viber:simple-coder";
 const TESTS_GOAL = "goal: run the full test suite once and fix what the change broke";
@@ -89,16 +90,11 @@ function send(ctx: Ctx): void {
 /** Adds the paths of a return's FILES to the changed file: repo-relative, once each, none under .temp/. */
 function addChanged(ctx: Ctx, files: string): void {
   const known = lines(ctx.fs.readText(changedFile(ctx)));
-  for (const raw of files.split(",")) {
-    let path = raw.trim().replaceAll("\\", "/").replace(/^\.\//, "");
-    if (path.startsWith(`${ctx.root}/`)) path = path.slice(ctx.root.length + 1);
-    if (path === "" || path === ".temp" || path.startsWith(".temp/") || known.includes(path)) continue;
-    known.push(path);
-  }
+  for (const path of pathsOf(ctx.root, files)) if (!known.includes(path)) known.push(path);
   ctx.fs.writeText(changedFile(ctx), known.map((path) => `${path}\n`).join(""));
 }
 
-/** The END lines every end carries: what ran and what it gave. */
+/** The END lines every end carries before those of the commits: what ran and what it gave. */
 function summary(ctx: Ctx): string[] {
   const { state } = ctx;
   const out = [`Stages done: ${state.stage} of ${ctx.stages.length}.`];
@@ -110,14 +106,19 @@ function summary(ctx: Ctx): string[] {
     else if (state.fixed) out.push("The findings were fixed, except the nit ones, and the full test suite ran once more.");
     else out.push("The findings were not fixed.");
   }
-  out.push(...state.notes, "The change is left uncommitted.");
+  out.push(...state.notes);
   return out;
 }
 
-function finish(ctx: Ctx, head: string[]): void {
-  ctx.state.end = [...head, ...summary(ctx)];
-  ctx.state.step = "end";
-  ctx.state.open = "";
+/** Ends the run: the lines under END, the last ones naming the commits and what still differs from HEAD. `stopped`: a coder's second failed dispatch, nothing committed. */
+function finish(ctx: Ctx, head: string[], stopped = false): void {
+  const { state } = ctx;
+  const commits = state.commits ?? [];
+  const made = stopped ? ["Nothing is committed: the run stopped."] : commits.length === 0 ? ["Nothing to commit."] : (state.committed ?? []);
+  const left = leftLines(runDirty(ctx.git.dirty(ctx.root, ["."])), state.before, lines(ctx.fs.readText(changedFile(ctx))), commits.flatMap((each) => each.paths));
+  state.end = [...head, ...summary(ctx), ...made, ...left];
+  state.step = "end";
+  state.open = "";
 }
 
 /** A writer held to a limit of net growth: the differences between the memory and the rules writer, as data. */
@@ -207,13 +208,13 @@ function sendWriter(ctx: Ctx, writer: Writer, over = 0): void {
 
 /**
  * The place between the last code-changing step and the end: sends the memory writer when the change list is not
- * empty and the rules writer when `build.rules` is not `false` and a changed path matches a rule; neither, the end.
+ * empty and the rules writer when `build.rules` is not `false` and a changed path matches a rule; neither, the commits.
  */
 function writers(ctx: Ctx): void {
   const { state } = ctx;
   state.step = "writers";
   state.open = "";
-  // What a coder of this run changed is still dirty, nothing being committed: snapshotted, so each writer is measured and restored from here.
+  // What a coder of this run changed is still dirty, the commits coming after the writers: snapshotted, so each writer is measured and restored from here.
   const build = buildCtx(ctx);
   state.kept = [...new Set([...memoryPaths(build), ...rulesPaths(build)].map((path) => path.replaceAll("\\", "/")))];
   state.gone = [];
@@ -231,10 +232,10 @@ function writers(ctx: Ctx): void {
     .map((path) => `${status(path)}\t${path}`);
   if (state.listed.length > 0) sendWriter(ctx, MEMORY);
   if (rulesOn(ctx.fs.readText(configPath(ctx.root))) && matchingRules(build, state.listed.join("\n")).length > 0) sendWriter(ctx, RULES);
-  if (state.waiting.length === 0) finish(ctx, []);
+  if (state.waiting.length === 0) commits(ctx);
 }
 
-/** A writer's return. Over its limit, it is sent back once, on its own counter; a second overrun restores its files, a `kept` one to its entry snapshot, any other to HEAD. Once none is awaited, the end. */
+/** A writer's return. Over its limit, it is sent back once, on its own counter; a second overrun restores its files, a `kept` one to its entry snapshot, any other to HEAD. Once none is awaited, the commits. */
 function writerEvent(ctx: Ctx, id: string, word: string, value: string): void {
   const { state } = ctx;
   state.waiting = state.waiting.filter((each) => each !== id);
@@ -278,7 +279,48 @@ function writerEvent(ctx: Ctx, id: string, word: string, value: string): void {
     if (left.length > 0) note(`- ${name} | left in the tree, outside what this step may write | ${left.join(", ")}`);
   } else if (word === "NONE") note(`- ${name} | nothing to update`);
   else note(`- ${name} | the writer returned ${word}`);
-  if (state.waiting.length === 0) finish(ctx, []);
+  if (state.waiting.length === 0) commits(ctx);
+}
+
+const SUBJECT = { change: "The change is", writers: "The writers' files are" };
+
+/** Asks the commit skill for the commit in flight, its paths as the skill's arguments; none left, the end. */
+function sendCommit(ctx: Ctx): void {
+  const { state } = ctx;
+  const commit = (state.commits ?? [])[state.commit ?? 0];
+  if (commit === undefined) return finish(ctx, []);
+  state.seq += 1;
+  state.open = `commit.${state.seq}`;
+  state.head = ctx.git.head(ctx.root) ?? "";
+  ctx.out.push({ head: `SKILL: viber:commit | id: ${state.open}`, lines: [commit.paths.join(" ")] });
+}
+
+/**
+ * The place between the writers and the end: the change (the dirty paths a coder reported, none of `before`) and the
+ * files the writers wrote and may write, each its own commit, one at a time. Neither holds a path: the end.
+ */
+function commits(ctx: Ctx): void {
+  const { state } = ctx;
+  state.step = "commit";
+  const written = [...writtenBy(ctx, MEMORY), ...writtenBy(ctx, RULES).filter((path) => RULES.may(ctx, path))].filter(listable);
+  const change = changePaths(runDirty(ctx.git.dirty(ctx.root, ["."])), state.before, lines(ctx.fs.readText(changedFile(ctx))), written);
+  const all: Commit[] = [
+    { what: "change", paths: change },
+    { what: "writers", paths: written },
+  ];
+  state.commits = all.filter((each) => each.paths.length > 0);
+  state.commit = 0;
+  state.committed = [];
+  sendCommit(ctx);
+}
+
+/** The commit skill's return, whatever it says: the commit is made when HEAD moved. Then the next commit, or the end. */
+function commitEvent(ctx: Ctx): void {
+  const { state } = ctx;
+  const commit = (state.commits ?? [])[state.commit ?? 0];
+  (state.committed ??= []).push(commitLine(SUBJECT[commit.what], state.head ?? "", ctx.git.head(ctx.root)));
+  state.commit = (state.commit ?? 0) + 1;
+  sendCommit(ctx);
 }
 
 /** A coder's second return in a row that is no `DONE`: the run ends with the reason its blocked file holds. */
@@ -286,13 +328,14 @@ function stop(ctx: Ctx): void {
   const { state } = ctx;
   const what = state.step === "stage" ? `Stage ${ctx.stages[state.stage].num}` : state.step === "tests" ? "The full test run" : "The fix of the findings";
   const reason = lines(ctx.fs.readText(blockedFile(ctx)));
-  finish(ctx, [`${what} did not finish after a second try.`, ...(reason.length === 0 ? ["No reason was written."] : reason)]);
+  finish(ctx, [`${what} did not finish after a second try.`, ...(reason.length === 0 ? ["No reason was written."] : reason)], true);
 }
 
 /** The awaited return: its word moves the run on. */
 function event(ctx: Ctx, id: string, word: string, value: string): void {
   const { state } = ctx;
   if (state.step === "writers") return writerEvent(ctx, id, word, value);
+  if (state.step === "commit") return commitEvent(ctx);
   if (state.step === "review") {
     const numbers = word === "FOUND" ? /^(\d+)\s+(\d+)$/.exec(value.trim()) : null;
     state.review = numbers === null ? "lost" : { count: Number(numbers[1]), notNit: Number(numbers[2]) };

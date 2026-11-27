@@ -4,7 +4,8 @@
  *
  * It exists because what the flow decides between two agents is a fact of the
  * plan and of the returns: which stage runs next, what a coder is handed, when
- * a dispatch is retried, whether the findings are fixed, when the run ends.
+ * a dispatch is retried, whether the findings are fixed, what is committed,
+ * what is left in the tree, when the run ends.
  * The simple-implementor skill only reports each return and sends the blocks
  * printed in answer. Free text never passes through the skill: reasons and
  * findings travel in files.
@@ -31,6 +32,7 @@
  *                           The review's return: `FOUND`, `LOST` when the
  *                           review gave no numbers. A writer's return: the
  *                           word of its `STATUS:` line (`UPDATED`, `NONE`).
+ *                           A commit's return: `DONE`; the word is not read.
  *            <FILES>      : a coder's or a writer's return: the value of its
  *                           `FILES:` line, paths separated by commas; left out
  *                           when it held none. The review's return with
@@ -41,7 +43,7 @@
  *            END again once the run ended.
  *   cwd    : any directory inside the host project, a git repository with a
  *            commit.
- *   reads  : the plan, git status and HEAD sizes, the files below <dir>,
+ *   reads  : the plan, git status, HEAD and HEAD sizes, the files below <dir>,
  *            .claude/viber.yml (`build.rules`), the rule files under
  *            .claude/rules/ and the memory files and rule files the writers
  *            wrote.
@@ -56,7 +58,8 @@
  *                      of this run changed them) and `gone` (those of `kept`
  *                      absent from disk then), the change list, the
  *                      writers' overrun counters, the review's numbers, the
- *                      END lines.
+ *                      commits with their paths, the one awaited and HEAD
+ *                      when it was sent, the END lines.
  *            <dir>/kept/<path> : the content of each `kept` path present on
  *                      entering the writers step, written on that entry.
  *            <dir>/memory-changes.md, <dir>/rules-changes.md : each writer's
@@ -89,8 +92,8 @@
  *                      reason.
  *            <root>/.temp/viber/<session-id>/code-review/review.md : not
  *                      written by the script: the file the review writes to.
- *            git    : nothing is committed, ever: the change and the writers'
- *                      files are left uncommitted.
+ *            git    : the script commits nothing: the commit skill commits the
+ *                      paths of each `SKILL: viber:commit` block.
  *   stdout : blocks, a blank line between two:
  *              TASKS
  *              <status> | <subject>
@@ -101,10 +104,11 @@
  *            `<n>. <goal>` (its heading's text); `Full test run`; `Code
  *            review`, `in_progress` through the fix of its findings too;
  *            `Update project memory`; `Update project rules`, unless
- *            `build.rules` of .claude/viber.yml is `false`. A writer's entry
- *            is `completed` once the writers step runs and no dispatch of
- *            its own is awaited, one never sent too. An entry dispatched
- *            again stays `in_progress`.
+ *            `build.rules` of .claude/viber.yml is `false`; `Commit the
+ *            change`, `in_progress` while a commit is awaited, never
+ *            `completed`. A writer's entry is `completed` once the writers
+ *            step runs and no dispatch of its own is awaited, one never sent
+ *            too. An entry dispatched again stays `in_progress`.
  *            Then one of:
  *              DISPATCH: viber:simple-coder | id: <id>
  *              <body lines: the agent's prompt, verbatim>
@@ -142,6 +146,10 @@
  *            file>, each finding with its severity (important, pre_existing
  *            or nit), and return only the number of findings and the number of
  *            them that are not nit`;
+ *            or
+ *              SKILL: viber:commit | id: <id>
+ *              <one line: the arguments of the skill, verbatim>
+ *            its line: the paths of one commit, separated by spaces;
  *            or the single line `WAIT` (nothing to send: a return not
  *            awaited, or one writer returned and the other is awaited);
  *            or `END` followed by plain lines the caller shows the user, each
@@ -185,16 +193,33 @@
  *                that is no file of the repository or lies under .temp/;
  *                `- <name> | nothing to update` (`NONE`);
  *                `- <name> | the writer returned <WORD>` (any other word);
- *              `The change is left uncommitted.`.
+ *              the commits' lines: `Nothing is committed: the run stopped.`
+ *              (only on a stop); `Nothing to commit.` (no commit held a
+ *              path); else, for each commit sent, `The change is committed:
+ *              <short sha>.` or `The writers' files are committed: <short
+ *              sha>.` when HEAD moved between its block and its return,
+ *              `The change is not committed.` or `The writers' files are not
+ *              committed.` when it did not;
+ *              what still differs from HEAD, none under .temp/, paths
+ *              separated by `, `:
+ *                `Left uncommitted: <paths>`: the paths, none of `before`,
+ *                that a coder reported or a commit block named;
+ *                `Left uncommitted, changed before the run too: <paths>`:
+ *                the paths of `before` a coder reported;
+ *                `Left uncommitted, reported by no coder: <paths>`: the
+ *                paths, none of `before`, that no coder reported and no
+ *                commit block named.
+ *              A path of `before` no coder reported is never named.
  *            <id> is `stage<n>.<seq>`, `tests.<seq>`, `review.<seq>`,
- *            `fix.<seq>`, `memory.<seq>` or `rules.<seq>`, <seq> rising with
- *            every block of the run.
+ *            `fix.<seq>`, `memory.<seq>`, `rules.<seq>` or `commit.<seq>`,
+ *            <seq> rising with every block of the run.
  *            The rules behind the blocks:
  *              order  : the stages one at a time in plan order, never two
  *                       together; after the last stage's `DONE` the full test
  *                       run; after its `DONE` the review; with <not nit> above
  *                       0 the fix, else the writers; after the fix's `DONE`
- *                       the writers. Never a second review.
+ *                       the writers; after the writers the commits. Never a
+ *                       second review.
  *              retry  : a coder's first return that is no `DONE` (`BLOCKED`,
  *                       `LOST`) prints the same block once more under a new
  *                       id; the second in a row ends the run (the stop lines).
@@ -204,13 +229,13 @@
  *                       review that gave no numbers: no fix, the writers.
  *              writers: after the last code-changing step (the fix, or the
  *                       review when no fix runs or it gave no numbers),
- *                       before END; a run stopped by a second failed
+ *                       before the commits; a run stopped by a second failed
  *                       dispatch sends none. The memory writer when the
  *                       change list is not empty; the rules writer when
  *                       `build.rules` of .claude/viber.yml is not `false` and
  *                       a listed path matches a `paths:` glob of a rule under
- *                       .claude/rules/. Neither: END. They return in any
- *                       order; END follows the last.
+ *                       .claude/rules/. Neither: the commits. They return in
+ *                       any order; the commits follow the last.
  *              protect: `before` is never the writers': never measured,
  *                       listed as `W`, restored or removed.
  *              limits : on each return, the net growth in bytes since
@@ -227,6 +252,18 @@
  *                       writer files under .claude/rules/viber/ that exist
  *                       at HEAD. Any other reported path is left in the
  *                       tree and noted.
+ *              commits: after the writers, one block at a time, each only
+ *                       when it holds a path: first the change (the paths
+ *                       that differ from HEAD, are listed in changed.md, are
+ *                       none of `before` and none of the second commit),
+ *                       then the writers' files (those a writer changed
+ *                       since entering the writers step and may write, none
+ *                       of `before`: a memory file a coder changed too is
+ *                       among them). A path holding a blank, a comma or an
+ *                       apostrophe is in neither: the commit skill cannot
+ *                       read it in a list. A run stopped by a second failed
+ *                       dispatch sends none. The script never reads what the
+ *                       skill returned: a commit is made when HEAD moved.
  *   stderr : one line naming the cause when the exit is 2, the usage on a call
  *            that matches neither form.
  *   exit   : 0 with blocks on stdout; 2 on bad usage, a bad session id, an

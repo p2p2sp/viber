@@ -2,7 +2,7 @@
  * simple-list.ts - the session's task list as a function of the run's state:
  * one entry a stage, one the full test run, one the code review with the fix
  * of its findings, one the memory writer, one the rules writer unless
- * `build.rules` is `false`. simple-run.ts prints the entries a call changed,
+ * `build.rules` is `false`, one the commits. simple-run.ts prints the entries a call changed,
  * the simple-implementor skill mirrors them with the task-list tools.
  */
 
@@ -13,6 +13,7 @@ export const TESTS = "Full test run";
 export const REVIEW = "Code review";
 export const MEMORY = "Update project memory";
 export const RULES = "Update project rules";
+export const COMMIT = "Commit the change";
 
 const line = (done: boolean, now: boolean, subject: string): string => `${done ? "completed" : now ? "in_progress" : "pending"} | ${subject}`;
 
@@ -24,9 +25,11 @@ export function listOf(state: State, stages: Stage[], rules: boolean): string[] 
   // A writer of the step in flight is done once no dispatch of its own is awaited, one never sent too.
   const writer = (prefix: string, subject: string): string => {
     const now = state.step === "writers" && state.waiting.some((id) => id.startsWith(prefix));
-    return line(state.step === "writers" && !now, now, subject);
+    return line((state.step === "writers" && !now) || state.step === "commit", now, subject);
   };
   out.push(writer("memory.", MEMORY));
   if (rules) out.push(writer("rules.", RULES));
+  // Never completed: END, which follows the last commit, prints no entry.
+  out.push(line(false, state.step === "commit", COMMIT));
   return out;
 }

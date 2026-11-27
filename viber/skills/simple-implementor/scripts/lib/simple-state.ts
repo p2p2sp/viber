@@ -4,7 +4,13 @@
  */
 
 /** The step in flight; `end` once END was printed. */
-export type Step = "stage" | "tests" | "review" | "fix" | "writers" | "end";
+export type Step = "stage" | "tests" | "review" | "fix" | "writers" | "commit" | "end";
+
+/** One commit the commit skill is asked for: the change, or the files the writers wrote. */
+export interface Commit {
+  what: "change" | "writers";
+  paths: string[];
+}
 
 export interface State {
   step: Step;
@@ -39,6 +45,14 @@ export interface State {
   overruns: { memory: number; rules: number };
   /** The writers' lines under END. */
   notes: string[];
+  /** The commits of the run in order, set on entering `commit`: the change, then the writers' files, one with no path left out. */
+  commits?: Commit[];
+  /** The index in `commits` of the commit awaited; their count once every one returned. */
+  commit?: number;
+  /** HEAD when the commit awaited was sent: a commit is made once HEAD moved off it. */
+  head?: string;
+  /** The commits' lines under END. */
+  committed?: string[];
   /** The lines under END. */
   end: string[];
 }
