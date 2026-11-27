@@ -1,6 +1,10 @@
 <h1 align="center">viber</h1>
 
 <p align="center">
+  <a href="https://github.com/p2p2sp/viber/releases/latest"><img src="https://img.shields.io/github/v/release/p2p2sp/viber" alt="Latest release"></a>
+</p>
+
+<p align="center">
   A Claude Code plugin that takes a change from an interview to committed code, the light way.
 </p>
 
