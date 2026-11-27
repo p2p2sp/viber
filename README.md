@@ -20,7 +20,7 @@
 
 ### It plans with you first
 
-Before it builds anything, viber works through the change with you. It asks in rounds of at most five questions, each with concrete options and a recommendation, and it looks the facts up in your code instead of asking you for them. The interview ends in an understanding that you confirm, so every decision the build needs is settled before any code is written.
+Before it builds anything, viber interviews you. It asks questions, each with concrete options and a recommendation, and looks facts up in your code rather than asking you for them. The interview ends in an understanding that you confirm, so every decision the build needs is settled before any code is written.
 
 ### It sizes the process to the change
 
@@ -28,9 +28,9 @@ Not every change needs a spec. When the interview ends, you pick the path:
 
 | Path | What happens | Ends with |
 | --- | --- | --- |
-| **Spec -> Plan -> Build** | A reviewed spec, a reviewed plan of numbered tasks, a build with one commit per task | Committed code and an archived run |
-| **Short plan -> Build** | A short plan you approve, a build in a fresh context, a code review | An uncommitted change |
-| **Build now** | A build in the same session, no plan and no review | An uncommitted change |
+| Spec > Plan > Build | A reviewed spec, a reviewed plan of numbered tasks, a build with one commit per task | Committed code and an archived run |
+| Short plan > Build | A short plan you approve, a build in a fresh context, a code review | An uncommitted change |
+| Build now | A build in the same session, no plan and no review | An uncommitted change |
 
 ### It runs without you
 
@@ -38,7 +38,7 @@ Approve the plan and walk away. A script decides every step of the build: which 
 
 ### It works in parallel
 
-Tasks that share no file and do not depend on each other are built at the same time, up to five at once, each by its own coding agent. The plan's script puts the tasks into waves, so nothing waits in a queue it does not have to wait in.
+Tasks that share no file and do not depend on each other are built at the same time, up to five at once, each by its own coding agent. The plan's script sorts the tasks into these waves.
 
 ### It saves your tokens
 
@@ -54,11 +54,11 @@ The full path, step by step:
 
 | | You | viber |
 | --- | --- | --- |
-| **1. Describe** | Say what you want with `/viber:intent`, or report a bug with `/viber:fixer` | Asks a few questions at a time, each with options and its recommendation |
-| **2. Confirm** | Confirm the understanding, then the spec | Writes the spec from what you settled, checks it with a script and has an agent review it |
-| **3. Approve** | Read the plan and say yes | Maps your code and tests, writes the tasks and has the plan reviewed before you see it |
-| **4. Build** | Nothing. Go do something else | Builds task by task, reviews and commits each one, reviews the whole build, runs your tests |
-| **5. Learn** | Nothing | Updates the project memory and rules, writes the summary and archives the run |
+| 1. Describe | Say what you want with `/viber:intent`, or report a bug with `/viber:fixer` | Asks a few questions at a time, each with options and its recommendation |
+| 2. Confirm | Confirm the understanding, then the spec | Writes the spec from what you settled, checks it with a script and has an agent review it |
+| 3. Approve | Read the plan and say yes | Maps your code and tests, writes the tasks and has the plan reviewed before you see it |
+| 4. Build | Nothing. Go do something else | Builds task by task, reviews and commits each one, reviews the whole build, runs your tests |
+| 5. Learn | Nothing | Updates the project memory and rules, writes the summary and archives the run |
 
 The plan is reviewed before you see it and reports critical problems only, and a hook refuses to leave plan mode on a plan that did not pass. Each task is checked against its own definition of done before its commit. The run's state is committed as the build goes, so an interrupted build picks up in a new session or on another machine.
 
