@@ -99,10 +99,12 @@ export function checkPlan(plan: Plan, ids: Set<string>, tree: string[]): Checked
       if (required || reason === "repro") say("Seam is none: name the public entry and the test file as '<entry> | <test file>'");
     } else if (seam !== "") {
       const parts = seam.split("|").map((part) => part.trim());
-      const testFile = (parts[1] ?? "").replace(/^\.\//, "");
-      if (parts.length !== 2 || parts[0] === "" || testFile === "") say("Seam must be '<public entry> | <test file>' or 'none'");
-      else if (!files.entries.some((entry) => entry.kind !== "glob" && entry.path === testFile)) say(`Seam names the test file '${testFile}', which Files does not list`);
-      else if (reason === "repro" && !held.has(testFile)) say(`TDD none (repro) needs the failing test in the tree, and '${testFile}' is not there`);
+      // The test side takes several files separated by commas, each with an optional ` (<note>)` behind it: a path holds no blank, so the note is never part of one.
+      const testFiles = (parts[1] ?? "").replace(/\s+\([^()]*\)(?=\s*(,|$))/g, "").split(",").map((part) => part.trim().replace(/^\.\//, ""));
+      const unlisted = testFiles.filter((file) => !files.entries.some((entry) => entry.kind !== "glob" && entry.path === file));
+      if (parts.length !== 2 || parts[0] === "" || testFiles.includes("")) say("Seam must be '<public entry> | <test file>' or 'none'");
+      else if (unlisted.length > 0) for (const file of unlisted) say(`Seam names the test file '${file}', which Files does not list`);
+      else if (reason === "repro" && !testFiles.some((file) => held.has(file))) say(`TDD none (repro) needs the failing test in the tree, and '${testFiles.join(", ")}' is not there`);
     }
 
     for (const num of blockers(task)) {

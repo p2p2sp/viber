@@ -23,9 +23,14 @@ export function cutIntent(text: string): Cut {
   const parts: { n: number; title: string; lines: string[] }[] = [];
   let into: string[] | null = null;
   let allSeen = false;
+  let first = true;
   text.split("\n").forEach((raw, i) => {
     const line = raw.replace(/\r$/, "");
     if (line.trim() === "") return;
+    // A `# <title>` opening the file is its title, no fact: no part carries it.
+    const opens = first;
+    first = false;
+    if (opens && line.startsWith("# ")) return;
     if (ALL.test(line)) {
       if (allSeen) errors.push(`line ${i + 1}: a second ## All`);
       allSeen = true;

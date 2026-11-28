@@ -74,8 +74,10 @@
  *                            integration-tests and the like) or holds
  *                            `.integration.`.
  *               Seam       : `<public entry> | <test file>` or `none`; not
- *                            none on TDD required or none (repro); the test
- *                            file is a Files entry, on repro one of the tree.
+ *                            none on TDD required or none (repro). Several
+ *                            test files go separated by commas, each with an
+ *                            optional ` (<note>)` behind it; each is a Files
+ *                            entry, on repro at least one is in the tree.
  *               UI         : names of the ui-designer skill's references
  *                            separated by commas: accessibility, color,
  *                            components-states, forms, layout-spacing, mobile,

@@ -47,6 +47,13 @@ describe("cutIntent", () => {
     assert.deepEqual(errors("## All\nI1 x\n## P1 - A\n\n## P2 - B\nI2 b\n"), ["P1 holds no line"]);
   });
 
+  it("leaves out a # title on the first non-blank line", () => {
+    const cut = cutIntent("\n# Intent: the change\n\n## All\nI1 shared\n## P1 - A\nI2 a\n## P2 - B\nI3 b\n");
+    assert.equal(cut.ok && cut.parts[0].text, "I1 shared\nI2 a\n");
+    assert.deepEqual(errors("## P1 - A\nI1 a\n# Loose\n## P2 - B\nI2 b\n# Late\n"), []);
+    assert.deepEqual(errors("# One\n# Two\n## P1 - A\nI1 a\n## P2 - B\nI2 b\n"), ["line 2: a line under no heading"]);
+  });
+
   it("refuses a line under no heading, another heading and a second ## All", () => {
     assert.deepEqual(errors("I0 loose\n## All\nI1 x\n## Notes\nI9 n\n## All\n## P1 - A\nI2 a\n## P2 - B\nI3 b\n"), [
       "line 1: a line under no heading",

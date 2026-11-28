@@ -13,7 +13,8 @@
  *            the mockup the skill would have passed it. Every `\` made `/`.
  *   reads  : <intent>: non-blank lines under the headings `## All` (at most
  *            one, optional: the facts shared by every part) and
- *            `## P<n> - <title>` (one per part). Any other `## ` heading or a
+ *            `## P<n> - <title>` (one per part). A `# <title>` on the first
+ *            non-blank line is left out. Any other `## ` heading or a
  *            non-blank line under no heading is an error.
  *   checks : at least 2 parts, numbered 1..N in file order with no gap, each
  *            holding at least one line; with <mockup>, at least one part's cut
