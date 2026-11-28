@@ -1,14 +1,14 @@
 /*
  * runSimple: the order of the steps, the single retry of a lost coder, the stop
  * of a blocked one and its resume, stale ids, the changed file, the broken
- * assumptions, the review's numbers, the commit of the change and what END
- * names as left uncommitted.
+ * assumptions, the review's numbers, the commit after each coder step and what
+ * END names as left uncommitted.
  */
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { runSimple } from "../../../../../viber/skills/simple-implementor/scripts/lib/simple-run.ts";
-import { fakeFs, fakeGit, ROOT, type FakeFs } from "../../../../fake-ports.ts";
+import { fakeFs, fakeGit, ROOT, type FakeFs, type FakeGit } from "../../../../fake-ports.ts";
 
 const PLAN = "/plans/plan.md";
 const DIR = `${ROOT}/.temp/viber/s1/simple`;
@@ -37,8 +37,8 @@ describe("runSimple", () => {
         // Changed on purpose: the writers' entries are listed from the start.
         "pending | Update project memory",
         "pending | Update project rules",
-        // Changed on purpose: the commits have an entry.
-        "pending | Commit the change",
+        // Changed on purpose: each coder step is committed on its own, the entry is the commit of the writers' files.
+        "pending | Commit memory and rules",
         "",
         "DISPATCH: viber:simple-coder | id: stage1.1",
         `plan: ${PLAN}`,
@@ -51,6 +51,7 @@ describe("runSimple", () => {
       ].join("\n"),
     );
     assert.deepEqual(state(fs).before, ["mine.ts"]);
+    assert.equal(state(fs).base, "base000");
   });
 
   it("a plan with no stage heading is refused", () => {
@@ -66,7 +67,8 @@ describe("runSimple", () => {
     assert.match(call("stage2.2", "DONE").stdout, /DISPATCH: viber:simple-coder \| id: tests\.3\nchanged: .*\nblocked: .*\/blocked\/tests\.md\ndeviations: .*\ngoal: run the full test suite once and fix what the change broke\n$/);
     assert.equal(
       call("tests.3", "DONE").stdout,
-      `TASKS\ncompleted | Full test run\nin_progress | Code review\n\nSKILL: code-review | id: review.4\nwrite the result to one markdown file at ${REVIEW}, each finding with its severity (important, pre_existing or nit), and return only the number of findings and the number of them that are not nit\n`,
+      // Changed on purpose: the stages are committed by now, so the review is told where the change starts.
+      `TASKS\ncompleted | Full test run\nin_progress | Code review\n\nSKILL: code-review | id: review.4\nreview the diff that git diff base000 prints (the commits of the run and the work tree), write the result to one markdown file at ${REVIEW}, each finding with its severity (important, pre_existing or nit), and return only the number of findings and the number of them that are not nit\n`,
     );
     assert.equal(
       call("review.4", "FOUND", "5 2").stdout,
@@ -118,8 +120,8 @@ describe("runSimple", () => {
     fs.writeText(`${DIR}/blocked/stage1.md`, "The API is missing.\n\nNo way around it.\n");
     assert.equal(
       call("stage1.2", "LOST").stdout,
-      // Changed on purpose: a stopped run names that it commits nothing.
-      "END\nStage 1 did not finish after a second try.\nThe API is missing.\nNo way around it.\nStages done: 0 of 2.\nNothing is committed: the run stopped.\n",
+      // Changed on purpose: a stopped run keeps the commits before it and leaves its open step uncommitted.
+      "END\nStage 1 did not finish after a second try.\nThe API is missing.\nNo way around it.\nStages done: 0 of 2.\nThe run stopped: its open step is not committed.\n",
     );
   });
 
@@ -128,7 +130,7 @@ describe("runSimple", () => {
     call("start");
     fs.writeText(`${DIR}/blocked/stage1.md`, "The plan forbids the reference the fake needs.\n");
     // Changed on purpose: a blocked coder waits for a decision, the same block again brings none.
-    assert.equal(call("stage1.1", "BLOCKED").stdout, "END\nStage 1 is blocked.\nThe plan forbids the reference the fake needs.\nStages done: 0 of 2.\nNothing is committed: the run stopped.\n");
+    assert.equal(call("stage1.1", "BLOCKED").stdout, "END\nStage 1 is blocked.\nThe plan forbids the reference the fake needs.\nStages done: 0 of 2.\nThe run stopped: its open step is not committed.\n");
     assert.equal(state(fs).stopped, "stage");
   });
 
@@ -148,7 +150,7 @@ describe("runSimple", () => {
         "pending | Code review",
         "pending | Update project memory",
         "pending | Update project rules",
-        "pending | Commit the change",
+        "pending | Commit memory and rules",
         "",
         "DISPATCH: viber:simple-coder | id: stage2.3",
         `plan: ${PLAN}`,
@@ -180,7 +182,7 @@ describe("runSimple", () => {
     const { fs, call } = run();
     call("start");
     fs.writeText(`${DIR}/deviations.md`, "project files unchanged | added a reference to X.Contracts\n\n");
-    assert.match(call("stage1.1", "BLOCKED").stdout, /\nStages done: 0 of 2\.\nAssumed in the plan, broken by the build:\n  project files unchanged \| added a reference to X\.Contracts\nNothing is committed/);
+    assert.match(call("stage1.1", "BLOCKED").stdout, /\nStages done: 0 of 2\.\nAssumed in the plan, broken by the build:\n  project files unchanged \| added a reference to X\.Contracts\nThe run stopped/);
   });
 
   it("a return of an id not awaited changes nothing", () => {
@@ -201,26 +203,34 @@ describe("runSimple", () => {
     assert.equal(fs.readText(`${DIR}/changed.md`), "src/a.ts\nsrc/b.ts\n");
   });
 
-  /** A run closed up to the review with no finding above nit; `rules: false`, so only the memory writer is sent. */
-  function closed(reported: string, dirty: string[]) {
+  /** The commit skill made the commit awaited: its paths leave the dirty ones, HEAD moves to `sha`. */
+  function made(git: FakeGit, paths: string[], sha: string): void {
+    git.dirtyPaths = git.dirtyPaths.filter((path) => !paths.includes(path));
+    git.head = () => sha;
+  }
+
+  // Changed on purpose: every coder step is committed on its own, before the next step.
+  it("each stage is committed before the next: the reported files alone, none changed before the run; a path a commit did not take rides along", () => {
     const { fs, git, call } = run();
     fs.writeText(`${ROOT}/.claude/viber.yml`, "build:\n  rules: false\n");
     call("start");
-    git.dirtyPaths.push(...dirty);
-    call("stage1.1", "DONE", reported);
-    call("stage2.2", "DONE");
-    call("tests.3", "DONE");
-    call("review.4", "FOUND", "0 0");
-    return { git, call };
-  }
-
-  it("the commit: the reported files alone, none changed before the run; END names the commit and the rest", () => {
-    const { git, call } = closed("src/a.ts, mine.ts, my file.ts", ["src/a.ts", "my file.ts", "stray.log"]);
-    assert.equal(call("memory.5", "NONE").stdout, "TASKS\ncompleted | Update project memory\nin_progress | Commit the change\n\nSKILL: viber:commit | id: commit.6\nsrc/a.ts\n");
-    git.dirtyPaths = ["mine.ts", ".temp/x", "my file.ts", "stray.log"];
-    git.head = () => "1111111aaaa";
+    git.dirtyPaths.push("src/a.ts", "my file.ts", "stray.log");
+    // The stage's entry stays in_progress through its commit: no TASKS block.
+    assert.equal(call("stage1.1", "DONE", "src/a.ts, mine.ts, my file.ts").stdout, "SKILL: viber:commit | id: commit.2\nsrc/a.ts\n");
+    assert.equal(call("stage1.1", "DONE").stdout, "WAIT\n");
+    made(git, ["src/a.ts"], "1111111aaaa");
+    assert.match(call("commit.2", "DONE").stdout, /^TASKS\ncompleted \| 1\. First\nin_progress \| 2\. Second\n\nDISPATCH: viber:simple-coder \| id: stage2\.3\n/);
+    git.dirtyPaths.push("src/b.ts");
+    assert.equal(call("stage2.3", "DONE", "src/b.ts").stdout, "SKILL: viber:commit | id: commit.4\nsrc/b.ts\n");
+    // HEAD did not move: stage 2 is not committed, its file goes with the next commit.
+    assert.match(call("commit.4", "LOST").stdout, /DISPATCH: viber:simple-coder \| id: tests\.5\n/);
+    assert.equal(call("tests.5", "DONE").stdout, "SKILL: viber:commit | id: commit.6\nsrc/b.ts\n");
+    made(git, ["src/b.ts"], "2222222bbbb");
+    assert.match(call("commit.6", "DONE").stdout, /^TASKS\ncompleted \| Full test run\nin_progress \| Code review\n\nSKILL: code-review \| id: review\.7\n/);
+    git.changesText = "A\tsrc/a.ts\nA\tsrc/b.ts";
+    assert.match(call("review.7", "FOUND", "0 0").stdout, /DISPATCH: viber:memory-writer \| id: memory\.8\n/);
     assert.equal(
-      call("commit.6", "DONE").stdout,
+      call("memory.8", "NONE").stdout,
       [
         "END",
         "Stages done: 2 of 2.",
@@ -228,7 +238,9 @@ describe("runSimple", () => {
         `Review findings: 0, not nit: 0. Review file: ${REVIEW}`,
         "No finding needed a fix.",
         "- memory | nothing to update",
-        "The change is committed: 1111111.",
+        "Stage 1 is committed: 1111111.",
+        "Stage 2 is not committed.",
+        "The fixes of the full test run are committed: 2222222.",
         "Left uncommitted: my file.ts",
         "Left uncommitted, changed before the run too: mine.ts",
         "Left uncommitted, reported by no coder: stray.log",
@@ -237,19 +249,33 @@ describe("runSimple", () => {
     );
   });
 
-  it("a commit that did not move HEAD: not committed, its files named", () => {
-    const { call } = closed("src/a.ts", ["src/a.ts"]);
-    call("memory.5", "NONE");
-    assert.match(call("commit.6", "LOST").stdout, /\nThe change is not committed\.\nLeft uncommitted: src\/a\.ts\n$/);
-  });
-
-  it("a stopped run: no commit, the reported and the unreported files named", () => {
+  it("the fix of the findings is committed before the close", () => {
     const { git, call } = run();
     call("start");
-    git.dirtyPaths.push("src/a.ts", "stray.log");
+    call("stage1.1", "DONE");
+    call("stage2.2", "DONE");
+    call("tests.3", "DONE");
+    call("review.4", "FOUND", "2 1");
+    git.dirtyPaths.push("src/a.ts");
+    assert.equal(call("fix.5", "DONE", "src/a.ts").stdout, "SKILL: viber:commit | id: commit.6\nsrc/a.ts\n");
+    made(git, ["src/a.ts"], "3333333cccc");
+    assert.match(call("commit.6", "DONE").stdout, /^END\n(.*\n)*The findings were fixed, except the nit ones, and the full test suite ran once more\.\nThe fix of the findings is committed: 3333333\.\n$/);
+  });
+
+  // Changed on purpose: a stop leaves the commits made before it and names its own step as not committed.
+  it("a stopped run: the commits before it stay, its step is left uncommitted and named; resume commits it", () => {
+    const { git, call } = run();
+    call("start");
+    git.dirtyPaths.push("src/a.ts");
+    call("stage1.1", "DONE", "src/a.ts");
+    made(git, ["src/a.ts"], "1111111aaaa");
+    call("commit.2", "DONE");
+    git.dirtyPaths.push("src/b.ts", "stray.log");
     assert.equal(
-      call("stage1.1", "BLOCKED", "src/a.ts").stdout,
-      "END\nStage 1 is blocked.\nNo reason was written.\nStages done: 0 of 2.\nNothing is committed: the run stopped.\nLeft uncommitted: src/a.ts\nLeft uncommitted, reported by no coder: stray.log\n",
+      call("stage2.3", "BLOCKED", "src/b.ts").stdout,
+      "END\nStage 2 is blocked.\nNo reason was written.\nStages done: 1 of 2.\nStage 1 is committed: 1111111.\nThe run stopped: its open step is not committed.\nLeft uncommitted: src/b.ts\nLeft uncommitted, reported by no coder: stray.log\n",
     );
+    assert.match(call("resume", "go on").stdout, /DISPATCH: viber:simple-coder \| id: stage2\.4\n/);
+    assert.equal(call("stage2.4", "DONE").stdout, "SKILL: viber:commit | id: commit.5\nsrc/b.ts\n");
   });
 });

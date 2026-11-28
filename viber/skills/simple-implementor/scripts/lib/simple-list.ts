@@ -2,8 +2,10 @@
  * simple-list.ts - the session's task list as a function of the run's state:
  * one entry a stage, one the full test run, one the code review with the fix
  * of its findings, one the memory writer, one the rules writer unless
- * `build.rules` is `false`, one the commits. simple-run.ts prints the entries a call changed,
- * the simple-implementor skill mirrors them with the task-list tools.
+ * `build.rules` is `false`, one the commit of the writers' files. A coder
+ * step's entry stays `in_progress` through its own commit. simple-run.ts
+ * prints the entries a call changed, the simple-implementor skill mirrors them
+ * with the task-list tools.
  */
 
 import type { Stage } from "./simple-stages.ts";
@@ -13,7 +15,7 @@ export const TESTS = "Full test run";
 export const REVIEW = "Code review";
 export const MEMORY = "Update project memory";
 export const RULES = "Update project rules";
-export const COMMIT = "Commit the change";
+export const COMMIT = "Commit memory and rules";
 
 const line = (done: boolean, now: boolean, subject: string): string => `${done ? "completed" : now ? "in_progress" : "pending"} | ${subject}`;
 
@@ -29,7 +31,7 @@ export function listOf(state: State, stages: Stage[], rules: boolean): string[] 
   };
   out.push(writer("memory.", MEMORY));
   if (rules) out.push(writer("rules.", RULES));
-  // Never completed: END, which follows the last commit, prints no entry.
+  // Never completed: END, which follows that commit, prints no entry.
   out.push(line(false, state.step === "commit", COMMIT));
   return out;
 }

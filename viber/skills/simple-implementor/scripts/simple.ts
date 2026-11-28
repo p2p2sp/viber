@@ -54,7 +54,8 @@
  *            END again once the run ended.
  *   cwd    : any directory inside the host project, a git repository with a
  *            commit.
- *   reads  : the plan, git status, HEAD and HEAD sizes, the files below <dir>,
+ *   reads  : the plan, git status, HEAD and HEAD sizes, the names `git diff`
+ *            gives from <base> to HEAD, the files below <dir>,
  *            .claude/viber.yml (`build.rules`), the rule files under
  *            .claude/rules/ and the memory files and rule files the writers
  *            wrote.
@@ -63,26 +64,30 @@
  *                      in flight, the awaited ids and their sequence number,
  *                      the tries of the dispatch in flight, `before` (the
  *                      repo-relative paths that differed from HEAD at `start`:
- *                      the user's own files), `kept` (the memory files and
- *                      files under .claude/rules/viber/ that differed from HEAD
- *                      on entering the writers step, none of `before`: a coder
- *                      of this run changed them) and `gone` (those of `kept`
+ *                      the user's own files), `base` (HEAD at `start`), `kept`
+ *                      (the memory files and files under .claude/rules/viber/
+ *                      that differed from HEAD on entering the writers step,
+ *                      none of `before`: a coder of this run changed them and
+ *                      no commit took them) and `gone` (those of `kept`
  *                      absent from disk then), the change list, the
  *                      writers' overrun counters, the review's numbers, the
- *                      commits with their paths, the one awaited and HEAD
- *                      when it was sent, the step a stop left open, the END
- *                      lines.
+ *                      paths of the commit awaited and HEAD when it was sent,
+ *                      every path a commit block named, the commits' lines,
+ *                      the step a stop left open, the END lines.
  *            <dir>/kept/<path> : the content of each `kept` path present on
  *                      entering the writers step, written on that entry.
  *            <dir>/memory-changes.md, <dir>/rules-changes.md : each writer's
  *                      own change list, rewritten on each of its dispatches
- *                      only: one `<status>\t<path>` line a repo-relative path
- *                      that differs from HEAD on entering the writers step
- *                      and is either not in `before` or named in some coder
- *                      return's FILES, never one under .temp/; <status> `A`
- *                      (HEAD lacks it), `D` (gone from disk) or `M`. On a
- *                      retry, a `W\t<path>` line follows for each of that
- *                      writer's earlier writes (see limits).
+ *                      only: first the lines of `git diff --name-status
+ *                      <base> HEAD` (what the commits of the run hold, both
+ *                      paths of a rename), then one `<status>\t<path>` line a
+ *                      repo-relative path, none of those, that differs from
+ *                      HEAD on entering the writers step and is either not in
+ *                      `before` or named in some coder return's FILES, never
+ *                      one under .temp/; <status> `A` (HEAD lacks it), `D`
+ *                      (gone from disk) or `M`. On a retry, a `W\t<path>`
+ *                      line follows for each of that writer's earlier writes
+ *                      (see limits).
  *            <dir>/suggest.md, <dir>/rules.md : not written by the script:
  *                      the memory writer's suggestions for the root CLAUDE.md
  *                      and the rules writer's notes; removed before each of
@@ -119,9 +124,11 @@
  *            `<n>. <goal>` (its heading's text); `Full test run`; `Code
  *            review`, `in_progress` through the fix of its findings too;
  *            `Update project memory`; `Update project rules`, unless
- *            `build.rules` of .claude/viber.yml is `false`; `Commit the
- *            change`, `in_progress` while a commit is awaited, never
- *            `completed`. A writer's entry is `completed` once the writers
+ *            `build.rules` of .claude/viber.yml is `false`; `Commit memory
+ *            and rules`, `in_progress` while the commit of the writers' files
+ *            is awaited, never `completed`. The entry of a stage, of the full
+ *            test run and of the review stays `in_progress` through the
+ *            commit of its step. A writer's entry is `completed` once the writers
  *            step runs and no dispatch of its own is awaited, one never sent
  *            too. An entry dispatched again stays `in_progress`.
  *            Then one of:
@@ -160,10 +167,11 @@
  *            or
  *              SKILL: code-review | id: <id>
  *              <one line: the arguments of the skill, verbatim>
- *            its line: `write the result to one markdown file at <review
- *            file>, each finding with its severity (important, pre_existing
- *            or nit), and return only the number of findings and the number of
- *            them that are not nit`;
+ *            its line: `review the diff that git diff <base> prints (the
+ *            commits of the run and the work tree), write the result to one
+ *            markdown file at <review file>, each finding with its severity
+ *            (important, pre_existing or nit), and return only the number of
+ *            findings and the number of them that are not nit`;
  *            or
  *              SKILL: viber:commit | id: <id>
  *              <one line: the arguments of the skill, verbatim>
@@ -215,13 +223,14 @@
  *                that is no file of the repository or lies under .temp/;
  *                `- <name> | nothing to update` (`NONE`);
  *                `- <name> | the writer returned <WORD>` (any other word);
- *              the commits' lines: `Nothing is committed: the run stopped.`
- *              (only on a stop); `Nothing to commit.` (no commit held a
- *              path); else, for each commit sent, `The change is committed:
- *              <short sha>.` or `The writers' files are committed: <short
- *              sha>.` when HEAD moved between its block and its return,
- *              `The change is not committed.` or `The writers' files are not
- *              committed.` when it did not;
+ *              the commits' lines, one for each commit block sent, in
+ *              order: `<subject> committed: <short sha>.` when HEAD moved
+ *              between its block and its return, `<subject> not committed.`
+ *              when it did not; <subject> is `Stage <n> is`, `The fixes of
+ *              the full test run are`, `The fix of the findings is` or `The
+ *              writers' files are`; then `The run stopped: its open step is
+ *              not committed.` (only on a stop), or `Nothing to commit.`
+ *              alone (no stop, no commit block sent);
  *              what still differs from HEAD, none under .temp/, paths
  *              separated by `, `:
  *                `Left uncommitted: <paths>`: the paths, none of `before`,
@@ -240,27 +249,30 @@
  *                       together; after the last stage's `DONE` the full test
  *                       run; after its `DONE` the review; with <not nit> above
  *                       0 the fix, else the writers; after the fix's `DONE`
- *                       the writers; after the writers the commits. Never a
- *                       second review.
+ *                       the writers; after the writers their commit. Each
+ *                       stage, the full test run and the fix is followed by
+ *                       its own commit before the next step. Never a second
+ *                       review.
  *              retry  : a coder's `BLOCKED` ends the run at once (the stop
  *                       lines): it waits for a decision, which the same block
  *                       again does not bring. Any other return that is no
  *                       `DONE` (`LOST`) prints the same block once more under
  *                       a new id; the second in a row ends the run. Its FILES
  *                       are added to changed.md either way. A stopped run
- *                       keeps its state and work files: `resume` reopens it.
+ *                       keeps its state, its work files and the commits made:
+ *                       `resume` reopens it.
  *              review : `FOUND` with two numbers records them; `LOST`, any
  *                       other word or a value that is not two numbers is a
  *                       review that gave no numbers: no fix, the writers.
  *              writers: after the last code-changing step (the fix, or the
  *                       review when no fix runs or it gave no numbers),
- *                       before the commits; a stopped run sends none. The
+ *                       before their commit; a stopped run sends none. The
  *                       memory writer when the change list is not empty; the
  *                       rules writer when
  *                       `build.rules` of .claude/viber.yml is not `false` and
  *                       a listed path matches a `paths:` glob of a rule under
- *                       .claude/rules/. Neither: the commits. They return in
- *                       any order; the commits follow the last.
+ *                       .claude/rules/. Neither: their commit. They return in
+ *                       any order; their commit follows the last.
  *              protect: `before` is never the writers': never measured,
  *                       listed as `W`, restored or removed.
  *              limits : on each return, the net growth in bytes since
@@ -277,18 +289,20 @@
  *                       writer files under .claude/rules/viber/ that exist
  *                       at HEAD. Any other reported path is left in the
  *                       tree and noted.
- *              commits: after the writers, one block at a time, each only
- *                       when it holds a path: first the change (the paths
- *                       that differ from HEAD, are listed in changed.md, are
- *                       none of `before` and none of the second commit),
- *                       then the writers' files (those a writer changed
- *                       since entering the writers step and may write, none
- *                       of `before`: a memory file a coder changed too is
- *                       among them). A path holding a blank, a comma or an
- *                       apostrophe is in neither: the commit skill cannot
- *                       read it in a list. A stopped run sends none. The
- *                       script never reads what the skill returned: a commit
- *                       is made when HEAD moved.
+ *              commits: one block at a time, each only when it holds a
+ *                       path. After the `DONE` of a stage, of the full test
+ *                       run and of the fix: the paths that differ from HEAD,
+ *                       are listed in changed.md and are none of `before`, so
+ *                       a path an earlier commit did not take rides along;
+ *                       the next step follows its return, or the `DONE` at
+ *                       once when it holds no path. After the writers: the
+ *                       files a writer changed since entering the writers
+ *                       step and may write, none of `before`. A path holding
+ *                       a blank, a comma or an apostrophe is in none: the
+ *                       commit skill cannot read it in a list. A step that
+ *                       stopped the run is not committed; the commits before
+ *                       it stay. The script never reads what the skill
+ *                       returned: a commit is made when HEAD moved.
  *   stderr : one line naming the cause when the exit is 2, the usage on a call
  *            that matches no form.
  *   exit   : 0 with blocks on stdout; 2 on bad usage, a bad session id, an

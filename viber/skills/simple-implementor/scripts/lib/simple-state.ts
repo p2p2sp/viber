@@ -3,14 +3,8 @@
  * <root>/.temp/viber/<session-id>/simple/state.json, never committed.
  */
 
-/** The step in flight; `end` once END was printed. */
+/** The step in flight; `commit` is the commit of the writers' files, `end` once END was printed. */
 export type Step = "stage" | "tests" | "review" | "fix" | "writers" | "commit" | "end";
-
-/** One commit the commit skill is asked for: the change, or the files the writers wrote. */
-export interface Commit {
-  what: "change" | "writers";
-  paths: string[];
-}
 
 export interface State {
   step: Step;
@@ -24,6 +18,8 @@ export interface State {
   tries: number;
   /** The repo-relative paths that differed from HEAD at `start`: the user's own files. */
   before: string[];
+  /** HEAD at `start`: the review reads the change from it, the writers' change list too. */
+  base: string;
   /** True once the full test run returned `DONE`. */
   tested: boolean;
   /** The numbers the review gave, `lost` when it gave none, null before it returned. */
@@ -34,7 +30,7 @@ export interface State {
   waiting: string[];
   /**
    * The memory files and files under .claude/rules/viber/ that differed from HEAD on entering `writers`, none of `before`: a coder
-   * of this run changed them. Each is snapshotted at <dir>/kept/<path> on that entry; a writer is measured and restored against it.
+   * of this run changed them and no commit took them. Each is snapshotted at <dir>/kept/<path> on that entry; a writer is measured and restored against it.
    */
   kept: string[];
   /** The paths of `kept` absent from disk on entering `writers`: no snapshot, restored by removal. */
@@ -45,27 +41,28 @@ export interface State {
   overruns: { memory: number; rules: number };
   /** The writers' lines under END. */
   notes: string[];
-  /** The commits of the run in order, set on entering `commit`: the change, then the writers' files, one with no path left out. */
-  commits?: Commit[];
-  /** The index in `commits` of the commit awaited; their count once every one returned. */
-  commit?: number;
+  /** The paths of the commit awaited: that of the step in flight, a coder's or `commit`. Absent while none is awaited. */
+  commit?: string[];
   /** HEAD when the commit awaited was sent: a commit is made once HEAD moved off it. */
   head?: string;
-  /** The commits' lines under END. */
-  committed?: string[];
+  /** The commits' lines under END, one for each commit block sent. */
+  committed: string[];
+  /** Every path a commit block named. */
+  handed: string[];
   /** The step a `BLOCKED` or a second lost return stopped the run at, until `resume` reopens it. */
   stopped?: "stage" | "tests" | "fix";
   /** The lines under END. */
   end: string[];
 }
 
-export const freshState = (before: string[]): State => ({
+export const freshState = (before: string[], base: string): State => ({
   step: "stage",
   stage: 0,
   open: "",
   seq: 0,
   tries: 0,
   before,
+  base,
   tested: false,
   review: null,
   fixed: false,
@@ -75,5 +72,7 @@ export const freshState = (before: string[]): State => ({
   listed: [],
   overruns: { memory: 0, rules: 0 },
   notes: [],
+  committed: [],
+  handed: [],
   end: [],
 });
