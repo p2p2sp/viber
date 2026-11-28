@@ -21,7 +21,7 @@ const line = (done: boolean, now: boolean, subject: string): string => `${done ?
 
 /** Every entry as `<status> | <subject>`, in list order. `rules`: `build.rules` is not `false`. */
 export function listOf(state: State, stages: Stage[], rules: boolean): string[] {
-  const out = stages.map((stage, index) => line(index < state.stage, index === state.stage && state.step === "stage", `${stage.num}. ${stage.goal}`));
+  const out = stages.map((stage, index) => line(index < state.stage, index === state.stage && state.step === "stage", `T${stage.num} - ${stage.goal}`));
   // The fix step belongs to the review it repairs.
   out.push(line(state.tested, state.step === "tests", TESTS), line(state.review !== null && state.step !== "fix", state.step === "review" || state.step === "fix", REVIEW));
   // A writer of the step in flight is done once no dispatch of its own is awaited, one never sent too.

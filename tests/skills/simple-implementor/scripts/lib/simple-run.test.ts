@@ -30,8 +30,8 @@ describe("runSimple", () => {
       call("start").stdout,
       [
         "TASKS",
-        "in_progress | 1. First",
-        "pending | 2. Second",
+        "in_progress | T1 - First",
+        "pending | T2 - Second",
         "pending | Full test run",
         "pending | Code review",
         // Changed on purpose: the writers' entries are listed from the start.
@@ -63,7 +63,7 @@ describe("runSimple", () => {
   it("stages in order, then the test run, the review, the fix, the end", () => {
     const { call } = run();
     call("start");
-    assert.match(call("stage1.1", "DONE").stdout, /^TASKS\ncompleted \| 1\. First\nin_progress \| 2\. Second\n\nDISPATCH: viber:simple-coder \| id: stage2\.2\n/);
+    assert.match(call("stage1.1", "DONE").stdout, /^TASKS\ncompleted \| T1 - First\nin_progress \| T2 - Second\n\nDISPATCH: viber:simple-coder \| id: stage2\.2\n/);
     assert.match(call("stage2.2", "DONE").stdout, /DISPATCH: viber:simple-coder \| id: tests\.3\nchanged: .*\nblocked: .*\/blocked\/tests\.md\ndeviations: .*\ngoal: run the full test suite once and fix what the change broke\n$/);
     assert.equal(
       call("tests.3", "DONE").stdout,
@@ -144,8 +144,8 @@ describe("runSimple", () => {
       call("resume", " add it,\nnothing else ").stdout,
       [
         "TASKS",
-        "completed | 1. First",
-        "in_progress | 2. Second",
+        "completed | T1 - First",
+        "in_progress | T2 - Second",
         "pending | Full test run",
         "pending | Code review",
         "pending | Update project memory",
@@ -219,7 +219,7 @@ describe("runSimple", () => {
     assert.equal(call("stage1.1", "DONE", "src/a.ts, mine.ts, my file.ts").stdout, "SKILL: viber:commit | id: commit.2\nsrc/a.ts\n");
     assert.equal(call("stage1.1", "DONE").stdout, "WAIT\n");
     made(git, ["src/a.ts"], "1111111aaaa");
-    assert.match(call("commit.2", "DONE").stdout, /^TASKS\ncompleted \| 1\. First\nin_progress \| 2\. Second\n\nDISPATCH: viber:simple-coder \| id: stage2\.3\n/);
+    assert.match(call("commit.2", "DONE").stdout, /^TASKS\ncompleted \| T1 - First\nin_progress \| T2 - Second\n\nDISPATCH: viber:simple-coder \| id: stage2\.3\n/);
     git.dirtyPaths.push("src/b.ts");
     assert.equal(call("stage2.3", "DONE", "src/b.ts").stdout, "SKILL: viber:commit | id: commit.4\nsrc/b.ts\n");
     // HEAD did not move: stage 2 is not committed, its file goes with the next commit.

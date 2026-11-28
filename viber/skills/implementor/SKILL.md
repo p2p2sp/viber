@@ -52,6 +52,6 @@ After the last stage returned `DONE`:
 
 Mirror the build in the task list, every subject in the conversation's language:
 
-- After the split, before the first dispatch, `TaskCreate` in one message an entry per stage, in order, then one for the full test run and one for the commit. A stage's subject is `<n>. <its goal in a few words>`; `description` repeats the subject.
+- After the split, before the first dispatch, `TaskCreate` in one message an entry per stage, in order, then one for the full test run and one for the commit. A stage's subject is `T<n> - <its goal in a few words>`; `description` repeats the subject.
 - `TaskUpdate` an entry to `in_progress` in the message that starts its step, to `completed` once the step returned `DONE`. An entry dispatched again stays `in_progress`.
 - Clear the task list: `TaskList`, then `TaskUpdate` to `deleted` every entry you created.

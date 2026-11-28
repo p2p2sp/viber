@@ -121,7 +121,7 @@
  *            for each entry whose status it changed, every entry on `start`
  *            and on a `resume` that reopens a run, none with `END`. <status>
  *            is `pending`, `in_progress` or `completed`. The entries, in order: one a stage, subject
- *            `<n>. <goal>` (its heading's text); `Full test run`; `Code
+ *            `T<n> - <goal>` (of its heading); `Full test run`; `Code
  *            review`, `in_progress` through the fix of its findings too;
  *            `Update project memory`; `Update project rules`, unless
  *            `build.rules` of .claude/viber.yml is `false`; `Commit memory
